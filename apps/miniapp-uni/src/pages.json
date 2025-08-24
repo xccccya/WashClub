@@ -32,10 +32,10 @@
 		}
 		,
 		{
-			"path": "pages/avatar-editor/index",
-			"style": { "navigationBarTitleText": "头像编辑" }
+			"path": "pages/settings/index",
+			"style": { "navigationBarTitleText": "设置" }
 		}
-,
+		,
 		{
 			"path": "pages/vehicle/list",
 			"style": { "navigationBarTitleText": "车辆管理" }

@@ -3,6 +3,14 @@ export type HttpClientConfig = {
 	getToken?: () => string | undefined;
 };
 
+// 覆盖 RequestInit 的 body 类型，允许直接传入对象
+export type HttpRequestOptions = Omit<RequestInit, 'body'> & {
+    // 允许任意可序列化对象或原有的 BodyInit 类型
+    // 使用 unknown 以便调用侧可直接传入 { ... }
+    body?: unknown;
+    query?: Record<string, unknown>;
+};
+
 // 声明以便小程序端类型通过；在非小程序端不会产生实际影响
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const uni: any;
@@ -11,7 +19,7 @@ export const createHttpClient = (config: HttpClientConfig = {}) => {
 	const { baseUrl = '', getToken } = config;
 	return async <T>(
 		url: string,
-		options: RequestInit & { query?: Record<string, unknown> } = {},
+		options: HttpRequestOptions = {},
 	): Promise<T> => {
 		const headers: HeadersInit = {
 			'Content-Type': 'application/json',

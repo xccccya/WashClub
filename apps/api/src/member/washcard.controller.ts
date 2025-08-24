@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Put, Query, Delete } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { WashCardService } from './washcard.service.js';
 
@@ -49,6 +49,9 @@ export class WashCardController {
 
     @Post(':id/set-default')
     adminSetDefault(@Param('id') id: string){ return this.service.setDefault(Number(id)); }
+
+    @Delete(':id')
+    adminDelete(@Param('id') id: string){ return this.service.deleteCard(Number(id)); }
 
     // 会员端
     @Get('me/list')

@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 
 @Controller('content/car')
 export class CarDataController {
-	private readonly apiKey = process.env.CAR_API_KEY || '79c9ec9af0555d0de315b5675f6b1453';
+	private readonly apiKey = process.env.TANSHU_CAR_API_KEY || process.env.CAR_API_KEY || '';
 	private static brandsCache: { data: any[]; ts: number } = { data: [], ts: 0 };
 	private static seriesCache = new Map<number, { data: any[]; ts: number }>();
 	private static readonly BRANDS_TTL_MS = 24 * 60 * 60 * 1000; // 24h

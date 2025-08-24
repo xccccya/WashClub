@@ -64,7 +64,7 @@ async function addShare(){
 		const member = await http<any>(`/member/list?page=1&pageSize=1&keyword=${encodeURIComponent(p)}`, { method: 'GET' });
 		const match = Array.isArray(member?.items) ? member.items.find((x:any)=> x.phone === p) : null;
 		if (!match?.id) { uni.showToast({ title: '未找到该会员', icon: 'none' }); return; }
-		await http(`/wash-card/${cardId.value}/shares`, { method: 'POST', body: { memberId: match.id } });
+		await http(`/wash-card/${cardId.value}/shares`, { method: 'POST', body: { memberId: match.id } as any });
 		uni.showToast({ title: '添加成功', icon: 'success' });
 		phone.value = '';
 		await fetchShares();

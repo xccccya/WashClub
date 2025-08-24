@@ -21,8 +21,8 @@ class SendCodeDto {
 
 	@IsString()
 	@IsOptional()
-	@IsIn(['login', 'resetPwd'])
-	purpose?: string;
+	@IsIn(['login', 'resetPwd', 'changePhone'])
+	purpose?: string; // login=登录/注册，resetPwd=重置密码，changePhone=更换手机号
 }
 
 class LoginByCodeDto {
@@ -47,6 +47,26 @@ class ResetPasswordDto {
 	@IsString()
 	@MinLength(6)
 	newPassword!: string;
+}
+
+class ChangePhoneByCodeDto {
+	@IsString()
+	@IsNotEmpty()
+	oldPhone!: string;
+
+	@IsString()
+	@IsNotEmpty()
+	newPhone!: string;
+
+	@IsString()
+	@IsNotEmpty()
+	code!: string;
+}
+
+class ResolvePhoneDto {
+	@IsString()
+	@IsNotEmpty()
+	code!: string;
 }
 
 class UpdateNicknameDto {
@@ -109,6 +129,18 @@ export class AuthController {
 	@Post('reset-password')
 	resetPassword(@Body() dto: ResetPasswordDto) {
 		return this.service.resetMemberPasswordByCode(dto.phone, dto.code, dto.newPassword);
+	}
+
+	// 短信验证码更换会员手机号（用途 purpose: changePhone）
+	@Post('change-phone')
+	changePhone(@Body() dto: ChangePhoneByCodeDto) {
+		return this.service.changeMemberPhoneByCode(dto.oldPhone, dto.newPhone, dto.code);
+	}
+
+	// 通过微信实时手机号能力返回的 code 获取纯手机号
+	@Post('wechat/resolve-phone')
+	resolvePhone(@Body() dto: ResolvePhoneDto) {
+		return this.service.resolvePhoneByWechatCode(dto.code);
 	}
 
 	// 微信一键登录：手机号快速验证 + wx.login 获取 openid

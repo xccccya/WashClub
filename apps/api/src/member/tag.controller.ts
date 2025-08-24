@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { MemberTagService } from './tag.service.js';
 
@@ -18,6 +18,16 @@ export class MemberTagController {
 
 	@Delete(':id')
 	remove(@Param('id') id: string) { return this.service.remove(Number(id)); }
+
+	@Get(':id/members')
+	members(
+		@Param('id') id: string,
+		@Query('page') page?: string,
+		@Query('pageSize') pageSize?: string,
+		@Query('keyword') keyword?: string,
+	) {
+		return this.service.listMembers(Number(id), Number(page||1), Number(pageSize||20), keyword);
+	}
 }
 
 

@@ -4,7 +4,15 @@
 		<!-- 顶部个人信息卡片 -->
 		<view class="card profile-card" @tap="onTapProfile">
 			<view class="profile-left">
+				<!-- #ifdef MP-WEIXIN -->
+				<view class="avatar-wrap">
+					<image class="avatar" :src="avatarUrl || defaultAvatar" mode="aspectFill" />
+					<button class="avatar-btn-abs" open-type="chooseAvatar" hover-class="none" @chooseavatar="onChooseWeixinAvatar" />
+				</view>
+				<!-- #endif -->
+				<!-- #ifdef H5 -->
 				<image class="avatar" :src="avatarUrl || defaultAvatar" mode="aspectFill" @tap.stop="onTapAvatar" />
+				<!-- #endif -->
 				<view class="meta">
 					<view class="chips-row">
 						<template v-if="isLoggedIn">
@@ -145,7 +153,35 @@ onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: tru
 // #endif
 onBeforeUnmount(() => { try { uni.$off?.('auth:changed', handleAuthChanged); } catch {} });
 
-function onTapSetting() {}
+function onTapSetting() { try { uni.navigateTo({ url: '/pages/settings/index' }); } catch {} }
+// 微信小程序头像更换：与 settings 页面保持一致
+function onChooseWeixinAvatar(e: any) {
+    if (!isLoggedIn.value) { navigate('/pages/login/index'); return; }
+    const tempUrl = e?.detail?.avatarUrl as string | undefined;
+    if (!tempUrl) return;
+    uni.uploadFile({
+        url: `${API_BASE}/file/upload`,
+        filePath: tempUrl,
+        name: 'file',
+        formData: { dir: 'miniapp' },
+        header: { Authorization: `Bearer ${uni.getStorageSync('token')||''}` },
+        success: async (resUp: any) => {
+            try {
+                const data = JSON.parse(resUp.data || '{}');
+                const url = data?.url || '';
+                if (!url) { uni.showToast({ title: '上传失败', icon: 'none' }); return; }
+                const userObj:any = uni.getStorageSync('user') || {};
+                await http(`/member/${userObj?.id}`, { method: 'PUT', body: { avatarUrl: url } });
+                avatarUrl.value = toAbs(url);
+                try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
+                uni.showToast({ title: '已更新头像', icon: 'success' });
+            } catch (e:any) {
+                uni.showToast({ title: e?.message?.slice(0,30) || '保存失败', icon: 'none' });
+            }
+        },
+        fail: ()=> uni.showToast({ title:'上传失败', icon:'none' })
+    });
+}
 function onTapAvatar(){
 	if (!isLoggedIn.value) { navigate('/pages/login/index'); return; }
 	uni.showActionSheet({
@@ -226,6 +262,9 @@ function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'
 .profile-card { display:flex; align-items:center; justify-content: space-between; background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
 .profile-left { display:flex; align-items:center; gap: 24rpx; flex: 1; min-width: 0; }
 .avatar { width: 120rpx; height: 120rpx; border-radius: 50%; background: linear-gradient(135deg, #a8d8ff, #ffc9de); box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.08); }
+.avatar-wrap { position: relative; width: 120rpx; height: 120rpx; }
+.avatar-btn-abs { position: absolute; inset: 0; background: transparent; border: none; opacity: 0; }
+.avatar-btn-abs::after, .avatar-btn-abs:after { border: none; border-width: 0; content: none; }
 .meta { display:flex; flex-direction: column; gap: 10rpx; flex: 1; min-width: 0; }
 .chips-row { display:flex; align-items:center; gap: 16rpx; min-width: 0; }
 .nickname-text { font-size: 36rpx; font-weight: 800; color: #0b1220; letter-spacing: 1rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }

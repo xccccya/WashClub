@@ -152,11 +152,7 @@ function validate(){
 
 async function onSubmit(){
     if (!validate()) return;
-    try {
-        if (saving.value) return; saving.value = true;
-        try { uni.showLoading({ title: '正在保存，请稍候…', mask: true }); } catch {}
-        const http = createHttp();
-        const payload = {
+    const payload = {
             plateNumber: plate.value.trim(),
             typeMain: typeMain.value,
             typeSub: typeSub.value || undefined,
@@ -167,6 +163,10 @@ async function onSubmit(){
             brandId: brandId.value || undefined,
             seriesId: seriesId.value || undefined,
         };
+    try {
+        if (saving.value) return; saving.value = true;
+        try { uni.showLoading({ title: '正在保存，请稍候…', mask: true }); } catch {}
+        const http = createHttp();
         await http('/vehicle/me/create', { method: 'POST', body: payload });
         uni.showToast({ title: '已保存', icon: 'success' });
         setTimeout(()=>{

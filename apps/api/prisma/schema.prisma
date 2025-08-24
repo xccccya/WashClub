@@ -63,6 +63,7 @@ model MemberCategory {
 model MemberTag {
 	id      Int     @id @default(autoincrement())
 	name    String  @unique
+	isSystem Boolean @default(false)
 	members Member[]
 }
 

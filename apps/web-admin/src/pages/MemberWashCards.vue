@@ -32,13 +32,14 @@
 					</span>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="460">
+			<el-table-column label="操作" width="560">
 				<template #default="{ row }">
 					<el-button size="small" link @click="openAdd(row)">加次</el-button>
 					<el-button size="small" link type="warning" @click="openDeduct(row)">划扣</el-button>
 					<el-button size="small" link @click="openShare(row)">共享</el-button>
 					<el-button size="small" link @click="openLogs(row)">日志</el-button>
 					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)">设为默认</el-button>
+					<el-button size="small" link type="danger" @click="openDelete(row)">删除</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -162,6 +163,14 @@
 				<el-button @click="dialogLogs=false">关闭</el-button>
 			</template>
 		</el-dialog>
+
+		<el-dialog v-model="delDialog" title="确认删除" width="420px" @closed="clearDelTimer">
+			<div>确认删除该计次卡？将同时删除该卡的共享关系与日志记录，此操作不可恢复。</div>
+			<template #footer>
+				<el-button @click="delDialog=false">取消</el-button>
+				<el-button type="danger" :disabled="delCountdown>0" @click="onDeleteConfirm">{{ delCountdown>0 ? `确认(${delCountdown}s)` : '确认' }}</el-button>
+			</template>
+		</el-dialog>
 	</BasePage>
 </template>
 
@@ -205,6 +214,9 @@ const logsPageSize = ref(10);
 const logsTotal = ref(0);
 
 const current = ref<Card | null>(null);
+const delDialog = ref(false);
+const delCountdown = ref(0);
+let delTimer: any = null;
 
 function formatTime(v?: string | null){
     if (!v) return '';
@@ -265,6 +277,10 @@ function applyExpiryYears(years: number){
 function formatDateISO(d: Date){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 
 async function setDefault(card: Card){ await http(`/wash-card/${card.id}/set-default`, { method: 'POST' }); ElMessage.success('已设为默认'); fetchList(); }
+
+function openDelete(card: Card){ current.value = card; delCountdown.value = 5; delDialog.value = true; if (delTimer) { clearInterval(delTimer); delTimer = null; } delTimer = setInterval(()=>{ delCountdown.value = Math.max(0, delCountdown.value - 1); if (delCountdown.value === 0 && delTimer) { clearInterval(delTimer); delTimer = null; } }, 1000); }
+function clearDelTimer(){ if (delTimer) { clearInterval(delTimer); delTimer = null; } }
+async function onDeleteConfirm(){ if (!current.value) return; await http(`/wash-card/${current.value.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); }
 </script>
 
 <style scoped>

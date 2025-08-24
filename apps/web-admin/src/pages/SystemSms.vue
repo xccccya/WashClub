@@ -2,10 +2,11 @@
 	<BasePage title="短信管理">
 		<template #actions>
 			<el-input v-model="qPhone" placeholder="手机号" style="width:180px;" />
-			<el-select v-model="qPurpose" placeholder="用途" style="width:140px;margin-left:8px;">
+			<el-select v-model="qPurpose" placeholder="用途" style="width:180px;margin-left:8px;">
 				<el-option label="全部" value="" />
 				<el-option label="登录" value="login" />
 				<el-option label="重置密码" value="resetPwd" />
+				<el-option label="更换手机号" value="changePhone" />
 			</el-select>
 			<el-select v-model="qUsed" placeholder="状态" style="width:140px;margin-left:8px;">
 				<el-option label="全部" value="" />
@@ -53,7 +54,7 @@ import { createHttpClient } from '@wash/shared-utils';
 
 const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
 
-type SmsItem = { id: number; phone: string; code: string; purpose: 'login'|'resetPwd'; createdAt: string; expiresAt: string; usedAt?: string | null };
+type SmsItem = { id: number; phone: string; code: string; purpose: 'login'|'resetPwd'|'changePhone'; createdAt: string; expiresAt: string; usedAt?: string | null };
 
 const qPhone = ref('');
 const qPurpose = ref('');

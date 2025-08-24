@@ -236,6 +236,18 @@ export class WashCardService {
         if (!allowed) throw new UnauthorizedException('无权访问该洗车卡');
         return this.listLogs(cardId, page, pageSize);
     }
+
+    // 删除计次卡：同时删除共享与相关日志
+    async deleteCard(cardId: number){
+        const card = await this.prisma.washCard.findUnique({ where: { id: cardId } });
+        if (!card) throw new BadRequestException('洗车卡不存在');
+        await this.prisma.$transaction(async (tx) => {
+            await tx.washCardShare.deleteMany({ where: { cardId } });
+            await tx.washCardLog.deleteMany({ where: { cardId } });
+            await tx.washCard.delete({ where: { id: cardId } });
+        });
+        return { ok: true };
+    }
 }
 
 

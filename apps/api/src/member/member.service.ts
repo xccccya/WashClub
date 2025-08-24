@@ -67,12 +67,21 @@ export class MemberService {
 				if (!exists) break;
 			}
 			const password = data.password ? crypto.createHash('sha256').update(data.password).digest('hex') : undefined;
-			const tagsConnect = (data.tagIds || []).map((id) => ({ id }));
-			return tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: data.avatarUrl || null, tags: { connect: tagsConnect } } });
+			// 禁止手动添加系统标签；仅允许非系统标签通过手动方式添加
+			const inputTagIds = Array.isArray(data.tagIds) ? data.tagIds : [];
+			const systemTags = await tx.memberTag.findMany({ where: { id: { in: inputTagIds }, isSystem: true }, select: { id: true } });
+			if (systemTags.length > 0) {
+				throw new BadRequestException('不可手动为用户添加系统默认标签');
+			}
+			// 后台手动创建会员，自动打上“后台手动注册账号”（id=1，若存在）
+			const sysTag1 = await tx.memberTag.findUnique({ where: { id: 1 }, select: { id: true } });
+			const autoTagIds = sysTag1 ? [1] : [];
+			const connectTags = [...new Set([...autoTagIds, ...inputTagIds])].map((id) => ({ id }));
+			return tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: data.avatarUrl || null, tags: { connect: connectTags } } });
 		});
 	}
 
-	update(id: number, data: { name?: string; phone?: string; password?: string; points?: number; balance?: number; levelId?: number | null; categoryId?: number | null; tagIds?: number[]; avatarUrl?: string | null }) {
+	async update(id: number, data: { name?: string; phone?: string; password?: string; points?: number; balance?: number; levelId?: number | null; categoryId?: number | null; tagIds?: number[]; avatarUrl?: string | null }) {
 		const updateData = { ...data } as any;
 		// 防守式校验：若传入 name 则校验与规范化
 		if (Object.prototype.hasOwnProperty.call(data, 'name')) {
@@ -83,7 +92,15 @@ export class MemberService {
 		}
 		if (data.password) updateData.password = crypto.createHash('sha256').update(data.password).digest('hex');
 		if (data.tagIds) {
-			updateData.tags = { set: [], connect: data.tagIds.map((id) => ({ id })) };
+			const desiredTagIds: number[] = Array.isArray(data.tagIds) ? data.tagIds : [];
+			// 拦截系统标签：不允许手动传入系统标签
+			const sys = await this.prisma.memberTag.findMany({ where: { id: { in: desiredTagIds }, isSystem: true }, select: { id: true } });
+			if (sys.length > 0) throw new BadRequestException('不可手动为用户添加系统默认标签');
+			// 保留当前系统标签，不被 set 覆盖
+			const current = await this.prisma.member.findUnique({ where: { id }, include: { tags: true } });
+			const currentSystemTagIds = (current?.tags || []).filter((t: any) => (t as any).isSystem).map((t) => t.id);
+			const finalSetIds = Array.from(new Set([...currentSystemTagIds, ...desiredTagIds]));
+			updateData.tags = { set: finalSetIds.map((tid) => ({ id: tid })) };
 			delete updateData.tagIds;
 		}
 		return this.prisma.member.update({ where: { id }, data: updateData });
@@ -107,8 +124,33 @@ export class MemberService {
 		return this.prisma.member.update({ where: { id }, data: { password: hashed } });
 	}
 
-	remove(id: number) {
-		return this.prisma.member.delete({ where: { id } });
+	async remove(id: number) {
+		// 统一使用事务，确保相关资源清理
+		return this.prisma.$transaction(async (tx) => {
+			const m = await tx.member.findUnique({ where: { id } });
+			if (!m) throw new BadRequestException('会员不存在');
+			// 1) 清理该会员持有的洗车卡：先删共享与日志，再删卡
+			await tx.washCardShare.deleteMany({ where: { card: { ownerMemberId: id } } });
+			await tx.washCardLog.deleteMany({ where: { card: { ownerMemberId: id } } });
+			await tx.washCard.deleteMany({ where: { ownerMemberId: id } });
+			// 2) 清理该会员作为被共享者的记录
+			await tx.washCardShare.deleteMany({ where: { memberId: id } });
+			// 3) 清理涉及该会员的日志外键（置空），避免外键约束
+			await tx.washCardLog.updateMany({ where: { memberId: id }, data: { memberId: null } });
+			// 4) 解除会员与标签的关联（防御性处理）
+			await tx.member.update({ where: { id }, data: { tags: { set: [] } } });
+			// 5) 删除会员（其车辆通过 Vehicle.member 关系 onDelete: Cascade 自动删除）
+			// 先处理该会员的车辆及其引用，再删会员，避免外键约束问题
+			const vehicles = await tx.vehicle.findMany({ where: { memberId: id }, select: { id: true } });
+			const vehicleIds = vehicles.map((v) => v.id);
+			if (vehicleIds.length > 0) {
+				await tx.washCardLog.updateMany({ where: { vehicleId: { in: vehicleIds } }, data: { vehicleId: null } });
+				await tx.serviceQueueItem.updateMany({ where: { vehicleId: { in: vehicleIds } }, data: { vehicleId: null } });
+				await tx.vehicle.deleteMany({ where: { id: { in: vehicleIds } } });
+			}
+			await tx.member.delete({ where: { id } });
+			return { ok: true };
+		});
 	}
 }
 

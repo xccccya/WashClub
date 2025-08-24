@@ -84,6 +84,10 @@
 					</el-select>
 				</el-form-item>
 				<el-form-item label="会员标签">
+					<div v-if="systemTagsRO.length" style="margin-bottom:6px;">
+						<span style="margin-right:6px;color:#909399;">系统标签：</span>
+						<el-tag v-for="t in systemTagsRO" :key="t.id" type="info" effect="plain" style="margin-right:6px;">{{ t.name }}</el-tag>
+					</div>
 					<el-select
 						v-model="form.tagIds"
 						multiple
@@ -122,7 +126,7 @@
 		</el-dialog>
 
 		<el-dialog v-model="delDialog" title="确认删除" width="420px" @closed="clearDelTimer">
-			<div>确认删除该会员？此操作不可恢复。</div>
+			<div>确认删除该会员？将同时删除该会员的所有车辆、洗车计次卡及其共享与日志记录，此操作不可恢复。</div>
 			<template #footer>
 				<el-button @click="delDialog=false">取消</el-button>
 				<el-button type="danger" :disabled="delCountdown>0" @click="onDeleteConfirm">
@@ -150,7 +154,7 @@ const levels = ref<Level[]>([]);
 type Category = { id: number; name: string; weight: number };
 const categories = ref<Category[]>([]);
 
-type Tag = { id: number; name: string };
+type Tag = { id: number; name: string; isSystem?: boolean };
 const tagOptions = ref<Tag[]>([]);
 
 type Member = { id: number; uid: number; name: string; phone: string; points: number; balance: number; createdAt: string; lastActiveAt?: string | null; avatarUrl?: string | null; level?: Level; category?: Category; tags?: Tag[] };
@@ -165,6 +169,7 @@ const saving = ref(false);
 const current = ref<Member | null>(null);
 const formRef = ref();
 const form = ref<any>({ name: '', phone: '', levelId: undefined, categoryId: undefined, tagIds: [] as Array<number|string>, password: '', password2: '', points: 0, balance: 0, avatarUrl: undefined as string | null | undefined });
+const systemTagsRO = computed(() => (current.value?.tags || []).filter(t => (t as any).isSystem));
 
 const rules = {
 	name: [
@@ -207,7 +212,11 @@ function formatTime(v?: string | null) {
 
 async function fetchLevels(){ levels.value = await http<Level[]>('/member-level', { method: 'GET' }); }
 async function fetchCategories(){ categories.value = await http<Category[]>('/member-category', { method: 'GET' }); }
-async function fetchTags(){ tagOptions.value = await http<Tag[]>('/member-tag', { method: 'GET' }); }
+async function fetchTags(){
+	const all = await http<Tag[]>('/member-tag', { method: 'GET' });
+	// 前端在选择时隐藏系统默认标签，避免误选
+	tagOptions.value = all.filter(t => !t.isSystem);
+}
 
 async function fetchList() {
 	loading.value = true;
@@ -236,7 +245,8 @@ function openCreate() {
 
 function openEdit(item: Member) {
 	current.value = item;
-	form.value = { ...item, levelId: item.level?.id, categoryId: item.category?.id, tagIds: (item.tags||[]).map(t=>t.id), password: '', password2: '' };
+	const nonSystemTagIds = (item.tags||[]).filter((t: any) => !t.isSystem).map(t=>t.id);
+	form.value = { ...item, levelId: item.level?.id, categoryId: item.category?.id, tagIds: nonSystemTagIds, password: '', password2: '' };
 	dialogVisible.value = true;
 }
 
