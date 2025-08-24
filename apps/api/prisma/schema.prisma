@@ -1,0 +1,267 @@
+generator client {
+	provider = "prisma-client-js"
+}
+
+datasource db {
+	provider = "mysql"
+	url      = env("DATABASE_URL")
+}
+
+model User {
+	id        Int      @id @default(autoincrement())
+	createdAt DateTime @default(now())
+	updatedAt DateTime @updatedAt
+	phone     String   @unique
+	name      String?
+	password  String
+	role      String   @default("staff")
+	roleId    Int?
+	roleRef   AdminRole? @relation(fields: [roleId], references: [id])
+	weixinOpenId String? @unique
+	washCardLogsOperated WashCardLog[] @relation("UserOperatesWashCardLogs")
+}
+
+model Member {
+	id        Int       @id @default(autoincrement())
+	uid       Int       @unique
+	createdAt DateTime  @default(now())
+	updatedAt DateTime  @updatedAt
+	lastActiveAt DateTime?
+	avatarUrl String?
+	name      String
+	phone     String    @unique
+	password  String?
+	weixinOpenId String? @unique
+	points    Int       @default(0)
+	balance   Decimal   @default(0)
+	levelId   Int?
+	level     MemberLevel? @relation(fields: [levelId], references: [id])
+	categoryId Int?
+	category   MemberCategory? @relation(fields: [categoryId], references: [id])
+	tags       MemberTag[]
+	vehicles  Vehicle[]
+	washCardsOwned WashCard[] @relation("MemberOwnsWashCards")
+	washCardShares WashCardShare[] @relation("WashCardSharesToMember")
+	washCardLogsAffected WashCardLog[] @relation("MemberAffectedWashCardLogs")
+}
+
+model MemberLevel {
+	id     Int    @id @default(autoincrement())
+	name   String
+	weight Int    @default(0)
+	isDefault Boolean @default(false)
+	members Member[]
+}
+
+model MemberCategory {
+	id      Int     @id @default(autoincrement())
+	name    String
+	weight  Int     @default(0)
+	members Member[]
+}
+
+model MemberTag {
+	id      Int     @id @default(autoincrement())
+	name    String  @unique
+	members Member[]
+}
+
+model AdminRole {
+	id         Int      @id @default(autoincrement())
+	name       String
+	enabled    Boolean  @default(true)
+	isSystem   Boolean  @default(false)
+	permissions Json
+	users      User[]
+}
+
+model Vehicle {
+	id          Int       @id @default(autoincrement())
+	createdAt   DateTime  @default(now())
+	updatedAt   DateTime  @updatedAt
+	plateNumber String    @unique
+	vin         String?
+	brand       String?   @default("-")
+	series      String?   @default("-")
+	typeMain    String    @default("-")
+	typeSub     String?   @default("-")
+	color       String?   @default("-")
+	isDefault   Boolean   @default(false)
+	brandImage  String?
+	seriesImage String?
+	memberId    Int?
+	member      Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+	washCardLogs WashCardLog[] @relation("VehicleToWashCardLogs")
+	queueItems  ServiceQueueItem[]
+}
+
+
+// 洗车计次卡相关
+enum WashCardStatus {
+  ACTIVE
+  DISABLED
+  EXPIRED
+}
+
+enum WashCardLogAction {
+  ADD
+  DEDUCT
+  SHARE
+}
+
+enum WashCardLogReason {
+  BACKEND_ADD
+  PURCHASE_ADD
+  SERVICE_DEDUCT
+  REFUND_DEDUCT
+  BACKEND_DEDUCT
+  SHARE_ADD
+  SHARE_REMOVE
+}
+
+model WashCard {
+  id              Int              @id @default(autoincrement())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  name            String           @default("洗车计次卡")
+  ownerMemberId   Int
+  owner           Member           @relation("MemberOwnsWashCards", fields: [ownerMemberId], references: [id])
+  totalTimes      Int              @default(0)
+  remainingTimes  Int              @default(0)
+  status          WashCardStatus   @default(ACTIVE)
+  expiryAt        DateTime?
+  isDefault       Boolean          @default(false)
+
+  shares          WashCardShare[]
+  logs            WashCardLog[]
+}
+
+model WashCardShare {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  cardId    Int
+  card      WashCard  @relation(fields: [cardId], references: [id])
+  memberId  Int
+  member    Member    @relation("WashCardSharesToMember", fields: [memberId], references: [id])
+
+  @@unique([cardId, memberId])
+}
+
+model WashCardLog {
+  id               Int                 @id @default(autoincrement())
+  createdAt        DateTime            @default(now())
+  cardId           Int
+  card             WashCard            @relation(fields: [cardId], references: [id])
+  action           WashCardLogAction
+  reason           WashCardLogReason
+  change           Int                 // +增加/-减少次数
+  beforeRemaining  Int
+  afterRemaining   Int
+  remark           String?
+
+  operatorUserId   Int?
+  operatorUser     User?               @relation("UserOperatesWashCardLogs", fields: [operatorUserId], references: [id])
+
+  // 订单/业务占位字段（订单尚未开发）
+  serviceOrderId   Int?
+  purchaseOrderId  Int?
+  refundRecordId   Int?
+
+  vehicleId        Int?
+  vehicle          Vehicle?            @relation("VehicleToWashCardLogs", fields: [vehicleId], references: [id])
+
+  memberId         Int?                // 预留：关联受影响会员
+  member           Member?             @relation("MemberAffectedWashCardLogs", fields: [memberId], references: [id])
+}
+
+
+model ScrollNotice {
+	id         Int       @id @default(autoincrement())
+	createdAt  DateTime  @default(now())
+	updatedAt  DateTime  @updatedAt
+	// 通知类型：home 首页；store 商店页
+	type       String
+	content    String
+	enabled    Boolean   @default(false)
+}
+
+model AdBanner {
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  title        String?  // 可选标题
+  imageUrl     String   // 图片 URL（/uploads/...）
+  enabled      Boolean  @default(false)
+  jumpEnabled  Boolean  @default(false)
+  linkPath     String?  // 跳转路径（小程序页面路径）
+  weight       Int      @default(0) // 排序权重，越大越靠前
+}
+
+// 服务队列相关
+enum ServiceQueueStatus {
+	IN_QUEUE
+	SERVING
+	COMPLETED
+}
+
+enum ServiceTaskStatus {
+	PENDING
+	DOING
+	DONE
+}
+
+model ServiceQueueItem {
+	id              Int                 @id @default(autoincrement())
+	createdAt       DateTime            @default(now())
+	updatedAt       DateTime            @updatedAt
+
+	vehicleId       Int?
+	vehicle         Vehicle?            @relation(fields: [vehicleId], references: [id])
+
+	plateNumber     String
+	guest           Boolean             @default(false)
+
+	status          ServiceQueueStatus  @default(IN_QUEUE)
+	currentTaskIndex Int                @default(0)
+	startedAt       DateTime?
+	finishedAt      DateTime?
+
+	orderSort       Int                 @default(0)
+
+	tasks           ServiceTask[]
+}
+
+model ServiceTask {
+	id              Int               @id @default(autoincrement())
+	createdAt       DateTime          @default(now())
+	updatedAt       DateTime          @updatedAt
+
+	queueItemId     Int
+	queueItem       ServiceQueueItem  @relation(fields: [queueItemId], references: [id])
+
+	name            String
+	durationMin     Int               @default(5)
+	orderIndex      Int               @default(0)
+	status          ServiceTaskStatus @default(PENDING)
+	startedAt       DateTime?
+	finishedAt      DateTime?
+
+	@@index([queueItemId])
+	@@index([status])
+}
+
+// 短信验证码记录
+model SmsCode {
+	id         Int       @id @default(autoincrement())
+	createdAt  DateTime  @default(now())
+	phone      String
+	code       String
+	purpose    String    @default("login") // 用途：login、resetPwd 等
+	expiresAt  DateTime
+	usedAt     DateTime?
+
+	@@index([phone])
+	@@index([purpose])
+}
+

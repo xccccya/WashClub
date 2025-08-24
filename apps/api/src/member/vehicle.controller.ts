@@ -1,0 +1,146 @@
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { VehicleService } from './vehicle.service.js';
+
+@ApiTags('vehicle')
+@Controller('vehicle')
+export class VehicleController {
+    constructor(private service: VehicleService) {}
+
+    // 管理端列表
+    @Get('list')
+    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
+        return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword);
+    }
+
+    // 按会员查询
+    @Get('member/:memberId')
+    listByMember(@Param('memberId') memberId: string) {
+        return this.service.listByMember(Number(memberId));
+    }
+
+    // 新增车辆（管理员）
+    @Post('member/:memberId')
+    createForMember(
+        @Param('memberId') memberId: string,
+        @Body()
+        body: {
+            plateNumber: string;
+            vin?: string | null;
+            brand?: string | null;
+            series?: string | null;
+            brandId?: number | null;
+            seriesId?: number | null;
+            typeMain: string;
+            typeSub?: string | null;
+            color?: string | null;
+            isDefault?: boolean;
+        },
+    ) {
+        if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
+        if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
+        return this.service.createForMember(Number(memberId), body);
+    }
+
+    // 新增车辆（管理员-按会员手机号）
+    @Post('member/by-phone')
+    createForMemberByPhone(
+        @Body()
+        body: {
+            phone: string;
+            plateNumber: string;
+            vin?: string | null;
+            brand?: string | null;
+            series?: string | null;
+            typeMain: string;
+            typeSub?: string | null;
+            color?: string | null;
+            isDefault?: boolean;
+        },
+    ) {
+        const phone = String((body as any)?.phone || '').trim();
+        if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('会员手机号格式不正确');
+        if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
+        if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
+        return this.service.createForMemberByPhone(phone, body);
+    }
+
+    // 修改车辆
+    @Put(':id')
+    updateVehicle(
+        @Param('id') id: string,
+        @Body()
+        body: Partial<{
+            plateNumber: string;
+            vin?: string | null;
+            brand?: string | null;
+            series?: string | null;
+            brandId?: number | null;
+            seriesId?: number | null;
+            typeMain?: string;
+            typeSub?: string | null;
+            color?: string | null;
+            isDefault?: boolean;
+        }>,
+    ) {
+        return this.service.updateVehicle(Number(id), body);
+    }
+
+    // 删除车辆
+    @Delete(':id')
+    remove(@Param('id') id: string) {
+        return this.service.deleteVehicle(Number(id));
+    }
+
+    // 设置默认车辆
+    @Post(':id/set-default')
+    setDefault(@Param('id') id: string) {
+        return this.service.setDefault(Number(id));
+    }
+
+    // 模糊搜索车牌（管理端/队列用）
+    @Get('search')
+    search(@Query('q') q?: string, @Query('limit') limit?: string) {
+        return this.service.searchByPlateLike(String(q || ''), Number(limit || 15));
+    }
+
+    // 创建游客车辆
+    @Post('guest/create')
+    createGuest(@Body() body: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null }) {
+        if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
+        return this.service.createGuestVehicle(body);
+    }
+
+    // 将游客车辆绑定到会员
+    @Post(':id/bind-member/:memberId')
+    bindMember(@Param('id') id: string, @Param('memberId') memberId: string) {
+        return this.service.bindGuestVehicle(Number(id), Number(memberId));
+    }
+
+    // 我的车辆（会员端）
+    @Get('me/list')
+    async myVehicles(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
+        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+        const memberId = await this.service.getMemberIdFromToken(token);
+        return this.service.listByMember(memberId);
+    }
+
+    // 新增我的车辆（会员端）
+    @Post('me/create')
+    async myCreate(
+        @Headers() headers: Record<string, string>,
+        @Query('token') tokenParam: string | undefined,
+        @Body()
+        body: { plateNumber: string; typeMain: string; typeSub?: string | null; vin?: string | null; brand?: string | null; series?: string | null; color?: string | null; isDefault?: boolean },
+    ) {
+        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+        const memberId = await this.service.getMemberIdFromToken(token);
+        if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
+        if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
+        return this.service.createForMember(memberId, body);
+    }
+}
+
+

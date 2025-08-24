@@ -1,0 +1,278 @@
+import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma.service.js';
+import { SmsService } from './sms.service.js';
+import * as crypto from 'node:crypto';
+
+@Injectable()
+export class AuthService {
+	constructor(private prisma: PrismaService, private jwt: JwtService, private sms: SmsService) {}
+
+	private hashPassword(raw: string) {
+		return crypto.createHash('sha256').update(raw).digest('hex');
+	}
+
+	// ====== WeChat MiniApp One-Tap Login Support ======
+	private wechatAccessTokenCache: { token: string; expiresAt: number } | null = null;
+
+	private get wechatAppId(): string {
+		const v = process.env.WECHAT_MINIAPP_APPID || process.env.WECHAT_APPID;
+		if (!v) throw new BadRequestException('后台未配置 WECHAT_MINIAPP_APPID');
+		return v;
+	}
+
+	private get wechatSecret(): string {
+		const v = process.env.WECHAT_MINIAPP_SECRET || process.env.WECHAT_SECRET;
+		if (!v) throw new BadRequestException('后台未配置 WECHAT_MINIAPP_SECRET');
+		return v;
+	}
+
+	private async getWechatAccessToken(): Promise<string> {
+		const now = Date.now();
+		if (this.wechatAccessTokenCache && this.wechatAccessTokenCache.expiresAt - 30_000 > now) {
+			return this.wechatAccessTokenCache.token;
+		}
+		const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}`;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 8000);
+		let resp: Response;
+		try {
+			resp = await fetch(url, { signal: controller.signal });
+		} catch (e: any) {
+			clearTimeout(timeout);
+			throw new BadRequestException(`获取微信access_token网络失败: ${e?.message || e}`);
+		}
+		clearTimeout(timeout);
+		if (!resp.ok) throw new BadRequestException(`获取微信access_token失败: ${resp.status} ${resp.statusText}`);
+		const data = (await resp.json()) as any;
+		if (!data?.access_token || !data?.expires_in) {
+			throw new BadRequestException(`获取微信access_token失败: ${JSON.stringify(data)}`);
+		}
+		this.wechatAccessTokenCache = {
+			token: data.access_token,
+			expiresAt: Date.now() + Number(data.expires_in) * 1000,
+		};
+		return this.wechatAccessTokenCache.token;
+	}
+
+	private async exchangeWechatPhoneNumberByCode(code: string): Promise<string> {
+		if (!code) throw new BadRequestException('缺少手机号动态令牌code');
+		const accessToken = await this.getWechatAccessToken();
+		const url = `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(accessToken)}`;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 8000);
+		let resp: Response;
+		try {
+			resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: controller.signal });
+		} catch (e: any) {
+			clearTimeout(timeout);
+			throw new BadRequestException(`获取手机号网络失败: ${e?.message || e}`);
+		}
+		clearTimeout(timeout);
+		if (!resp.ok) throw new BadRequestException(`获取手机号失败: ${resp.status} ${resp.statusText}`);
+		const data = (await resp.json()) as any;
+		// 期望结构: { errcode:0, errmsg:'ok', phone_info: { phoneNumber: '1xxxxxxxxxx', purePhoneNumber: '1xxxxxxxxxx' } }
+		if (data?.errcode !== 0 || !data?.phone_info?.purePhoneNumber) {
+			throw new BadRequestException(`获取手机号失败: ${JSON.stringify(data)}`);
+		}
+		return String(data.phone_info.purePhoneNumber);
+	}
+
+	private async exchangeWechatOpenIdByJsCode(jsCode: string): Promise<{ openid: string; unionid?: string }>{
+		if (!jsCode) throw new BadRequestException('缺少wx.login返回的jsCode');
+		const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}&js_code=${encodeURIComponent(jsCode)}&grant_type=authorization_code`;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 8000);
+		let resp: Response;
+		try {
+			resp = await fetch(url, { signal: controller.signal });
+		} catch (e: any) {
+			clearTimeout(timeout);
+			throw new BadRequestException(`换取openid网络失败: ${e?.message || e}`);
+		}
+		clearTimeout(timeout);
+		if (!resp.ok) throw new BadRequestException(`换取openid失败: ${resp.status} ${resp.statusText}`);
+		const data = (await resp.json()) as any;
+		if (!data?.openid) throw new BadRequestException(`换取openid失败: ${JSON.stringify(data)}`);
+		return { openid: String(data.openid), unionid: data?.unionid ? String(data.unionid) : undefined };
+	}
+
+	private maskPhone(phone: string): string {
+		return String(phone).replace(/^(\d{3})\d+(\d{4})$/, '$1****$2');
+	}
+
+	private generateRandomName(): string {
+		const rnd = Math.random().toString(36).slice(2, 8);
+		return `注册会员${rnd}`;
+	}
+
+	private async generateUniqueMemberUid(): Promise<number> {
+		// 生成唯一8位数字UID，最多尝试若干次
+		for (let i = 0; i < 20; i++) {
+			const uid = Math.floor(10000000 + Math.random() * 90000000);
+			const exists = await this.prisma.member.findUnique({ where: { uid }, select: { id: true } }).catch(() => null);
+			if (!exists) return uid;
+		}
+		// 极端情况下仍冲突，退化到时间 + 随机的取模
+		return Number(String(Date.now()).slice(-8));
+	}
+
+	async wechatOneTapLogin(params: { phoneCode: string; jsCode: string }): Promise<
+		| { ok: true; token: string; user: { id: number; name: string; role: 'member'; phone: string }; createdNew: boolean; justBoundOpenId: boolean }
+		| { ok: false; code: 'OPENID_BOUND_CONFLICT'; maskedPhone: string; message: string }
+	> {
+		const { phoneCode, jsCode } = params;
+		// Step1: 获取手机号
+		const phone = await this.exchangeWechatPhoneNumberByCode(phoneCode);
+		// Step2: 获取 openid
+		const { openid } = await this.exchangeWechatOpenIdByJsCode(jsCode);
+
+		// Step3: 查询该 openid 是否已绑定到其他手机号
+		const openIdOwner = await this.prisma.member.findFirst({ where: { weixinOpenId: openid }, select: { id: true, phone: true } });
+		if (openIdOwner && openIdOwner.phone !== phone) {
+			return { ok: false, code: 'OPENID_BOUND_CONFLICT', maskedPhone: this.maskPhone(openIdOwner.phone), message: `该微信号已绑定手机号：${this.maskPhone(openIdOwner.phone)}` };
+		}
+
+		// Step4: 查找/创建手机号会员
+		let member = await this.prisma.member.findUnique({ where: { phone } });
+		let createdNew = false;
+		if (!member) {
+			const uid = await this.generateUniqueMemberUid();
+			// 注册新会员时，必须分配“默认等级”
+			const defaultLevel = await this.prisma.memberLevel.findFirst({ where: { isDefault: true } as any });
+			if (!defaultLevel) {
+				throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
+			}
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id } });
+			createdNew = true;
+		}
+
+		// Step5: 如未绑定 openid 则绑定
+		let justBoundOpenId = false;
+		if (!member.weixinOpenId) {
+			justBoundOpenId = true;
+			await this.prisma.member.update({ where: { id: member.id }, data: { weixinOpenId: openid } });
+		}
+
+		// Step6: 发放登录 token
+		const token = await this.jwt.signAsync(
+			{ sub: member.id, type: 'member', phone: member.phone },
+			{ expiresIn: '7d' },
+		);
+		return { ok: true, token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone }, createdNew, justBoundOpenId };
+	}
+
+	// 管理后台用户登录（保留）
+	async loginAdminByPassword(phone: string, password: string) {
+		const user = await this.prisma.user.findUnique({ where: { phone }, include: { roleRef: true } });
+		if (!user) throw new UnauthorizedException('账户不存在');
+		const hashed = this.hashPassword(password);
+		if (user.password !== hashed) throw new UnauthorizedException('密码错误');
+		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
+		const permissions = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
+		const token = await this.jwt.signAsync({ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone });
+		return { token, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions } };
+	}
+
+	// 小程序会员登录
+	async loginMemberByPassword(phone: string, password: string) {
+		const member = await this.prisma.member.findUnique({ where: { phone } });
+		if (!member || !member.password) throw new UnauthorizedException('会员账号不存在或未设置密码');
+		const hashed = this.hashPassword(password);
+		if (member.password !== hashed) throw new UnauthorizedException('密码错误');
+		// 正式：令牌 7 天过期
+		const token = await this.jwt.signAsync(
+			{ sub: member.id, type: 'member', phone: member.phone },
+			{ expiresIn: '7d' },
+		);
+		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone } };
+	}
+
+	// 发送短信验证码（5分钟有效，含频控：60秒内同一手机号不重复发送；每日最多10条）
+	async sendLoginCode(rawPhone: string, rawPurpose?: string) {
+		const phone = String(rawPhone || '').trim();
+		if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('手机号格式不正确');
+		const purpose = rawPurpose === 'resetPwd' ? 'resetPwd' : 'login';
+		const now = new Date();
+		const fiveMinLater = new Date(Date.now() + 5 * 60 * 1000);
+		// 频控：60秒内不重复发
+		const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+		const recent = await this.prisma.smsCode.findFirst({ where: { phone, createdAt: { gt: oneMinuteAgo }, purpose }, orderBy: { id: 'desc' } });
+		if (recent) throw new BadRequestException('发送太频繁，请稍后再试');
+		// 当日最多 10 条
+		const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+		const countToday = await this.prisma.smsCode.count({ where: { phone, createdAt: { gte: startOfDay }, purpose } });
+		if (countToday >= 10) throw new BadRequestException('当日发送次数过多，请明日再试');
+		// 生成 6 位数字验证码
+		const code = Math.floor(100000 + Math.random() * 900000).toString();
+		// 发送短信
+		await this.sms.sendLoginCode(phone, code, 5);
+		// 存库
+		await this.prisma.smsCode.create({ data: { phone, code, purpose, expiresAt: fiveMinLater } });
+		return { ok: true };
+	}
+
+	// 短信验证码登录：自动注册、签发 token，并使验证码失效
+	async loginMemberByCode(rawPhone: string, rawCode: string) {
+		const phone = String(rawPhone || '').trim();
+		const code = String(rawCode || '').trim();
+		if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('手机号格式不正确');
+		if (!/^\d{6}$/.test(code)) throw new BadRequestException('验证码格式不正确');
+		const now = new Date();
+		const record = await this.prisma.smsCode.findFirst({ where: { phone, code, purpose: 'login', usedAt: null }, orderBy: { id: 'desc' } });
+		if (!record) throw new UnauthorizedException('验证码错误');
+		if (record.expiresAt < now) throw new UnauthorizedException('验证码已过期');
+		// 标记为已使用
+		await this.prisma.smsCode.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+		// 查找/自动注册会员
+		let member = await this.prisma.member.findUnique({ where: { phone } });
+		let createdNew = false;
+		if (!member) {
+			const uid = await this.generateUniqueMemberUid();
+			const defaultLevel = await this.prisma.memberLevel.findFirst({ where: { isDefault: true } as any });
+			if (!defaultLevel) throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id } });
+			createdNew = true;
+		}
+		const token = await this.jwt.signAsync({ sub: member.id, type: 'member', phone: member.phone }, { expiresIn: '7d' });
+		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone }, createdNew };
+	}
+
+	// 重置会员密码（校验短信验证码 purpose: 'resetPwd'，设置新密码）
+	async resetMemberPasswordByCode(rawPhone: string, rawCode: string, newPassword: string) {
+		const phone = String(rawPhone || '').trim();
+		const code = String(rawCode || '').trim();
+		if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('手机号格式不正确');
+		if (!/^\d{6}$/.test(code)) throw new BadRequestException('验证码格式不正确');
+		if (!newPassword || newPassword.length < 6) throw new BadRequestException('新密码至少6位');
+		const now = new Date();
+		const record = await this.prisma.smsCode.findFirst({ where: { phone, code, purpose: 'resetPwd', usedAt: null }, orderBy: { id: 'desc' } });
+		if (!record) throw new UnauthorizedException('验证码错误');
+		if (record.expiresAt < now) throw new UnauthorizedException('验证码已过期');
+		// 标记验证码已使用
+		await this.prisma.smsCode.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+		// 查找会员并更新密码
+		const member = await this.prisma.member.findUnique({ where: { phone } });
+		if (!member) throw new UnauthorizedException('会员账号不存在');
+		const hashed = this.hashPassword(newPassword);
+		await this.prisma.member.update({ where: { id: member.id }, data: { password: hashed } });
+		return { ok: true };
+	}
+
+	async updateAdminNickname(userId: number, name: string) {
+		const updated = await this.prisma.user.update({ where: { id: userId }, data: { name } });
+		return { id: updated.id, name: updated.name };
+	}
+
+	async updateAdminPassword(userId: number, oldPassword: string, newPassword: string) {
+		const user = await this.prisma.user.findUnique({ where: { id: userId } });
+		if (!user) throw new UnauthorizedException('账户不存在');
+		const oldHashed = this.hashPassword(oldPassword);
+		if (user.password !== oldHashed) throw new UnauthorizedException('旧密码不正确');
+		const newHashed = this.hashPassword(newPassword);
+		await this.prisma.user.update({ where: { id: userId }, data: { password: newHashed } });
+		return { ok: true };
+	}
+}
+
+
