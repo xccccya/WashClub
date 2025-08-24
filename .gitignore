@@ -31,3 +31,6 @@ apps/api/uploads/
 # Tool caches (optional)
 .vite/
 node_modules/.cache/
+
+车型查询接口文档.md
+腾讯云短信相关信息资料.md
