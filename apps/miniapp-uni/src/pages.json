@@ -1,0 +1,104 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": ""
+			}
+		}
+	,
+		{
+			"path": "pages/me/index",
+			"style": {
+				"navigationBarTitleText": ""
+			}
+		}
+		,
+		{
+			"path": "pages/store/index",
+			"style": {
+				"navigationBarTitleText": ""
+			}
+		}
+		,
+		{
+			"path": "pages/login/index",
+			"style": { "navigationBarTitleText": "" }
+		}
+		,
+		{
+			"path": "pages/reset-password/index",
+			"style": { "navigationBarTitleText": "" }
+		}
+		,
+		{
+			"path": "pages/avatar-editor/index",
+			"style": { "navigationBarTitleText": "头像编辑" }
+		}
+,
+		{
+			"path": "pages/vehicle/list",
+			"style": { "navigationBarTitleText": "车辆管理" }
+		}
+,
+		{
+			"path": "pages/vehicle/create",
+			"style": { "navigationBarTitleText": "添加车辆" }
+		}
+,
+		{
+			"path": "pages/vehicle/edit",
+			"style": { "navigationBarTitleText": "编辑车辆" }
+		}
+		,
+		{
+			"path": "pages/washcard/index",
+			"style": { "navigationBarTitleText": "洗车计次卡" }
+		}
+		,
+		{
+			"path": "pages/washcard/detail",
+			"style": { "navigationBarTitleText": "卡片详情" }
+		}
+		,
+		{
+			"path": "pages/washcard/share",
+			"style": { "navigationBarTitleText": "共享设置" }
+		}
+		,
+		{
+			"path": "pages/queue/detail",
+			"style": { "navigationBarTitleText": "服务队列" }
+		}
+	],
+	"tabBar": {
+		"color": "#666666",
+		"selectedColor": "#111827",
+		"backgroundColor": "#FFFFFF",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页",
+				"iconPath": "static/tabbar/home.png",
+				"selectedIconPath": "static/tabbar/home-active.png"
+			},
+			{
+				"pagePath": "pages/store/index",
+				"text": "商店",
+				"iconPath": "static/tabbar/store.png",
+				"selectedIconPath": "static/tabbar/store-active.png"
+			},
+			{
+				"pagePath": "pages/me/index",
+				"text": "我的",
+				"iconPath": "static/tabbar/user.png",
+				"selectedIconPath": "static/tabbar/user-active.png"
+			}
+		]
+	},
+	"globalStyle": {
+		"navigationStyle": "custom"
+	}
+}
+
