@@ -4,6 +4,20 @@
 		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="goBack">
 			<image class="nav-back-icon" src="/static/icons/back.png" />
 		</view>
+		<view v-if="showNotice" class="card notice-card" :style="{ top: (statusBarHeight + 64) + 'px' }">
+			<text class="notice-close" @tap="showNotice=false">×</text>
+			<image class="notice-icon" src="/static/icons/warning.png" mode="widthFix" />
+			<view class="notice-body">
+				<view class="notice-title">重要提醒</view>
+				<view class="notice-paragraph">
+					<text class="notice-text">首次使用新版小程序且有洗车计次卡未用完的老用户，请务必使用</text>
+					<text class="highlight">微信一键登录</text>
+					<text class="notice-text">并授权选择</text>
+					<text class="highlight">购买洗车卡时登记的手机号</text>
+					<text class="notice-text">，否则洗车卡数据无法正常同步。如有疑问请咨询店员处理。</text>
+				</view>
+			</view>
+		</view>
 		<view class="center">
 			<view class="card login-card" :class="{ pulse: cardPulse }">
 				<view class="title">登录</view>
@@ -82,6 +96,7 @@ const secret = ref('');
 const agreeTerms = ref(false);
 const agreeAuto = ref(false);
 const countdown = ref(0);
+const showNotice = ref(true);
 
 // 分段验证码输入与动画控制
 const codeFocus = ref(false);
@@ -296,6 +311,16 @@ function goBack(){
 .card { background:#fff; border-radius:24rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); }
 .card.login-card { background: linear-gradient(135deg, #a8d8ff, #ffc9de); }
 @keyframes card-pulse { 0% { transform: scale(1); } 50% { transform: scale(0.995); } 100% { transform: scale(1); } }
+/* 提醒卡片 */
+.notice-card { position: fixed; left: 24rpx; right: 24rpx; padding: 28rpx 28rpx 24rpx 28rpx; margin: 0; border-radius: 24rpx; background: linear-gradient(180deg, #fffbea, #fffaf0); border: 2rpx solid #fde68a; box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.12); z-index: 900; }
+.notice-icon { width: 48rpx; height: 48rpx; }
+.notice-close { position: absolute; top: 12rpx; right: 12rpx; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; color: #92400e; background: rgba(253, 230, 138, .6); border-radius: 999rpx; font-size: 32rpx; }
+.notice-body { padding-left: 96rpx; margin-left: 0; }
+.notice-title { font-size: 30rpx; font-weight: 700; color: #92400e; }
+.notice-paragraph { margin-top: 8rpx; line-height: 1.6; color: #7c2d12; }
+.notice-text { color: #7c2d12; }
+.highlight { color: #b45309; font-weight: 700; }
+.notice-icon { position: absolute; left: 28rpx; top: 28rpx; width: 56rpx; height: 56rpx; }
 /* 验证码分段输入 */
 .code-row { align-items: center; }
 .code-row .label { line-height: 84rpx; }

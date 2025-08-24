@@ -9,6 +9,10 @@
 			<image class="icon" :src="activePath==='pages/store/index' ? storeActive : store" mode="aspectFit" />
 			<text class="label">商店</text>
 		</view>
+		<view class="tab-item" :class="{ active: activePath==='pages/order/index' }" @tap="go('/pages/order/index')" @click="go('/pages/order/index')">
+			<image class="icon" :src="activePath==='pages/order/index' ? orderActive : order" mode="aspectFit" />
+			<text class="label">订单</text>
+		</view>
 		<view class="tab-item" :class="{ active: activePath==='pages/me/index' }" @tap="go('/pages/me/index')" @click="go('/pages/me/index')">
 			<image class="icon" :src="activePath==='pages/me/index' ? userActive : user" mode="aspectFit" />
 			<text class="label">我的</text>
@@ -23,6 +27,8 @@ const home = '/static/tabbar/home.png';
 const homeActive = '/static/tabbar/home-active.png';
 const store = '/static/tabbar/store.png';
 const storeActive = '/static/tabbar/store-active.png';
+const order = '/static/tabbar/order.png';
+const orderActive = '/static/tabbar/order-active.png';
 const user = '/static/tabbar/user.png';
 const userActive = '/static/tabbar/user-active.png';
 

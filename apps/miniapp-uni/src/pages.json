@@ -22,6 +22,11 @@
 		}
 		,
 		{
+			"path": "pages/order/index",
+			"style": { "navigationBarTitleText": "订单" }
+		}
+		,
+		{
 			"path": "pages/login/index",
 			"style": { "navigationBarTitleText": "" }
 		}
@@ -88,6 +93,12 @@
 				"text": "商店",
 				"iconPath": "static/tabbar/store.png",
 				"selectedIconPath": "static/tabbar/store-active.png"
+			},
+			{
+				"pagePath": "pages/order/index",
+				"text": "订单",
+				"iconPath": "static/tabbar/order.png",
+				"selectedIconPath": "static/tabbar/order-active.png"
 			},
 			{
 				"pagePath": "pages/me/index",

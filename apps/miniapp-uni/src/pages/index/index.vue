@@ -149,7 +149,7 @@ function onTapAddCar() { navigate('/pages/vehicle/create'); }
 function onTapQueueDetail() { navigate('/pages/queue/detail'); }
 
 function navigate(url: string) {
-    const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/me/index';
+    const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/order/index' || url === '/pages/me/index';
     if (isTab) { try { uni.switchTab({ url }); return; } catch {}
     }
     try { uni.navigateTo({ url }); } catch {}
@@ -164,7 +164,7 @@ function navigateToPath(path: string){
 		return;
 	}
 	// #endif
-	const isTab = path === '/pages/index/index' || path === '/pages/store/index' || path === '/pages/me/index';
+	const isTab = path === '/pages/index/index' || path === '/pages/store/index' || path === '/pages/order/index' || path === '/pages/me/index';
 	if (isTab) { try { uni.switchTab({ url: path }); return; } catch {} }
 	try { uni.navigateTo({ url: path }); } catch {}
 }
