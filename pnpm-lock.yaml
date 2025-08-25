@@ -215,7 +215,11 @@ importers:
         specifier: ^5.3.1
         version: 5.4.19(@types/node@20.19.11)(terser@5.43.1)
 
-  packages/api-client: {}
+  packages/api-client:
+    dependencies:
+      '@wash/shared-utils':
+        specifier: workspace:*
+        version: link:../shared-utils
 
   packages/shared-types:
     dependencies:

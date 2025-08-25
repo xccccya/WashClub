@@ -21,6 +21,22 @@
 					<el-menu-item v-if="can('content-notices')" index="/content/notices">滚动通知</el-menu-item>
 					<el-menu-item v-if="can('content-banners')" index="/content/banners">广告横幅</el-menu-item>
 				</el-sub-menu>
+				<el-sub-menu index="/store">
+					<template #title>商店管理</template>
+					<el-menu-item v-if="can('store-categories')" index="/store/categories">商品分类</el-menu-item>
+					<el-menu-item v-if="can('store-products')" index="/store/products">商品列表</el-menu-item>
+					<el-menu-item v-if="can('store-inventory')" index="/store/inventory">库存管理</el-menu-item>
+				</el-sub-menu>
+				<el-sub-menu index="/orders">
+					<template #title>订单管理</template>
+					<el-menu-item v-if="can('orders')" index="/orders">订单列表</el-menu-item>
+					<el-menu-item v-if="can('after-sales')" index="/after-sales">售后</el-menu-item>
+				</el-sub-menu>
+				<el-sub-menu index="/coupon">
+					<template #title>卡券管理</template>
+					<el-menu-item v-if="can('coupon-groups')" index="/coupon/groups">分组管理</el-menu-item>
+					<el-menu-item v-if="can('coupons')" index="/coupon/list">卡券列表</el-menu-item>
+				</el-sub-menu>
 				<el-sub-menu index="/system">
 					<template #title>系统设置</template>
 					<el-menu-item v-if="can('system-roles')" index="/system/roles">后台角色</el-menu-item>

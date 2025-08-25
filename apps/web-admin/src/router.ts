@@ -14,6 +14,14 @@ import ContentBanners from './pages/ContentBanners.vue';
 import MemberVehicles from './pages/MemberVehicles.vue';
 import MemberWashCards from './pages/MemberWashCards.vue';
 import ServiceQueue from './pages/ServiceQueue.vue';
+import StoreCategories from './pages/StoreCategories.vue';
+import StoreProducts from './pages/StoreProducts.vue';
+import StoreInventory from './pages/StoreInventory.vue';
+import Orders from './pages/Orders.vue';
+import OrderDetail from './pages/OrderDetail.vue';
+import AfterSales from './pages/AfterSales.vue';
+import CouponGroups from './pages/CouponGroups.vue';
+import CouponList from './pages/CouponList.vue';
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -32,8 +40,16 @@ const router = createRouter({
 				{ path: '/member-vehicles', component: MemberVehicles, meta: { perm: 'member-vehicles' } },
 				{ path: '/member-washcards', component: MemberWashCards, meta: { perm: 'member-washcards' } },
 				{ path: '/service-queue', component: ServiceQueue, meta: { perm: 'service-queue' } },
+				{ path: '/store/categories', component: StoreCategories, meta: { perm: 'store-categories' } },
+				{ path: '/store/products', component: StoreProducts, meta: { perm: 'store-products' } },
+				{ path: '/store/inventory', component: StoreInventory, meta: { perm: 'store-inventory' } },
+				{ path: '/orders', component: Orders, meta: { perm: 'orders' } },
+				{ path: '/orders/:id', component: OrderDetail, meta: { perm: 'orders' } },
+				{ path: '/after-sales', component: AfterSales, meta: { perm: 'after-sales' } },
 				{ path: '/content/notices', component: ContentNotices, meta: { perm: 'content-notices' } },
 				{ path: '/content/banners', component: ContentBanners, meta: { perm: 'content-banners' } },
+				{ path: '/coupon/groups', component: CouponGroups, meta: { perm: 'coupon-groups' } },
+				{ path: '/coupon/list', component: CouponList, meta: { perm: 'coupons' } },
 				{ path: '/system/roles', component: SystemRoles, meta: { perm: 'system-roles' } },
 				{ path: '/system/admins', component: SystemAdmins, meta: { perm: 'system-admins' } },
 				{ path: '/system/files', component: SystemFiles, meta: { perm: 'system-files' } },

@@ -25,10 +25,10 @@
 			</view>
 
 			<view class="content-body">
-			<!-- 左侧分类 -->
+			<!-- 左侧分类（服务端） -->
 			<view class="category-sidebar">
 				<scroll-view scroll-y class="category-list">
-					<view v-for="c in categories" :key="c" class="category-item" :class="{ active: c===activeCategory }" @tap="() => selectCategory(c)" @click="() => selectCategory(c)">{{ c }}</view>
+					<view v-for="c in categories" :key="c.id" class="category-item" :class="{ active: c.id===activeCategory }" @tap="() => selectCategory(c)">{{ c.name }}</view>
 				</scroll-view>
 			</view>
 
@@ -40,13 +40,13 @@
 						<text>暂无活动，敬请期待</text>
 					</view>
 					<view v-else class="product-list">
-						<view v-for="p in products" :key="p.name" class="product-card">
+						<view v-for="p in products" :key="p.id" class="product-card">
 							<view class="thumb" />
 							<view class="info">
 								<text class="name">{{ p.name }}</text>
-								<text class="price">¥{{ p.price }}</text>
+								<text class="price">¥{{ formatPrice(p.price) }}</text>
 							</view>
-							<view class="buy-btn">立即购买</view>
+							<view class="buy-btn" @tap="() => buy(p)">立即购买</view>
 						</view>
 					</view>
 				</scroll-view>
@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp } from '../../utils/auth';
+import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 
 const { topSpacerHeight } = useSafeArea();
@@ -73,26 +73,27 @@ type TabKey = 'service' | 'goods' | 'flash';
 const activeTab = ref<TabKey>('service');
 function switchTab(tab: TabKey) { activeTab.value = tab; }
 
-// 分类与商品（纯UI数据）
-const serviceCategories = ['常规洗护', '精洗养护', '美容镀晶', '内饰清洁', '年检代办', '其他'];
-const goodsCategories = ['车品耗材', '内饰清洁', '外观养护', '电子设备', '香氛周边'];
-const categories = computed(() => activeTab.value === 'goods' ? goodsCategories : serviceCategories);
+// 分类与商品（服务端数据）
+const categories = ref<any[]>([]);
+const activeCategory = ref<number | null>(null);
+function selectCategory(c: any) { activeCategory.value = c?.id || null; fetchProducts(); }
 
-const activeCategory = ref<string>(serviceCategories[0]);
-function selectCategory(c: string) { activeCategory.value = c; }
+const products = ref<any[]>([]);
+function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
 
-watch(activeTab, () => {
-	activeCategory.value = categories.value[0];
-});
-
-interface ProductItem { name: string; price: string; }
-function makeProducts(prefix: string): ProductItem[] {
-	return Array.from({ length: 8 }, (_, i) => ({ name: `${prefix} · 示例${i + 1}`, price: (i + 1) * 10 + '.00' }));
+async function fetchCategories(){
+	try { const http = createHttp(); const list = await http<any[]>('/store/categories'); categories.value = Array.isArray(list) ? list : []; activeCategory.value = categories.value[0]?.id || null; } catch {}
 }
-const products = computed<ProductItem[]>(() => {
-	if (activeTab.value === 'flash') return [];
-	return makeProducts(activeCategory.value);
-});
+async function fetchProducts(){
+	try {
+		const http = createHttp();
+		const list = await http<any[]>('/store/products', { method:'GET', query: { categoryId: activeCategory.value || undefined } });
+		// 顶部tab过滤
+		products.value = (Array.isArray(list) ? list : []).filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : (p.type==='PHYSICAL' || p.type==='VIRTUAL_CARD'));
+	} catch { products.value = []; }
+}
+
+watch(activeTab, async () => { await fetchProducts(); });
 
 // 公告（保留API对接）
 const noticeStore = ref('');
@@ -102,7 +103,49 @@ onShow(async () => {
 		const active = await http<any>('/content/notices/active', { method: 'GET', query: { type: 'store' } });
 		noticeStore.value = active?.content || '';
 	} catch {}
+	await fetchCategories();
+	await fetchProducts();
 });
+
+// 购买下单（手动支付）
+async function buy(p:any){
+	// 登录校验
+	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+	const http = createHttp();
+	// 读取当前会员信息
+	let profile: any = null; try { profile = await http<any>('/member/me/profile', { method:'GET' }); } catch {}
+	if (!profile?.id) { uni.showToast({ title:'请先登录', icon:'none' }); return; }
+
+	// 服务项目需绑定车辆
+	let vehicleId: number | null = null;
+	if (p.type === 'SERVICE') {
+		const vs = Array.isArray(profile?.vehicles) ? profile.vehicles : [];
+		if (vs.length === 0) {
+			uni.showModal({ title:'提示', content:'请先添加车辆后再购买服务', confirmText:'去添加', success: (res:any)=>{ if (res.confirm) try{ uni.navigateTo({ url:'/pages/vehicle/create' }); }catch{} } });
+			return;
+		} else if (vs.length === 1) {
+			vehicleId = vs[0].id;
+		} else {
+			// 选择车辆
+			try {
+				const names = vs.map((v:any)=>v.plateNumber||`车辆#${v.id}`);
+				const sel:any = await new Promise((resolve)=>{ uni.showActionSheet({ itemList: names, success: resolve, fail: ()=>resolve(null) }); });
+				if (!sel || typeof sel.tapIndex !== 'number') return;
+				vehicleId = vs[sel.tapIndex].id;
+			} catch { return; }
+		}
+	}
+
+	// 仅单件下单，提示到店支付
+	try {
+		const body = { type: p.type === 'SERVICE' ? 'SERVICE' : 'SP', memberId: profile.id, vehicleId: vehicleId || undefined, items: [{ productId: p.id, name: p.name, imageUrl: p.imageUrl || null, price: Number(p.price || 0), discount: 0, quantity: 1, barcode: p.barcode || null }] };
+		await http<any>('/orders', { method:'POST', body });
+		uni.showToast({ title: '下单成功，请到店支付', icon: 'none' });
+		setTimeout(()=>{ try { uni.switchTab({ url:'/pages/order/index' }); } catch {} }, 400);
+	} catch (e:any) {
+		uni.showToast({ title: e?.message || '下单失败', icon:'none' });
+	}
+}
 </script>
 
 <style>

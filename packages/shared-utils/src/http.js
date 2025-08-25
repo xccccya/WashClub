@@ -1,6 +1,6 @@
-export const createHttpClient = (config = {}) => {
+function createHttpClientFactory(config = {}) {
     const { baseUrl = '', getToken } = config;
-    return async (url, options = {}) => {
+    return async function request(url, options = {}) {
         const headers = {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
@@ -47,10 +47,10 @@ export const createHttpClient = (config = {}) => {
                             resolve(resp.data);
                         }
                         else {
+                            // 友好提取 message 字段
                             const raw = resp.data;
-                            const msg = (raw && typeof raw === 'object' && raw.message)
-                                ? String(raw.message)
-                                : (typeof raw === 'string' ? raw : undefined);
+                            const msg = (raw && typeof raw === 'object' && raw.message) ? String(raw.message) :
+                                (typeof raw === 'string' ? raw : undefined);
                             reject(new Error(msg || `HTTP ${resp.statusCode}`));
                         }
                     },
@@ -60,10 +60,12 @@ export const createHttpClient = (config = {}) => {
                 });
             });
         }
+        // 解构移除未知类型的 body，避免传播到 fetch init
+        const { body: rawBody, ...restOptions } = options;
         const res = await fetch(fullUrl, {
-            ...options,
+            ...restOptions,
             headers,
-            body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
+            body: rawBody !== undefined && rawBody !== null && typeof rawBody !== 'string' ? JSON.stringify(rawBody) : rawBody,
         });
         if (!res.ok) {
             const contentType = res.headers.get('content-type') || '';
@@ -77,9 +79,7 @@ export const createHttpClient = (config = {}) => {
                     else if (raw !== undefined && raw !== null)
                         messageFromJson = String(raw);
                 }
-                catch {
-                    // ignore
-                }
+                catch { }
                 throw new Error(messageFromJson || `HTTP ${res.status} ${res.statusText}`);
             }
             const text = await res.text();
@@ -88,8 +88,17 @@ export const createHttpClient = (config = {}) => {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json'))
             return (await res.json());
-        // @ts-expect-error allow text
-        return (await res.text());
+        const text = await res.text();
+        return text;
     };
-};
+}
+export function createHttpClient(arg1, arg2) {
+    if (typeof arg1 === 'string') {
+        // 直接调用：createHttpClient(url, options)
+        const client = createHttpClientFactory({});
+        return client(arg1, arg2 || {});
+    }
+    // 工厂用法：createHttpClient(config)
+    return createHttpClientFactory(arg1 || {});
+}
 export default createHttpClient;

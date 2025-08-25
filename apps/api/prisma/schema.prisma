@@ -19,6 +19,7 @@ model User {
 	roleRef   AdminRole? @relation(fields: [roleId], references: [id])
 	weixinOpenId String? @unique
 	washCardLogsOperated WashCardLog[] @relation("UserOperatesWashCardLogs")
+	inventoryLogsOperated InventoryLog[]
 }
 
 model Member {
@@ -43,6 +44,7 @@ model Member {
 	washCardsOwned WashCard[] @relation("MemberOwnsWashCards")
 	washCardShares WashCardShare[] @relation("WashCardSharesToMember")
 	washCardLogsAffected WashCardLog[] @relation("MemberAffectedWashCardLogs")
+	orders    Order[]
 }
 
 model MemberLevel {
@@ -94,6 +96,7 @@ model Vehicle {
 	member      Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 	washCardLogs WashCardLog[] @relation("VehicleToWashCardLogs")
 	queueItems  ServiceQueueItem[]
+	orders      Order[]
 }
 
 
@@ -266,3 +269,240 @@ model SmsCode {
 	@@index([purpose])
 }
 
+// =====================
+// 商店 与 订单系统 模型
+// =====================
+
+// 商品类型：服务项目/实物商品/虚拟卡券
+enum ProductType {
+	SERVICE
+	PHYSICAL
+	VIRTUAL_CARD
+}
+
+// 商品规格类型：单规格/多规格
+enum ProductSpecType {
+	SINGLE
+	MULTI
+}
+
+// 库存流水原因
+enum InventoryLogReason {
+	INBOUND
+	OUTBOUND
+	ADJUSTMENT
+	ORDER_DEDUCT
+	ORDER_ROLLBACK
+	REFUND_RETURN
+}
+
+// 订单类型：SERVICE 服务订单，SP 商品订单（含实物与虚拟卡券），FK 付款订单
+enum OrderType {
+	SERVICE
+	SP
+	FK
+}
+
+// 订单状态
+enum OrderStatus {
+	CREATED
+	PAID
+	FULFILLED
+	CLOSED
+	CANCELLED
+}
+
+// 支付状态
+enum PayStatus {
+	UNPAID
+	PAID
+	REFUNDED
+	CANCELLED
+}
+
+// 支付方式（仅手动确认的三种）
+enum PayMethod {
+	CASH
+	SHOUQIANBA
+	OFFLINE
+}
+
+// 卡券相关
+enum CouponType {
+	COUPON      // 优惠券（满减/直减等，后续扩展）
+	WASH_CARD   // 洗车计次卡
+}
+
+model CouponGroup {
+	id         Int       @id @default(autoincrement())
+	createdAt  DateTime  @default(now())
+	updatedAt  DateTime  @updatedAt
+	name       String
+	description String?
+	enabled    Boolean   @default(true)
+	weight     Int       @default(0)
+
+	coupons    Coupon[]
+}
+
+model Coupon {
+	id           Int         @id @default(autoincrement())
+	createdAt    DateTime    @default(now())
+	updatedAt    DateTime    @updatedAt
+	name         String
+	type         CouponType
+	groupId      Int?
+	group        CouponGroup? @relation(fields: [groupId], references: [id])
+	// 基础适用与有效期
+	startAt      DateTime?
+	endAt        DateTime?
+	enabled      Boolean     @default(true)
+	// 优惠券参数（可扩展JSON）
+	ruleJson     Json?
+	// 计次卡参数
+	totalTimes   Int         @default(0)
+	validDays    Int?        // 自领取起有效天数，空则不限制
+
+	// 反向引用：被商品绑定
+	products     Product[]
+}
+
+model ProductCategory {
+	id         Int       @id @default(autoincrement())
+	createdAt  DateTime  @default(now())
+	updatedAt  DateTime  @updatedAt
+	name       String
+	imageUrl   String?
+	enabled    Boolean   @default(true)
+	weight     Int       @default(0)
+
+	products   Product[]
+}
+
+model Product {
+	id               Int             @id @default(autoincrement())
+	createdAt        DateTime        @default(now())
+	updatedAt        DateTime        @updatedAt
+	type             ProductType
+	name             String
+	barcode          String?         @unique
+	categoryId       Int?
+	category         ProductCategory? @relation(fields: [categoryId], references: [id])
+	imageUrl         String?
+	sortWeight       Int             @default(0)
+	enabled          Boolean         @default(true)
+	description      String?
+	// 扩展项
+	pointsDeductible Boolean         @default(false)
+	memberDiscount   Boolean         @default(false)
+	specType         ProductSpecType @default(SINGLE)
+	// 单规格商品字段（当 specType=SINGLE 生效）
+	price            Decimal?        @default(0)
+	listPrice        Decimal?        @default(0)
+	stockQuantity    Int?            @default(0)
+	// 销量与卖点
+	initialSales     Int             @default(0)
+	sellPoint        String?
+	// 绑定卡券（虚拟卡券商品绑定到某个卡券）
+	couponId         Int?
+	coupon           Coupon?         @relation(fields: [couponId], references: [id])
+
+	skus             ProductSku[]
+	inventoryLogs    InventoryLog[]
+}
+
+model ProductSku {
+	id            Int       @id @default(autoincrement())
+	createdAt     DateTime  @default(now())
+	updatedAt     DateTime  @updatedAt
+	productId     Int
+	product       Product   @relation(fields: [productId], references: [id])
+	// 规格信息可存放在 name 与 specsJson
+	name          String
+	specsJson     Json?
+	skuCode       String    @unique
+	barcode       String?
+	imageUrl      String?
+	price         Decimal   @default(0)
+	listPrice     Decimal   @default(0)
+	stockQuantity Int       @default(0)
+
+	inventoryLogs InventoryLog[]
+
+	@@index([productId])
+}
+
+model InventoryLog {
+	id             Int                @id @default(autoincrement())
+	createdAt      DateTime           @default(now())
+	productId      Int
+	product        Product            @relation(fields: [productId], references: [id])
+	skuId          Int?
+	sku            ProductSku?        @relation(fields: [skuId], references: [id])
+	change         Int                // +入库/-出库
+	beforeStock    Int
+	afterStock     Int
+	reason         InventoryLogReason
+	remark         String?
+
+	operatorUserId Int?
+	operatorUser   User?              @relation(fields: [operatorUserId], references: [id])
+
+	@@index([productId])
+	@@index([skuId])
+}
+
+model Order {
+	id              Int         @id @default(autoincrement())
+	createdAt       DateTime    @default(now())
+	updatedAt       DateTime    @updatedAt
+	no              String      @unique
+	type            OrderType
+	status          OrderStatus @default(CREATED)
+	// 金额相关
+	totalAmount     Decimal     @default(0)
+	discountAmount  Decimal     @default(0)
+	payAmount       Decimal     @default(0)
+	shippingFee     Decimal     @default(0)
+	// 支付相关
+	payStatus       PayStatus   @default(UNPAID)
+	payMethod       PayMethod?
+	paidAt          DateTime?
+	// 权益/积分/卡券
+	usedPoints      Int         @default(0)
+	pointsAmount    Decimal     @default(0)
+	couponInfo      Json?
+	// 会员信息
+	memberId        Int
+	member          Member      @relation(fields: [memberId], references: [id])
+	// 服务订单追加：车辆
+	vehicleId       Int?
+	vehicle         Vehicle?    @relation(fields: [vehicleId], references: [id])
+	// 备注
+	remark          String?
+
+	items           OrderItem[]
+
+	@@index([type])
+	@@index([status])
+	@@index([memberId])
+}
+
+model OrderItem {
+	id          Int       @id @default(autoincrement())
+	createdAt   DateTime  @default(now())
+	orderId     Int
+	order       Order     @relation(fields: [orderId], references: [id])
+	// 商品信息快照
+	productId   Int?
+	skuId       Int?
+	name        String
+	imageUrl    String?
+	specsText   String?
+	barcode     String?
+	price       Decimal   @default(0)
+	discount    Decimal   @default(0)
+	quantity    Int       @default(1)
+
+	@@index([orderId])
+}

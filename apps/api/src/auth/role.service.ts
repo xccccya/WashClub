@@ -15,7 +15,14 @@ export type AdminMenuKey =
 	| 'system-files'
 	| 'system-sms'
 	| 'content-notices'
-	| 'content-banners';
+	| 'content-banners'
+	| 'store-categories'
+	| 'store-products'
+	| 'store-inventory'
+	| 'orders'
+	| 'after-sales'
+	| 'coupon-groups'
+	| 'coupons';
 
 @Injectable()
 export class AdminRoleService {
@@ -89,6 +96,13 @@ export class AdminRoleService {
 			{ key: 'service-queue', name: '服务队列', path: '/service-queue' },
 			{ key: 'content-notices', name: '滚动通知', path: '/content/notices' },
 			{ key: 'content-banners', name: '广告横幅', path: '/content/banners' },
+			{ key: 'store-categories', name: '商品分类', path: '/store/categories' },
+			{ key: 'store-products', name: '商品列表', path: '/store/products' },
+			{ key: 'store-inventory', name: '库存管理', path: '/store/inventory' },
+			{ key: 'orders', name: '订单列表', path: '/orders' },
+			{ key: 'after-sales', name: '售后', path: '/after-sales' },
+			{ key: 'coupon-groups', name: '卡券分组', path: '/coupon/groups' },
+			{ key: 'coupons', name: '卡券列表', path: '/coupon/list' },
 		];
 	}
 }

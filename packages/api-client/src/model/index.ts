@@ -5,3 +5,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './getContentNoticesActiveParams';
+export * from './getContentNoticesActiveType';
+export * from './getContentNoticesParams';
+export * from './getContentNoticesType';
+export * from './postContentNoticesBody';
+export * from './putContentNoticesIdBody';

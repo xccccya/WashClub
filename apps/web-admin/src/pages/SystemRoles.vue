@@ -102,6 +102,9 @@ const menuGroups = computed<MenuGroup[]>(() => {
   const groups: Record<string, MenuGroup> = {
     members: { key: 'members', name: '会员管理', children: [] },
     vehicles: { key: 'vehicles', name: '车辆管理', children: [] },
+    store: { key: 'store', name: '商店管理', children: [] },
+    orders: { key: 'orders', name: '订单管理', children: [] },
+    coupon: { key: 'coupon', name: '卡券管理', children: [] },
     content: { key: 'content', name: '内容管理', children: [] },
     system: { key: 'system', name: '系统设置', children: [] },
   };
@@ -112,6 +115,12 @@ const menuGroups = computed<MenuGroup[]>(() => {
       groups.members.children.push(m);
     } else if (['member-vehicles','service-queue'].includes(m.key)) {
       groups.vehicles.children.push(m);
+    } else if (m.key.startsWith('store-')) {
+      groups.store.children.push(m);
+    } else if (['orders','after-sales'].includes(m.key)) {
+      groups.orders.children.push(m);
+    } else if (m.key.startsWith('coupon')) {
+      groups.coupon.children.push(m);
     } else if (m.key.startsWith('content-')) {
       groups.content.children.push(m);
     } else if (m.key.startsWith('system-')) {
@@ -121,7 +130,7 @@ const menuGroups = computed<MenuGroup[]>(() => {
     }
   });
   // 保持固定顺序
-  return [groups.members, groups.vehicles, groups.content, groups.system];
+  return [groups.members, groups.vehicles, groups.store, groups.orders, groups.coupon, groups.content, groups.system];
 });
 
 function isGroupChecked(g: MenuGroup){

@@ -1,5 +1,73 @@
 ## WashClub Monorepo（开发中）
 
+## 商店与订单系统（已实现）
+
+### 后端（NestJS / Prisma）
+
+- 数据模型：`ProductCategory`/`Product`/`ProductSku`/`InventoryLog`/`Order`/`OrderItem`，枚举：`ProductType`、`ProductSpecType`、`InventoryLogReason`、`OrderType`、`OrderStatus`、`PayStatus`、`PayMethod`
+- 同步数据库：
+  - 进入 `apps/api` 执行：
+    - `pnpm prisma generate`
+    - `pnpm prisma db push`
+    - 如需基础数据：`node ./scripts/seed.mjs`
+
+### API 路由（仅展示关键接口）
+
+- 商品分类：
+  - GET `/store/categories`
+  - POST `/store/categories`
+  - PUT `/store/categories/:id`
+  - DELETE `/store/categories/:id`
+- 商品：
+  - GET `/store/products`（支持 keyword/categoryId/type/enabled 查询）
+  - GET `/store/products/:id`
+  - POST `/store/products`
+  - PUT `/store/products/:id`
+  - DELETE `/store/products/:id`
+  - 上传图片：复用 `/file/upload`，拿到 `url` 后写入 `product.imageUrl` 或 `sku.imageUrl`
+- 库存：
+  - POST `/store/inventory/adjust`（body: { productId, skuId?, change, reason: INBOUND|OUTBOUND|ADJUSTMENT, remark? }）
+- 订单（仅手动支付方式）：
+  - POST `/orders` 创建订单（`type`: SERVICE|SP|FK）
+  - GET `/orders` 列表，GET `/orders/:id` 详情
+  - POST `/orders/:id/pay/manual` 手动确认支付（body: { method: CASH|SHOUQIANBA|OFFLINE, paidAt? }）
+  - POST `/orders/:id/close` 关闭订单
+
+### 管理后台（apps/web-admin）
+
+- 新增菜单：商品分类、商品列表、库存管理、订单列表/详情、售后（占位）
+- 角色权限键：`store-categories`、`store-products`、`store-inventory`、`orders`、`after-sales`
+- 超管角色（id=1）拥有 `*`；`scripts/seed.mjs` 会为超管补齐新菜单键（若未使用 `*`）
+
+### 小程序端（apps/miniapp-uni）
+
+- `pages/store/index.vue` 接入分类与商品列表，点击“立即购买”直接创建未支付订单并提示到店支付（服务类需选择/绑定车辆）
+
+### 本地运行
+
+1) 启动 API：
+
+```
+cd apps/api
+pnpm dev
+```
+
+2) 启动管理端：
+
+```
+cd apps/web-admin
+pnpm dev
+```
+
+3) 启动小程序（H5 或 MP-微信）：
+
+```
+cd apps/miniapp-uni
+pnpm dev:h5
+# 或
+pnpm dev:mp-weixin
+```
+
 一体化洗车门店管理平台（开发中）。已实现会员、车辆、计次卡、内容公告、服务排队、文件上传、短信登录等模块；订单、商品、消息通知、收银台系统正在开发中。
 
 ### 仓库结构

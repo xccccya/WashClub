@@ -13,6 +13,7 @@
     "paths": {
       "@shared-types/*": ["packages/shared-types/src/*"],
       "@shared-ui/*": ["packages/shared-ui/src/*"],
+      "@wash/shared-utils": ["packages/shared-utils/src/index.ts"],
       "@shared-utils/*": ["packages/shared-utils/src/*"],
       "@api-client": ["packages/api-client/src/index.ts"]
     }

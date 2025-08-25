@@ -8,10 +8,13 @@ import { FileController } from './file/file.controller.js';
 import { FileService } from './file/file.service.js';
 import { ContentModule } from './content/content.module.js';
 import { QueueModule } from './queue/queue.module.js';
+import { StoreModule } from './store/store.module.js';
+import { OrderModule } from './order/order.module.js';
+import { CouponModule } from './coupon/coupon.module.js';
 
 
 @Module({
-	imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }), AuthModule, MemberModule, ContentModule, QueueModule],
+	imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }), AuthModule, MemberModule, ContentModule, QueueModule, StoreModule, OrderModule, CouponModule],
 	controllers: [AppController, FileController],
 	providers: [PrismaService, FileService],
 })

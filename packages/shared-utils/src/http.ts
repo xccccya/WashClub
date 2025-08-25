@@ -15,12 +15,9 @@ export type HttpRequestOptions = Omit<RequestInit, 'body'> & {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const uni: any;
 
-export const createHttpClient = (config: HttpClientConfig = {}) => {
+function createHttpClientFactory(config: HttpClientConfig = {}) {
 	const { baseUrl = '', getToken } = config;
-	return async <T>(
-		url: string,
-		options: HttpRequestOptions = {},
-	): Promise<T> => {
+	return async function request<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
 		const headers: HeadersInit = {
 			'Content-Type': 'application/json',
 			...(options.headers || {}),
@@ -76,10 +73,12 @@ export const createHttpClient = (config: HttpClientConfig = {}) => {
 			});
 		}
 
+		// 解构移除未知类型的 body，避免传播到 fetch init
+		const { body: rawBody, ...restOptions } = options;
 		const res = await fetch(fullUrl, {
-			...options,
+			...restOptions,
 			headers,
-			body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
+			body: rawBody !== undefined && rawBody !== null && typeof rawBody !== 'string' ? JSON.stringify(rawBody) : (rawBody as any),
 		});
 		if (!res.ok) {
 			const contentType = res.headers.get('content-type') || '';
@@ -98,10 +97,22 @@ export const createHttpClient = (config: HttpClientConfig = {}) => {
 		}
 		const contentType = res.headers.get('content-type') || '';
 		if (contentType.includes('application/json')) return (await res.json()) as T;
-		// @ts-expect-error allow text
-		return (await res.text()) as T;
+		const text = await res.text();
+		return text as unknown as T;
 	};
-};
+}
+
+export function createHttpClient(config?: HttpClientConfig): <T>(url: string, options?: HttpRequestOptions) => Promise<T>;
+export function createHttpClient<T>(url: string, options?: HttpRequestOptions): Promise<T>;
+export function createHttpClient<T>(arg1?: unknown, arg2?: unknown): any {
+	if (typeof arg1 === 'string') {
+		// 直接调用：createHttpClient(url, options)
+		const client = createHttpClientFactory({});
+		return client<T>(arg1 as string, (arg2 as HttpRequestOptions) || {});
+	}
+	// 工厂用法：createHttpClient(config)
+	return createHttpClientFactory((arg1 as HttpClientConfig) || {});
+}
 
 export default createHttpClient;
 

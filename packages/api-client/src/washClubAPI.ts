@@ -4,7 +4,13 @@
  * Wash Club API
  * OpenAPI spec version: 0.1.0
  */
-import { createHttpClient } from '../../shared-utils/src/http';
+import type {
+  GetContentNoticesActiveParams,
+  GetContentNoticesParams,
+  PostContentNoticesBody,
+  PutContentNoticesIdBody
+} from './model'
+import { createHttpClient } from '@wash/shared-utils';
 
 /**
  * @summary Health check
@@ -21,7 +27,172 @@ export const getGetHealthUrl = () => {
 }
 
 export const getHealth = async ( options?: RequestInit): Promise<getHealthResponse> => {
-return createHttpClient<Promise<getHealthResponse>>(getGetHealthUrl(),
+return createHttpClient<getHealthResponse>(getGetHealthUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+  }
+);}
+
+
+/**
+ * @summary List notices
+ */
+export type getContentNoticesResponse = {
+  data: void;
+  status: number;
+}
+
+export const getGetContentNoticesUrl = (params?: GetContentNoticesParams,) => {
+
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === null) {
+      normalizedParams.append(key, 'null');
+    } else if (value !== undefined) {
+      normalizedParams.append(key, value.toString());
+    }
+  });
+
+  return `/content/notices?${normalizedParams.toString()}`
+}
+
+export const getContentNotices = async (params?: GetContentNoticesParams, options?: RequestInit): Promise<getContentNoticesResponse> => {
+return createHttpClient<getContentNoticesResponse>(getGetContentNoticesUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+  }
+);}
+
+
+/**
+ * @summary Create notice
+ */
+export type postContentNoticesResponse = {
+  data: void;
+  status: number;
+}
+
+export const getPostContentNoticesUrl = () => {
+
+
+  return `/content/notices`
+}
+
+export const postContentNotices = async (postContentNoticesBody: PostContentNoticesBody, options?: RequestInit): Promise<postContentNoticesResponse> => {
+return createHttpClient<postContentNoticesResponse>(getPostContentNoticesUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(
+      postContentNoticesBody,)
+  }
+);}
+
+
+/**
+ * @summary Update notice
+ */
+export type putContentNoticesIdResponse = {
+  data: void;
+  status: number;
+}
+
+export const getPutContentNoticesIdUrl = (id: number,) => {
+
+
+  return `/content/notices/${id}`
+}
+
+export const putContentNoticesId = async (id: number,
+    putContentNoticesIdBody: PutContentNoticesIdBody, options?: RequestInit): Promise<putContentNoticesIdResponse> => {
+return createHttpClient<putContentNoticesIdResponse>(getPutContentNoticesIdUrl(id),
+  {      
+    ...options,
+    method: 'PUT',
+    body: JSON.stringify(
+      putContentNoticesIdBody,)
+  }
+);}
+
+
+/**
+ * @summary Delete notice
+ */
+export type deleteContentNoticesIdResponse = {
+  data: void;
+  status: number;
+}
+
+export const getDeleteContentNoticesIdUrl = (id: number,) => {
+
+
+  return `/content/notices/${id}`
+}
+
+export const deleteContentNoticesId = async (id: number, options?: RequestInit): Promise<deleteContentNoticesIdResponse> => {
+return createHttpClient<deleteContentNoticesIdResponse>(getDeleteContentNoticesIdUrl(id),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+  }
+);}
+
+
+/**
+ * @summary Enable notice
+ */
+export type postContentNoticesIdEnableResponse = {
+  data: void;
+  status: number;
+}
+
+export const getPostContentNoticesIdEnableUrl = (id: number,) => {
+
+
+  return `/content/notices/${id}/enable`
+}
+
+export const postContentNoticesIdEnable = async (id: number, options?: RequestInit): Promise<postContentNoticesIdEnableResponse> => {
+return createHttpClient<postContentNoticesIdEnableResponse>(getPostContentNoticesIdEnableUrl(id),
+  {      
+    ...options,
+    method: 'POST'
+    
+  }
+);}
+
+
+/**
+ * @summary Get active by type
+ */
+export type getContentNoticesActiveResponse = {
+  data: void;
+  status: number;
+}
+
+export const getGetContentNoticesActiveUrl = (params: GetContentNoticesActiveParams,) => {
+
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === null) {
+      normalizedParams.append(key, 'null');
+    } else if (value !== undefined) {
+      normalizedParams.append(key, value.toString());
+    }
+  });
+
+  return `/content/notices/active?${normalizedParams.toString()}`
+}
+
+export const getContentNoticesActive = async (params: GetContentNoticesActiveParams, options?: RequestInit): Promise<getContentNoticesActiveResponse> => {
+return createHttpClient<getContentNoticesActiveResponse>(getGetContentNoticesActiveUrl(params),
   {      
     ...options,
     method: 'GET'
