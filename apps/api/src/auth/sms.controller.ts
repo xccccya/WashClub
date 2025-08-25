@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 
 @ApiTags('system')
@@ -9,6 +9,7 @@ export class SmsAdminController {
 
     // 短信记录列表（仅查询）
     @Get('sms-codes')
+    @ApiOperation({ summary: '短信验证码记录列表（仅查询）' })
     async listSmsCodes(
         @Query('phone') phone?: string,
         @Query('purpose') purpose?: 'login' | 'resetPwd',

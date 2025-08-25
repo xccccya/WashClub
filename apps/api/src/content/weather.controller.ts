@@ -1,4 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 type AMapLiveResponse = {
 	status: string;
@@ -41,9 +42,11 @@ type AMapForecastResponse = {
 	}>;
 };
 
+@ApiTags('content')
 @Controller('content')
 export class WeatherController {
 	@Get('weather')
+	@ApiOperation({ summary: '天气：实时与预报（高德API）' })
 	async getWeather(@Query('city') city?: string) {
 		const adcode = (city || '511024').trim();
 		const key = process.env.AMAP_KEY || process.env.AMAP_WEB_KEY;

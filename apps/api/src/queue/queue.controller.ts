@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueueService } from './queue.service.js';
 
 @ApiTags('queue')
@@ -8,12 +8,15 @@ export class QueueController {
     constructor(private service: QueueService) {}
 
     @Get('list')
+    @ApiOperation({ summary: '服务队列列表（进行中/待处理）' })
     list() { return this.service.listActive(); }
 
     @Get('summary')
+    @ApiOperation({ summary: '队列摘要统计' })
     summary() { return this.service.summary(); }
 
     @Post('add')
+    @ApiOperation({ summary: '添加到队列（支持多种模式）' })
     add(@Body() body: any) {
         const mode = String(body?.mode || '').trim();
         if (!mode) throw new BadRequestException('缺少添加方式');
@@ -37,21 +40,26 @@ export class QueueController {
     }
 
     @Post(':id/set-current')
+    @ApiOperation({ summary: '设置当前执行任务索引' })
     setCurrent(@Param('id') id: string, @Body() body: { taskIndex: number }) {
         if (typeof body?.taskIndex !== 'number') throw new BadRequestException('taskIndex 必须为数字');
         return this.service.setCurrentTask(Number(id), Number(body.taskIndex));
     }
 
     @Post(':id/finish-task')
+    @ApiOperation({ summary: '完成当前任务节点' })
     finishTask(@Param('id') id: string) { return this.service.finishCurrentTask(Number(id)); }
 
     @Post(':id/confirm-complete')
+    @ApiOperation({ summary: '确认整单已完成' })
     confirmComplete(@Param('id') id: string) { return this.service.confirmComplete(Number(id)); }
 
     @Post(':id/start-first')
+    @ApiOperation({ summary: '开始第一步任务' })
     startFirst(@Param('id') id: string) { return this.service.startFirstTask(Number(id)); }
 
     @Delete(':id')
+    @ApiOperation({ summary: '移出队列/取消' })
     remove(@Param('id') id: string) { return this.service.remove(Number(id)); }
 }
 

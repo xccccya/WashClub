@@ -17,7 +17,7 @@ async function bootstrap() {
 
 	const config = new DocumentBuilder()
 		.setTitle('Wash Club API')
-		.setDescription('API for car wash membership and POS')
+		.setDescription('API for 一体化洗车门店管理平台')
 		.setVersion('0.1.0')
 		.addBearerAuth()
 		.build();

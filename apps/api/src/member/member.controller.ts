@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, BadRequestException } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberService } from './member.service.js';
 
 @ApiTags('member')
@@ -8,12 +8,14 @@ export class MemberController {
 	constructor(private service: MemberService) {}
 
 	@Get('list')
+	@ApiOperation({ summary: '会员列表（分页/关键词）' })
 	list(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
 		return this.service.list(Number(page || 1), Number(pageSize || 20), keyword);
 	}
 
 	// 放在参数路由之前，避免被 ":id" 匹配到
 	@Get('me/profile')
+	@ApiOperation({ summary: '查询当前会员资料（支持token参数）' })
 	me(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
 		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
@@ -21,6 +23,7 @@ export class MemberController {
 	}
 
 	@Post('me/active')
+	@ApiOperation({ summary: '心跳：设置会员在线活跃状态' })
 	setActive(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
 		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
@@ -28,11 +31,13 @@ export class MemberController {
 	}
 
 	@Get(':id')
+	@ApiOperation({ summary: '获取会员详情' })
 	get(@Param('id') id: string) {
 		return this.service.findById(Number(id));
 	}
 
 	@Post('create')
+	@ApiOperation({ summary: '创建会员' })
 	create(
 		@Body()
 		body: {
@@ -57,6 +62,7 @@ export class MemberController {
 	}
 
 	@Put(':id')
+	@ApiOperation({ summary: '更新会员资料' })
 	update(
 		@Param('id') id: string,
 		@Body()
@@ -87,11 +93,13 @@ export class MemberController {
 	}
 
 	@Put(':id/password')
+	@ApiOperation({ summary: '设置/重置会员密码（管理员）' })
 	setPassword(@Param('id') id: string, @Body() body: { password: string }) {
 		return this.service.setPassword(Number(id), body.password);
 	}
 
 	@Delete(':id')
+	@ApiOperation({ summary: '删除会员' })
 	remove(@Param('id') id: string) {
 		return this.service.remove(Number(id));
 	}

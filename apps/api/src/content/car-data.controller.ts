@@ -1,5 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('content')
 @Controller('content/car')
 export class CarDataController {
 	private readonly apiKey = process.env.TANSHU_CAR_API_KEY || process.env.CAR_API_KEY || '';
@@ -20,6 +22,7 @@ export class CarDataController {
 	}
 
 	@Get('brands')
+	@ApiOperation({ summary: '车型品牌列表（含缓存）' })
 	async getBrands() {
 		const now = Date.now();
 		if (CarDataController.brandsCache.data.length && now - CarDataController.brandsCache.ts < CarDataController.BRANDS_TTL_MS) {
@@ -38,6 +41,7 @@ export class CarDataController {
 	}
 
 	@Get('series')
+	@ApiOperation({ summary: '车型车系列表（按品牌，含缓存）' })
 	async getSeries(@Query('brandId') brandId?: string) {
 		const id = Number(brandId);
 		if (!id) return [];

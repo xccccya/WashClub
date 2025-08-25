@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VehicleService } from './vehicle.service.js';
 
 @ApiTags('vehicle')
@@ -9,18 +9,21 @@ export class VehicleController {
 
     // 管理端列表
     @Get('list')
+    @ApiOperation({ summary: '车辆列表（管理员，分页/关键词）' })
     adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
         return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword);
     }
 
     // 按会员查询
     @Get('member/:memberId')
+    @ApiOperation({ summary: '按会员ID查询车辆' })
     listByMember(@Param('memberId') memberId: string) {
         return this.service.listByMember(Number(memberId));
     }
 
     // 新增车辆（管理员）
     @Post('member/:memberId')
+    @ApiOperation({ summary: '为会员新增车辆（管理员）' })
     createForMember(
         @Param('memberId') memberId: string,
         @Body()
@@ -44,6 +47,7 @@ export class VehicleController {
 
     // 新增车辆（管理员-按会员手机号）
     @Post('member/by-phone')
+    @ApiOperation({ summary: '按手机号为会员新增车辆（管理员）' })
     createForMemberByPhone(
         @Body()
         body: {
@@ -67,6 +71,7 @@ export class VehicleController {
 
     // 修改车辆
     @Put(':id')
+    @ApiOperation({ summary: '修改车辆信息' })
     updateVehicle(
         @Param('id') id: string,
         @Body()
@@ -88,24 +93,28 @@ export class VehicleController {
 
     // 删除车辆
     @Delete(':id')
+    @ApiOperation({ summary: '删除车辆' })
     remove(@Param('id') id: string) {
         return this.service.deleteVehicle(Number(id));
     }
 
     // 设置默认车辆
     @Post(':id/set-default')
+    @ApiOperation({ summary: '设置默认车辆' })
     setDefault(@Param('id') id: string) {
         return this.service.setDefault(Number(id));
     }
 
     // 模糊搜索车牌（管理端/队列用）
     @Get('search')
+    @ApiOperation({ summary: '模糊搜索车牌（管理端/队列）' })
     search(@Query('q') q?: string, @Query('limit') limit?: string) {
         return this.service.searchByPlateLike(String(q || ''), Number(limit || 15));
     }
 
     // 创建游客车辆
     @Post('guest/create')
+    @ApiOperation({ summary: '创建游客车辆' })
     createGuest(@Body() body: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null }) {
         if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
         return this.service.createGuestVehicle(body);
@@ -113,12 +122,14 @@ export class VehicleController {
 
     // 将游客车辆绑定到会员
     @Post(':id/bind-member/:memberId')
+    @ApiOperation({ summary: '将游客车辆绑定到会员' })
     bindMember(@Param('id') id: string, @Param('memberId') memberId: string) {
         return this.service.bindGuestVehicle(Number(id), Number(memberId));
     }
 
     // 我的车辆（会员端）
     @Get('me/list')
+    @ApiOperation({ summary: '我的车辆列表（会员端）' })
     async myVehicles(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
         const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
@@ -128,6 +139,7 @@ export class VehicleController {
 
     // 新增我的车辆（会员端）
     @Post('me/create')
+    @ApiOperation({ summary: '新增我的车辆（会员端）' })
     async myCreate(
         @Headers() headers: Record<string, string>,
         @Query('token') tokenParam: string | undefined,
