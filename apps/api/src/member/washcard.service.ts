@@ -6,6 +6,19 @@ import { JwtService } from '@nestjs/jwt';
 export class WashCardService {
     constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
+    private async generateUniqueCardNo(tx: PrismaService | any): Promise<string> {
+        // 生成8位数字卡号，确保唯一
+        for (let i = 0; i < 20; i++) {
+            const n = Math.floor(Math.random() * 100000000);
+            const candidate = String(n).padStart(8, '0');
+            const exists = await tx.washCard.findUnique({ where: { cardNo: candidate } }).catch(()=>null);
+            if (!exists) return candidate;
+        }
+        // 退化策略：使用时间戳后8位，极低概率冲突
+        const fallback = String(Date.now()).slice(-8);
+        return fallback;
+    }
+
     async getMemberIdFromToken(token?: string): Promise<number> {
         if (!token) throw new UnauthorizedException('缺少Token');
         try {
@@ -30,6 +43,7 @@ export class WashCardService {
                 await tx.washCard.updateMany({ where: { ownerMemberId }, data: { isDefault: false } });
             }
             const countOwned = await tx.washCard.count({ where: { ownerMemberId } });
+            const cardNo = await this.generateUniqueCardNo(tx);
             const created = await tx.washCard.create({
                 data: {
                     ownerMemberId,
@@ -38,6 +52,7 @@ export class WashCardService {
                     remainingTimes: Math.max(0, remain),
                     expiryAt: params.expiryAt ? new Date(params.expiryAt) : null,
                     isDefault: params.isDefault || countOwned === 0,
+                    cardNo,
                 } as any,
             });
             return created;

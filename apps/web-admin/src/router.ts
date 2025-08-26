@@ -22,6 +22,7 @@ import OrderDetail from './pages/OrderDetail.vue';
 import AfterSales from './pages/AfterSales.vue';
 import CouponGroups from './pages/CouponGroups.vue';
 import CouponList from './pages/CouponList.vue';
+import MemberAddresses from './pages/MemberAddresses.vue';
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -39,6 +40,7 @@ const router = createRouter({
 				{ path: '/member-tags', component: MemberTags, meta: { perm: 'member-tags' } },
 				{ path: '/member-vehicles', component: MemberVehicles, meta: { perm: 'member-vehicles' } },
 				{ path: '/member-washcards', component: MemberWashCards, meta: { perm: 'member-washcards' } },
+				{ path: '/member-addresses', component: MemberAddresses, meta: { perm: 'member-addresses' } },
 				{ path: '/service-queue', component: ServiceQueue, meta: { perm: 'service-queue' } },
 				{ path: '/store/categories', component: StoreCategories, meta: { perm: 'store-categories' } },
 				{ path: '/store/products', component: StoreProducts, meta: { perm: 'store-products' } },

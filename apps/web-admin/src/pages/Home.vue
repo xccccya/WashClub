@@ -10,6 +10,7 @@
 					<el-menu-item v-if="can('member-categories')" index="/member-categories">会员分类</el-menu-item>
 					<el-menu-item v-if="can('member-tags')" index="/member-tags">会员标签</el-menu-item>
 					<el-menu-item v-if="can('member-washcards')" index="/member-washcards">洗车计次卡</el-menu-item>
+					<el-menu-item v-if="can('member-addresses')" index="/member-addresses">收货地址</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/vehicles">
 					<template #title>车辆管理</template>

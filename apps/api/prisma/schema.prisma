@@ -41,6 +41,7 @@ model Member {
 	category   MemberCategory? @relation(fields: [categoryId], references: [id])
 	tags       MemberTag[]
 	vehicles  Vehicle[]
+	addresses MemberAddress[]
 	washCardsOwned WashCard[] @relation("MemberOwnsWashCards")
 	washCardShares WashCardShare[] @relation("WashCardSharesToMember")
 	washCardLogsAffected WashCardLog[] @relation("MemberAffectedWashCardLogs")
@@ -135,6 +136,7 @@ model WashCard {
   status          WashCardStatus   @default(ACTIVE)
   expiryAt        DateTime?
   isDefault       Boolean          @default(false)
+  cardNo          String           @unique // 8位数字卡号
 
   shares          WashCardShare[]
   logs            WashCardLog[]
@@ -333,6 +335,19 @@ enum CouponType {
 	WASH_CARD   // 洗车计次卡
 }
 
+// 卡券适用范围
+enum CouponApplyScope {
+	ALL
+	SPECIFIED
+}
+
+// 有效期类型
+enum CouponExpiryType {
+	FIXED           // 固定时间段（配合 startAt/endAt）
+	AFTER_RECEIVE   // 领取后生效（配合 validDays）
+	PERMANENT       // 永久有效
+}
+
 model CouponGroup {
 	id         Int       @id @default(autoincrement())
 	createdAt  DateTime  @default(now())
@@ -354,6 +369,7 @@ model Coupon {
 	groupId      Int?
 	group        CouponGroup? @relation(fields: [groupId], references: [id])
 	// 基础适用与有效期
+	expiryType   CouponExpiryType @default(PERMANENT)
 	startAt      DateTime?
 	endAt        DateTime?
 	enabled      Boolean     @default(true)
@@ -363,8 +379,34 @@ model Coupon {
 	totalTimes   Int         @default(0)
 	validDays    Int?        // 自领取起有效天数，空则不限制
 
+	// 通用展示与备注
+	imageUrl     String?
+	description  String?
+	adminRemark  String?
+
+	// 优惠券专用
+	faceValue        Decimal?
+	minOrderAmount   Decimal?
+	issueTotal       Int?
+	applyScope       CouponApplyScope @default(ALL)
+
+	// 指定商品适用（当 applyScope = SPECIFIED 生效）
+	applicableProducts CouponApplicableProduct[]
+
 	// 反向引用：被商品绑定
 	products     Product[]
+}
+
+// 卡券与可用商品的多对多关联
+model CouponApplicableProduct {
+	id         Int     @id @default(autoincrement())
+	couponId   Int
+	productId  Int
+	coupon     Coupon  @relation(fields: [couponId], references: [id])
+	product    Product @relation(fields: [productId], references: [id])
+
+	@@unique([couponId, productId])
+	@@index([productId])
 }
 
 model ProductCategory {
@@ -383,12 +425,16 @@ model Product {
 	id               Int             @id @default(autoincrement())
 	createdAt        DateTime        @default(now())
 	updatedAt        DateTime        @updatedAt
+	deletedAt        DateTime?
 	type             ProductType
 	name             String
 	barcode          String?         @unique
 	categoryId       Int?
 	category         ProductCategory? @relation(fields: [categoryId], references: [id])
 	imageUrl         String?
+	imagesJson       Json?
+	// 规格项定义：如 [{ name:"颜色", values:["红","蓝"] }, { name:"尺码", values:["S","M"] }]
+	specsDefinitionJson Json?
 	sortWeight       Int             @default(0)
 	enabled          Boolean         @default(true)
 	description      String?
@@ -406,6 +452,9 @@ model Product {
 	// 绑定卡券（虚拟卡券商品绑定到某个卡券）
 	couponId         Int?
 	coupon           Coupon?         @relation(fields: [couponId], references: [id])
+
+	// 作为可用商品被卡券指定
+	applicableInCoupons CouponApplicableProduct[]
 
 	skus             ProductSku[]
 	inventoryLogs    InventoryLog[]
@@ -426,6 +475,7 @@ model ProductSku {
 	price         Decimal   @default(0)
 	listPrice     Decimal   @default(0)
 	stockQuantity Int       @default(0)
+	enabled       Boolean   @default(true)
 
 	inventoryLogs InventoryLog[]
 
@@ -438,7 +488,7 @@ model InventoryLog {
 	productId      Int
 	product        Product            @relation(fields: [productId], references: [id])
 	skuId          Int?
-	sku            ProductSku?        @relation(fields: [skuId], references: [id])
+	sku            ProductSku?        @relation(fields: [skuId], references: [id], onDelete: SetNull)
 	change         Int                // +入库/-出库
 	beforeStock    Int
 	afterStock     Int
@@ -505,4 +555,31 @@ model OrderItem {
 	quantity    Int       @default(1)
 
 	@@index([orderId])
+}
+
+// 会员收货地址
+model MemberAddress {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memberId   Int
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // 行政区层级：省/市/区/街道 名称
+  province   String
+  city       String
+  district   String
+  street     String
+
+  // 详细地址与门牌号
+  detail     String
+
+  // 联系手机号
+  phone      String
+
+  // 可选标签：家/公司/学校/父母/朋友/自定义（≤4字）
+  label      String?
+
+  @@index([memberId])
 }

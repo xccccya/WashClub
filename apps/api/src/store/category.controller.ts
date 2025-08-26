@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { StoreService } from './store.service.js';
 
@@ -8,7 +8,7 @@ export class StoreCategoryController {
     constructor(private readonly store: StoreService) {}
 
     @Get('')
-    list() { return this.store.listCategories(); }
+    list(@Query('type') type?: string) { return this.store.listCategories({ type }); }
 
     @Post('')
     create(@Body() body: { name: string; imageUrl?: string; enabled?: boolean; weight?: number }) {

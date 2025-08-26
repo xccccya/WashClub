@@ -9,12 +9,14 @@
     "preview": "vite preview --port 5173"
   },
   "dependencies": {
-    "vue": "^3.4.31",
-    "vue-router": "^4.3.2",
-    "element-plus": "^2.7.6",
+    "@vueup/vue-quill": "^1.2.0",
     "@wash/api-client": "workspace:*",
     "@wash/shared-ui": "workspace:*",
-    "@wash/shared-utils": "workspace:*"
+    "@wash/shared-utils": "workspace:*",
+    "element-plus": "^2.7.6",
+    "quill": "^2.0.3",
+    "vue": "^3.4.31",
+    "vue-router": "^4.3.2"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.5",
@@ -22,4 +24,3 @@
     "vite": "^5.3.1"
   }
 }
-

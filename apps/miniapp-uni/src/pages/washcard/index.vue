@@ -9,13 +9,16 @@
 				<text class="title">我的洗车计次卡</text>
 			</view>
 			<view class="tip">小提示：点击卡片可查看该卡的使用详情</view>
-			<view v-if="cards.length===0" class="empty">暂无卡片</view>
+			<view v-if="cards.length===0" class="empty">暂无洗车卡，点击“去购买”选购吧~</view>
 			<view v-for="c in cards" :key="c.id" class="card-item">
 				<WashCard :card="c" :loggedIn="true" :showCta="false" :clickable="true" @tap="onTapCard(c)" />
 				<view class="actions">
 					<view v-if="!c.isDefault && !c._shared" class="btn btn-primary" @tap.stop="setDefault(c)">设为默认</view>
 					<view v-if="!c._shared" class="btn" @tap.stop="gotoShareConfig(c)">共享</view>
 				</view>
+			</view>
+			<view class="buy-cta">
+				<view class="buy-cta-btn" @tap="gotoPurchase">去购买</view>
 			</view>
 		</view>
 		<view class="card" v-else>
@@ -38,6 +41,7 @@ const cards = ref<any[]>([]);
 function formatDate(v?: string | null){ if (!v) return ''; try { const d = new Date(v as any); if (isNaN(d.getTime())) return ''; const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; } catch { return ''; } }
 function gotoLogin(){ uni.navigateTo({ url: '/pages/login/index' }); }
 function onTapCard(c: any){ if (!c?.id) return; uni.navigateTo({ url: `/pages/washcard/detail?id=${c.id}` }); }
+function gotoPurchase(){ try { uni.navigateTo({ url: '/pages/washcard/purchase' }); } catch {} }
 
 async function refreshList(){
 	try {
@@ -99,6 +103,10 @@ function goBack(){
 .nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }
 .nav-back-btn { width: 64rpx; height: 64rpx; border-radius: 999rpx; background: rgba(255,255,255,0.9); box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center; border: 2rpx solid #e5e7eb; }
 .nav-back-icon { width: 56rpx; height: 56rpx; }
+
+/* 卡片右下角 去购买 CTA */
+.buy-cta { margin-top: 16rpx; display:flex; align-items:center; justify-content:flex-end; }
+.buy-cta-btn { font-size: 24rpx; color:#fff; padding: 14rpx 22rpx; border-radius: 999rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.08); }
 </style>
 
 

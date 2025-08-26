@@ -60,7 +60,7 @@ export class VehicleService {
         }
     }
 
-    private get apiKey(): string { return process.env.CAR_API_KEY || '79c9ec9af0555d0de315b5675f6b1453'; }
+    private get apiKey(): string { return process.env.TANSHU_CAR_API_KEY || process.env.CAR_API_KEY || ''; }
 
     private async fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
         const ctrl = new AbortController();

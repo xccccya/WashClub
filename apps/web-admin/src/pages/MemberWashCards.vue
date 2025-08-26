@@ -8,6 +8,7 @@
 		<el-table :data="list" stripe style="width:100%" highlight-current-row>
 			<el-table-column prop="id" label="ID" width="80" />
 			<el-table-column prop="name" label="卡名称" min-width="160" show-overflow-tooltip />
+			<el-table-column prop="cardNo" label="卡号" width="140" />
 			<el-table-column label="默认" width="100">
 				<template #default="{ row }">
 					<el-tag :type="row.isDefault? 'success':'info'">{{ row.isDefault ? '是' : '否' }}</el-tag>
@@ -154,6 +155,12 @@
 						<span v-else>-</span>
 					</template>
 				</el-table-column>
+				<el-table-column label="关联订单" width="140">
+					<template #default="{ row }">
+						<el-button v-if="row.reason==='PURCHASE_ADD' && row.purchaseOrderId" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
+						<span v-else>—</span>
+					</template>
+				</el-table-column>
 				<el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
 			</el-table>
 			<div style="margin-top:12px;display:flex;justify-content:flex-end;">
@@ -184,7 +191,7 @@ const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () =
 
 type Member = { id: number; name: string; phone: string };
 type Share = { id: number; memberId: number; member?: Member };
-type Card = { id: number; name: string; ownerMemberId: number; owner?: Member; totalTimes: number; remainingTimes: number; expiryAt?: string | null; shares?: Share[]; isDefault?: boolean };
+type Card = { id: number; name: string; ownerMemberId: number; owner?: Member; totalTimes: number; remainingTimes: number; expiryAt?: string | null; shares?: Share[]; isDefault?: boolean; cardNo?: string };
 const memberOptions = ref<Member[]>([]);
 
 const list = ref<Card[]>([]);
@@ -262,6 +269,10 @@ async function onRemoveShare(memberId: number){ if (!current.value) return; awai
 function openLogs(card: Card){ current.value = card; logsPage.value = 1; fetchLogs(); dialogLogs.value = true; }
 async function fetchLogs(){ if (!current.value) return; const res = await http<{ items: any[]; total: number }>(`/wash-card/${current.value.id}/logs`, { method: 'GET', query: { page: logsPage.value, pageSize: logsPageSize.value } }); logs.value = res.items; logsTotal.value = res.total; }
 function onLogsPageChange(p:number){ logsPage.value = p; fetchLogs(); }
+
+function gotoOrder(orderId: number){
+    try { window.open(`/orders/${orderId}`, '_blank'); } catch { location.href = `/orders/${orderId}`; }
+}
 
 onMounted(()=>{ fetchMembers(); fetchList(); });
 

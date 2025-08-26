@@ -109,8 +109,8 @@ export class OrderService {
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可标记支付');
         const paidAt = params.paidAt ?? new Date();
         const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt } });
-        // 支付成功后，若订单包含绑定洗车计次卡的商品，则为会员发放洗车卡
-        const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id }, include: { } });
+        // 支付成功后，若订单包含绑定洗车计次卡的商品，则为会员发放洗车卡，并记录购买日志（含订单号）
+        const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
             if (!it.productId) continue;
             const prod = await this.prisma.product.findUnique({ where: { id: it.productId } });
@@ -119,12 +119,51 @@ export class OrderService {
             if (!coupon || coupon.type !== 'WASH_CARD') continue;
             const times = coupon.totalTimes || 0;
             if (times <= 0) continue;
-            // 为会员发放洗车卡，按数量叠加
+            const change = times * it.quantity;
+            const remark = `购买入账（订单号：${order.no}）`;
+            // 为会员发放洗车卡，按数量叠加，并写 WashCardLog
             const existing = await this.prisma.washCard.findFirst({ where: { ownerMemberId: order.memberId, name: coupon.name } });
             if (existing) {
-                await this.prisma.washCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + times * it.quantity, remainingTimes: existing.remainingTimes + times * it.quantity } });
+                const before = existing.remainingTimes;
+                const afterRemaining = before + change;
+                await this.prisma.washCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + change, remainingTimes: afterRemaining } });
+                await this.prisma.washCardLog.create({
+                    data: {
+                        cardId: existing.id,
+                        action: 'ADD' as any,
+                        reason: 'PURCHASE_ADD' as any,
+                        change,
+                        beforeRemaining: before,
+                        afterRemaining,
+                        remark,
+                        purchaseOrderId: order.id,
+                    },
+                });
             } else {
-                await this.prisma.washCard.create({ data: { ownerMemberId: order.memberId, name: coupon.name, totalTimes: times * it.quantity, remainingTimes: times * it.quantity } });
+                // 生成唯一8位卡号
+                async function gen(tx: PrismaService){
+                    for (let i=0;i<20;i++){
+                        const n = Math.floor(Math.random()*100000000);
+                        const candidate = String(n).padStart(8,'0');
+                        const exists = await tx.washCard.findUnique({ where: { cardNo: candidate } }).catch(()=>null);
+                        if (!exists) return candidate;
+                    }
+                    return String(Date.now()).slice(-8);
+                }
+                const cardNo = await gen(this.prisma);
+                const created = await this.prisma.washCard.create({ data: { ownerMemberId: order.memberId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo } });
+                await this.prisma.washCardLog.create({
+                    data: {
+                        cardId: created.id,
+                        action: 'ADD' as any,
+                        reason: 'PURCHASE_ADD' as any,
+                        change,
+                        beforeRemaining: 0,
+                        afterRemaining: change,
+                        remark,
+                        purchaseOrderId: order.id,
+                    },
+                });
             }
         }
         return updated;

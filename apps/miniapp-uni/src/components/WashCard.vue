@@ -16,12 +16,14 @@
 		<view v-if="loggedIn && card" class="progress">
 			<view class="progress-inner" :style="{ width: usedPercent + '%' }" />
 		</view>
+		<view v-if="loggedIn && card && showCta" class="cardno-row"><text class="expiry-text">卡号：{{ card?.cardNo || '-' }}</text></view>
 		<view class="foot-row">
 			<text class="expiry-text" v-if="loggedIn && card">有效期：{{ expiryText }}</text>
 			<view class="cta" v-if="showCta && loggedIn">
 				<text class="cta-text">点击查看详情</text>
 				<text class="arrow">›</text>
 			</view>
+			<text class="expiry-text" v-else-if="loggedIn && card">卡号：{{ card?.cardNo || '-' }}</text>
 		</view>
 	</view>
 </template>
@@ -93,8 +95,10 @@ function onTap(){ if (props.clickable) emit('tap'); }
 .progress { width:100%; height: 16rpx; border-radius: 999rpx; background: #eef2ff; overflow:hidden; position: relative; }
 .progress-inner { height:100%; background: linear-gradient(90deg, #a8d8ff, #ffc9de); }
 
+.cardno-row { margin-top: 10rpx; }
 .foot-row { margin-top: 14rpx; display:flex; align-items:center; justify-content: space-between; }
 .expiry-text { font-size: 24rpx; color:#6b7280; }
+.foot-row.sub { margin-top: 8rpx; }
 .cta { display:flex; align-items:center; gap: 6rpx; }
 .cta-text { font-size: 24rpx; color:#2563eb; }
 .arrow { font-size: 28rpx; color:#2563eb; line-height: 1; }

@@ -48,11 +48,20 @@
 		</view>
 
 		<!-- 其它功能区块 -->
-		<view class="card actions-card">
-			<view class="grid">
-				<view class="pill">收货地址</view>
-				<view class="pill">商家管理</view>
-				<view class="pill">关于我们</view>
+		<view class="card actions-card gradient-trans">
+			<view class="grid icon-grid">
+				<view class="icon-btn" @tap="onTapAddress">
+					<image class="icon-img" src="/static/icons/address.png" mode="aspectFit" />
+					<text class="icon-text">收货地址</text>
+				</view>
+				<view class="icon-btn" @tap="onTapAbout">
+					<image class="icon-img" src="/static/icons/about.png" mode="aspectFit" />
+					<text class="icon-text">关于我们</text>
+				</view>
+				<view class="icon-btn" @tap="onTapAdmin">
+					<image class="icon-img" src="/static/icons/admin.png" mode="aspectFit" />
+					<text class="icon-text">商家管理</text>
+				</view>
 			</view>
 		</view>
 
@@ -244,6 +253,11 @@ function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/
 function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {} token.value = null; nickname.value = '点击登录账号'; vipLevel.value = '点击登录账号'; uni.showToast({ title: '已退出', icon: 'none' }); }
 
 function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/washcard/index'); }
+
+// 其它功能入口
+function onTapAddress(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/address/index'); }
+function onTapAdmin(){ uni.showToast({ title: '商家管理开发中', icon: 'none' }); }
+function onTapAbout(){ uni.showToast({ title: '关于我们开发中', icon: 'none' }); }
 </script>
 
 <style>
@@ -293,7 +307,11 @@ function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'
 
 /* 其它功能 */
 .actions-card .grid { display:flex; gap: 24rpx; }
-.actions-card .pill { flex:1; text-align:center; padding: 28rpx 0; border-radius: 24rpx; background:#ffffff; border: 2rpx solid #e5e7eb; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.04); }
+.gradient-trans { background: linear-gradient(180deg, rgba(243,249,255,0.92) 0%, rgba(255,247,251,0.92) 100%); backdrop-filter: blur(2rpx); }
+.icon-grid { display:flex; gap: 24rpx; }
+.icon-btn { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 28rpx 0; border-radius: 24rpx; background: transparent; border: none; box-shadow: none; }
+.icon-img { width: 60rpx; height: 60rpx; margin-bottom: 12rpx; }
+.icon-text { font-size: 24rpx; color:#1f2937; }
 
 /* 底部 */
 .logout-wrap { padding: 0 24rpx; margin-top: 12rpx; }

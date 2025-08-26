@@ -27,6 +27,11 @@
 		}
 		,
 		{
+			"path": "pages/order/detail",
+			"style": { "navigationBarTitleText": "订单详情" }
+		}
+		,
+		{
 			"path": "pages/login/index",
 			"style": { "navigationBarTitleText": "" }
 		}
@@ -67,6 +72,11 @@
 		}
 		,
 		{
+			"path": "pages/washcard/purchase",
+			"style": { "navigationBarTitleText": "购买洗车卡" }
+		}
+		,
+		{
 			"path": "pages/washcard/share",
 			"style": { "navigationBarTitleText": "共享设置" }
 		}
@@ -74,6 +84,21 @@
 		{
 			"path": "pages/queue/detail",
 			"style": { "navigationBarTitleText": "服务队列" }
+		}
+		,
+		{
+			"path": "pages/address/index",
+			"style": { "navigationBarTitleText": "收货地址" }
+		}
+		,
+		{
+			"path": "pages/address/create",
+			"style": { "navigationBarTitleText": "新增地址" }
+		}
+		,
+		{
+			"path": "pages/address/edit",
+			"style": { "navigationBarTitleText": "编辑地址" }
 		}
 	],
 	"tabBar": {

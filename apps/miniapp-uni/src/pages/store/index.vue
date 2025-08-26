@@ -26,7 +26,7 @@
 
 			<view class="content-body">
 			<!-- 左侧分类（服务端） -->
-			<view class="category-sidebar">
+			<view class="category-sidebar" v-if="activeTab!=='flash'">
 				<scroll-view scroll-y class="category-list">
 					<view v-for="c in categories" :key="c.id" class="category-item" :class="{ active: c.id===activeCategory }" @tap="() => selectCategory(c)">{{ c.name }}</view>
 				</scroll-view>
@@ -34,7 +34,6 @@
 
 			<!-- 右侧商品面板 -->
 			<view class="product-panel">
-				<view class="panel-head">商品展示列表</view>
 				<scroll-view scroll-y class="product-scroller">
 					<view v-if="activeTab==='flash'" class="flash-placeholder">
 						<text>暂无活动，敬请期待</text>
@@ -82,18 +81,31 @@ const products = ref<any[]>([]);
 function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
 
 async function fetchCategories(){
-	try { const http = createHttp(); const list = await http<any[]>('/store/categories'); categories.value = Array.isArray(list) ? list : []; activeCategory.value = categories.value[0]?.id || null; } catch {}
+	try {
+		const http = createHttp();
+		// 秒杀页：隐藏并清空分类
+		if (activeTab.value === 'flash') { categories.value = []; activeCategory.value = null; return; }
+		// 按 Tab 类型筛选分类
+		let typeParam: string | undefined = undefined;
+		if (activeTab.value === 'service') typeParam = 'SERVICE';
+		else if (activeTab.value === 'goods') typeParam = 'PHYSICAL';
+		const list = await http<any[]>('/store/categories', { method:'GET', query: { type: typeParam } });
+		categories.value = Array.isArray(list) ? list : [];
+		activeCategory.value = categories.value[0]?.id || null;
+	} catch { categories.value = []; activeCategory.value = null; }
 }
 async function fetchProducts(){
 	try {
+		// 秒杀页：占位，清空商品
+		if (activeTab.value === 'flash') { products.value = []; return; }
 		const http = createHttp();
 		const list = await http<any[]>('/store/products', { method:'GET', query: { categoryId: activeCategory.value || undefined } });
-		// 顶部tab过滤
-		products.value = (Array.isArray(list) ? list : []).filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : (p.type==='PHYSICAL' || p.type==='VIRTUAL_CARD'));
+		// 根据 Tab 过滤：服务 或 实物（仅 PHYSICAL）
+		products.value = (Array.isArray(list) ? list : []).filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : p.type==='PHYSICAL');
 	} catch { products.value = []; }
 }
 
-watch(activeTab, async () => { await fetchProducts(); });
+watch(activeTab, async () => { await fetchCategories(); await fetchProducts(); });
 
 // 公告（保留API对接）
 const noticeStore = ref('');
@@ -183,13 +195,13 @@ async function buy(p:any){
 .product-panel { flex:1; padding: 16rpx; display:flex; flex-direction: column; background:#ffffff; }
 .panel-head { font-size:26rpx; color:#6b7280; margin: 4rpx 8rpx 16rpx 8rpx; }
 .product-scroller { height: 100%; }
-.product-list { display:grid; grid-template-columns: repeat(2, 1fr); gap: 16rpx; padding: 0 8rpx 16rpx 8rpx; }
-.product-card { background:#f7fbff; border: 2rpx dashed #77bfff; border-radius: 20rpx; padding: 16rpx; display:flex; flex-direction: column; gap: 12rpx; }
-.thumb { height: 160rpx; border-radius: 16rpx; background: linear-gradient(135deg, #e0f2fe, #ffe4ef); }
-.info { display:flex; align-items:center; justify-content: space-between; }
+.product-list { display:flex; flex-direction: column; gap: 16rpx; padding: 0 8rpx 16rpx 8rpx; }
+.product-card { background:#f7fbff; border: 2rpx dashed #77bfff; border-radius: 20rpx; padding: 16rpx; display:flex; flex-direction: row; gap: 12rpx; align-items:center; }
+.thumb { width: 160rpx; height: 160rpx; border-radius: 16rpx; background: linear-gradient(135deg, #e0f2fe, #ffe4ef); flex-shrink:0; }
+.info { display:flex; flex-direction: column; gap: 8rpx; flex:1; }
 .name { font-size:26rpx; color:#111827; }
 .price { font-size:26rpx; color:#ef4444; font-weight:600; }
-.buy-btn { margin-top: 4rpx; text-align:center; padding: 18rpx 0; background:#111827; color:#ffffff; border-radius: 16rpx; font-size:24rpx; }
+.buy-btn { margin-left:auto; text-align:center; padding: 18rpx 24rpx; background:#111827; color:#ffffff; border-radius: 16rpx; font-size:24rpx; }
 
 .flash-placeholder { height: 100%; display:flex; align-items:center; justify-content:center; color:#9ca3af; }
 

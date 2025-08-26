@@ -16,6 +16,7 @@
 				<text>剩余：{{ card?.remainingTimes ?? '-' }}</text>
 				<text>有效期：{{ expiryText || '永久' }}</text>
 			</view>
+			<view class="meta sub"><text>卡号：{{ card?.cardNo || '-' }}</text></view>
 			<view class="progress"><view class="progress-inner" :style="{ width: usedPercent + '%' }" /></view>
 			<view v-if="card?._shared && card?.owner" class="owner-row">
 				<text class="owner">共享人：{{ card.owner?.name || '会员' }}（{{ card.owner?.phone }}）</text>
@@ -39,6 +40,9 @@
 							<text class="chip">{{ reasonText(l.reason) }}</text>
 							<text v-if="l.action!=='SHARE'" class="muted">变更 {{ changeText(l) }} · 余 {{ l.beforeRemaining }}→{{ l.afterRemaining }}</text>
 							<text v-else-if="l.member" class="muted">对象：{{ l.member?.name || '会员' }}（{{ l.member?.phone }}）</text>
+						</view>
+						<view v-if="l.reason==='PURCHASE_ADD' && l.purchaseOrderId" class="log-actions">
+							<text class="link" @tap="gotoOrder(l.purchaseOrderId)">查看订单详情 ›</text>
 						</view>
 						<view v-if="l.remark" class="log-remark">{{ l.remark }}</view>
 					</view>
@@ -101,6 +105,10 @@ function nodeClass(l: any){
     return '';
 }
 
+function gotoOrder(orderId: number){
+    try { uni.navigateTo({ url: `/pages/order/detail?id=${orderId}` }); } catch {}
+}
+
 onLoad(async (query)=>{
 	try {
 		const id = Number((query as any)?.id || NaN);
@@ -144,6 +152,7 @@ function goBack(){
 .share-badge { display:flex; align-items:center; }
 .share { font-size: 22rpx; color: #065f46; background: #ecfdf5; border: 2rpx solid #86efac; padding: 4rpx 8rpx; border-radius: 999rpx; }
 .meta { display:flex; gap: 16rpx; font-size: 24rpx; color: #374151; margin-bottom: 12rpx; }
+.meta.sub { margin-top: -6rpx; margin-bottom: 8rpx; }
 .owner-row { margin-top: 8rpx; display:flex; justify-content:flex-end; }
 .owner { font-size: 22rpx; color:#334155; background:#f8fafc; border:2rpx dashed #e2e8f0; padding: 6rpx 10rpx; border-radius: 8rpx; }
 .progress { width:100%; height: 16rpx; border-radius: 999rpx; background: #eef2ff; overflow:hidden; }
@@ -163,6 +172,8 @@ function goBack(){
 .chip { font-size: 20rpx; color:#1e293b; background:#e2e8f0; padding: 2rpx 8rpx; border-radius: 999rpx; }
 .muted { font-size: 22rpx; color:#64748b; }
 .log-remark { margin-top: 8rpx; font-size: 22rpx; color:#334155; background:#f8fafc; border: 2rpx dashed #e2e8f0; border-radius: 8rpx; padding: 8rpx 10rpx; }
+.log-actions { margin-top: 6rpx; }
+.link { font-size: 22rpx; color: #2563eb; }
 
 /* 状态色 */
 .log-node.add .log-dot { background: #10b981; }

@@ -14,74 +14,27 @@
 			<view class="filter-chip" v-for="f in currentFilters" :key="f" :class="{ active: f===activeFilter }" @tap="activeFilter=f">{{ f }}</view>
 		</scroll-view>
 
-		<!-- 示例订单列表：纯UI占位，未接入数据 -->
-		<view class="section-time">2025-06-19 22 : 11</view>
-		<view class="card order-card">
-			<image class="thumb" src="/static/icons/warning.png" mode="aspectFit" />
+		<!-- 订单列表（已接入 API） -->
+		<view v-if="!loading && orders.length===0" class="empty">暂无订单</view>
+		<view v-for="o in orders" :key="o.id" class="card order-card">
+			<image class="thumb" :src="firstItem(o)?.imageUrl || '/static/icons/warning.png'" mode="aspectFit" />
 			<view class="order-body">
-				<view class="title">商品名</view>
+				<view class="title">{{ firstItem(o)?.name || '订单' }}</view>
 				<view class="tags-row">
-					<text class="tag">商品属性</text>
-					<text class="tag">商品标签</text>
-					<text class="tag">商品标签</text>
+					<text class="tag" v-if="o.type==='SERVICE'">服务订单</text>
+					<text class="tag" v-else>商品订单</text>
+					<text class="tag" v-if="o.no">{{ o.no }}</text>
 				</view>
 				<view class="meta-row">
-					<text class="status">订单状态</text>
+					<text class="status">{{ displayStatus(o) }}</text>
 					<view class="price-qty">
-						<text class="price">¥22</text>
-						<text class="qty">x1</text>
+						<text class="price">¥{{ formatPrice(firstItem(o)?.price) }}</text>
+						<text class="qty">x{{ firstItem(o)?.quantity || 1 }}</text>
 					</view>
 				</view>
 				<view class="actions">
-					<text class="more">更多</text>
-					<view class="btn">查看订单</view>
-				</view>
-			</view>
-		</view>
-
-		<view class="card order-card">
-			<image class="thumb" src="/static/icons/warning.png" mode="aspectFit" />
-			<view class="order-body">
-				<view class="title">商品名</view>
-				<view class="tags-row">
-					<text class="tag">商品属性</text>
-					<text class="tag">商品标签</text>
-					<text class="tag">商品标签</text>
-				</view>
-				<view class="meta-row">
-					<text class="status">订单状态</text>
-					<view class="price-qty">
-						<text class="price">¥22</text>
-						<text class="qty">x1</text>
-					</view>
-				</view>
-				<view class="actions">
-					<text class="more">更多</text>
-					<view class="btn">查看订单</view>
-				</view>
-			</view>
-		</view>
-
-		<view class="section-time">2025-06-19 12 : 11</view>
-		<view class="card order-card">
-			<image class="thumb" src="/static/icons/warning.png" mode="aspectFit" />
-			<view class="order-body">
-				<view class="title">商品名</view>
-				<view class="tags-row">
-					<text class="tag">商品属性</text>
-					<text class="tag">商品标签</text>
-					<text class="tag">商品标签</text>
-				</view>
-				<view class="meta-row">
-					<text class="status">订单状态</text>
-					<view class="price-qty">
-						<text class="price">¥112</text>
-						<text class="qty">x1</text>
-					</view>
-				</view>
-				<view class="actions">
-					<text class="more">更多</text>
-					<view class="btn">查看订单</view>
+					<text class="more">{{ formatTime(o.createdAt) }}</text>
+					<view class="btn" @tap="() => viewOrder(o)">查看订单</view>
 				</view>
 			</view>
 		</view>
@@ -90,6 +43,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 
 const { topSpacerHeight } = useSafeArea();
@@ -109,7 +64,64 @@ const currentFilters = computed(() => filterMap[mainTab.value]);
 function setMain(tab: MainTab){
 	mainTab.value = tab;
 	activeFilter.value = '全部';
+	fetchOrders();
 }
+
+type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number; quantity: number; specsText?: string|null };
+type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; createdAt: string; items: OrderItem[] };
+
+const orders = ref<Order[]>([]);
+const loading = ref(false);
+
+function navigate(url: string){
+	// #ifdef H5
+	if (typeof window !== 'undefined') { window.location.hash = url.startsWith('/') ? `#${url}` : `#/${url}`; return; }
+	// #endif
+	uni.navigateTo({ url });
+}
+
+function firstItem(o?: Order | null){ return (o?.items||[])[0] || null; }
+function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
+function formatTime(t: any){ try { const d = new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; } catch { return ''; } }
+function displayStatus(o: Order){
+	if (o.payStatus==='UNPAID') return '待支付';
+	if (o.payStatus==='REFUNDED') return '已退款';
+	if (o.status==='PAID') return o.type==='SERVICE' ? '待服务' : '待发货';
+	if (o.status==='FULFILLED') return o.type==='SERVICE' ? '已完成' : '待收货';
+	if (o.status==='CANCELLED' || o.payStatus==='CANCELLED') return '已取消';
+	return '处理中';
+}
+
+function buildQuery(){
+	const q: any = {};
+	if (mainTab.value==='product') q.type = 'SP';
+	else if (mainTab.value==='service') q.type = 'SERVICE';
+	// 二级筛选
+	if (activeFilter.value==='待支付') q.payStatus = 'UNPAID';
+	if (activeFilter.value==='退款/售后') q.payStatus = 'REFUNDED';
+	if (mainTab.value==='service' && activeFilter.value==='待服务') q.status = 'PAID';
+	if (mainTab.value==='product' && activeFilter.value==='待发货') q.status = 'PAID';
+	if (mainTab.value==='product' && activeFilter.value==='待收货') q.status = 'FULFILLED';
+	return q;
+}
+
+async function fetchOrders(){
+	loading.value = true;
+	try {
+		const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) { orders.value = []; return; }
+		const http = createHttp();
+		let profile: any = null; try { profile = await http('/member/me/profile', { method:'GET' }); } catch {}
+		const memberId = profile?.id;
+		const q = buildQuery();
+		if (memberId) q.memberId = memberId;
+		const list = await http<Order[]>('/orders', { method:'GET', query: q });
+		orders.value = Array.isArray(list) ? list : [];
+	} finally { loading.value = false; }
+}
+
+function viewOrder(o: Order){ navigate(`/pages/order/detail?id=${o.id}`); }
+
+onShow(async()=>{ await fetchOrders(); });
 </script>
 
 <style>
@@ -148,6 +160,7 @@ function setMain(tab: MainTab){
 .actions { margin-top: 8rpx; display:flex; align-items:center; justify-content: flex-end; gap: 16rpx; }
 .more { font-size: 24rpx; color:#6b7280; }
 .btn { padding: 10rpx 18rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #ffd6e7; color:#1f2937; font-size: 24rpx; }
+.empty { text-align:center; color:#9ca3af; margin-top: 80rpx; }
 </style>
 
 
