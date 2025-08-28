@@ -52,7 +52,14 @@
 				<text class="fav-text">{{ collected ? '已收藏' : '收藏' }}</text>
 			</view>
 			<view v-if="product?.type==='PHYSICAL'" class="action cart-action" @tap="addToCart">
+				<!-- #ifdef H5 -->
+				<svg class="cart-svg" width="226.5625" height="200" viewBox="0 0 1160 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
+					<path d="M415.1296 857.429333a83.285333 83.285333 0 1 1 0 166.570667 83.285333 83.285333 0 0 1 0-166.570667z m499.643733 0a83.285333 83.285333 0 1 1 0 166.570667 83.285333 83.285333 0 0 1 0-166.570667zM213.435733 0v0.4096l5.12-0.034133a34.133333 34.133333 0 0 1 34.2016 29.2864l20.48 143.803733h834.013867a34.133333 34.133333 0 0 1 33.6896 39.697067l-83.524267 506.88a68.266667 68.266667 0 0 1-67.345066 57.1392H318.327467c-1.774933 0-3.515733-0.136533-5.2224-0.375467h-6.144a34.133333 34.133333 0 0 1-34.2016-29.2864L197.188267 218.043733l-7.338667-44.578133h0.989867l-12.868267-90.2144H20.48V0h192.955733z m330.308267 340.138667H481.28v270.404266h62.464V340.138667z m312.285867 0h-62.464v270.404266h62.464V340.138667z" fill="#1296DB" class=""></path>
+				</svg>
+				<!-- #endif -->
+				<!-- #ifndef H5 -->
 				<image class="cart-icon" src="/static/icons/cart.png" mode="aspectFit" />
+				<!-- #endif -->
 				<text class="cart-text">加入购物车</text>
 			</view>
 			<view class="buy" @tap="openSheet">立即购买</view>
@@ -396,6 +403,7 @@ function onSubmitted(){ /* 可根据需要刷新 */ }
 .fav-icon { width: 40rpx; height: 40rpx; }
 .cart-action { min-width: 160rpx; }
 .cart-icon { width: 40rpx; height: 40rpx; }
+.cart-svg { width: 40rpx; height: 40rpx; display:block; }
 .cart-text { font-size: 22rpx; color:#111827; }
 .buy { flex:1; text-align:center; padding: 18rpx 0; border-radius: 16rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; font-size: 28rpx; }
 

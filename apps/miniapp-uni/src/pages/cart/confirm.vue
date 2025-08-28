@@ -39,10 +39,15 @@
 				</view>
 			</scroll-view>
 			<view v-if="requiresAddress" class="addr-manage" @tap="gotoAddress">管理地址</view>
-			<!-- 支付方式与备注（线下） -->
+			<!-- 支付方式与备注 -->
 			<view class="block-title">支付方式</view>
-			<view class="pay-chip">线下支付（现金/收钱吧）</view>
-			<view class="tip">支付后由门店在后台确认收款</view>
+			<view class="pay-row">
+				<!-- #ifdef MP-WEIXIN -->
+				<view class="pay-chip" :class="{ active: payMethod==='WECHAT' }" @tap="() => setPayMethod('WECHAT')">微信支付</view>
+				<!-- #endif -->
+				<view class="pay-chip" :class="{ active: payMethod==='OFFLINE' }" @tap="() => setPayMethod('OFFLINE')">线下支付（现金/收钱吧）</view>
+			</view>
+			<view class="tip" v-if="payMethod==='OFFLINE'">支付后由门店在后台确认收款</view>
 		</view>
 		<view class="card">
 			<view class="block-title">备注</view>
@@ -77,6 +82,7 @@ function formatPrice(p:any){ const n=Number(p); return isNaN(n)? '0.00' : n.toFi
 
 const items = ref<any[]>([]);
 const remark = ref<string>('');
+const payMethod = ref<'WECHAT'|'OFFLINE'>('WECHAT');
 type Address = { id: number; province: string; city: string; district: string; street: string; detail: string; phone: string };
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number|undefined>(undefined);
@@ -104,6 +110,7 @@ const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
 const requiresAddress = computed(()=> items.value.some(it => String(it?.snapshot?.type||'')==='PHYSICAL'));
 function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); } catch {} }
 function selectAddress(id?: number){ selectedAddressId.value = id; }
+function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
 
 async function submit(){
 	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
@@ -131,10 +138,37 @@ async function submit(){
 	const body:any = { type: 'SP', memberId, items: orderItems, remark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
-		uni.showToast({ title:'下单成功，线下支付', icon:'none' });
 		// 清理后端已勾选条目
 		try { await http('/cart/me/clear-checked', { method:'DELETE' }); } catch {}
-		setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}` }); } catch {} }, 300);
+		if (payMethod.value === 'WECHAT'){
+			try{
+				const params:any = await http(`/orders/${created?.id}/pay/wechat-jsapi`, { method:'POST' });
+				// #ifdef MP-WEIXIN
+				await new Promise<void>((resolve,reject)=>{
+					(uni as any).requestPayment({
+						timeStamp: params.timeStamp,
+						nonceStr: params.nonceStr,
+						package: params.package,
+						signType: params.signType || 'RSA',
+						paySign: params.paySign,
+						success: ()=> resolve(),
+						fail: (e:any)=> reject(e)
+					});
+				});
+				uni.showToast({ title:'支付成功', icon:'success' });
+				setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}` }); } catch {} }, 200);
+				// #endif
+				// #ifndef MP-WEIXIN
+				uni.showToast({ title:'请在微信小程序内完成支付', icon:'none' });
+				// #endif
+			} catch {
+				uni.showToast({ title:'支付未完成', icon:'none' });
+				setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}` }); } catch {} }, 200);
+			}
+		} else {
+			uni.showToast({ title:'下单成功，线下支付', icon:'none' });
+			setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}` }); } catch {} }, 300);
+		}
 	} catch (e:any) {
 		uni.showToast({ title: e?.message || '下单失败', icon:'none' });
 	}
@@ -162,7 +196,9 @@ loadSelected();
 
 /* 支付/备注 */
 .block-title { font-size: 26rpx; color:#374151; margin-bottom: 8rpx; }
-.pay-chip { display:inline-flex; padding: 12rpx 18rpx; border-radius: 999rpx; background:#111827; color:#fff; font-size: 24rpx; }
+.pay-row { display:flex; gap: 12rpx; flex-wrap: wrap; }
+.pay-chip { display:inline-flex; padding: 12rpx 18rpx; border-radius: 999rpx; background:#e5e7eb; color:#111827; font-size: 24rpx; }
+.pay-chip.active { background:#111827; color:#fff; }
 .tip { margin-top: 6rpx; color:#6b7280; font-size: 22rpx; }
 .remark { width: 100%; min-height: 120rpx; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; box-sizing: border-box; }
 

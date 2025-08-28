@@ -37,13 +37,25 @@
 		<!-- 我的订单区块 -->
 		<view class="card orders-card">
 			<view class="orders-head">
-				<view class="chip">我的订单</view>
+				<view class="card-title">我的订单</view>
 				<view class="link" @tap="onTapAllOrders">点击查看全部订单</view>
 			</view>
 			<view class="orders-grid">
-				<view class="pill">待收货</view>
-				<view class="pill">待服务</view>
-				<view class="pill">已完成</view>
+				<view class="order-icon-btn" @tap="() => goOrdersWith('all','待支付')">
+					<view v-if="unpaidCount>0" class="order-badge">{{ unpaidCountText }}</view>
+					<image class="order-icon-img" src="/static/icons/unpaid.png" mode="aspectFit" />
+					<text class="order-icon-text">待支付</text>
+				</view>
+				<view class="order-icon-btn" @tap="() => goOrdersWith('product','待收货')">
+					<view v-if="pendingReceiptCount>0" class="order-badge">{{ pendingReceiptCountText }}</view>
+					<image class="order-icon-img" src="/static/icons/ontheway.png" mode="aspectFit" />
+					<text class="order-icon-text">待收货</text>
+				</view>
+				<view class="order-icon-btn" @tap="() => goOrdersWith('service','待服务')">
+					<view v-if="pendingServiceCount>0" class="order-badge">{{ pendingServiceCountText }}</view>
+					<image class="order-icon-img" src="/static/icons/service_wait.png" mode="aspectFit" />
+					<text class="order-icon-text">待服务</text>
+				</view>
 			</view>
 		</view>
 
@@ -83,6 +95,13 @@ import WashCard from '../../components/WashCard.vue';
 const { topSpacerHeight } = useSafeArea();
 
 const card = ref<any|null>(null);
+// 订单角标数量
+const unpaidCount = ref<number>(0);
+const pendingReceiptCount = ref<number>(0);
+const pendingServiceCount = ref<number>(0);
+const unpaidCountText = computed(()=> unpaidCount.value>99 ? '99+' : String(unpaidCount.value));
+const pendingReceiptCountText = computed(()=> pendingReceiptCount.value>99 ? '99+' : String(pendingReceiptCount.value));
+const pendingServiceCountText = computed(()=> pendingServiceCount.value>99 ? '99+' : String(pendingServiceCount.value));
 
 // 登录态
 const token = ref<string | null>(null);
@@ -158,7 +177,7 @@ onMounted(() => {
 // 页面展示：检查登录并拉取默认洗车卡
 // #ifdef MP-WEIXIN || H5
 import { onShow } from '@dcloudio/uni-app';
-onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); }});
+onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); await loadOrderBadges(); }});
 // #endif
 onBeforeUnmount(() => { try { uni.$off?.('auth:changed', handleAuthChanged); } catch {} });
 
@@ -237,6 +256,13 @@ function onTapAvatar(){
 }
 function onTapAllOrders() { try { uni.switchTab({ url: '/pages/order/index' }); } catch {} }
 
+function goOrdersWith(main:'all'|'product'|'service', filter:'待支付'|'待收货'|'待服务'){
+    try {
+        uni.setStorageSync('order:preset', { main, filter });
+    } catch {}
+    try { uni.switchTab({ url: '/pages/order/index' }); } catch {}
+}
+
 function onTapProfile() { if (!isLoggedIn.value) navigate('/pages/login/index'); }
 
 async function loadCard(){ try { const t = uni.getStorageSync('token'); if (!t) { card.value = null; return; } const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t }); const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' }); const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null; card.value = def || null; } catch { card.value = null; } }
@@ -258,6 +284,40 @@ function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'
 function onTapAddress(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/address/index'); }
 function onTapAdmin(){ uni.showToast({ title: '商家管理开发中', icon: 'none' }); }
 function onTapAbout(){ uni.showToast({ title: '关于我们开发中', icon: 'none' }); }
+
+// 统计订单角标：待支付/待收货/待服务
+async function loadOrderBadges(){
+    try{
+        const t = uni.getStorageSync('token');
+        if (!t) { unpaidCount.value=0; pendingReceiptCount.value=0; pendingServiceCount.value=0; return; }
+        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
+        // 拉全部后前端归类，避免后端额外接口；若有专门统计接口可替换
+        const q:any = {};
+        const list:any[] = await http('/orders', { method:'GET', query: q });
+        const orders = Array.isArray(list) ? list : [];
+        let unpaid=0, preceipt=0, pservice=0;
+        for (const o of orders){
+            // 待支付
+            if (o?.payStatus === 'UNPAID') unpaid++;
+            // 待收货（商品订单，已支付，发货中/已发货未收）
+            if (o?.type === 'SP' && o?.payStatus === 'PAID'){
+                if (o?.fulfillmentStatus === 'SHIPPED' || o?.status === 'FULFILLED') preceipt++;
+            }
+            // 待服务（服务订单，IN_SERVICE/PENDING 或 旧字段 PAID）
+            if (o?.type === 'SERVICE'){
+                const isPaid = o?.payStatus === 'PAID';
+                const fs = o?.fulfillmentStatus;
+                if (isPaid && (fs === 'IN_SERVICE' || fs === 'PENDING')) pservice++;
+                else if (isPaid && (!fs || fs === 'NONE') && o?.status === 'PAID') pservice++;
+            }
+        }
+        unpaidCount.value = unpaid;
+        pendingReceiptCount.value = preceipt;
+        pendingServiceCount.value = pservice;
+    }catch{
+        unpaidCount.value=0; pendingReceiptCount.value=0; pendingServiceCount.value=0;
+    }
+}
 </script>
 
 <style>
@@ -299,11 +359,15 @@ function onTapAbout(){ uni.showToast({ title: '关于我们开发中', icon: 'no
 .quota-footer { font-size: 24rpx; color:#6b7280; }
 
 /* 订单区块 */
+.orders-card { background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
 .orders-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 18rpx; }
-.chip { padding: 12rpx 20rpx; border-radius: 999rpx; background:#f7fbff; border: 2rpx dashed #77bfff; font-size: 24rpx; color:#1f2937; }
 .link { font-size: 24rpx; color:#2563eb; }
 .orders-grid { display:flex; gap: 24rpx; }
-.pill { flex:1; text-align:center; padding: 24rpx 0; border-radius: 24rpx; background:#ffffff; border: 2rpx solid #e5e7eb; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.04); }
+.order-icon-btn { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 24rpx 0; border-radius: 24rpx; background: transparent; border: none; box-shadow: none; }
+.order-icon-btn { position: relative; }
+.order-badge { position: absolute; right: 12rpx; top: 6rpx; min-width: 28rpx; height: 28rpx; padding: 0 8rpx; border-radius: 999rpx; background: #ef4444; color:#fff; font-size: 20rpx; display:flex; align-items:center; justify-content:center; box-shadow: 0 2rpx 6rpx rgba(239,68,68,0.35); }
+.order-icon-img { width: 60rpx; height: 60rpx; margin-bottom: 10rpx; display:block; }
+.order-icon-text { font-size: 24rpx; color:#1f2937; }
 
 /* 其它功能 */
 .actions-card .grid { display:flex; gap: 24rpx; }

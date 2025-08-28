@@ -9,7 +9,7 @@
 			<view class="add-btn" @tap="goCreate">添加车辆</view>
 		</view>
 		<view class="tipbar">
-			<text class="tip-emoji">💡</text>
+			<image class="tip-icon" src="/static/icons/dp.png" mode="aspectFit" />
 			<text class="tip-text">点击车辆卡片可进行编辑</text>
 		</view>
 		<view v-for="v in list" :key="v.id" class="vehicle-card" :class="plateLen(v)===8 ? 'bg-nev' : 'bg-std'" @tap="() => goEdit(v)">
@@ -18,7 +18,7 @@
 					<text class="plate-text">{{ displayPlate(v) }}</text>
 				</view>
 				<view class="ops" @tap.stop="noop">
-					<view class="icon-btn danger" @tap.stop="() => onDelete(v)"><text class="icon">🗑</text></view>
+					<view class="icon-btn danger" @tap.stop="() => onDelete(v)"><image class="icon-img" src="/static/icons/delete.png" mode="aspectFit" /></view>
 					<view class="pill" :class="{ primary: !v.isDefault }" @tap.stop="() => onSetDefault(v)">{{ v.isDefault ? '默认' : '设为默认' }}</view>
 				</view>
 			</view>
@@ -98,7 +98,7 @@ onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: tru
 .title { font-size: 32rpx; font-weight: 700; }
 .add-btn { padding: 14rpx 20rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); border-radius: 999rpx; }
 .tipbar { display:flex; align-items:center; gap: 10rpx; padding: 14rpx 16rpx; background: #f3f4f6; border-radius: 16rpx; color:#374151; margin-bottom: 16rpx; }
-.tip-emoji { font-size: 28rpx; }
+.tip-icon { width: 28rpx; height: 28rpx; display:block; }
 .tip-text { font-size: 26rpx; }
 .vehicle-card { border-radius: 20rpx; padding: 20rpx; box-shadow: 0 6rpx 20rpx rgba(0,0,0,0.06); margin-bottom: 16rpx; }
 .vehicle-card.bg-std { background: #f5faff; }
@@ -110,8 +110,8 @@ onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: tru
 .ops { display:flex; gap: 12rpx; }
 .pill { padding: 10rpx 16rpx; border-radius: 999rpx; background:#f3f4f6; }
 .pill.primary { background:#e0f2fe; }
-.icon-btn { width: 64rpx; height: 64rpx; border-radius: 999rpx; background:#fee2e2; display:flex; align-items:center; justify-content:center; }
-.icon { font-size: 28rpx; }
+.icon-btn { display:flex; align-items:center; justify-content:center; background: transparent; width: auto; height: auto; border-radius: 0; overflow: visible; }
+.icon-img { width: 40rpx; height: 40rpx; display:block; }
 .meta { color:#6b7280; font-size: 24rpx; }
 .empty { text-align:center; color:#9ca3af; margin-top: 120rpx; }
 

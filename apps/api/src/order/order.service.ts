@@ -122,6 +122,11 @@ export class OrderService {
         return this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true } });
     }
 
+    async getMemberOpenId(memberId: number): Promise<string | null> {
+        const m = await this.prisma.member.findUnique({ where: { id: memberId }, select: { weixinOpenId: true } });
+        return m?.weixinOpenId ?? null;
+    }
+
     listOrders(query: { type?: OrderType | undefined; status?: OrderStatus | undefined; payStatus?: PayStatus | undefined; memberId?: number | undefined; keyword?: string | undefined; start?: string | undefined; end?: string | undefined; scene?: string | undefined; includeDeleted?: boolean | undefined; }) {
         const where: Prisma.OrderWhereInput = {};
         if (query.type) where.type = query.type;
@@ -442,12 +447,22 @@ export class OrderService {
         return this.prisma.order.update({ where: { id }, data: { deletedAt: null } });
     }
 
-    // 发货（SP）：PENDING -> SHIPPED
-    async shipOrder(id: number, operatorUserId?: number | null) {
+    // 发货（SP）：支持无需快递/快递发货并记录物流信息
+    async shipOrder(id: number, operatorUserId?: number | null, payload?: { noExpress?: boolean; companyCode?: string | null; companyName?: string | null; companyLogo?: string | null; trackingNo?: string | null; extra?: any | null }) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SP') throw new Error('仅商品订单可发货');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可发货');
-        return this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'SHIPPED' as any } });
+        const data = {
+            fulfillmentStatus: 'SHIPPED' as any,
+            shippedAt: new Date(),
+            shipNoExpress: !!payload?.noExpress,
+            shipExpressCompanyCode: payload?.companyCode ?? null,
+            shipExpressCompanyName: payload?.companyName ?? null,
+            shipExpressCompanyLogo: payload?.companyLogo ?? null,
+            shipExpressTrackingNo: payload?.trackingNo ?? null,
+            shipExpressExtra: payload?.extra ?? undefined,
+        };
+        return this.prisma.order.update({ where: { id }, data });
     }
 
     // 确认收货（SP）：SHIPPED -> RECEIVED，并置为完成（CLOSED）

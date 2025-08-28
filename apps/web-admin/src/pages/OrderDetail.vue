@@ -37,6 +37,38 @@
 			<el-table-column prop="quantity" label="数量" width="80" />
 		</el-table>
 
+		<h4 style="margin-top:16px;">物流信息</h4>
+		<el-card v-if="data?.type==='SP'" class="box-card" shadow="hover">
+			<template #default>
+				<div v-if="data?.shipNoExpress" style="color:#606266;">商家已选择无需快递发货</div>
+				<div v-else-if="data?.shipExpressTrackingNo" style="display:flex;align-items:center;gap:12px;">
+					<img v-if="data?.shipExpressCompanyLogo" :src="data?.shipExpressCompanyLogo" style="width:28px;height:28px;object-fit:contain;" />
+					<div style="flex:1;min-width:0;">
+						<div>快递公司：{{ data?.shipExpressCompanyName || data?.shipExpressCompanyCode || '-' }}</div>
+						<div>运单号：{{ data?.shipExpressTrackingNo }}</div>
+						<div v-if="data?.shippedAt">发货时间：{{ formatDate(data?.shippedAt) }}</div>
+					</div>
+					<el-button size="small" type="primary" @click="openTrace">查询物流</el-button>
+				</div>
+				<div v-else style="color:#909399;">暂无物流信息</div>
+			</template>
+		</el-card>
+
+		<el-dialog v-model="showTrace" title="物流轨迹" width="640px">
+			<el-skeleton v-if="loadingTrace" :rows="4" animated />
+			<div v-else>
+				<div style="margin-bottom:8px;">状态：{{ traceStatusDesc || '-' }}</div>
+				<el-timeline>
+					<el-timeline-item v-for="(it,idx) in traceList" :key="idx" :timestamp="it.datetime" placement="top">
+						{{ it.remark }}
+					</el-timeline-item>
+				</el-timeline>
+			</div>
+			<template #footer>
+				<el-button @click="showTrace=false">关闭</el-button>
+			</template>
+		</el-dialog>
+
 		<h4 style="margin-top:16px;">权益与卡券</h4>
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="使用积分">{{ data?.usedPoints }}</el-descriptions-item>
@@ -54,6 +86,10 @@ import { createHttpClient } from '@wash/shared-utils';
 const route = useRoute();
 const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
 const data = ref<any>(null);
+const showTrace = ref(false);
+const traceList = ref<Array<{ datetime:string; remark:string }>>([]);
+const traceStatusDesc = ref<string>('');
+const loadingTrace = ref(false);
 async function fetchDetail(){
     const idParam = route.params.id as string | undefined;
     const noParam = route.params.no as string | undefined;
@@ -65,6 +101,25 @@ async function fetchDetail(){
     }
 }
 onMounted(fetchDetail);
+
+async function openTrace(){
+    if (!data.value?.shipExpressTrackingNo) return;
+    showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = '';
+    try{
+        const res:any = await http('/orders/_logistics/query', { query: { com: data.value?.shipExpressCompanyCode || undefined, no: data.value?.shipExpressTrackingNo } });
+        traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
+        const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
+        const getTime = (it:any)=> it?.datetime || it?.time || '';
+        const getRemark = (it:any)=> it?.remark || it?.context || '';
+        rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
+        traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
+    }catch{
+        traceList.value = [];
+        traceStatusDesc.value = '';
+    }finally{
+        loadingTrace.value = false;
+    }
+}
 
 function formatDate(val: string | null | undefined){
 	if(!val) return '-';

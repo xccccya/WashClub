@@ -63,7 +63,14 @@
 
 		<!-- 仅在实物商品标签下显示购物车悬浮按钮 -->
 		<view v-if="activeTab==='goods'" class="cart-fab" @tap="gotoCart">
+			<!-- #ifdef H5 -->
+			<svg class="cart-fab-svg" width="226.5625" height="200" viewBox="0 0 1160 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
+				<path d="M415.1296 857.429333a83.285333 83.285333 0 1 1 0 166.570667 83.285333 83.285333 0 0 1 0-166.570667z m499.643733 0a83.285333 83.285333 0 1 1 0 166.570667 83.285333 83.285333 0 0 1 0-166.570667zM213.435733 0v0.4096l5.12-0.034133a34.133333 34.133333 0 0 1 34.2016 29.2864l20.48 143.803733h834.013867a34.133333 34.133333 0 0 1 33.6896 39.697067l-83.524267 506.88a68.266667 68.266667 0 0 1-67.345066 57.1392H318.327467c-1.774933 0-3.515733-0.136533-5.2224-0.375467h-6.144a34.133333 34.133333 0 0 1-34.2016-29.2864L197.188267 218.043733l-7.338667-44.578133h0.989867l-12.868267-90.2144H20.48V0h192.955733z m330.308267 340.138667H481.28v270.404266h62.464V340.138667z m312.285867 0h-62.464v270.404266h62.464V340.138667z" fill="#1296DB" class=""></path>
+			</svg>
+			<!-- #endif -->
+			<!-- #ifndef H5 -->
 			<image class="cart-fab-icon" src="/static/icons/cart.png" mode="aspectFit" />
+			<!-- #endif -->
 		</view>
 	</view>
 </template>
@@ -75,12 +82,123 @@ import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
+declare const wx: any;
 
 const { topSpacerHeight } = useSafeArea();
 
-// 顶部店铺信息（UI占位）
+// 顶部店铺信息（动态距离/时长）
 const storeName = ref('巨科汽车美容（威远店）');
-const distanceText = ref('距离约 2.3km');
+const distanceText = ref('距离计算中…');
+
+function readEnv(key: string): string{
+	try {
+		const im: any = (import.meta as any)?.env || {};
+		const v = String(im[key] ?? im[`VITE_${key}`] ?? (globalThis as any)?.process?.env?.[key] ?? '').trim();
+		return v;
+	} catch { return ''; }
+}
+
+function parseLngLat(input?: string|null): { lng: number; lat: number } | null {
+	try {
+		const s = String(input||'').trim(); if (!s) return null;
+		const parts = s.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
+		if (parts.length < 2) return null;
+		const lng = Number(parts[0]); const lat = Number(parts[1]);
+		if (!isFinite(lng) || !isFinite(lat)) return null;
+		return { lng, lat };
+	} catch { return null; }
+}
+
+async function requestJSON(url: string, query: Record<string, any>): Promise<any>{
+	return new Promise((resolve) => {
+		try {
+			const qs = Object.keys(query||{}).map(k=>`${encodeURIComponent(k)}=${encodeURIComponent(query[k]??'')}`).join('&');
+			const full = qs ? `${url}?${qs}` : url;
+			uni.request({ url: full, method: 'GET', success: (res:any)=> resolve(res?.data), fail: ()=> resolve(null) });
+		} catch { resolve(null); }
+	});
+}
+
+async function updateStoreDistance(){
+	const key = readEnv('AMAP_WEB_KEY') || readEnv('AMAP_KEY') || readEnv('VITE_AMAP_KEY');
+	const storeCoord = parseLngLat(readEnv('STORE_LOCATION'));
+	if (!key || !storeCoord) { distanceText.value = '距离获取失败'; return; }
+	// 仅小程序内获取定位
+	// #ifdef MP-WEIXIN
+	try {
+		await new Promise<void>((resolve)=>{
+			wx.getLocation({
+				type: 'wgs84',
+				isHighAccuracy: true,
+				highAccuracyExpireTime: 5000,
+				success: async (res:any) => {
+					try{
+						const gpsLng = Number(res?.longitude); const gpsLat = Number(res?.latitude);
+						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
+						// 坐标转换（WGS84->GCJ02/高德）
+						const convertResp = await requestJSON('https://restapi.amap.com/v3/assistant/coordinate/convert', { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
+						const locStr = String(convertResp?.locations||'').trim();
+						const userConv = parseLngLat(locStr);
+						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
+						// 驾车路径规划（策略10）
+						const driveResp = await requestJSON('https://restapi.amap.com/v3/direction/driving', {
+							key,
+							origin: `${originLng},${originLat}`,
+							destination: `${storeCoord.lng},${storeCoord.lat}`,
+							strategy: 10,
+							extensions: 'base'
+						});
+						const path = (driveResp?.route?.paths||[])[0] || {};
+						const distanceM = Number(path?.distance||0);
+						const durationS = Number(path?.duration||0);
+						if (!isFinite(distanceM) || distanceM<=0) { distanceText.value = '距离获取失败'; resolve(); return; }
+						const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
+						const min = Math.max(1, Math.round(durationS/60));
+						distanceText.value = `驾车 ${km}km · 约 ${min} 分钟`;
+						resolve();
+					}catch{ distanceText.value = '距离获取失败'; resolve(); }
+				},
+				fail: ()=>{ distanceText.value = '定位未授权'; resolve(); }
+			});
+		});
+	} catch { distanceText.value = '定位失败'; }
+	// #endif
+	// H5 环境：使用浏览器 Geolocation
+	// #ifdef H5
+	try {
+		await new Promise<void>((resolve)=>{
+			try{
+				if (typeof navigator === 'undefined' || !navigator?.geolocation){ distanceText.value = '定位不可用'; resolve(); return; }
+				navigator.geolocation.getCurrentPosition(async (pos: any)=>{
+					try{
+						const gpsLat = Number(pos?.coords?.latitude); const gpsLng = Number(pos?.coords?.longitude);
+						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
+						const convertResp = await requestJSON('https://restapi.amap.com/v3/assistant/coordinate/convert', { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
+						const locStr = String(convertResp?.locations||'').trim();
+						const userConv = parseLngLat(locStr);
+						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
+						const driveResp = await requestJSON('https://restapi.amap.com/v3/direction/driving', {
+							key,
+							origin: `${originLng},${originLat}`,
+							destination: `${storeCoord.lng},${storeCoord.lat}`,
+							strategy: 10,
+							extensions: 'base'
+						});
+						const path = (driveResp?.route?.paths||[])[0] || {};
+						const distanceM = Number(path?.distance||0);
+						const durationS = Number(path?.duration||0);
+						if (!isFinite(distanceM) || distanceM<=0) { distanceText.value = '距离获取失败'; resolve(); return; }
+						const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
+						const min = Math.max(1, Math.round(durationS/60));
+						distanceText.value = `驾车 ${km}km · 约 ${min} 分钟`;
+						resolve();
+					}catch{ distanceText.value = '距离获取失败'; resolve(); }
+				}, ()=>{ distanceText.value = '定位未授权'; resolve(); }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+			}catch{ distanceText.value = '定位失败'; resolve(); }
+		});
+	} catch { distanceText.value = '定位失败'; }
+	// #endif
+}
 
 // 顶部标签
 type TabKey = 'service' | 'goods' | 'flash';
@@ -146,6 +264,13 @@ onShow(async () => {
 	} catch {}
 	await fetchCategories();
 	await fetchProducts();
+	// 计算到店距离（小程序、H5分别实现）
+	// #ifdef MP-WEIXIN
+	updateStoreDistance();
+	// #endif
+	// #ifdef H5
+	updateStoreDistance();
+	// #endif
 });
 
 // 购买：弹出统一确认卡片
@@ -222,6 +347,12 @@ async function addToCartFromList(p:any){
 /* 购物车悬浮按钮 */
 .cart-fab { position: fixed; right: 24rpx; bottom: calc(env(safe-area-inset-bottom) + 48rpx); width: 96rpx; height: 96rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #e5e7eb; display:flex; align-items:center; justify-content:center; box-shadow:0 12rpx 24rpx rgba(0,0,0,0.08); z-index: 1000; }
 .cart-fab-icon { width: 56rpx; height: 56rpx; }
+.cart-fab-svg { width: 56rpx; height: 56rpx; display:block; }
+
+/* H5 环境下提高悬浮按钮底部偏移，避免被底部导航遮挡/贴边 */
+/* #ifdef H5 */
+.cart-fab { bottom: calc(env(safe-area-inset-bottom) + 160rpx); }
+/* #endif */
 
 </style>
 

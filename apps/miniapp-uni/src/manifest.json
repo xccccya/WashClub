@@ -11,6 +11,14 @@
         "setting" : {
             "urlCheck" : false,
             "minified" : true
+        },
+        "requiredPrivateInfos": [
+            "getLocation"
+        ],
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "获取距离您最近的店铺位置"
+            }
         }
     },
     "h5" : {

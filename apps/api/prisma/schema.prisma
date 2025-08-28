@@ -331,6 +331,7 @@ enum PayMethod {
 	CASH
 	SHOUQIANBA
 	OFFLINE
+	WECHAT_JSAPI
 }
 
 // 履约与评价状态（方案B新增）
@@ -565,6 +566,15 @@ model Order {
 	vehicle         Vehicle?    @relation(fields: [vehicleId], references: [id])
 	// 备注
 	remark          String?
+
+	// 物流/发货信息（商品订单 SP 使用）
+	shippedAt       DateTime?
+	shipNoExpress   Boolean    @default(false)
+	shipExpressCompanyCode String?
+	shipExpressCompanyName String?
+	shipExpressCompanyLogo String?
+	shipExpressTrackingNo  String?
+	shipExpressExtra       Json?
 
 	items           OrderItem[]
 

@@ -57,13 +57,16 @@
 				</view>
 			</view>
 
-			<!-- 支付方式（仅线下） -->
+			<!-- 支付方式选择：支持 微信支付 / 线下支付 -->
 			<view class="block">
 				<view class="block-title">支付方式</view>
 				<view class="pay-row">
-					<view class="pay-chip active">线下支付（现金/收钱吧）</view>
+					<!-- #ifdef MP-WEIXIN -->
+					<view class="pay-chip" :class="{ active: payMethod==='WECHAT' }" @tap="() => setPayMethod('WECHAT')">微信支付</view>
+					<!-- #endif -->
+					<view class="pay-chip" :class="{ active: payMethod==='OFFLINE' }" @tap="() => setPayMethod('OFFLINE')">线下支付（现金/收钱吧）</view>
 				</view>
-				<view class="tip">支付后由门店在后台确认收款</view>
+				<view class="tip" v-if="payMethod==='OFFLINE'">支付后由门店在后台确认收款</view>
 			</view>
 
 			<!-- 备注 -->
@@ -122,6 +125,7 @@ const product = computed(() => props.product);
 const selectedSkuId = ref<number|undefined>(undefined);
 const quantity = ref<number>(1);
 const remark = ref<string>('');
+const payMethod = ref<'WECHAT'|'OFFLINE'>('WECHAT');
 
 const http = createHttp();
 
@@ -415,6 +419,8 @@ function vehicleBrandIcon(v: VehicleEx){
 function onBackdrop(){ close(); }
 function close(){ emit('update:visible', false); }
 
+function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
+
 async function submit(){
 	// 登录校验
 	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
@@ -458,10 +464,42 @@ async function submit(){
 	};
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
-		uni.showToast({ title: '下单成功，线下支付', icon: 'none' });
-		emit('submitted', created);
-		close();
-		setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}&src=created` }); } catch {} }, 300);
+		// 选择支付方式
+		if (payMethod.value === 'WECHAT') {
+			try {
+				const params:any = await http(`/orders/${created?.id}/pay/wechat-jsapi`, { method:'POST' });
+				// #ifdef MP-WEIXIN
+				await new Promise<void>((resolve, reject)=>{
+					(uni as any).requestPayment({
+						timeStamp: params.timeStamp,
+						nonceStr: params.nonceStr,
+						package: params.package,
+						signType: params.signType || 'RSA',
+						paySign: params.paySign,
+						success: ()=> resolve(),
+						fail: (e:any)=> reject(e)
+					});
+				});
+				uni.showToast({ title: '支付成功', icon: 'success' });
+				emit('submitted', created);
+				close();
+				setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}` }); } catch {} }, 200);
+				// #endif
+				// #ifndef MP-WEIXIN
+				uni.showToast({ title:'请在微信小程序内完成支付', icon:'none' });
+				// #endif
+			} catch {
+				uni.showToast({ title:'支付未完成', icon:'none' });
+				emit('submitted', created);
+				close();
+				setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}&src=created` }); } catch {} }, 200);
+			}
+		} else {
+			uni.showToast({ title: '下单成功，线下支付', icon: 'none' });
+			emit('submitted', created);
+			close();
+			setTimeout(()=>{ try { uni.navigateTo({ url: `/pages/order/detail?no=${created?.no||''}&src=created` }); } catch {} }, 300);
+		}
 	} catch (e:any) {
 		uni.showToast({ title: e?.message || '下单失败', icon:'none' });
 	}
@@ -492,7 +530,8 @@ async function submit(){
 .stepper .btn { width: 48rpx; height: 48rpx; border-radius: 12rpx; background:#f3f4f6; text-align:center; line-height: 48rpx; font-size: 28rpx; }
 .stepper .num { min-width: 56rpx; text-align:center; font-size: 28rpx; color:#111827; }
 .pay-row { display:flex; flex-wrap: wrap; gap: 12rpx; }
-.pay-chip { padding: 12rpx 18rpx; border-radius: 999rpx; background:#111827; color:#fff; font-size: 24rpx; }
+.pay-chip { padding: 12rpx 18rpx; border-radius: 999rpx; background:#e5e7eb; color:#111827; font-size: 24rpx; }
+.pay-chip.active { background:#111827; color:#fff; }
 .tip { margin-top: 6rpx; color:#6b7280; font-size: 22rpx; }
 .remark { width: 100%; min-height: 96rpx; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; box-sizing: border-box; }
 .footer { position: sticky; bottom: 0; left: 0; right:0; display:flex; align-items:center; justify-content: space-between; gap: 12rpx; padding-top: 12rpx; background:#fff; }

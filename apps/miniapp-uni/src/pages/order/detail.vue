@@ -52,6 +52,28 @@
 			<view class="kv"><text class="k">支付时间</text><text class="v">{{ order.paidAt ? formatTime(order.paidAt) : '-' }}</text></view>
 		</view>
 
+		<!-- 物流信息：商品订单展示 -->
+		<view class="logistics-card" v-if="order && order.type==='SP'">
+			<view class="logistics-head">物流信息</view>
+			<view v-if="(order as any).shipNoExpress" class="logistics-empty">商家已选择无需快递发货</view>
+			<view v-else-if="(order as any).shipExpressTrackingNo" class="logistics-body">
+				<image v-if="(order as any).shipExpressCompanyLogo" class="logistics-logo" :src="(order as any).shipExpressCompanyLogo" mode="aspectFit" />
+				<view class="logistics-info">
+					<text class="line">快递公司：{{ (order as any).shipExpressCompanyName || (order as any).shipExpressCompanyCode || '-' }}</text>
+					<text class="line">运单号：{{ (order as any).shipExpressTrackingNo }}</text>
+					<text v-if="(order as any).shippedAt" class="line">发货时间：{{ formatTime((order as any).shippedAt) }}</text>
+				</view>
+				<view class="trace-btn" @tap="loadTrace">查看物流</view>
+			</view>
+			<view v-else class="logistics-empty">暂无物流信息</view>
+			<view v-if="traceList.length" class="trace-list">
+				<view v-for="(it,idx) in traceList" :key="idx" class="trace-item">
+					<text class="time">{{ it.datetime }}</text>
+					<text class="desc">{{ it.remark }}</text>
+				</view>
+			</view>
+		</view>
+
 		<!-- 收货地址横幅（商品订单显示，独立风格） -->
 		<view :class="['address-banner', addressGradientClass]" v-if="order && order.type==='SP'">
 			<view class="address-tag">收货地址</view>
@@ -108,6 +130,7 @@ type Order = {
 };
 
 const order = ref<Order|null>(null);
+const traceList = ref<Array<{ datetime: string; remark: string }>>([]);
 
 function getShippingAddress(o?: Order|null): ShippingAddress|null {
 	if (!o) return null;
@@ -184,6 +207,7 @@ function displayPayMethod(m?: string|null){
 	if (!v) return '-';
 	if (v.includes('WECHAT')) return '微信支付';
 	if (v.includes('ALI')) return '支付宝';
+	if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付';
 	if (v.includes('CASH')) return '现金支付';
 	if (v.includes('OFFLINE')) return '线下支付';
 	if (v.includes('QRCODE')) return '扫码支付';
@@ -247,6 +271,21 @@ onLoad(async (query:any)=>{
 		}
 	} catch { uni.showToast({ title:'加载失败', icon:'none' }); }
 });
+
+async function loadTrace(){
+	try{
+		traceList.value = [];
+		const o:any = order.value;
+		if (!o?.shipExpressTrackingNo) return;
+		const http = createHttp();
+		const res:any = await http('/orders/_logistics/query', { method:'GET', query: { com: o?.shipExpressCompanyCode || undefined, no: o?.shipExpressTrackingNo } });
+		const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
+		const getTime = (it:any)=> it?.datetime || it?.time || '';
+		const getRemark = (it:any)=> it?.remark || it?.context || '';
+		rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
+		traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
+	}catch{}
+}
 </script>
 
 <style>
@@ -308,6 +347,20 @@ onLoad(async (query:any)=>{
 .address-banner--v0 .address-line2, .address-banner--v0 .address-line3 { color:#0e7490; }
 .address-banner--v1 .address-line1 { color:#064e3b; }
 .address-banner--v1 .address-line2, .address-banner--v1 .address-line3 { color:#047857; }
+
+/* 物流卡片样式 */
+.logistics-card { background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); border-radius:24rpx; padding:24rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); margin-bottom:24rpx; }
+.logistics-head { font-size: 28rpx; font-weight: 600; margin-bottom: 12rpx; }
+.logistics-empty { font-size: 24rpx; color:#6b7280; }
+.logistics-body { display:flex; align-items:center; gap: 12rpx; }
+.logistics-logo { width: 48rpx; height: 48rpx; border-radius: 8rpx; background:#fff; }
+.logistics-info { display:flex; flex-direction: column; gap: 6rpx; flex:1; min-width:0; }
+.logistics-info .line { font-size: 24rpx; color:#1f2937; }
+.trace-btn { padding: 10rpx 16rpx; border-radius: 999rpx; background:#111827; color:#fff; font-size: 24rpx; }
+.trace-list { margin-top: 12rpx; display:flex; flex-direction: column; gap: 10rpx; }
+.trace-item { display:flex; flex-direction: column; gap: 4rpx; background:#ffffff; border: 2rpx solid #e5e7eb; border-radius: 16rpx; padding: 12rpx; }
+.trace-item .time { font-size: 22rpx; color:#6b7280; }
+.trace-item .desc { font-size: 24rpx; color:#111827; }
 </style>
 
 

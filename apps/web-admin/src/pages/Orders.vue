@@ -98,7 +98,7 @@
 					<el-button v-if="row.payStatus==='UNPAID' && !row.deletedAt" size="small" type="success" @click="openPay(row)">标记支付</el-button>
 					<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="small" type="warning" @click="openRefund(row)">退款</el-button>
 					<!-- 商品履约：发货/收货 -->
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="ship(row.id)">发货</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">发货</el-button>
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">确认收货</el-button>
 					<!-- 服务履约：开始/结束 -->
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">开始服务</el-button>
@@ -130,6 +130,30 @@
 			<template #footer>
 				<el-button @click="showRefund=false">取消</el-button>
 				<el-button type="primary" @click="doRefund">确认退款</el-button>
+			</template>
+		</el-dialog>
+
+		<el-dialog v-model="showShipDialog" title="发货" width="520px">
+			<el-radio-group v-model="shipMode" style="margin-bottom:12px;">
+				<el-radio label="express">快递发货</el-radio>
+				<el-radio label="noExpress">无需快递发货</el-radio>
+			</el-radio-group>
+			<div v-if="shipMode==='express'">
+				<div style="margin-bottom:10px;">
+					<el-select v-model="selectedCompanyCode" placeholder="选择快递公司" style="width:100%;" filterable @change="onCompanyChange">
+						<el-option v-for="c in companies" :key="c.code" :label="c.name" :value="c.code">
+							<div style="display:flex;align-items:center;gap:8px;">
+								<img v-if="c.logo" :src="c.logo" style="width:18px;height:18px;object-fit:contain;" />
+								<span>{{ c.name }}</span>
+							</div>
+						</el-option>
+					</el-select>
+				</div>
+				<el-input v-model="trackingNo" placeholder="快递单号" />
+			</div>
+			<template #footer>
+				<el-button @click="showShipDialog=false">取消</el-button>
+				<el-button type="primary" @click="doShip">提交</el-button>
 			</template>
 		</el-dialog>
 	</div>
@@ -184,7 +208,52 @@ async function close(id:number){ await http(`/orders/${id}/close`, { method:'POS
 async function restore(id:number){ await http(`/orders/${id}/restore`, { method:'POST' }); ElMessage.success('已恢复'); await fetchList(); }
 
 // 履约操作
-async function ship(id:number){ await http(`/orders/${id}/ship`, { method:'POST' }); ElMessage.success('已发货'); await fetchList(); }
+// 发货弹窗与逻辑
+const showShipDialog = ref(false);
+const shipOrderId = ref<number|null>(null);
+const shipMode = ref<'noExpress'|'express'>('express');
+const companies = ref<Array<{ code:string; name:string; logo?:string }>>([]);
+const selectedCompanyCode = ref<string>('');
+const selectedCompany = ref<{ code:string; name:string; logo?:string }|null>(null);
+const trackingNo = ref('');
+
+function openShip(row:any){
+    shipOrderId.value = row?.id || null;
+    shipMode.value = 'express';
+    selectedCompanyCode.value = '';
+    selectedCompany.value = null;
+    trackingNo.value = '';
+    showShipDialog.value = true;
+    loadCompanies();
+}
+
+async function loadCompanies(){
+    try { companies.value = await http('/orders/_logistics/companies'); } catch { companies.value = []; }
+}
+
+function onCompanyChange(code:string){
+    selectedCompany.value = companies.value.find(c=>c.code===code) || null;
+}
+
+async function doShip(){
+    if (!shipOrderId.value) return;
+    if (shipMode.value === 'noExpress'){
+        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{ noExpress: true } });
+        ElMessage.success('已标记为无需快递发货');
+    } else {
+        if (!selectedCompany.value || !trackingNo.value.trim()) { ElMessage.error('请选择快递公司并填写快递单号'); return; }
+        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{
+            noExpress: false,
+            companyCode: selectedCompany.value.code,
+            companyName: selectedCompany.value.name,
+            companyLogo: selectedCompany.value.logo || undefined,
+            trackingNo: trackingNo.value.trim(),
+        }});
+        ElMessage.success('已提交发货信息');
+    }
+    showShipDialog.value = false;
+    await fetchList();
+}
 async function receive(id:number){ await http(`/orders/${id}/receive`, { method:'POST' }); ElMessage.success('已收货'); await fetchList(); }
 async function startService(id:number){ await http(`/orders/${id}/start-service`, { method:'POST' }); ElMessage.success('已开始服务'); await fetchList(); }
 async function finishService(id:number){ await http(`/orders/${id}/finish-service`, { method:'POST' }); ElMessage.success('已结束服务'); await fetchList(); }

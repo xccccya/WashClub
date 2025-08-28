@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { OrderService } from './order.service.js';
+import { TanshuService } from './tanshu.service.js';
 import { OrderController } from './order.controller.js';
+import { WxpayService } from './wxpay.service.js';
 
 @Module({
     imports: [
@@ -11,7 +13,7 @@ import { OrderController } from './order.controller.js';
         })
     ],
     controllers: [OrderController],
-    providers: [PrismaService, OrderService],
+    providers: [PrismaService, OrderService, TanshuService, WxpayService],
 })
 export class OrderModule {}
 

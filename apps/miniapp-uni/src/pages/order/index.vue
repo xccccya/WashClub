@@ -54,7 +54,7 @@
 			<!-- 操作区：右下角按钮（去除时间） -->
 			<view class="actions">
 				<view class="btn ghost" @tap="() => viewOrder(o)">查看订单</view>
-				<view v-if="canPay(o)" class="btn primary" @tap="() => goPay(o)">去支付</view>
+				<view v-if="canPay(o)" class="btn primary" @tap="() => choosePay(o)">去支付</view>
 				<view v-else-if="canReceive(o)" class="btn primary" @tap="() => confirmReceive(o)">确认收货</view>
 			</view>
 		</view>
@@ -186,10 +186,61 @@ function canReceive(o: Order){
 
 async function goPay(o: Order){
 	try {
-		// 目前未接微信支付，先跳到详情页作为占位
-		uni.showToast({ title: '请前往订单详情支付', icon: 'none' });
-		viewOrder(o);
-	} catch {}
+		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		if (!authed) return;
+		const http = createHttp();
+		const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method: 'POST' });
+		// #ifdef MP-WEIXIN
+		await new Promise<void>((resolve, reject)=>{
+			(uni as any).requestPayment({
+				timeStamp: params.timeStamp,
+				nonceStr: params.nonceStr,
+				package: params.package,
+				signType: params.signType || 'RSA',
+				paySign: params.paySign,
+				success: ()=> resolve(),
+				fail: (e:any)=> reject(e)
+			});
+		});
+		uni.showToast({ title: '支付成功', icon: 'success' });
+		await fetchOrders();
+		// #endif
+		// #ifndef MP-WEIXIN
+		uni.showToast({ title: '请在微信小程序内完成支付', icon: 'none' });
+		// #endif
+	} catch(e) {
+		uni.showToast({ title: '支付未完成', icon: 'none' });
+	}
+}
+
+async function choosePay(o: Order){
+	try{
+		let list = ['线下支付'];
+		// #ifdef MP-WEIXIN
+		list = ['微信支付','线下支付'];
+		// #endif
+		const res = await new Promise<any>((resolve)=>{
+			uni.showActionSheet({
+				itemList: list,
+				success: (r:any)=> resolve(r),
+				fail: ()=> resolve(null)
+			});
+		});
+		if (!res || typeof res.tapIndex !== 'number') return;
+		// #ifdef MP-WEIXIN
+		if (res.tapIndex === 0) { await goPay(o); }
+		else {
+			uni.showToast({ title:'请到店线下支付', icon:'none' });
+			viewOrder(o);
+		}
+		// #endif
+		// #ifndef MP-WEIXIN
+		{
+			uni.showToast({ title:'请到店线下支付', icon:'none' });
+			viewOrder(o);
+		}
+		// #endif
+	}catch{}
 }
 
 async function confirmReceive(o: Order){
@@ -205,7 +256,19 @@ async function confirmReceive(o: Order){
 	}
 }
 
-onShow(async()=>{ await fetchOrders(); });
+onShow(async()=>{
+    try{
+        const preset:any = uni.getStorageSync('order:preset');
+        if (preset && typeof preset==='object'){
+            const m = String(preset.main||'').trim();
+            const f = String(preset.filter||'').trim();
+            if (m==='all' || m==='product' || m==='service') mainTab.value = m as any;
+            if (f && currentFilters.value.includes(f)) activeFilter.value = f;
+            try { uni.removeStorageSync('order:preset'); } catch {}
+        }
+    } catch {}
+    await fetchOrders();
+});
 </script>
 
 <style>

@@ -14,14 +14,30 @@
 				<view v-else>
 					<view class="toolbar">
 						<label class="checkbox" @tap="toggleAll">
-							<text class="box" :class="{ on: allChecked }">✔</text>
+							<view class="box" :class="{ on: allChecked }">
+								<!-- #ifdef H5 -->
+								<svg v-if="allChecked" class="tick-svg" width="200" height="200" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M896 288a32 32 0 0 0-54.656-22.592L416 690.752 182.656 457.408a32 32 0 1 0-45.264 45.232l255.952 255.952c5.808 5.824 13.808 9.408 22.656 9.408s16.848-3.584 22.64-9.392l447.952-447.952c5.824-5.808 9.408-13.808 9.408-22.656z" fill="#231815" class=""></path></svg>
+								<!-- #endif -->
+								<!-- #ifndef H5 -->
+								<image v-if="allChecked" class="tick-img" src="/static/icons/ok.png" mode="aspectFit" />
+								<!-- #endif -->
+							</view>
 							<text class="txt">全选</text>
 						</label>
 					</view>
 
 					<view class="list">
 						<view v-for="it in items" :key="it.key" class="row">
-							<view class="col-check" @tap="toggleItem(it)"><text class="box" :class="{ on: it.checked }">✔</text></view>
+							<view class="col-check" @tap="toggleItem(it)">
+								<view class="box" :class="{ on: it.checked }">
+									<!-- #ifdef H5 -->
+									<svg v-if="it.checked" class="tick-svg" width="200" height="200" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M896 288a32 32 0 0 0-54.656-22.592L416 690.752 182.656 457.408a32 32 0 1 0-45.264 45.232l255.952 255.952c5.808 5.824 13.808 9.408 22.656 9.408s16.848-3.584 22.64-9.392l447.952-447.952c5.824-5.808 9.408-13.808 9.408-22.656z" fill="#231815" class=""></path></svg>
+									<!-- #endif -->
+									<!-- #ifndef H5 -->
+									<image v-if="it.checked" class="tick-img" src="/static/icons/ok.png" mode="aspectFit" />
+									<!-- #endif -->
+								</view>
+							</view>
 							<image class="thumb" :src="resolveImageUrl(it.snapshot?.imageUrl) || '/static/icons/placeholder.png'" mode="aspectFill" />
 							<view class="col-info">
 								<view class="name">{{ it.snapshot?.name }}</view>
@@ -42,7 +58,14 @@
 
 		<view class="bottom-bar" v-if="items.length>0">
 			<label class="checkbox" @tap="toggleAll">
-				<text class="box" :class="{ on: allChecked }">✔</text>
+				<view class="box" :class="{ on: allChecked }">
+					<!-- #ifdef H5 -->
+					<svg v-if="allChecked" class="tick-svg" width="200" height="200" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M896 288a32 32 0 0 0-54.656-22.592L416 690.752 182.656 457.408a32 32 0 1 0-45.264 45.232l255.952 255.952c5.808 5.824 13.808 9.408 22.656 9.408s16.848-3.584 22.64-9.392l447.952-447.952c5.824-5.808 9.408-13.808 9.408-22.656z" fill="#231815" class=""></path></svg>
+					<!-- #endif -->
+					<!-- #ifndef H5 -->
+					<image v-if="allChecked" class="tick-img" src="/static/icons/ok.png" mode="aspectFit" />
+					<!-- #endif -->
+				</view>
 				<text class="txt">全选</text>
 			</label>
 			<view class="summary">
@@ -275,8 +298,10 @@ loadCart();
 .empty { padding: 24rpx; color:#6b7280; text-align:center; }
 .toolbar { margin: 8rpx 0 8rpx 0; display:flex; align-items:center; justify-content:flex-start; }
 .checkbox { display:inline-flex; align-items:center; gap: 8rpx; }
-.box { width: 30rpx; height: 30rpx; border: 2rpx solid #e5e7eb; border-radius: 6rpx; text-align:center; line-height: 30rpx; color:#fff; background:#fff; }
-.box.on { background:#111827; border-color:#111827; }
+.box { width: 30rpx; height: 30rpx; border: 2rpx solid #e5e7eb; border-radius: 6rpx; display:flex; align-items:center; justify-content:center; background:#fff; }
+.box.on { background:#fff; border-color:#111827; }
+.tick-svg { width: 26rpx; height: 26rpx; display:block; }
+.tick-img { width: 26rpx; height: 26rpx; display:block; }
 .txt { font-size: 24rpx; color:#1f2937; }
 .list { display:flex; flex-direction: column; gap: 16rpx; }
 .row { display:flex; gap: 12rpx; align-items: center; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 16rpx; padding: 12rpx; }
