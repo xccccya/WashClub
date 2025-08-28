@@ -99,11 +99,32 @@
 									</div>
 								</div>
 								<div style="margin:8px 0;display:flex;gap:8px;align-items:center;"><el-button size="small" type="primary" @click="generateSkuMatrix">生成规格组合</el-button><small>将覆盖当前 SKU 列表</small></div>
-								<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><b>SKU 列表</b><el-button @click="addSku" size="small">新增SKU</el-button></div>
+								<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+									<b>SKU 列表</b>
+									<div style="display:flex;gap:8px;align-items:center;">
+										<el-button @click="addSku" size="small">新增SKU</el-button>
+										<el-button @click="batchGenSkuIfEmpty" size="small">为空项生成SKU编码</el-button>
+										<el-button @click="batchGenBarcodeIfEmpty" size="small">为空项生成条码</el-button>
+									</div>
+								</div>
 								<el-table :data="form.skus" size="small" border>
 									<el-table-column label="名称"><template #default="{ row }"><el-input v-model="row.name" placeholder="规格名称" /></template></el-table-column>
-									<el-table-column label="SKU编码" width="160"><template #default="{ row }"><el-input v-model="row.skuCode" /></template></el-table-column>
-									<el-table-column label="条码" width="160"><template #default="{ row }"><el-input v-model="row.barcode" /></template></el-table-column>
+									<el-table-column label="SKU编码" width="240">
+										<template #default="{ row }">
+											<div style="display:flex;gap:6px;align-items:center;">
+												<el-input v-model="row.skuCode" placeholder="自动/手填" />
+												<el-button size="small" @click="genRowSku(row)">生成</el-button>
+											</div>
+										</template>
+									</el-table-column>
+									<el-table-column label="条码" width="240">
+										<template #default="{ row }">
+											<div style="display:flex;gap:6px;align-items:center;">
+												<el-input v-model="row.barcode" placeholder="13位数字" />
+												<el-button size="small" @click="genRowBarcode(row)">生成</el-button>
+											</div>
+										</template>
+									</el-table-column>
 									<el-table-column label="图片" width="160">
 										<template #default="{ row }">
 											<div style="display:flex;align-items:center;gap:8px;">
@@ -354,6 +375,28 @@ async function onSkuImageChange(row:any, e:any){
 // 条码处理：仅数字且最多13位；提供随机13位生成
 function onBarcodeInput(){ const val = String(form.value.barcode||''); const digits = val.replace(/\D+/g, '').slice(0,13); if (digits !== val) form.value.barcode = digits; }
 function genBarcode(){ let s=''; for(let i=0;i<13;i++){ s += Math.floor(Math.random()*10); } form.value.barcode = s; }
+
+// 随机生成：SKU/条码（SKU 列表内）
+function randomSkuCode(len:number = 8){
+	const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	let s = '';
+	for(let i=0;i<len;i++){ s += chars[Math.floor(Math.random()*chars.length)]; }
+	return s;
+}
+function randomDigits(n:number){ let s=''; for(let i=0;i<n;i++){ s += Math.floor(Math.random()*10); } return s; }
+function ensureUniqueInSkus(field: 'skuCode'|'barcode', candidate: string){
+	const exists = new Set<string>((form.value.skus||[]).map((r:any)=> String(r?.[field]||'').trim()).filter(Boolean));
+	if (!exists.has(candidate)) return candidate;
+	for(let i=0;i<50;i++){
+		const next = field==='skuCode' ? (candidate + randomSkuCode(2)) : (candidate.slice(0,11) + randomDigits(2));
+		if (!exists.has(next)) return next;
+	}
+	return candidate + '_' + randomSkuCode(3);
+}
+function genRowSku(row:any){ const code = ensureUniqueInSkus('skuCode', randomSkuCode(8)); row.skuCode = code; }
+function genRowBarcode(row:any){ const code = ensureUniqueInSkus('barcode', randomDigits(13)); row.barcode = code; }
+function batchGenSkuIfEmpty(){ for(const r of (form.value.skus||[])){ if(!String(r.skuCode||'').trim()) genRowSku(r); } ElMessage.success('已为空缺项生成 SKU 编码'); }
+function batchGenBarcodeIfEmpty(){ for(const r of (form.value.skus||[])){ if(!String(r.barcode||'').trim()) genRowBarcode(r); } ElMessage.success('已为空缺项生成条码'); }
 
 </script>
 

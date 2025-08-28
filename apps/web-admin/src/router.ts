@@ -47,6 +47,7 @@ const router = createRouter({
 				{ path: '/store/inventory', component: StoreInventory, meta: { perm: 'store-inventory' } },
 				{ path: '/orders', component: Orders, meta: { perm: 'orders' } },
 				{ path: '/orders/:id', component: OrderDetail, meta: { perm: 'orders' } },
+				{ path: '/orders/no/:no', component: OrderDetail, meta: { perm: 'orders' } },
 				{ path: '/after-sales', component: AfterSales, meta: { perm: 'after-sales' } },
 				{ path: '/content/notices', component: ContentNotices, meta: { perm: 'content-notices' } },
 				{ path: '/content/banners', component: ContentBanners, meta: { perm: 'content-banners' } },

@@ -166,7 +166,22 @@ export class StoreService {
 
     // 库存：对 Product 或 Sku 进行出入库（SERVICE 不允许；MULTI 必须带 skuId；SINGLE 禁止带 skuId）
     async adjustInventory(params: { productId: number; skuId?: number | null; change: number; reason: string; remark?: string | null; operatorUserId?: number | null }) {
-        const { productId, skuId, change, reason, remark, operatorUserId } = params;
+        const { productId, skuId } = params;
+        let { change, reason } = params as { change: number; reason: string };
+        const remark = params.remark;
+        const operatorUserId = params.operatorUserId;
+        // 统一正负号规则：
+        // INBOUND：一律使用正数；OUTBOUND：一律使用负数；ADJUSTMENT：保持原样；
+        // 其他业务原因（如 ORDER_DEDUCT/ORDER_ROLLBACK/REFUND_RETURN）保持原样由业务方传入
+        if (reason === 'INBOUND') {
+            change = Math.abs(Number(change || 0));
+        } else if (reason === 'OUTBOUND') {
+            change = -Math.abs(Number(change || 0));
+        } else if (reason === 'ADJUSTMENT') {
+            change = Number(change || 0);
+        } else {
+            change = Number(change || 0);
+        }
         // 查询当前库存
         const product = await this.prisma.product.findUniqueOrThrow({ where: { id: productId } });
         if (product.type === 'SERVICE') throw new Error('服务类商品不支持库存调整');
@@ -188,6 +203,31 @@ export class StoreService {
         }
         await this.prisma.inventoryLog.create({ data: { productId, skuId: skuId ?? null, change, beforeStock: before, afterStock: after, reason: reason as any, remark: remark ?? null, operatorUserId: operatorUserId ?? null } });
         return { productId, skuId: skuId ?? null, before, after };
+    }
+
+    // 库存记录查询（可按商品/SKU/原因过滤，分页）
+    async listInventoryLogs(query: { productId?: number; skuId?: number; reason?: string | null; page?: number; pageSize?: number }) {
+        const page = Math.max(1, Number(query.page || 1));
+        const pageSize = Math.min(100, Math.max(1, Number(query.pageSize || 20)));
+        const where: any = {};
+        if (typeof query.productId === 'number') where.productId = query.productId;
+        if (typeof query.skuId === 'number') where.skuId = query.skuId;
+        if (query.reason) where.reason = query.reason as any;
+        const [items, total] = await Promise.all([
+            this.prisma.inventoryLog.findMany({
+                where,
+                orderBy: { id: 'desc' },
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                include: {
+                    product: { select: { id: true, name: true, type: true, specType: true } },
+                    sku: { select: { id: true, name: true, skuCode: true } },
+                    operatorUser: { select: { id: true, name: true, phone: true } },
+                },
+            }),
+            this.prisma.inventoryLog.count({ where }),
+        ]);
+        return { items, total, page, pageSize };
     }
 
     // ===== 私有辅助：派生字段与 SKU 归一化 =====

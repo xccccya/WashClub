@@ -22,6 +22,11 @@
 		}
 		,
 		{
+			"path": "pages/store/detail",
+			"style": { "navigationBarTitleText": "商品详情" }
+		}
+		,
+		{
 			"path": "pages/order/index",
 			"style": { "navigationBarTitleText": "订单" }
 		}
@@ -99,6 +104,16 @@
 		{
 			"path": "pages/address/edit",
 			"style": { "navigationBarTitleText": "编辑地址" }
+		}
+		,
+		{
+			"path": "pages/cart/index",
+			"style": { "navigationBarTitleText": "我的购物车" }
+		}
+		,
+		{
+			"path": "pages/cart/confirm",
+			"style": { "navigationBarTitleText": "确认订单" }
 		}
 	],
 	"tabBar": {

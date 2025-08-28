@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<el-button @click="$router.back()" style="margin-bottom:12px;">返回</el-button>
-		<h3>订单详情 #{{ id }}</h3>
+		<h3>订单详情 {{ data?.no ? ('#' + data?.no) : '' }}</h3>
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="订单号">{{ data?.no }}</el-descriptions-item>
 			<el-descriptions-item label="类型">{{ data?.type }}</el-descriptions-item>
@@ -16,6 +16,9 @@
 			<el-descriptions-item label="支付时间">{{ formatDate(data?.paidAt) }}</el-descriptions-item>
 			<el-descriptions-item label="会员">{{ data?.member?.name }}（UID: {{ data?.member?.uid }} / {{ data?.member?.phone }}）</el-descriptions-item>
 			<el-descriptions-item label="备注">{{ data?.remark || '-' }}</el-descriptions-item>
+			<el-descriptions-item label="收货地址" v-if="data?.shippingAddressSnapshot">
+				{{ addrDisplay(data?.shippingAddressSnapshot) }}
+			</el-descriptions-item>
 			<el-descriptions-item label="车辆" v-if="data?.type==='SERVICE'">{{ data?.vehicle?.plateNumber || '-' }}</el-descriptions-item>
 		</el-descriptions>
 		<h4 style="margin-top:16px;">订单项</h4>
@@ -49,10 +52,18 @@ import { useRoute } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 
 const route = useRoute();
-const id = Number(route.params.id);
 const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
 const data = ref<any>(null);
-async function fetchDetail(){ data.value = await http(`/orders/${id}`); }
+async function fetchDetail(){
+    const idParam = route.params.id as string | undefined;
+    const noParam = route.params.no as string | undefined;
+    if (noParam) {
+        data.value = await http(`/orders/by-no/${encodeURIComponent(String(noParam))}`);
+    } else if (idParam) {
+        const id = Number(idParam);
+        data.value = await http(`/orders/${id}`);
+    }
+}
 onMounted(fetchDetail);
 
 function formatDate(val: string | null | undefined){
@@ -67,6 +78,16 @@ function formatCoupon(info: any){
 		if(info.name) return `${info.name}`;
 		return JSON.stringify(info);
 	}catch{ return '-'; }
+}
+
+function addrDisplay(info: any){
+    try{
+        const a = typeof info === 'string' ? JSON.parse(info) : info;
+        if (!a) return '-';
+        const line1 = [a?.province, a?.city, a?.district, a?.street].filter(Boolean).join(' ');
+        const line2 = [a?.detail, a?.phone].filter(Boolean).join(' · ');
+        return `${line1} ${line2 ? (' / ' + line2) : ''}`;
+    }catch{ return '-'; }
 }
 </script>
 

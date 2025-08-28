@@ -11,31 +11,51 @@
 
 		<!-- 二级筛选：根据主分类动态变化，仅展示UI -->
 		<scroll-view scroll-x class="filters" show-scrollbar="false">
-			<view class="filter-chip" v-for="f in currentFilters" :key="f" :class="{ active: f===activeFilter }" @tap="activeFilter=f">{{ f }}</view>
+			<view class="filter-chip" v-for="f in currentFilters" :key="f" :class="{ active: f===activeFilter }" @tap="setFilter(f)">{{ f }}</view>
 		</scroll-view>
 
 		<!-- 订单列表（已接入 API） -->
 		<view v-if="!loading && orders.length===0" class="empty">暂无订单</view>
 		<view v-for="o in orders" :key="o.id" class="card order-card">
-			<image class="thumb" :src="firstItem(o)?.imageUrl || '/static/icons/warning.png'" mode="aspectFit" />
-			<view class="order-body">
-				<view class="title">{{ firstItem(o)?.name || '订单' }}</view>
+			<!-- 顶部：标签 + 右上角状态 -->
+			<view class="header-row">
 				<view class="tags-row">
 					<text class="tag" v-if="o.type==='SERVICE'">服务订单</text>
-					<text class="tag" v-else>商品订单</text>
+					<text class="tag" v-else-if="o.type==='SP'">商品订单</text>
+					<text class="tag" v-else>付款订单</text>
 					<text class="tag" v-if="o.no">{{ o.no }}</text>
 				</view>
-				<view class="meta-row">
-					<text class="status">{{ displayStatus(o) }}</text>
-					<view class="price-qty">
-						<text class="price">¥{{ formatPrice(firstItem(o)?.price) }}</text>
-						<text class="qty">x{{ firstItem(o)?.quantity || 1 }}</text>
+				<text class="status-badge">{{ displayStatus(o) }}</text>
+			</view>
+
+			<!-- 商品/服务列表（逐行展示） -->
+			<view class="items">
+				<view class="item" v-for="it in o.items" :key="it.id">
+					<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/warning.png'" mode="aspectFill" />
+					<view class="ibody">
+						<view class="row-1">
+							<view class="name">{{ it.name }}</view>
+							<text class="price">¥{{ formatPrice(it.price) }}</text>
+						</view>
+						<view class="row-2">
+							<text class="specs" v-if="displaySpecs(it)">{{ displaySpecs(it) }}</text>
+							<text class="qty">x{{ it.quantity }}</text>
+						</view>
 					</view>
 				</view>
-				<view class="actions">
-					<text class="more">{{ formatTime(o.createdAt) }}</text>
-					<view class="btn" @tap="() => viewOrder(o)">查看订单</view>
-				</view>
+			</view>
+
+			<!-- 金额小结：实付款（位于按钮上方，右下角对齐） -->
+			<view class="summary">
+				<text class="label">实付款：</text>
+				<text class="pay">¥{{ formatPrice(o.payAmount as any) }}</text>
+			</view>
+
+			<!-- 操作区：右下角按钮（去除时间） -->
+			<view class="actions">
+				<view class="btn ghost" @tap="() => viewOrder(o)">查看订单</view>
+				<view v-if="canPay(o)" class="btn primary" @tap="() => goPay(o)">去支付</view>
+				<view v-else-if="canReceive(o)" class="btn primary" @tap="() => confirmReceive(o)">确认收货</view>
 			</view>
 		</view>
 	</view>
@@ -45,6 +65,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 
 const { topSpacerHeight } = useSafeArea();
@@ -67,8 +88,13 @@ function setMain(tab: MainTab){
 	fetchOrders();
 }
 
-type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number; quantity: number; specsText?: string|null };
-type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; createdAt: string; items: OrderItem[] };
+function setFilter(name: string){
+	activeFilter.value = name;
+	fetchOrders();
+}
+
+type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number; quantity: number; specsText?: string|null; specsJson?: any };
+type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE'; createdAt: string; items: OrderItem[]; payAmount?: number|string };
 
 const orders = ref<Order[]>([]);
 const loading = ref(false);
@@ -82,13 +108,40 @@ function navigate(url: string){
 
 function firstItem(o?: Order | null){ return (o?.items||[])[0] || null; }
 function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
+function normalizeSpecs(specsRaw: any): Array<{ key: string; value: string }>{
+	try{
+		if (Array.isArray(specsRaw)) return specsRaw.map((it:any)=>({ key:String(it?.key||it?.name||'').trim(), value:String(it?.value||it?.v||'').trim() })).filter(it=>it.key&&it.value);
+		if (typeof specsRaw==='string'){ try { const p=JSON.parse(specsRaw); return normalizeSpecs(p); } catch { /* ignore */ } }
+		if (specsRaw && typeof specsRaw==='object') return Object.keys(specsRaw).map(k=>({ key:String(k).trim(), value:String(specsRaw[k]??'').trim() })).filter(it=>it.key&&it.value);
+		return [];
+	}catch{ return []; }
+}
+function displaySpecs(it: OrderItem){
+	if (it?.specsText) return it.specsText;
+	const arr = normalizeSpecs((it as any)?.specsJson);
+	return arr.length ? arr.map(x=>`${x.key}：${x.value}`).join('/') : '';
+}
 function formatTime(t: any){ try { const d = new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; } catch { return ''; } }
 function displayStatus(o: Order){
 	if (o.payStatus==='UNPAID') return '待支付';
 	if (o.payStatus==='REFUNDED') return '已退款';
+	if (o.payStatus==='CANCELLED') return '已取消';
+	if (o.type==='FK') return o.payStatus==='PAID' ? '已支付' : '待支付';
+	// 新履约维度优先
+	if (o.type==='SERVICE'){
+		if (o.fulfillmentStatus==='IN_SERVICE' || o.fulfillmentStatus==='PENDING') return '待服务';
+		if (o.fulfillmentStatus==='DONE') return '已完成';
+	}
+	if (o.type==='SP'){
+		if (o.fulfillmentStatus==='PENDING') return '待发货';
+		if (o.fulfillmentStatus==='SHIPPED') return '待收货';
+		if (o.fulfillmentStatus==='RECEIVED') return '已完成';
+	}
+	// 兼容旧字段
 	if (o.status==='PAID') return o.type==='SERVICE' ? '待服务' : '待发货';
 	if (o.status==='FULFILLED') return o.type==='SERVICE' ? '已完成' : '待收货';
-	if (o.status==='CANCELLED' || o.payStatus==='CANCELLED') return '已取消';
+	if (o.status==='CLOSED') return '已完成';
+	if (o.status==='CANCELLED') return '已取消';
 	return '处理中';
 }
 
@@ -96,12 +149,12 @@ function buildQuery(){
 	const q: any = {};
 	if (mainTab.value==='product') q.type = 'SP';
 	else if (mainTab.value==='service') q.type = 'SERVICE';
-	// 二级筛选
-	if (activeFilter.value==='待支付') q.payStatus = 'UNPAID';
-	if (activeFilter.value==='退款/售后') q.payStatus = 'REFUNDED';
-	if (mainTab.value==='service' && activeFilter.value==='待服务') q.status = 'PAID';
-	if (mainTab.value==='product' && activeFilter.value==='待发货') q.status = 'PAID';
-	if (mainTab.value==='product' && activeFilter.value==='待收货') q.status = 'FULFILLED';
+	// 二级筛选：统一使用 scene
+	if (activeFilter.value==='待支付') q.scene = 'PENDING_PAYMENT';
+	else if (activeFilter.value==='退款/售后') q.scene = 'REFUND_AFTERSALE';
+	else if (activeFilter.value==='待服务') q.scene = 'PENDING_SERVICE';
+	else if (activeFilter.value==='待发货') q.scene = 'PENDING_DELIVERY';
+	else if (activeFilter.value==='待收货') q.scene = 'PENDING_RECEIPT';
 	return q;
 }
 
@@ -119,7 +172,38 @@ async function fetchOrders(){
 	} finally { loading.value = false; }
 }
 
-function viewOrder(o: Order){ navigate(`/pages/order/detail?id=${o.id}`); }
+function viewOrder(o: Order){ navigate(`/pages/order/detail?no=${encodeURIComponent(o.no)}`); }
+
+function canPay(o: Order){
+	return o.payStatus === 'UNPAID';
+}
+function canReceive(o: Order){
+	// 支持新旧字段：优先新履约状态，其次旧 status=FULFILLED 视作“已发货待收货”
+	if (o.type !== 'SP') return false;
+	if (o.payStatus !== 'PAID') return false;
+	return o.fulfillmentStatus === 'SHIPPED' || o.status === 'FULFILLED';
+}
+
+async function goPay(o: Order){
+	try {
+		// 目前未接微信支付，先跳到详情页作为占位
+		uni.showToast({ title: '请前往订单详情支付', icon: 'none' });
+		viewOrder(o);
+	} catch {}
+}
+
+async function confirmReceive(o: Order){
+	try {
+		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		if (!authed) return;
+		const http = createHttp();
+		await http(`/orders/${o.id}/receive`, { method: 'POST' });
+		uni.showToast({ title: '收货成功', icon: 'success' });
+		await fetchOrders();
+	} catch(e){
+		uni.showToast({ title: '操作失败，请稍后重试', icon: 'none' });
+	}
+}
 
 onShow(async()=>{ await fetchOrders(); });
 </script>
@@ -146,20 +230,37 @@ onShow(async()=>{ await fetchOrders(); });
 
 .section-time { margin: 12rpx 0; color:#6b7280; font-size: 22rpx; }
 
-.order-card { display:flex; gap: 16rpx; background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
+.order-card { display:flex; flex-direction: column; gap: 12rpx; background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
 .thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background:#ffffff; border: 2rpx solid #e5e7eb; }
 .order-body { flex:1; display:flex; flex-direction: column; gap: 8rpx; min-width: 0; }
 .title { font-size: 28rpx; font-weight: 600; color:#1f2937; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tags-row { display:flex; flex-wrap: wrap; gap: 10rpx; }
 .tag { font-size: 22rpx; color:#374151; background:#ffffff; border: 2rpx dashed #e5e7eb; padding: 4rpx 8rpx; border-radius: 999rpx; }
-.meta-row { display:flex; align-items:center; justify-content: space-between; margin-top: 4rpx; }
-.status { font-size: 24rpx; color:#6b7280; }
-.price-qty { display:flex; align-items: baseline; gap: 8rpx; }
+.actions { margin-top: 12rpx; display:flex; align-items:center; justify-content: flex-end; gap: 16rpx; }
+.btn { padding: 10rpx 22rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #ffd6e7; color:#1f2937; font-size: 24rpx; }
+.btn.primary { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#ffffff; border: none; overflow: hidden; }
+.btn.ghost { background:#ffffff; color:#374151; border-color:#e5e7eb; }
+
+/* 新增：卡片头部与状态徽标 */
+.header-row { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
+.status-badge { font-size: 24rpx; color:#0f766e; background:#ecfeff; border: 2rpx solid #99f6e4; padding: 6rpx 12rpx; border-radius: 999rpx; }
+
+/* 新增：订单项列表 */
+.items { display:flex; flex-direction: column; gap: 12rpx; }
+.item { display:flex; gap: 12rpx; padding: 8rpx 0; border-bottom: 2rpx dashed #eef2f7; }
+.item:last-child { border-bottom: none; }
+.ibody { display:flex; flex-direction: column; gap: 6rpx; flex:1; min-width:0; }
+.row-1 { display:flex; align-items:center; justify-content: space-between; gap: 12rpx; }
+.row-2 { display:flex; align-items:center; justify-content: space-between; gap: 12rpx; }
+.name { font-size: 28rpx; font-weight: 600; color:#111827; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+.specs { font-size: 22rpx; color:#6b7280; }
 .price { font-size: 30rpx; font-weight: 800; color:#111827; }
 .qty { font-size: 24rpx; color:#6b7280; }
-.actions { margin-top: 8rpx; display:flex; align-items:center; justify-content: flex-end; gap: 16rpx; }
-.more { font-size: 24rpx; color:#6b7280; }
-.btn { padding: 10rpx 18rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #ffd6e7; color:#1f2937; font-size: 24rpx; }
+
+/* 金额汇总（实付款） */
+.summary { display:flex; align-items: baseline; justify-content: flex-end; gap: 8rpx; margin-top: 4rpx; }
+.summary .label { color:#6b7280; font-size: 24rpx; }
+.summary .pay { color:#111827; font-size: 30rpx; font-weight: 800; }
 .empty { text-align:center; color:#9ca3af; margin-top: 80rpx; }
 </style>
 

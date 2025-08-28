@@ -14,6 +14,7 @@ export class AuthService {
 
 	// ====== WeChat MiniApp One-Tap Login Support ======
 	private wechatAccessTokenCache: { token: string; expiresAt: number } | null = null;
+	private wechatAccessTokenInFlight: Promise<string> | null = null;
 
 	private get wechatAppId(): string {
 		const v = process.env.WECHAT_MINIAPP_APPID || process.env.WECHAT_APPID;
@@ -32,45 +33,64 @@ export class AuthService {
 		if (this.wechatAccessTokenCache && this.wechatAccessTokenCache.expiresAt - 30_000 > now) {
 			return this.wechatAccessTokenCache.token;
 		}
-		const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 8000);
-		let resp: Response;
+		if (this.wechatAccessTokenInFlight) return this.wechatAccessTokenInFlight;
+		this.wechatAccessTokenInFlight = (async () => {
+			const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}`;
+			let lastErr: any = null;
+			for (let attempt = 0; attempt < 3; attempt++) {
+				const controller = new AbortController();
+				const timeout = setTimeout(() => controller.abort(), 12000);
+				try {
+					const resp = await fetch(url, { signal: controller.signal });
+					clearTimeout(timeout);
+					if (!resp.ok) { lastErr = new Error(`${resp.status} ${resp.statusText}`); }
+					else {
+						const data = (await resp.json()) as any;
+						if (data?.access_token && data?.expires_in) {
+							this.wechatAccessTokenCache = {
+								token: data.access_token,
+								expiresAt: Date.now() + Number(data.expires_in) * 1000,
+							};
+							return this.wechatAccessTokenCache.token;
+						}
+						lastErr = new Error(`响应异常: ${JSON.stringify(data)}`);
+					}
+				} catch (e: any) {
+					clearTimeout(timeout);
+					lastErr = e;
+				}
+				// 简单退避
+				await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+			}
+			throw new BadRequestException(`获取微信access_token网络失败: ${lastErr?.message || lastErr}`);
+		})();
 		try {
-			resp = await fetch(url, { signal: controller.signal });
-		} catch (e: any) {
-			clearTimeout(timeout);
-			throw new BadRequestException(`获取微信access_token网络失败: ${e?.message || e}`);
+			return await this.wechatAccessTokenInFlight;
+		} finally {
+			this.wechatAccessTokenInFlight = null;
 		}
-		clearTimeout(timeout);
-		if (!resp.ok) throw new BadRequestException(`获取微信access_token失败: ${resp.status} ${resp.statusText}`);
-		const data = (await resp.json()) as any;
-		if (!data?.access_token || !data?.expires_in) {
-			throw new BadRequestException(`获取微信access_token失败: ${JSON.stringify(data)}`);
-		}
-		this.wechatAccessTokenCache = {
-			token: data.access_token,
-			expiresAt: Date.now() + Number(data.expires_in) * 1000,
-		};
-		return this.wechatAccessTokenCache.token;
 	}
 
 	private async exchangeWechatPhoneNumberByCode(code: string): Promise<string> {
 		if (!code) throw new BadRequestException('缺少手机号动态令牌code');
 		const accessToken = await this.getWechatAccessToken();
 		const url = `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(accessToken)}`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 8000);
-		let resp: Response;
-		try {
-			resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: controller.signal });
-		} catch (e: any) {
-			clearTimeout(timeout);
-			throw new BadRequestException(`获取手机号网络失败: ${e?.message || e}`);
+		let data: any;
+		{
+			let lastErr: any = null;
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const controller = new AbortController();
+				const timeout = setTimeout(() => controller.abort(), 12000);
+				try {
+					const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: controller.signal });
+					clearTimeout(timeout);
+					if (!resp.ok) { lastErr = new Error(`${resp.status} ${resp.statusText}`); }
+					else { data = await resp.json(); break; }
+				} catch (e: any) { clearTimeout(timeout); lastErr = e; }
+				await new Promise((r)=>setTimeout(r, 300 * (attempt + 1)));
+			}
+			if (!data) throw new BadRequestException(`获取手机号网络失败: ${lastErr?.message || lastErr}`);
 		}
-		clearTimeout(timeout);
-		if (!resp.ok) throw new BadRequestException(`获取手机号失败: ${resp.status} ${resp.statusText}`);
-		const data = (await resp.json()) as any;
 		// 期望结构: { errcode:0, errmsg:'ok', phone_info: { phoneNumber: '1xxxxxxxxxx', purePhoneNumber: '1xxxxxxxxxx' } }
 		if (data?.errcode !== 0 || !data?.phone_info?.purePhoneNumber) {
 			throw new BadRequestException(`获取手机号失败: ${JSON.stringify(data)}`);
@@ -87,18 +107,22 @@ export class AuthService {
 	private async exchangeWechatOpenIdByJsCode(jsCode: string): Promise<{ openid: string; unionid?: string }>{
 		if (!jsCode) throw new BadRequestException('缺少wx.login返回的jsCode');
 		const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}&js_code=${encodeURIComponent(jsCode)}&grant_type=authorization_code`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 8000);
-		let resp: Response;
-		try {
-			resp = await fetch(url, { signal: controller.signal });
-		} catch (e: any) {
-			clearTimeout(timeout);
-			throw new BadRequestException(`换取openid网络失败: ${e?.message || e}`);
+		let data: any;
+		{
+			let lastErr: any = null;
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const controller = new AbortController();
+				const timeout = setTimeout(() => controller.abort(), 12000);
+				try {
+					const resp = await fetch(url, { signal: controller.signal });
+					clearTimeout(timeout);
+					if (!resp.ok) { lastErr = new Error(`${resp.status} ${resp.statusText}`); }
+					else { data = await resp.json(); break; }
+				} catch (e: any) { clearTimeout(timeout); lastErr = e; }
+				await new Promise((r)=>setTimeout(r, 300 * (attempt + 1)));
+			}
+			if (!data) throw new BadRequestException(`换取openid网络失败: ${lastErr?.message || lastErr}`);
 		}
-		clearTimeout(timeout);
-		if (!resp.ok) throw new BadRequestException(`换取openid失败: ${resp.status} ${resp.statusText}`);
-		const data = (await resp.json()) as any;
 		if (!data?.openid) throw new BadRequestException(`换取openid失败: ${JSON.stringify(data)}`);
 		return { openid: String(data.openid), unionid: data?.unionid ? String(data.unionid) : undefined };
 	}

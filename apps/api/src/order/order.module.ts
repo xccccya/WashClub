@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { OrderService } from './order.service.js';
 import { OrderController } from './order.controller.js';
 
 @Module({
-    imports: [],
+    imports: [
+        JwtModule.register({
+            secret: process.env.JWT_SECRET || 'dev_secret',
+        })
+    ],
     controllers: [OrderController],
     providers: [PrismaService, OrderService],
 })

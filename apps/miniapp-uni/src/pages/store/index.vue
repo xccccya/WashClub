@@ -39,18 +39,31 @@
 						<text>暂无活动，敬请期待</text>
 					</view>
 					<view v-else class="product-list">
-						<view v-for="p in products" :key="p.id" class="product-card">
-							<view class="thumb" />
-							<view class="info">
-								<text class="name">{{ p.name }}</text>
-								<text class="price">¥{{ formatPrice(p.price) }}</text>
+							<view v-for="p in products" :key="p.id" class="product-card" @tap="() => goDetail(p)">
+								<image class="thumb" :src="thumbOf(p)" mode="aspectFill" />
+								<view class="info">
+									<text class="name">{{ p.name }}</text>
+									<text v-if="p.sellPoint" class="sell">{{ p.sellPoint }}</text>
+									<view class="bottom-row">
+										<text class="price">{{ displayPriceText(p) }}</text>
+										<view v-if="activeTab==='service'" class="buy-btn" @tap.stop="() => openSheet(p)">立即购买</view>
+										<view v-else class="add-cart-btn" @tap.stop="() => addToCartFromList(p)">
+											<image class="add-icon" src="/static/icons/add.png" mode="aspectFit" />
+										</view>
+									</view>
+								</view>
 							</view>
-							<view class="buy-btn" @tap="() => buy(p)">立即购买</view>
-						</view>
 					</view>
 				</scroll-view>
 			</view>
 			</view>
+		</view>
+
+		<PurchaseSheet v-model:visible="sheetVisible" :product="currentProduct" @submitted="onSubmitted" />
+
+		<!-- 仅在实物商品标签下显示购物车悬浮按钮 -->
+		<view v-if="activeTab==='goods'" class="cart-fab" @tap="gotoCart">
+			<image class="cart-fab-icon" src="/static/icons/cart.png" mode="aspectFit" />
 		</view>
 	</view>
 </template>
@@ -58,8 +71,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { createHttp } from '../../utils/auth';
+import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
+import PurchaseSheet from '../../components/PurchaseSheet.vue';
 
 const { topSpacerHeight } = useSafeArea();
 
@@ -79,6 +94,20 @@ function selectCategory(c: any) { activeCategory.value = c?.id || null; fetchPro
 
 const products = ref<any[]>([]);
 function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
+
+function displayPriceText(p: any){
+	if (p?.specType === 'MULTI') {
+		const min = Number(p?.minPrice ?? 0);
+		return `¥${formatPrice(min)}起`;
+	}
+	return `¥${formatPrice(p?.price)}`;
+}
+
+function thumbOf(p:any){
+	const arr = Array.isArray(p?.imagesJson) ? p.imagesJson : [];
+	const raw = p?.imageUrl || arr?.[0] || '';
+	return resolveImageUrl(raw) || '/static/icons/placeholder.png';
+}
 
 async function fetchCategories(){
 	try {
@@ -119,43 +148,24 @@ onShow(async () => {
 	await fetchProducts();
 });
 
-// 购买下单（手动支付）
-async function buy(p:any){
-	// 登录校验
-	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
-	const http = createHttp();
-	// 读取当前会员信息
-	let profile: any = null; try { profile = await http<any>('/member/me/profile', { method:'GET' }); } catch {}
-	if (!profile?.id) { uni.showToast({ title:'请先登录', icon:'none' }); return; }
+// 购买：弹出统一确认卡片
+const sheetVisible = ref(false);
+const currentProduct = ref<any|null>(null);
+function openSheet(p:any){ currentProduct.value = p; sheetVisible.value = true; }
+function onSubmitted(){ /* 提交后可刷新订单页或本页 */ }
 
-	// 服务项目需绑定车辆
-	let vehicleId: number | null = null;
-	if (p.type === 'SERVICE') {
-		const vs = Array.isArray(profile?.vehicles) ? profile.vehicles : [];
-		if (vs.length === 0) {
-			uni.showModal({ title:'提示', content:'请先添加车辆后再购买服务', confirmText:'去添加', success: (res:any)=>{ if (res.confirm) try{ uni.navigateTo({ url:'/pages/vehicle/create' }); }catch{} } });
-			return;
-		} else if (vs.length === 1) {
-			vehicleId = vs[0].id;
-		} else {
-			// 选择车辆
-			try {
-				const names = vs.map((v:any)=>v.plateNumber||`车辆#${v.id}`);
-				const sel:any = await new Promise((resolve)=>{ uni.showActionSheet({ itemList: names, success: resolve, fail: ()=>resolve(null) }); });
-				if (!sel || typeof sel.tapIndex !== 'number') return;
-				vehicleId = vs[sel.tapIndex].id;
-			} catch { return; }
-		}
-	}
+function goDetail(p:any){ if (!p?.id) return; uni.navigateTo({ url: `/pages/store/detail?id=${p.id}` }); }
+function gotoCart(){ try { uni.navigateTo({ url: '/pages/cart/index' }); } catch {} }
 
-	// 仅单件下单，提示到店支付
-	try {
-		const body = { type: p.type === 'SERVICE' ? 'SERVICE' : 'SP', memberId: profile.id, vehicleId: vehicleId || undefined, items: [{ productId: p.id, name: p.name, imageUrl: p.imageUrl || null, price: Number(p.price || 0), discount: 0, quantity: 1, barcode: p.barcode || null }] };
-		await http<any>('/orders', { method:'POST', body });
-		uni.showToast({ title: '下单成功，请到店支付', icon: 'none' });
-		setTimeout(()=>{ try { uni.switchTab({ url:'/pages/order/index' }); } catch {} }, 400);
-	} catch (e:any) {
-		uni.showToast({ title: e?.message || '下单失败', icon:'none' });
+async function addToCartFromList(p:any){
+	try{
+		if (!p || p.type !== 'PHYSICAL') return;
+		const http = createHttp();
+		if (p.specType === 'MULTI') { goDetail(p); return; }
+		await http('/cart/me/add', { method:'POST', body: { productId: p.id, skuId: null, quantity: 1 } });
+		uni.showToast({ title:'已加入购物车', icon:'none' });
+	}catch{
+		uni.showToast({ title:'加入失败', icon:'none' });
 	}
 }
 </script>
@@ -196,14 +206,22 @@ async function buy(p:any){
 .panel-head { font-size:26rpx; color:#6b7280; margin: 4rpx 8rpx 16rpx 8rpx; }
 .product-scroller { height: 100%; }
 .product-list { display:flex; flex-direction: column; gap: 16rpx; padding: 0 8rpx 16rpx 8rpx; }
-.product-card { background:#f7fbff; border: 2rpx dashed #77bfff; border-radius: 20rpx; padding: 16rpx; display:flex; flex-direction: row; gap: 12rpx; align-items:center; }
-.thumb { width: 160rpx; height: 160rpx; border-radius: 16rpx; background: linear-gradient(135deg, #e0f2fe, #ffe4ef); flex-shrink:0; }
-.info { display:flex; flex-direction: column; gap: 8rpx; flex:1; }
-.name { font-size:26rpx; color:#111827; }
-.price { font-size:26rpx; color:#ef4444; font-weight:600; }
-.buy-btn { margin-left:auto; text-align:center; padding: 18rpx 24rpx; background:#111827; color:#ffffff; border-radius: 16rpx; font-size:24rpx; }
+.product-card { background:#ffffff; border-radius: 20rpx; padding: 16rpx; display:flex; flex-direction: row; gap: 12rpx; align-items:stretch; box-shadow:0 4rpx 12rpx rgba(0,0,0,0.04); }
+.thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background: linear-gradient(135deg, #e0f2fe, #ffe4ef); flex-shrink:0; }
+.info { display:flex; flex-direction: column; gap: 6rpx; flex:1; }
+.name { font-size:26rpx; color:#111827; font-weight:600; }
+.sell { font-size:22rpx; color:#6b7280; line-height: 1.4; }
+.bottom-row { margin-top:auto; display:flex; align-items:center; justify-content: space-between; }
+.price { font-size:26rpx; color:#ef4444; font-weight:700; }
+.buy-btn { text-align:center; padding: 14rpx 20rpx; background:#111827; color:#ffffff; border-radius: 16rpx; font-size:24rpx; }
+.add-cart-btn { width: 60rpx; height: 60rpx; border-radius: 30rpx; background: transparent; display:flex; align-items:center; justify-content:center; overflow: hidden; }
+.add-icon { width: 40rpx; height: 40rpx; display:block; }
 
 .flash-placeholder { height: 100%; display:flex; align-items:center; justify-content:center; color:#9ca3af; }
+
+/* 购物车悬浮按钮 */
+.cart-fab { position: fixed; right: 24rpx; bottom: calc(env(safe-area-inset-bottom) + 48rpx); width: 96rpx; height: 96rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #e5e7eb; display:flex; align-items:center; justify-content:center; box-shadow:0 12rpx 24rpx rgba(0,0,0,0.08); z-index: 1000; }
+.cart-fab-icon { width: 56rpx; height: 56rpx; }
 
 </style>
 

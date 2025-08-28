@@ -46,6 +46,10 @@ model Member {
 	washCardShares WashCardShare[] @relation("WashCardSharesToMember")
 	washCardLogsAffected WashCardLog[] @relation("MemberAffectedWashCardLogs")
 	orders    Order[]
+
+	// 反向关联：购物车与收藏
+	cartItems MemberCartItem[]
+	favoriteProducts MemberFavoriteProduct[]
 }
 
 model MemberLevel {
@@ -329,6 +333,22 @@ enum PayMethod {
 	OFFLINE
 }
 
+// 履约与评价状态（方案B新增）
+enum FulfillmentStatus {
+	NONE         // 不需要履约（如 FK）
+	PENDING      // 待履约：SP=待发货；SERVICE=待服务
+	SHIPPED      // 已发货（SP）
+	RECEIVED     // 已收货（SP，完成条件）
+	IN_SERVICE   // 服务中（SERVICE）
+	DONE         // 服务完成（SERVICE，完成条件）
+}
+
+enum ReviewStatus {
+	NONE
+	PENDING
+	REVIEWED
+}
+
 // 卡券相关
 enum CouponType {
 	COUPON      // 优惠券（满减/直减等，后续扩展）
@@ -458,6 +478,10 @@ model Product {
 
 	skus             ProductSku[]
 	inventoryLogs    InventoryLog[]
+
+	// 反向关联：被加入购物车/被收藏
+	cartItems MemberCartItem[]
+	favoritedBy MemberFavoriteProduct[]
 }
 
 model ProductSku {
@@ -478,6 +502,9 @@ model ProductSku {
 	enabled       Boolean   @default(true)
 
 	inventoryLogs InventoryLog[]
+
+	// 反向关联：被加入购物车
+	cartItems MemberCartItem[]
 
 	@@index([productId])
 }
@@ -509,6 +536,10 @@ model Order {
 	no              String      @unique
 	type            OrderType
 	status          OrderStatus @default(CREATED)
+	// 新增：履约/评价/删除
+	fulfillmentStatus FulfillmentStatus @default(PENDING)
+	reviewStatus    ReviewStatus @default(NONE)
+	deletedAt       DateTime?
 	// 金额相关
 	totalAmount     Decimal     @default(0)
 	discountAmount  Decimal     @default(0)
@@ -522,6 +553,10 @@ model Order {
 	usedPoints      Int         @default(0)
 	pointsAmount    Decimal     @default(0)
 	couponInfo      Json?
+	// 收货地址（可选）：保存下单时快照，便于后续发货
+	shippingAddressId        Int?
+	shippingAddress          MemberAddress? @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+	shippingAddressSnapshot  Json?
 	// 会员信息
 	memberId        Int
 	member          Member      @relation(fields: [memberId], references: [id])
@@ -536,6 +571,10 @@ model Order {
 	@@index([type])
 	@@index([status])
 	@@index([memberId])
+	@@index([payStatus])
+	@@index([createdAt])
+	@@index([fulfillmentStatus])
+	@@index([shippingAddressId])
 }
 
 model OrderItem {
@@ -581,5 +620,44 @@ model MemberAddress {
   // 可选标签：家/公司/学校/父母/朋友/自定义（≤4字）
   label      String?
 
+  // 反向关联：作为订单的收货地址
+  ordersAsShipping  Order[] @relation("OrderShippingAddress")
+
+  @@index([memberId])
+}
+
+// 会员购物车条目（每个会员-商品-规格唯一）
+model MemberCartItem {
+  id         Int       @id @default(autoincrement())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  memberId   Int
+  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+
+  skuId      Int?
+  sku        ProductSku? @relation(fields: [skuId], references: [id], onDelete: SetNull)
+
+  quantity   Int       @default(1)
+  checked    Boolean   @default(true)
+
+  @@unique([memberId, productId, skuId])
+  @@index([memberId])
+}
+
+// 会员收藏商品
+model MemberFavoriteProduct {
+  id         Int       @id @default(autoincrement())
+  createdAt  DateTime  @default(now())
+  memberId   Int
+  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+
+  @@unique([memberId, productId])
   @@index([memberId])
 }
