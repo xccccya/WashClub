@@ -67,9 +67,11 @@
 import { ref, onMounted, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Banner = { id: number; title?: string|null; imageUrl: string; enabled: boolean; jumpEnabled: boolean; linkPath?: string|null; weight: number };
 const filterEnabled = ref('');
@@ -118,14 +120,14 @@ async function uploadImage(options: any){
     const fd = new FormData();
     fd.append('file', file);
     fd.append('dir', 'public');
-    const res = await fetch('http://localhost:3000/file/upload', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` }, body: fd });
+    const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` }, body: fd });
     const data = await res.json();
     if (!res.ok) { throw new Error(data?.message || '上传失败'); }
     form.value.imageUrl = data?.url || '';
     ElMessage.success('上传成功');
 }
 
-function abs(u?: string){ if (!u) return ''; if (/^https?:\/\//i.test(u)) return u; return `http://localhost:3000${u.startsWith('/')?u:('/'+u)}`; }
+function abs(u?: string){ return absUrl(u || ''); }
 
 onMounted(fetchList);
 watch(filterEnabled, fetchList);

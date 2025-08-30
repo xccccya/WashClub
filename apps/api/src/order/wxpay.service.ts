@@ -108,6 +108,49 @@ export class WxpayService {
         return `WECHATPAY2-SHA256-RSA2048 ${token}`;
     }
 
+    async closeJsapi(outTradeNo: string): Promise<void> {
+        this.assertConfig();
+        const path = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(outTradeNo)}/close`;
+        const bodyObj = { mchid: this.merchantId } as any;
+        const body = JSON.stringify(bodyObj);
+        const auth = this.buildAuthorization('POST', path, body);
+        const resp = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': auth, 'Accept': 'application/json' },
+            body,
+        });
+        if (!resp.ok && resp.status !== 204) {
+            let errText = await resp.text().catch(()=> '');
+            try { const j = JSON.parse(errText); errText = JSON.stringify(j); } catch {}
+            throw new BadRequestException(`微信关单失败: ${resp.status} ${resp.statusText} ${errText}`);
+        }
+    }
+
+    async createRefund(params: { outTradeNo: string; outRefundNo: string; refundAmountFen: number; totalAmountFen: number; reason?: string; notifyUrl?: string }) {
+        this.assertConfig();
+        const urlPath = '/v3/refund/domestic/refunds';
+        const bodyObj: any = {
+            out_trade_no: params.outTradeNo,
+            out_refund_no: params.outRefundNo,
+            reason: params.reason || undefined,
+            notify_url: params.notifyUrl || undefined,
+            amount: { refund: params.refundAmountFen, total: params.totalAmountFen, currency: 'CNY' },
+        };
+        const body = JSON.stringify(bodyObj);
+        const auth = this.buildAuthorization('POST', urlPath, body);
+        const resp = await fetch(`https://api.mch.weixin.qq.com${urlPath}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': auth, 'Accept': 'application/json' },
+            body,
+        });
+        if (!resp.ok) {
+            let errText = await resp.text().catch(()=> '');
+            try { const j = JSON.parse(errText); errText = JSON.stringify(j); } catch {}
+            throw new BadRequestException(`微信退款申请失败: ${resp.status} ${resp.statusText} ${errText}`);
+        }
+        const data = await resp.json();
+        return data;
+    }
     async createJsapi(params: JsapiPayParams): Promise<any> {
         this.assertConfig();
         const urlPath = '/v3/pay/transactions/jsapi';

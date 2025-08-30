@@ -1,109 +1,127 @@
 generator client {
-	provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-	provider = "mysql"
-	url      = env("DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-	id        Int      @id @default(autoincrement())
-	createdAt DateTime @default(now())
-	updatedAt DateTime @updatedAt
-	phone     String   @unique
-	name      String?
-	password  String
-	role      String   @default("staff")
-	roleId    Int?
-	roleRef   AdminRole? @relation(fields: [roleId], references: [id])
-	weixinOpenId String? @unique
-	washCardLogsOperated WashCardLog[] @relation("UserOperatesWashCardLogs")
-	inventoryLogsOperated InventoryLog[]
+  id                    Int            @id @default(autoincrement())
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  phone                 String         @unique
+  name                  String?
+  password              String
+  role                  String         @default("staff")
+  roleId                Int?
+  roleRef               AdminRole?     @relation(fields: [roleId], references: [id])
+  weixinOpenId          String?        @unique
+  washCardLogsOperated  WashCardLog[]  @relation("UserOperatesWashCardLogs")
+  inventoryLogsOperated InventoryLog[]
+
+  // 反向关联：售后审核与退款操作
+  afterSalesAudits      AfterSalesRequest[] @relation("UserAuditsAfterSales")
+  refundRecordsOperated RefundRecord[]      @relation("UserOperatesRefundRecords")
+  // 反向关联：订单时间线操作
+  orderTimelinesOperated OrderTimeline[]    @relation("UserToOrderTimelines")
+
+  // 反向关联：回复的评价
+  orderReviewsReplied OrderReview[] @relation("UserRepliesOrderReviews")
 }
 
 model Member {
-	id        Int       @id @default(autoincrement())
-	uid       Int       @unique
-	createdAt DateTime  @default(now())
-	updatedAt DateTime  @updatedAt
-	lastActiveAt DateTime?
-	avatarUrl String?
-	name      String
-	phone     String    @unique
-	password  String?
-	weixinOpenId String? @unique
-	points    Int       @default(0)
-	balance   Decimal   @default(0)
-	levelId   Int?
-	level     MemberLevel? @relation(fields: [levelId], references: [id])
-	categoryId Int?
-	category   MemberCategory? @relation(fields: [categoryId], references: [id])
-	tags       MemberTag[]
-	vehicles  Vehicle[]
-	addresses MemberAddress[]
-	washCardsOwned WashCard[] @relation("MemberOwnsWashCards")
-	washCardShares WashCardShare[] @relation("WashCardSharesToMember")
-	washCardLogsAffected WashCardLog[] @relation("MemberAffectedWashCardLogs")
-	orders    Order[]
+  id                   Int             @id @default(autoincrement())
+  uid                  Int             @unique
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  lastActiveAt         DateTime?
+  avatarUrl            String?
+  name                 String
+  phone                String          @unique
+  password             String?
+  weixinOpenId         String?         @unique
+  points               Int             @default(0)
+  balance              Decimal         @default(0)
+  levelId              Int?
+  level                MemberLevel?    @relation(fields: [levelId], references: [id])
+  categoryId           Int?
+  category             MemberCategory? @relation(fields: [categoryId], references: [id])
+  tags                 MemberTag[]
+  vehicles             Vehicle[]
+  addresses            MemberAddress[]
+  washCardsOwned       WashCard[]      @relation("MemberOwnsWashCards")
+  washCardShares       WashCardShare[] @relation("WashCardSharesToMember")
+  washCardLogsAffected WashCardLog[]   @relation("MemberAffectedWashCardLogs")
+  orders               Order[]
 
-	// 反向关联：购物车与收藏
-	cartItems MemberCartItem[]
-	favoriteProducts MemberFavoriteProduct[]
+  // 反向关联：购物车与收藏
+  cartItems        MemberCartItem[]
+  favoriteProducts MemberFavoriteProduct[]
+
+  // 反向关联：售后与退款
+  afterSalesRequests AfterSalesRequest[] @relation("MemberToAfterSales")
+  refundRecords      RefundRecord[]      @relation("MemberToRefundRecords")
+  couponRestoreLogs  CouponRestoreLog[]
+
+  // 反向关联：订单评价
+  orderReviews OrderReview[]
+  // 反向关联：会员优惠券实例
+  memberCoupons MemberCoupon[]
 }
 
 model MemberLevel {
-	id     Int    @id @default(autoincrement())
-	name   String
-	weight Int    @default(0)
-	isDefault Boolean @default(false)
-	members Member[]
+  id        Int      @id @default(autoincrement())
+  name      String
+  weight    Int      @default(0)
+  isDefault Boolean  @default(false)
+  members   Member[]
 }
 
 model MemberCategory {
-	id      Int     @id @default(autoincrement())
-	name    String
-	weight  Int     @default(0)
-	members Member[]
+  id      Int      @id @default(autoincrement())
+  name    String
+  weight  Int      @default(0)
+  members Member[]
 }
 
 model MemberTag {
-	id      Int     @id @default(autoincrement())
-	name    String  @unique
-	isSystem Boolean @default(false)
-	members Member[]
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  isSystem Boolean  @default(false)
+  members  Member[]
 }
 
 model AdminRole {
-	id         Int      @id @default(autoincrement())
-	name       String
-	enabled    Boolean  @default(true)
-	isSystem   Boolean  @default(false)
-	permissions Json
-	users      User[]
+  id          Int     @id @default(autoincrement())
+  name        String
+  enabled     Boolean @default(true)
+  isSystem    Boolean @default(false)
+  permissions Json
+  users       User[]
 }
 
 model Vehicle {
-	id          Int       @id @default(autoincrement())
-	createdAt   DateTime  @default(now())
-	updatedAt   DateTime  @updatedAt
-	plateNumber String    @unique
-	vin         String?
-	brand       String?   @default("-")
-	series      String?   @default("-")
-	typeMain    String    @default("-")
-	typeSub     String?   @default("-")
-	color       String?   @default("-")
-	isDefault   Boolean   @default(false)
-	brandImage  String?
-	seriesImage String?
-	memberId    Int?
-	member      Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-	washCardLogs WashCardLog[] @relation("VehicleToWashCardLogs")
-	queueItems  ServiceQueueItem[]
-	orders      Order[]
+  id           Int                @id @default(autoincrement())
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  plateNumber  String             @unique
+  vin          String?
+  brand        String?            @default("-")
+  series       String?            @default("-")
+  typeMain     String             @default("-")
+  typeSub      String?            @default("-")
+  color        String?            @default("-")
+  isDefault    Boolean            @default(false)
+  brandImage   String?
+  seriesImage  String?
+  memberId     Int?
+  member       Member?            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  washCardLogs WashCardLog[]      @relation("VehicleToWashCardLogs")
+  queueItems   ServiceQueueItem[]
+  orders       Order[]
 }
-
 
 // 洗车计次卡相关
 enum WashCardStatus {
@@ -129,150 +147,149 @@ enum WashCardLogReason {
 }
 
 model WashCard {
-  id              Int              @id @default(autoincrement())
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  name            String           @default("洗车计次卡")
-  ownerMemberId   Int
-  owner           Member           @relation("MemberOwnsWashCards", fields: [ownerMemberId], references: [id])
-  totalTimes      Int              @default(0)
-  remainingTimes  Int              @default(0)
-  status          WashCardStatus   @default(ACTIVE)
-  expiryAt        DateTime?
-  isDefault       Boolean          @default(false)
-  cardNo          String           @unique // 8位数字卡号
+  id             Int            @id @default(autoincrement())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  name           String         @default("洗车计次卡")
+  ownerMemberId  Int
+  owner          Member         @relation("MemberOwnsWashCards", fields: [ownerMemberId], references: [id])
+  totalTimes     Int            @default(0)
+  remainingTimes Int            @default(0)
+  status         WashCardStatus @default(ACTIVE)
+  expiryAt       DateTime?
+  isDefault      Boolean        @default(false)
+  cardNo         String         @unique // 8位数字卡号
 
-  shares          WashCardShare[]
-  logs            WashCardLog[]
+  shares WashCardShare[]
+  logs   WashCardLog[]
 }
 
 model WashCardShare {
-  id        Int       @id @default(autoincrement())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   cardId    Int
-  card      WashCard  @relation(fields: [cardId], references: [id])
+  card      WashCard @relation(fields: [cardId], references: [id])
   memberId  Int
-  member    Member    @relation("WashCardSharesToMember", fields: [memberId], references: [id])
+  member    Member   @relation("WashCardSharesToMember", fields: [memberId], references: [id])
 
   @@unique([cardId, memberId])
 }
 
 model WashCardLog {
-  id               Int                 @id @default(autoincrement())
-  createdAt        DateTime            @default(now())
-  cardId           Int
-  card             WashCard            @relation(fields: [cardId], references: [id])
-  action           WashCardLogAction
-  reason           WashCardLogReason
-  change           Int                 // +增加/-减少次数
-  beforeRemaining  Int
-  afterRemaining   Int
-  remark           String?
+  id              Int               @id @default(autoincrement())
+  createdAt       DateTime          @default(now())
+  cardId          Int
+  card            WashCard          @relation(fields: [cardId], references: [id])
+  action          WashCardLogAction
+  reason          WashCardLogReason
+  change          Int // +增加/-减少次数
+  beforeRemaining Int
+  afterRemaining  Int
+  remark          String?
 
-  operatorUserId   Int?
-  operatorUser     User?               @relation("UserOperatesWashCardLogs", fields: [operatorUserId], references: [id])
+  operatorUserId Int?
+  operatorUser   User? @relation("UserOperatesWashCardLogs", fields: [operatorUserId], references: [id])
 
   // 订单/业务占位字段（订单尚未开发）
-  serviceOrderId   Int?
-  purchaseOrderId  Int?
-  refundRecordId   Int?
+  serviceOrderId  Int?
+  purchaseOrderId Int?
+  refundRecordId  Int?
 
-  vehicleId        Int?
-  vehicle          Vehicle?            @relation("VehicleToWashCardLogs", fields: [vehicleId], references: [id])
+  vehicleId Int?
+  vehicle   Vehicle? @relation("VehicleToWashCardLogs", fields: [vehicleId], references: [id])
 
-  memberId         Int?                // 预留：关联受影响会员
-  member           Member?             @relation("MemberAffectedWashCardLogs", fields: [memberId], references: [id])
+  memberId Int? // 预留：关联受影响会员
+  member   Member? @relation("MemberAffectedWashCardLogs", fields: [memberId], references: [id])
 }
 
-
 model ScrollNotice {
-	id         Int       @id @default(autoincrement())
-	createdAt  DateTime  @default(now())
-	updatedAt  DateTime  @updatedAt
-	// 通知类型：home 首页；store 商店页
-	type       String
-	content    String
-	enabled    Boolean   @default(false)
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // 通知类型：home 首页；store 商店页
+  type      String
+  content   String
+  enabled   Boolean  @default(false)
 }
 
 model AdBanner {
-  id           Int      @id @default(autoincrement())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  title        String?  // 可选标题
-  imageUrl     String   // 图片 URL（/uploads/...）
-  enabled      Boolean  @default(false)
-  jumpEnabled  Boolean  @default(false)
-  linkPath     String?  // 跳转路径（小程序页面路径）
-  weight       Int      @default(0) // 排序权重，越大越靠前
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  title       String? // 可选标题
+  imageUrl    String // 图片 URL（/uploads/...）
+  enabled     Boolean  @default(false)
+  jumpEnabled Boolean  @default(false)
+  linkPath    String? // 跳转路径（小程序页面路径）
+  weight      Int      @default(0) // 排序权重，越大越靠前
 }
 
 // 服务队列相关
 enum ServiceQueueStatus {
-	IN_QUEUE
-	SERVING
-	COMPLETED
+  IN_QUEUE
+  SERVING
+  COMPLETED
 }
 
 enum ServiceTaskStatus {
-	PENDING
-	DOING
-	DONE
+  PENDING
+  DOING
+  DONE
 }
 
 model ServiceQueueItem {
-	id              Int                 @id @default(autoincrement())
-	createdAt       DateTime            @default(now())
-	updatedAt       DateTime            @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-	vehicleId       Int?
-	vehicle         Vehicle?            @relation(fields: [vehicleId], references: [id])
+  vehicleId Int?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
 
-	plateNumber     String
-	guest           Boolean             @default(false)
+  plateNumber String
+  guest       Boolean @default(false)
 
-	status          ServiceQueueStatus  @default(IN_QUEUE)
-	currentTaskIndex Int                @default(0)
-	startedAt       DateTime?
-	finishedAt      DateTime?
+  status           ServiceQueueStatus @default(IN_QUEUE)
+  currentTaskIndex Int                @default(0)
+  startedAt        DateTime?
+  finishedAt       DateTime?
 
-	orderSort       Int                 @default(0)
+  orderSort Int @default(0)
 
-	tasks           ServiceTask[]
+  tasks ServiceTask[]
 }
 
 model ServiceTask {
-	id              Int               @id @default(autoincrement())
-	createdAt       DateTime          @default(now())
-	updatedAt       DateTime          @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-	queueItemId     Int
-	queueItem       ServiceQueueItem  @relation(fields: [queueItemId], references: [id])
+  queueItemId Int
+  queueItem   ServiceQueueItem @relation(fields: [queueItemId], references: [id])
 
-	name            String
-	durationMin     Int               @default(5)
-	orderIndex      Int               @default(0)
-	status          ServiceTaskStatus @default(PENDING)
-	startedAt       DateTime?
-	finishedAt      DateTime?
+  name        String
+  durationMin Int               @default(5)
+  orderIndex  Int               @default(0)
+  status      ServiceTaskStatus @default(PENDING)
+  startedAt   DateTime?
+  finishedAt  DateTime?
 
-	@@index([queueItemId])
-	@@index([status])
+  @@index([queueItemId])
+  @@index([status])
 }
 
 // 短信验证码记录
 model SmsCode {
-	id         Int       @id @default(autoincrement())
-	createdAt  DateTime  @default(now())
-	phone      String
-	code       String
-	purpose    String    @default("login") // 用途：login、resetPwd 等
-	expiresAt  DateTime
-	usedAt     DateTime?
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  phone     String
+  code      String
+  purpose   String    @default("login") // 用途：login、resetPwd 等
+  expiresAt DateTime
+  usedAt    DateTime?
 
-	@@index([phone])
-	@@index([purpose])
+  @@index([phone])
+  @@index([purpose])
 }
 
 // =====================
@@ -281,378 +298,596 @@ model SmsCode {
 
 // 商品类型：服务项目/实物商品/虚拟卡券
 enum ProductType {
-	SERVICE
-	PHYSICAL
-	VIRTUAL_CARD
+  SERVICE
+  PHYSICAL
+  VIRTUAL_CARD
 }
 
 // 商品规格类型：单规格/多规格
 enum ProductSpecType {
-	SINGLE
-	MULTI
+  SINGLE
+  MULTI
 }
 
 // 库存流水原因
 enum InventoryLogReason {
-	INBOUND
-	OUTBOUND
-	ADJUSTMENT
-	ORDER_DEDUCT
-	ORDER_ROLLBACK
-	REFUND_RETURN
+  INBOUND
+  OUTBOUND
+  ADJUSTMENT
+  ORDER_DEDUCT
+  ORDER_ROLLBACK
+  REFUND_RETURN
 }
 
 // 订单类型：SERVICE 服务订单，SP 商品订单（含实物与虚拟卡券），FK 付款订单
 enum OrderType {
-	SERVICE
-	SP
-	FK
+  SERVICE
+  SP
+  FK
 }
 
 // 订单状态
 enum OrderStatus {
-	CREATED
-	PAID
-	FULFILLED
-	CLOSED
-	CANCELLED
+  CREATED
+  PAID
+  FULFILLED
+  CLOSED
+  CANCELLED
 }
 
 // 支付状态
 enum PayStatus {
-	UNPAID
-	PAID
-	REFUNDED
-	CANCELLED
+  UNPAID
+  PAID
+  REFUNDED
+  CANCELLED
 }
 
 // 支付方式（仅手动确认的三种）
 enum PayMethod {
-	CASH
-	SHOUQIANBA
-	OFFLINE
-	WECHAT_JSAPI
+  CASH
+  SHOUQIANBA
+  OFFLINE
+  WECHAT_JSAPI
 }
 
 // 履约与评价状态（方案B新增）
 enum FulfillmentStatus {
-	NONE         // 不需要履约（如 FK）
-	PENDING      // 待履约：SP=待发货；SERVICE=待服务
-	SHIPPED      // 已发货（SP）
-	RECEIVED     // 已收货（SP，完成条件）
-	IN_SERVICE   // 服务中（SERVICE）
-	DONE         // 服务完成（SERVICE，完成条件）
+  NONE // 不需要履约（如 FK）
+  PENDING // 待履约：SP=待发货；SERVICE=待服务
+  SHIPPED // 已发货（SP）
+  RECEIVED // 已收货（SP，完成条件）
+  IN_SERVICE // 服务中（SERVICE）
+  DONE // 服务完成（SERVICE，完成条件）
 }
 
 enum ReviewStatus {
-	NONE
-	PENDING
-	REVIEWED
+  NONE
+  PENDING
+  REVIEWED
 }
 
 // 卡券相关
 enum CouponType {
-	COUPON      // 优惠券（满减/直减等，后续扩展）
-	WASH_CARD   // 洗车计次卡
+  COUPON // 优惠券（满减/直减等，后续扩展）
+  WASH_CARD // 洗车计次卡
 }
 
 // 卡券适用范围
 enum CouponApplyScope {
-	ALL
-	SPECIFIED
+  ALL
+  SPECIFIED
 }
 
 // 有效期类型
 enum CouponExpiryType {
-	FIXED           // 固定时间段（配合 startAt/endAt）
-	AFTER_RECEIVE   // 领取后生效（配合 validDays）
-	PERMANENT       // 永久有效
+  FIXED // 固定时间段（配合 startAt/endAt）
+  AFTER_RECEIVE // 领取后生效（配合 validDays）
+  PERMANENT // 永久有效
 }
 
 model CouponGroup {
-	id         Int       @id @default(autoincrement())
-	createdAt  DateTime  @default(now())
-	updatedAt  DateTime  @updatedAt
-	name       String
-	description String?
-	enabled    Boolean   @default(true)
-	weight     Int       @default(0)
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  enabled     Boolean  @default(true)
+  weight      Int      @default(0)
 
-	coupons    Coupon[]
+  coupons Coupon[]
 }
 
 model Coupon {
-	id           Int         @id @default(autoincrement())
-	createdAt    DateTime    @default(now())
-	updatedAt    DateTime    @updatedAt
-	name         String
-	type         CouponType
-	groupId      Int?
-	group        CouponGroup? @relation(fields: [groupId], references: [id])
-	// 基础适用与有效期
-	expiryType   CouponExpiryType @default(PERMANENT)
-	startAt      DateTime?
-	endAt        DateTime?
-	enabled      Boolean     @default(true)
-	// 优惠券参数（可扩展JSON）
-	ruleJson     Json?
-	// 计次卡参数
-	totalTimes   Int         @default(0)
-	validDays    Int?        // 自领取起有效天数，空则不限制
+  id         Int              @id @default(autoincrement())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  name       String
+  type       CouponType
+  groupId    Int?
+  group      CouponGroup?     @relation(fields: [groupId], references: [id])
+  // 基础适用与有效期
+  expiryType CouponExpiryType @default(PERMANENT)
+  startAt    DateTime?
+  endAt      DateTime?
+  enabled    Boolean          @default(true)
+  // 优惠券参数（可扩展JSON）
+  ruleJson   Json?
+  // 计次卡参数
+  totalTimes Int              @default(0)
+  validDays  Int? // 自领取起有效天数，空则不限制
 
-	// 通用展示与备注
-	imageUrl     String?
-	description  String?
-	adminRemark  String?
+  // 通用展示与备注
+  imageUrl    String?
+  description String?
+  adminRemark String?
 
-	// 优惠券专用
-	faceValue        Decimal?
-	minOrderAmount   Decimal?
-	issueTotal       Int?
-	applyScope       CouponApplyScope @default(ALL)
+  // 配置：每人限领次数；是否允许小程序自助领取
+  perMemberLimit           Int?
+  allowMiniappClaim        Boolean         @default(false)
+  // 叠加策略：是否允许与其他券同时使用；是否允许与积分/会员折扣叠加
+  allowCombine             Boolean         @default(false)
+  allowStackWithPoints     Boolean         @default(true)
+  allowStackWithMemberDiscount Boolean     @default(true)
 
-	// 指定商品适用（当 applyScope = SPECIFIED 生效）
-	applicableProducts CouponApplicableProduct[]
+  // 优惠券专用
+  faceValue      Decimal?
+  minOrderAmount Decimal?
+  issueTotal     Int?
+  applyScope     CouponApplyScope @default(ALL)
 
-	// 反向引用：被商品绑定
-	products     Product[]
+  // 指定商品适用（当 applyScope = SPECIFIED 生效）
+  applicableProducts CouponApplicableProduct[]
+
+  // 反向引用：被商品绑定
+  products Product[]
+  // 反向关联：被领取的会员优惠券
+  memberCoupons MemberCoupon[]
 }
 
 // 卡券与可用商品的多对多关联
 model CouponApplicableProduct {
-	id         Int     @id @default(autoincrement())
-	couponId   Int
-	productId  Int
-	coupon     Coupon  @relation(fields: [couponId], references: [id])
-	product    Product @relation(fields: [productId], references: [id])
+  id        Int     @id @default(autoincrement())
+  couponId  Int
+  productId Int
+  coupon    Coupon  @relation(fields: [couponId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
 
-	@@unique([couponId, productId])
-	@@index([productId])
+  @@unique([couponId, productId])
+  @@index([productId])
+}
+
+// 会员持有的优惠券实例（仅 CouponType.COUPON 使用；洗车计次卡使用 WashCard 模型）
+model MemberCoupon {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+
+  memberId  Int
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  couponId  Int
+  coupon    Coupon    @relation(fields: [couponId], references: [id])
+
+  // 快照与有效期
+  name      String?
+  expiryType CouponExpiryType @default(PERMANENT)
+  startAt   DateTime?
+  endAt     DateTime?
+  receiveAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  // 可选：用于记录使用到的订单
+  orderId   Int?
+  order     Order?    @relation(fields: [orderId], references: [id])
+
+  @@index([memberId])
+  @@index([couponId])
 }
 
 model ProductCategory {
-	id         Int       @id @default(autoincrement())
-	createdAt  DateTime  @default(now())
-	updatedAt  DateTime  @updatedAt
-	name       String
-	imageUrl   String?
-	enabled    Boolean   @default(true)
-	weight     Int       @default(0)
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  imageUrl  String?
+  enabled   Boolean  @default(true)
+  weight    Int      @default(0)
 
-	products   Product[]
+  products Product[]
 }
 
 model Product {
-	id               Int             @id @default(autoincrement())
-	createdAt        DateTime        @default(now())
-	updatedAt        DateTime        @updatedAt
-	deletedAt        DateTime?
-	type             ProductType
-	name             String
-	barcode          String?         @unique
-	categoryId       Int?
-	category         ProductCategory? @relation(fields: [categoryId], references: [id])
-	imageUrl         String?
-	imagesJson       Json?
-	// 规格项定义：如 [{ name:"颜色", values:["红","蓝"] }, { name:"尺码", values:["S","M"] }]
-	specsDefinitionJson Json?
-	sortWeight       Int             @default(0)
-	enabled          Boolean         @default(true)
-	description      String?
-	// 扩展项
-	pointsDeductible Boolean         @default(false)
-	memberDiscount   Boolean         @default(false)
-	specType         ProductSpecType @default(SINGLE)
-	// 单规格商品字段（当 specType=SINGLE 生效）
-	price            Decimal?        @default(0)
-	listPrice        Decimal?        @default(0)
-	stockQuantity    Int?            @default(0)
-	// 销量与卖点
-	initialSales     Int             @default(0)
-	sellPoint        String?
-	// 绑定卡券（虚拟卡券商品绑定到某个卡券）
-	couponId         Int?
-	coupon           Coupon?         @relation(fields: [couponId], references: [id])
+  id                  Int              @id @default(autoincrement())
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+  type                ProductType
+  name                String
+  barcode             String?          @unique
+  categoryId          Int?
+  category            ProductCategory? @relation(fields: [categoryId], references: [id])
+  imageUrl            String?
+  imagesJson          Json?
+  // 规格项定义：如 [{ name:"颜色", values:["红","蓝"] }, { name:"尺码", values:["S","M"] }]
+  specsDefinitionJson Json?
+  sortWeight          Int              @default(0)
+  enabled             Boolean          @default(true)
+  description         String?
+  // 扩展项
+  pointsDeductible    Boolean          @default(false)
+  memberDiscount      Boolean          @default(false)
+  specType            ProductSpecType  @default(SINGLE)
+  // 单规格商品字段（当 specType=SINGLE 生效）
+  price               Decimal?         @default(0)
+  listPrice           Decimal?         @default(0)
+  stockQuantity       Int?             @default(0)
+  // 销量与卖点
+  initialSales        Int              @default(0)
+  sellPoint           String?
+  // 绑定卡券（虚拟卡券商品绑定到某个卡券）
+  couponId            Int?
+  coupon              Coupon?          @relation(fields: [couponId], references: [id])
 
-	// 作为可用商品被卡券指定
-	applicableInCoupons CouponApplicableProduct[]
+  // 作为可用商品被卡券指定
+  applicableInCoupons CouponApplicableProduct[]
 
-	skus             ProductSku[]
-	inventoryLogs    InventoryLog[]
+  skus          ProductSku[]
+  inventoryLogs InventoryLog[]
 
-	// 反向关联：被加入购物车/被收藏
-	cartItems MemberCartItem[]
-	favoritedBy MemberFavoriteProduct[]
+  // 反向关联：被加入购物车/被收藏
+  cartItems   MemberCartItem[]
+  favoritedBy MemberFavoriteProduct[]
 }
 
 model ProductSku {
-	id            Int       @id @default(autoincrement())
-	createdAt     DateTime  @default(now())
-	updatedAt     DateTime  @updatedAt
-	productId     Int
-	product       Product   @relation(fields: [productId], references: [id])
-	// 规格信息可存放在 name 与 specsJson
-	name          String
-	specsJson     Json?
-	skuCode       String    @unique
-	barcode       String?
-	imageUrl      String?
-	price         Decimal   @default(0)
-	listPrice     Decimal   @default(0)
-	stockQuantity Int       @default(0)
-	enabled       Boolean   @default(true)
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  productId     Int
+  product       Product  @relation(fields: [productId], references: [id])
+  // 规格信息可存放在 name 与 specsJson
+  name          String
+  specsJson     Json?
+  skuCode       String   @unique
+  barcode       String?
+  imageUrl      String?
+  price         Decimal  @default(0)
+  listPrice     Decimal  @default(0)
+  stockQuantity Int      @default(0)
+  enabled       Boolean  @default(true)
 
-	inventoryLogs InventoryLog[]
+  inventoryLogs InventoryLog[]
 
-	// 反向关联：被加入购物车
-	cartItems MemberCartItem[]
+  // 反向关联：被加入购物车
+  cartItems MemberCartItem[]
 
-	@@index([productId])
+  @@index([productId])
 }
 
 model InventoryLog {
-	id             Int                @id @default(autoincrement())
-	createdAt      DateTime           @default(now())
-	productId      Int
-	product        Product            @relation(fields: [productId], references: [id])
-	skuId          Int?
-	sku            ProductSku?        @relation(fields: [skuId], references: [id], onDelete: SetNull)
-	change         Int                // +入库/-出库
-	beforeStock    Int
-	afterStock     Int
-	reason         InventoryLogReason
-	remark         String?
+  id          Int                @id @default(autoincrement())
+  createdAt   DateTime           @default(now())
+  productId   Int
+  product     Product            @relation(fields: [productId], references: [id])
+  skuId       Int?
+  sku         ProductSku?        @relation(fields: [skuId], references: [id], onDelete: SetNull)
+  change      Int // +入库/-出库
+  beforeStock Int
+  afterStock  Int
+  reason      InventoryLogReason
+  remark      String?
 
-	operatorUserId Int?
-	operatorUser   User?              @relation(fields: [operatorUserId], references: [id])
+  operatorUserId Int?
+  operatorUser   User? @relation(fields: [operatorUserId], references: [id])
 
-	@@index([productId])
-	@@index([skuId])
+  @@index([productId])
+  @@index([skuId])
 }
 
 model Order {
-	id              Int         @id @default(autoincrement())
-	createdAt       DateTime    @default(now())
-	updatedAt       DateTime    @updatedAt
-	no              String      @unique
-	type            OrderType
-	status          OrderStatus @default(CREATED)
-	// 新增：履约/评价/删除
-	fulfillmentStatus FulfillmentStatus @default(PENDING)
-	reviewStatus    ReviewStatus @default(NONE)
-	deletedAt       DateTime?
-	// 金额相关
-	totalAmount     Decimal     @default(0)
-	discountAmount  Decimal     @default(0)
-	payAmount       Decimal     @default(0)
-	shippingFee     Decimal     @default(0)
-	// 支付相关
-	payStatus       PayStatus   @default(UNPAID)
-	payMethod       PayMethod?
-	paidAt          DateTime?
-	// 权益/积分/卡券
-	usedPoints      Int         @default(0)
-	pointsAmount    Decimal     @default(0)
-	couponInfo      Json?
-	// 收货地址（可选）：保存下单时快照，便于后续发货
-	shippingAddressId        Int?
-	shippingAddress          MemberAddress? @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
-	shippingAddressSnapshot  Json?
-	// 会员信息
-	memberId        Int
-	member          Member      @relation(fields: [memberId], references: [id])
-	// 服务订单追加：车辆
-	vehicleId       Int?
-	vehicle         Vehicle?    @relation(fields: [vehicleId], references: [id])
-	// 备注
-	remark          String?
+  id                      Int               @id @default(autoincrement())
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  no                      String            @unique
+  type                    OrderType
+  status                  OrderStatus       @default(CREATED)
+  // 新增：履约/评价/删除
+  fulfillmentStatus       FulfillmentStatus @default(PENDING)
+  reviewStatus            ReviewStatus      @default(NONE)
+  deletedAt               DateTime?
+  // 金额相关
+  totalAmount             Decimal           @default(0)
+  discountAmount          Decimal           @default(0)
+  payAmount               Decimal           @default(0)
+  refundedAmount          Decimal           @default(0)
+  shippingFee             Decimal           @default(0)
+  // 支付相关
+  payStatus               PayStatus         @default(UNPAID)
+  payMethod               PayMethod?
+  paidAt                  DateTime?
+  // 权益/积分/卡券
+  usedPoints              Int               @default(0)
+  pointsAmount            Decimal           @default(0)
+  couponInfo              Json?
+  // 收货地址（可选）：保存下单时快照，便于后续发货
+  shippingAddressId       Int?
+  shippingAddress         MemberAddress?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+  shippingAddressSnapshot Json?
+  // 会员信息
+  memberId                Int
+  member                  Member            @relation(fields: [memberId], references: [id])
+  // 服务订单追加：车辆
+  vehicleId               Int?
+  vehicle                 Vehicle?          @relation(fields: [vehicleId], references: [id])
+  // 备注
+  remark                  String?
 
-	// 物流/发货信息（商品订单 SP 使用）
-	shippedAt       DateTime?
-	shipNoExpress   Boolean    @default(false)
-	shipExpressCompanyCode String?
-	shipExpressCompanyName String?
-	shipExpressCompanyLogo String?
-	shipExpressTrackingNo  String?
-	shipExpressExtra       Json?
+  // 物流/发货信息（商品订单 SP 使用）
+  shippedAt              DateTime?
+  shipNoExpress          Boolean   @default(false)
+  shipExpressCompanyCode String?
+  shipExpressCompanyName String?
+  shipExpressCompanyLogo String?
+  shipExpressTrackingNo  String?
+  shipExpressExtra       Json?
 
-	items           OrderItem[]
+  items OrderItem[]
 
-	@@index([type])
-	@@index([status])
-	@@index([memberId])
-	@@index([payStatus])
-	@@index([createdAt])
-	@@index([fulfillmentStatus])
-	@@index([shippingAddressId])
+  // 反向关联：售后与退款
+  afterSalesRequests AfterSalesRequest[] @relation("OrderToAfterSales")
+  refundRecords      RefundRecord[]      @relation("OrderToRefundRecords")
+  couponRestoreLogs  CouponRestoreLog[]
+  // 订单时间线（状态流转记录）
+  timelines          OrderTimeline[]
+
+  // 单订单单评价（可选）
+  review             OrderReview?
+
+  // 反向关联：使用到本订单的会员优惠券
+  memberCoupons MemberCoupon[]
+
+  // 评价（一个订单一条评价）
+  // 注意：未建立强制外键关系到 OrderReview 以保持解耦
+
+  @@index([type])
+  @@index([status])
+  @@index([memberId])
+  @@index([payStatus])
+  @@index([createdAt])
+  @@index([fulfillmentStatus])
+  @@index([shippingAddressId])
 }
 
 model OrderItem {
-	id          Int       @id @default(autoincrement())
-	createdAt   DateTime  @default(now())
-	orderId     Int
-	order       Order     @relation(fields: [orderId], references: [id])
-	// 商品信息快照
-	productId   Int?
-	skuId       Int?
-	name        String
-	imageUrl    String?
-	specsText   String?
-	barcode     String?
-	price       Decimal   @default(0)
-	discount    Decimal   @default(0)
-	quantity    Int       @default(1)
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  // 商品信息快照
+  productId Int?
+  skuId     Int?
+  name      String
+  imageUrl  String?
+  specsText String?
+  barcode   String?
+  price     Decimal  @default(0)
+  discount  Decimal  @default(0)
+  quantity  Int      @default(1)
 
-	@@index([orderId])
+  @@index([orderId])
+}
+
+// =====================
+// 售后 与 退款 模型
+// =====================
+
+enum AfterSalesType {
+  REFUND
+  EXCHANGE
+  RE_SERVICE
+}
+
+enum AfterSalesStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model AfterSalesRequest {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderId  Int
+  order    Order  @relation("OrderToAfterSales", fields: [orderId], references: [id])
+  memberId Int
+  member   Member @relation("MemberToAfterSales", fields: [memberId], references: [id])
+
+  type   AfterSalesType
+  status AfterSalesStatus @default(PENDING)
+
+  // 申请的退款金额（元），为空表示全额退款
+  requestedAmount Decimal?
+
+  // 申请内容
+  reasonCode  String? // 预设原因代码
+  reasonText  String? // 自定义/补充原因
+  description String? // 详细描述
+  imagesJson  Json?
+
+  // 换货专用：收货地址快照
+  exchangeAddressSnapshot Json?
+
+  // 审核记录
+  auditUserId Int?
+  auditUser   User?     @relation("UserAuditsAfterSales", fields: [auditUserId], references: [id])
+  auditRemark String?
+  auditedAt   DateTime?
+
+  // 处理完成时间
+  completedAt DateTime?
+
+  @@index([orderId])
+  @@index([memberId])
+  @@index([status])
+}
+
+model RefundRecord {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderId  Int
+  order    Order  @relation("OrderToRefundRecords", fields: [orderId], references: [id])
+  memberId Int
+  member   Member @relation("MemberToRefundRecords", fields: [memberId], references: [id])
+
+  // 金额（单位：元）
+  amount Decimal @default(0)
+
+  // 支付/退款渠道
+  method PayMethod?
+  status RefundStatus @default(PENDING)
+
+  // 业务信息
+  reasonCode String?
+  reasonText String?
+
+  // 微信退款字段（JSAPI）
+  outRefundNo    String? @unique
+  wechatRefundId String?
+  wechatResp     Json?
+
+  failedReason String?
+
+  operatorUserId Int?
+  operatorUser   User? @relation("UserOperatesRefundRecords", fields: [operatorUserId], references: [id])
+
+  @@index([orderId])
+  @@index([memberId])
+  @@index([status])
+}
+
+// 优惠券恢复审计日志（全额退款场景）
+model CouponRestoreLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  memberId Int
+  member   Member   @relation(fields: [memberId], references: [id])
+  orderId  Int
+  order    Order    @relation(fields: [orderId], references: [id])
+
+  couponSnapshot Json?
+  remark         String?
+
+  @@index([memberId])
+  @@index([orderId])
+}
+
+// 订单时间线：记录订单状态/支付/履约等关键节点
+model OrderTimeline {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  orderId Int
+  order   Order   @relation(fields: [orderId], references: [id])
+
+  // 事件类型：ORDER_STATUS / PAY_STATUS / FULFILLMENT / LOGISTICS / AFTERSALES / NOTE
+  event   String
+  // 事件值：如 CREATED -> PAID / UNPAID -> PAID / PENDING -> SHIPPED
+  value   String?
+  // 备注：如快递公司/运单号/操作说明
+  remark  String?
+
+  operatorUserId Int?
+  operatorUser   User? @relation("UserToOrderTimelines", fields: [operatorUserId], references: [id])
+
+  @@index([orderId])
+}
+
+// 订单评价
+model OrderReview {
+  id          Int       @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  orderId     Int       @unique
+  order       Order     @relation(fields: [orderId], references: [id])
+  memberId    Int
+  member      Member    @relation(fields: [memberId], references: [id])
+
+  rating      Int
+  content     String?
+  imagesJson  Json?
+
+  // 管理后台回复
+  replyContent String?
+  replyUserId  Int?
+  replyUser    User?     @relation("UserRepliesOrderReviews", fields: [replyUserId], references: [id])
+  replyAt      DateTime?
+  visible      Boolean   @default(true)
+
+  @@index([memberId])
 }
 
 // 会员收货地址
 model MemberAddress {
-  id         Int      @id @default(autoincrement())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  memberId   Int
-  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId Int
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   // 行政区层级：省/市/区/街道 名称
-  province   String
-  city       String
-  district   String
-  street     String
+  province String
+  city     String
+  district String
+  street   String
 
   // 详细地址与门牌号
-  detail     String
+  detail String
 
   // 联系手机号
-  phone      String
+  phone String
 
   // 可选标签：家/公司/学校/父母/朋友/自定义（≤4字）
-  label      String?
+  label String?
 
   // 反向关联：作为订单的收货地址
-  ordersAsShipping  Order[] @relation("OrderShippingAddress")
+  ordersAsShipping Order[] @relation("OrderShippingAddress")
 
   @@index([memberId])
 }
 
 // 会员购物车条目（每个会员-商品-规格唯一）
 model MemberCartItem {
-  id         Int       @id @default(autoincrement())
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  memberId   Int
-  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId Int
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  productId  Int
-  product    Product   @relation(fields: [productId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
 
-  skuId      Int?
-  sku        ProductSku? @relation(fields: [skuId], references: [id], onDelete: SetNull)
+  skuId Int?
+  sku   ProductSku? @relation(fields: [skuId], references: [id], onDelete: SetNull)
 
-  quantity   Int       @default(1)
-  checked    Boolean   @default(true)
+  quantity Int     @default(1)
+  checked  Boolean @default(true)
 
   @@unique([memberId, productId, skuId])
   @@index([memberId])
@@ -660,13 +895,13 @@ model MemberCartItem {
 
 // 会员收藏商品
 model MemberFavoriteProduct {
-  id         Int       @id @default(autoincrement())
-  createdAt  DateTime  @default(now())
-  memberId   Int
-  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  memberId  Int
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  productId  Int
-  product    Product   @relation(fields: [productId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
 
   @@unique([memberId, productId])
   @@index([memberId])

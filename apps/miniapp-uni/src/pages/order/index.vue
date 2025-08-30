@@ -53,9 +53,16 @@
 
 			<!-- 操作区：右下角按钮（去除时间） -->
 			<view class="actions">
-				<view class="btn ghost" @tap="() => viewOrder(o)">查看订单</view>
-				<view v-if="canPay(o)" class="btn primary" @tap="() => choosePay(o)">去支付</view>
-				<view v-else-if="canReceive(o)" class="btn primary" @tap="() => confirmReceive(o)">确认收货</view>
+				<view class="btn ghost" @tap="viewOrder(o)">查看订单</view>
+				<template v-if="canPay(o)">
+					<view class="btn ghost" @tap="confirmCancel(o)">取消订单</view>
+					<view class="btn primary" @tap="choosePay(o)">去支付</view>
+				</template>
+				<view v-else-if="canReceive(o)" class="btn primary" @tap="confirmReceive(o)">确认收货</view>
+				<view v-else-if="canReview(o)" class="btn primary" @tap="goReview(o)">去评价</view>
+				<view v-else-if="canViewReview(o)" class="btn ghost" @tap="viewReview(o)">查看评价</view>
+				<view v-else-if="canAfterSales(o)" class="btn ghost" @tap="openAfterSales(o, 'AUTO')">申请售后</view>
+				<view v-else-if="canRefund(o)" class="btn ghost" @tap="openAfterSales(o, 'REFUND')">申请退款</view>
 			</view>
 		</view>
 	</view>
@@ -126,6 +133,8 @@ function displayStatus(o: Order){
 	if (o.payStatus==='UNPAID') return '待支付';
 	if (o.payStatus==='REFUNDED') return '已退款';
 	if (o.payStatus==='CANCELLED') return '已取消';
+	const as = (o as any)?.afterSalesRequests;
+	if (Array.isArray(as) && as.some((x:any)=> x?.status==='PENDING' || x?.status==='APPROVED')) return '售后中';
 	if (o.type==='FK') return o.payStatus==='PAID' ? '已支付' : '待支付';
 	// 新履约维度优先
 	if (o.type==='SERVICE'){
@@ -155,6 +164,7 @@ function buildQuery(){
 	else if (activeFilter.value==='待服务') q.scene = 'PENDING_SERVICE';
 	else if (activeFilter.value==='待发货') q.scene = 'PENDING_DELIVERY';
 	else if (activeFilter.value==='待收货') q.scene = 'PENDING_RECEIPT';
+	else if (activeFilter.value==='评价') q.scene = 'REVIEW';
 	return q;
 }
 
@@ -183,6 +193,22 @@ function canReceive(o: Order){
 	if (o.payStatus !== 'PAID') return false;
 	return o.fulfillmentStatus === 'SHIPPED' || o.status === 'FULFILLED';
 }
+
+function canCancel(o: Order){ return o.payStatus === 'UNPAID'; }
+function isAftersalesRunning(o: Order){ return (o as any)?.afterSalesRequests && Array.isArray((o as any).afterSalesRequests) && (o as any).afterSalesRequests.some((x:any)=>x.status==='PENDING'||x.status==='APPROVED'); }
+function canRefund(o: Order){ if (isAftersalesRunning(o)) return false; return o.payStatus === 'PAID'; }
+function canAfterSales(o: Order){ if (isAftersalesRunning(o)) return false; return displayStatus(o)==='已完成'; }
+
+function isCompleted(o: Order){
+	if (o.type==='SERVICE') return (o.payStatus==='PAID') && (o.fulfillmentStatus==='DONE' || o.status==='FULFILLED');
+	if (o.type==='SP') return (o.payStatus==='PAID') && (o.fulfillmentStatus==='RECEIVED' || o.status==='CLOSED');
+	if (o.type==='FK') return o.payStatus==='PAID';
+	return false;
+}
+function canReview(o: Order){ return isCompleted(o) && (o as any)?.reviewStatus !== 'REVIEWED'; }
+function canViewReview(o: Order){ return (o as any)?.reviewStatus === 'REVIEWED'; }
+function goReview(o: Order){ navigate(`/pages/review/create?orderId=${o.id}`); }
+function viewReview(o: Order){ navigate(`/pages/review/view?orderId=${o.id}`); }
 
 async function goPay(o: Order){
 	try {
@@ -254,6 +280,25 @@ async function confirmReceive(o: Order){
 	} catch(e){
 		uni.showToast({ title: '操作失败，请稍后重试', icon: 'none' });
 	}
+}
+
+async function confirmCancel(o: Order){
+    try{
+        const ok = await new Promise<boolean>((resolve)=>{
+            uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success: (r:any)=> resolve(!!r.confirm), fail: ()=> resolve(false) });
+        });
+        if (!ok) return;
+        const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+        const http = createHttp();
+        await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason: '用户主动取消' } });
+        uni.showToast({ title:'已取消', icon:'success' });
+        await fetchOrders();
+    } catch { uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); }
+}
+
+function openAfterSales(o: Order, mode: 'REFUND'|'AUTO'){
+    const type = (mode==='REFUND') ? 'refund' : 'aftersales';
+    navigate(`/pages/aftersales/apply?orderId=${o.id}&type=${type}&orderType=${o.type}`);
 }
 
 onShow(async()=>{

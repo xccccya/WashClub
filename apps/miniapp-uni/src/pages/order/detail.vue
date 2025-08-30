@@ -17,6 +17,7 @@
 			<view class="kv"><text class="k">订单状态</text><text class="v">{{ displayStatus(order) }}</text></view>
 			<view class="kv"><text class="k">订单号</text><text class="v">{{ order.no }}</text></view>
 			<view class="kv"><text class="k">下单时间</text><text class="v">{{ formatTime(order.createdAt) }}</text></view>
+			<view class="kv" v-if="isTimeoutUnpaid(order)"><text class="k">提示</text><text class="v" style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</text></view>
 			<view class="kv" v-if="order.remark"><text class="k">备注</text><text class="v">{{ order.remark }}</text></view>
 		</view>
 
@@ -50,6 +51,7 @@
 			<view class="sub-title">支付信息</view>
 			<view class="kv"><text class="k">支付方式</text><text class="v">{{ displayPayMethod(order.payMethod) }}</text></view>
 			<view class="kv"><text class="k">支付时间</text><text class="v">{{ order.paidAt ? formatTime(order.paidAt) : '-' }}</text></view>
+			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
 		<!-- 物流信息：商品订单展示 -->
@@ -92,14 +94,33 @@
 			<view class="kv"><text class="k">商品总额</text><text class="v">¥{{ formatPrice(order.totalAmount) }}</text></view>
 			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
 			<view class="kv" v-if="order.type!=='SERVICE'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
+			<view class="kv" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>
 			<view class="kv total"><text class="k">应付金额</text><text class="v">¥{{ formatPrice(order.payAmount) }}</text></view>
+		</view>
+
+		<!-- 订单进度（折叠：默认仅展示最新一条） -->
+		<view class="card" v-if="timelineList.length">
+			<view class="sub-title">订单进度</view>
+			<view class="timeline">
+				<view v-for="(it,idx) in (showAllTimeline ? timelineList : [timelineList[timelineList.length-1]])" :key="it.id" class="timeline-row">
+					<view class="dot"></view>
+					<text class="time">{{ formatTime(it.createdAt) }}</text>
+					<text class="desc">{{ zhEvent(it.event) }}：{{ zhTimelineValue(it.event, it.value, order) }}<text v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</text></text>
+				</view>
+			</view>
+			<view class="actions" style="justify-content:flex-start; margin-top:8rpx;">
+				<view class="btn ghost" @tap="toggleTimeline">
+					<text class="btn-icon">{{ showAllTimeline ? '▲' : '▼' }}</text>
+					<text class="btn-text">{{ showAllTimeline ? '收起' : '展开全部' }}</text>
+				</view>
+			</view>
 		</view>
 	</view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
@@ -131,6 +152,13 @@ type Order = {
 
 const order = ref<Order|null>(null);
 const traceList = ref<Array<{ datetime: string; remark: string }>>([]);
+const lastKey = ref<string>('');
+const timelineList = ref<Array<any>>([]);
+const showAllTimeline = ref<boolean>(false);
+const hasPartialRefund = ref<boolean>(false);
+const refundedAmountYuan = computed(()=>{
+	try{ const list = (order.value as any)?.refundRecords || []; const sum = list.filter((r:any)=>r?.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0); return sum; }catch{return 0}
+});
 
 function getShippingAddress(o?: Order|null): ShippingAddress|null {
 	if (!o) return null;
@@ -167,7 +195,7 @@ function goBack(){
 }
 
 function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFixed(2); }
-function formatTime(t: any){ try { const d = new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; } catch { return ''; } }
+function formatTime(t: any){ try { const d = new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); const ss=String(d.getSeconds()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`; } catch { return ''; } }
 
 function zhStatusOld(s: Order['status'], type: Order['type']){ if (s==='PAID') return type==='SERVICE'?'待服务':'待发货'; if (s==='FULFILLED') return type==='SERVICE'?'已完成':'待收货'; if (s==='CLOSED') return '已完成'; if (s==='CANCELLED') return '已取消'; return '已创建'; }
 function displayStatus(o?: Order|null){
@@ -175,6 +203,7 @@ function displayStatus(o?: Order|null){
 	if (o.payStatus==='UNPAID') return '待支付';
 	if (o.payStatus==='REFUNDED') return '已退款';
 	if (o.payStatus==='CANCELLED') return '已取消';
+	if ((o as any)?.afterSalesRequests && Array.isArray((o as any).afterSalesRequests) && (o as any).afterSalesRequests.some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')) return '售后中';
 	if (o.type==='FK') return o.payStatus==='PAID' ? '已支付' : '待支付';
 	if (o.type==='SERVICE'){
 		if (o.fulfillmentStatus==='IN_SERVICE' || o.fulfillmentStatus==='PENDING') return '待服务';
@@ -186,6 +215,13 @@ function displayStatus(o?: Order|null){
 		if (o.fulfillmentStatus==='RECEIVED') return '已完成';
 	}
 	return zhStatusOld(o.status, o.type);
+}
+
+function isTimeoutUnpaid(o?: Order|null){
+	if (!o) return false;
+	if (o.payStatus!=='CANCELLED') return false;
+	const text = String(o?.remark||'');
+	return text.includes('系统超时取消');
 }
 
 function normalizeSpecs(specsRaw: any): Array<{ key: string; value: string }>{
@@ -269,7 +305,48 @@ onLoad(async (query:any)=>{
 		} else {
 			addressLine1.value = '-'; addressLine2.value = '-'; addressLine3.value = '-';
 		}
+		// 记录当前参数键，用于 H5 返回后再次进入强制刷新
+		const idStr = isNaN(id) ? '' : String(id);
+		lastKey.value = `no=${no}&id=${idStr}`;
+		// 设置时间线
+		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
+		showAllTimeline.value = false;
+		hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
 	} catch { uni.showToast({ title:'加载失败', icon:'none' }); }
+});
+
+onShow(async ()=>{
+	try{
+		const pages = getCurrentPages?.() || [];
+		const cur:any = pages[pages.length - 1] || {};
+		const opt:any = cur?.options || {};
+		const no = (opt?.no ? String(opt.no) : '').trim();
+		const idNum = opt?.id ? Number(opt.id) : NaN;
+		const idStr = isNaN(idNum) ? '' : String(idNum);
+		const key = `no=${no}&id=${idStr}`;
+		if (!lastKey.value || key !== lastKey.value) {
+			const http = createHttp();
+			const data = no
+				? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
+				: await http<Order>(`/orders/${idNum}`, { method:'GET' });
+			order.value = data || null;
+			// 初始化地址显示
+			const addr = getShippingAddress(order.value);
+			if (addr) {
+				addressLine1.value = `${addr.province||''} ${addr.city||''} ${addr.district||''} ${addr.street||''}`.replace(/\s+/g,' ').trim() || '-';
+				addressLine2.value = (addr.detail||'').trim() || '-';
+				addressLine3.value = (addr.phone||'').trim() || '-';
+			} else {
+				addressLine1.value = '-'; addressLine2.value = '-'; addressLine3.value = '-';
+			}
+			traceList.value = [];
+			lastKey.value = key;
+			// 设置时间线
+			try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
+			showAllTimeline.value = false;
+			hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
+		}
+	}catch{}
 });
 
 async function loadTrace(){
@@ -285,6 +362,119 @@ async function loadTrace(){
 		rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
 		traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
 	}catch{}
+}
+
+// #ifdef H5
+function parseHashParams(): Record<string,string> {
+	try{
+		const h = String(location.hash || '');
+		const q = h.includes('?') ? h.slice(h.indexOf('?') + 1) : '';
+		const out: Record<string,string> = {};
+		(q.split('&')||[]).forEach(p=>{
+			const [k,v] = p.split('=');
+			if (k) out[decodeURIComponent(k)] = decodeURIComponent(v||'');
+		});
+		return out;
+	}catch{ return {}; }
+}
+
+async function handleHashChange(){
+	try{
+		const hash = String(location.hash||'');
+		if (!hash.includes('/pages/order/detail')) return;
+		const params = parseHashParams();
+		const no = String(params.no||'').trim();
+		const idNum = params.id ? Number(params.id) : NaN;
+		if (!no && !idNum) return;
+		const key = `no=${no}&id=${isNaN(idNum)?'':String(idNum)}`;
+		if (key === lastKey.value) return;
+		const http = createHttp();
+		const data:any = no
+			? await http(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
+			: await http(`/orders/${idNum}`, { method:'GET' });
+		order.value = data || null;
+		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
+		showAllTimeline.value = false;
+		hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
+		const addr = getShippingAddress(order.value);
+		if (addr) {
+			addressLine1.value = `${addr.province||''} ${addr.city||''} ${addr.district||''} ${addr.street||''}`.replace(/\s+/g,' ').trim() || '-';
+			addressLine2.value = (addr.detail||'').trim() || '-';
+			addressLine3.value = (addr.phone||'').trim() || '-';
+		} else {
+			addressLine1.value = '-'; addressLine2.value = '-'; addressLine3.value = '-';
+		}
+		traceList.value = [];
+		lastKey.value = key;
+	}catch{}
+}
+
+onMounted(()=>{ try { window.addEventListener('hashchange', handleHashChange); } catch {} });
+onUnmounted(()=>{ try { window.removeEventListener('hashchange', handleHashChange); } catch {} });
+// #endif
+
+function toggleTimeline(){ showAllTimeline.value = !showAllTimeline.value; }
+function zhEvent(e: string){
+	const v = String(e||'').toUpperCase();
+	if (v==='ORDER_STATUS') return '订单状态';
+	if (v==='PAY_STATUS') return '支付状态';
+	if (v==='FULFILLMENT') return '履约状态';
+	if (v==='LOGISTICS') return '物流';
+	if (v==='AFTERSALES') return '售后';
+	if (v==='REVIEW') return '评价';
+	return e || '-';
+}
+
+function zhTimelineValue(eventType?: string, value?: string, order?: any){
+	const e = String(eventType||'').toUpperCase();
+	const v = String(value||'').toUpperCase();
+	if (!v) return '-';
+	if (e==='ORDER_STATUS'){
+		if (v==='CREATED') return '已创建';
+		if (v==='PAID') return '已支付';
+		if (v==='FULFILLED') return '已履约';
+		if (v==='CLOSED') return '已完成';
+		if (v==='CANCELLED') return '已取消';
+	}
+	if (e==='PAY_STATUS'){
+		if (v==='UNPAID') return '未支付';
+		if (v==='PAID') return '已支付';
+		if (v==='REFUNDED') return '已退款';
+		if (v==='CANCELLED') return '已取消';
+	}
+	if (e==='FULFILLMENT'){
+		const type = String(order?.type||'').toUpperCase();
+		if (v==='PENDING') return type==='SERVICE' ? '待服务' : '待发货';
+		if (v==='IN_SERVICE') return '服务中';
+		if (v==='SHIPPED') return '已发货';
+		if (v==='RECEIVED') return '已收货';
+		if (v==='DONE') return '已完成';
+	}
+	if (e==='AFTERSALES'){
+		if (v==='PENDING') return '处理中';
+		if (v==='APPROVED') return '已同意';
+		if (v==='REJECTED') return '已拒绝';
+		if (v==='SUCCESS' || v==='COMPLETED') return '已完成';
+		if (v==='CANCELLED') return '已取消';
+	}
+	if (e==='REVIEW'){
+		if (v==='RATED') return '用户已评价';
+		if (v==='REPLIED') return '商家已回复';
+	}
+	return value || '-';
+}
+
+function zhRemark(eventType?: string, remark?: string){
+	const e = String(eventType||'').toUpperCase();
+	const r = String(remark||'').toUpperCase();
+	if (!r) return '';
+	if (e==='AFTERSALES'){
+		if (r==='REFUND') return '仅退款';
+		if (r==='RETURN') return '退货退款';
+		if (r==='EXCHANGE') return '换货';
+	}
+	if (r==='TIMEOUT_15MIN') return '超时15分钟';
+	return remark || '';
 }
 </script>
 
@@ -361,6 +551,19 @@ async function loadTrace(){
 .trace-item { display:flex; flex-direction: column; gap: 4rpx; background:#ffffff; border: 2rpx solid #e5e7eb; border-radius: 16rpx; padding: 12rpx; }
 .trace-item .time { font-size: 22rpx; color:#6b7280; }
 .trace-item .desc { font-size: 24rpx; color:#111827; }
+
+/* 订单进度时间线样式 */
+.timeline { display:flex; flex-direction: column; gap: 12rpx; margin-top: 8rpx; }
+.timeline-row { position:relative; display:flex; flex-direction: column; gap: 4rpx; background:#ffffff; border: 2rpx dashed #e5e7eb; border-radius: 16rpx; padding: 12rpx 12rpx 12rpx 28rpx; }
+.timeline-row::before { content: ""; position:absolute; left: 12rpx; top: 12rpx; bottom: 12rpx; width: 2rpx; background: #e5e7eb; }
+.dot { position:absolute; left: 6rpx; top: 16rpx; width: 12rpx; height: 12rpx; border-radius: 999rpx; background: #10b981; box-shadow: 0 0 0 6rpx rgba(16,185,129,0.12); }
+.timeline .time { font-size: 22rpx; color:#6b7280; }
+.timeline .desc { font-size: 24rpx; color:#111827; }
+
+/* 展开全部/收起 胶囊按钮样式 */
+.actions .btn { display:inline-flex; align-items:center; gap: 6rpx; padding: 8rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; }
+.actions .btn .btn-icon { font-size: 20rpx; color:#6b7280; }
+.actions .btn .btn-text { font-size: 24rpx; color:#374151; }
 </style>
 
 

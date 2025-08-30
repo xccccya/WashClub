@@ -1,10 +1,101 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, OrderType, OrderStatus, PayMethod, PayStatus, FulfillmentStatus } from '@prisma/client';
+import { Prisma, OrderType, OrderStatus, PayMethod, PayStatus, FulfillmentStatus, AfterSalesStatus, AfterSalesType, RefundStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
 
 @Injectable()
 export class OrderService {
     constructor(private readonly prisma: PrismaService) {}
+
+    private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }){
+        try{
+            const db = params.tx ?? this.prisma;
+            await db.orderTimeline.create({ data: { orderId: params.orderId, event: params.event, value: params.value || null, remark: params.remark || null, operatorUserId: params.operatorUserId ?? null } });
+        }catch{/* ignore timeline errors */}
+    }
+
+    private async verifyWashCardRefundable(orderId: number){
+        // 若该订单购买过洗车卡，则校验可回收次数是否充足
+        const addLogs = await this.prisma.washCardLog.findMany({ where: { purchaseOrderId: orderId, reason: 'PURCHASE_ADD' as any } });
+        if (!addLogs.length) return { ok: true } as const;
+        // 聚合到卡
+        const byCard = new Map<number, number>();
+        for (const log of addLogs){ byCard.set(log.cardId, (byCard.get(log.cardId)||0) + Math.abs(log.change)); }
+        for (const [cardId, addCount] of byCard){
+            const card = await this.prisma.washCard.findUnique({ where: { id: cardId } });
+            if (!card) continue;
+            if ((card.remainingTimes||0) < addCount){ return { ok:false as const, cardId, need: addCount, remain: card.remainingTimes } as const; }
+        }
+        return { ok: true } as const;
+    }
+
+    private async rollbackWashCardForRefund(orderId: number, operatorUserId?: number | null){
+        const addLogs = await this.prisma.washCardLog.findMany({ where: { purchaseOrderId: orderId, reason: 'PURCHASE_ADD' as any } });
+        if (!addLogs.length) return;
+        for (const log of addLogs){
+            const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId } });
+            if (!card) continue;
+            const canDeduct = Math.min(card.remainingTimes, Math.abs(log.change));
+            const before = card.remainingTimes;
+            const afterRemain = before - canDeduct;
+            await this.prisma.washCard.update({ where: { id: card.id }, data: { totalTimes: Math.max(0, card.totalTimes - canDeduct), remainingTimes: afterRemain } });
+            await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（订单号：${orderId}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
+        }
+        await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'WASHCARD_ROLLBACK', remark: '退款回收计次', operatorUserId: operatorUserId ?? null });
+    }
+
+    private async rollbackPointsForRefund(orderId: number, operatorUserId?: number | null){
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) return;
+        const points = order.usedPoints || 0;
+        if (points > 0){
+            await this.prisma.member.update({ where: { id: order.memberId }, data: { points: { increment: points } } });
+            await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'POINTS_ROLLBACK', remark: `返还积分 ${points}`, operatorUserId: operatorUserId ?? null });
+        }
+        // 优惠券恢复：全额退款时恢复为未使用
+        const info: any = (order.couponInfo || null) as any;
+        const mcId = Number(info?.id || 0);
+        if (mcId > 0){
+            try{
+                const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: mcId } });
+                if (mc && mc.usedAt && mc.orderId === order.id){
+                    await (this.prisma as any).memberCoupon.update({ where: { id: mcId }, data: { usedAt: null, orderId: null } });
+                    await this.prisma.couponRestoreLog.create({ data: { memberId: order.memberId, orderId: order.id, couponSnapshot: order.couponInfo as any, remark: '全额退款恢复优惠券' } });
+                    await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_RESTORE', remark: '优惠券已恢复', operatorUserId: operatorUserId ?? null });
+                }
+            }catch{
+                await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_NOTE', remark: '优惠券恢复失败', operatorUserId: operatorUserId ?? null });
+            }
+        }
+    }
+
+    async verifyRefundAllowed(orderId: number, amountYuan?: number | null){
+        // 若涉及洗车卡购买，且卡已部分使用，不允许全额退款；部分退款允许金额小于等于订单实付但不回收卡
+        if (!amountYuan || amountYuan <= 0) return true;
+        const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+        const isFull = Math.abs(Number(order.payAmount)) - Math.abs(Number(amountYuan)) < 0.000001;
+        if (!isFull) return true;
+        const ok = await this.verifyWashCardRefundable(orderId);
+        return !!(ok as any).ok;
+    }
+
+    async applyRefundSuccess(params: { orderId: number; amountYuan: number; method?: PayMethod | null; operatorUserId?: number | null }){
+        const { orderId, amountYuan, operatorUserId } = params;
+        const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+        const isFull = Math.abs(Number(order.payAmount)) - Math.abs(Number(amountYuan)) < 0.000001;
+        if (isFull){
+            // 全额退款：回滚库存、更新订单状态为已取消/已退款、回退权益
+            const updated = await this.refundOrder(orderId, '渠道退款成功', operatorUserId ?? null);
+            await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null);
+            await this.rollbackPointsForRefund(orderId, operatorUserId ?? null);
+            return updated;
+        } else {
+            // 部分退款：不改库存，不改订单状态（保留已支付），仅时间线与备注
+            await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
+            // 可选：累计部分退款金额（可加字段），此处仅追加备注
+            await this.prisma.order.update({ where: { id: orderId }, data: { remark: `${order.remark ? order.remark + '；' : ''}部分退款¥${amountYuan.toFixed(2)}` } });
+            return order;
+        }
+    }
 
     private generateOrderNo(type: 'SERVICE' | 'SP' | 'FK') {
         const now = new Date();
@@ -14,8 +105,8 @@ export class OrderService {
         return `${type}_${ts}_${rand}`;
     }
 
-    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; }): Promise<{ id: number; no: string }>{
-        const { type, memberId, vehicleId, shippingAddressId, items, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo } = params;
+    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; }): Promise<{ id: number; no: string }>{
+        const { type, memberId, vehicleId, shippingAddressId, items, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId } = params;
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
         return this.prisma.$transaction(async (tx) => {
@@ -61,7 +152,7 @@ export class OrderService {
                     } as any;
                 }
             }
-            // 计算金额
+            // 计算金额（含优惠券折扣）
             let total = new Prisma.Decimal(0);
             let discountTotal = new Prisma.Decimal(0);
             for (const it of items) {
@@ -69,6 +160,41 @@ export class OrderService {
                 const discount = new Prisma.Decimal((it.discount ?? 0) as any);
                 total = total.plus(price.mul(it.quantity));
                 discountTotal = discountTotal.plus(discount);
+            }
+            // 优惠券校验与折扣（叠加策略：若不允许与积分/会员折扣叠加，则拒绝）
+            let memberCoupon: any = null;
+            if (memberCouponId) {
+                memberCoupon = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCouponId }, include: { coupon: true } });
+                if (!memberCoupon || memberCoupon.memberId !== memberId) throw new Error('优惠券无效');
+                if (memberCoupon.usedAt) throw new Error('优惠券已使用');
+                if (memberCoupon.endAt && new Date(memberCoupon.endAt) < new Date()) throw new Error('优惠券已过期');
+                if (!memberCoupon.coupon?.enabled) throw new Error('优惠券已停用');
+                if (memberCoupon.coupon?.type !== 'COUPON') throw new Error('优惠券类型不支持');
+                // 叠加策略：与积分/会员折扣
+                if (!memberCoupon.coupon?.allowStackWithPoints && (Number(usedPoints||0) > 0 || Number(pointsAmount||0) > 0)) throw new Error('该券不可与积分同用');
+                if (!memberCoupon.coupon?.allowStackWithMemberDiscount) {
+                    // 这里以商品的 memberDiscount 作为判别（如有任一商品启用会员折扣则不允许叠加）
+                    const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
+                    if (productIds.length) {
+                        const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id:true, memberDiscount:true } });
+                        if (products.some(p => p.memberDiscount)) throw new Error('该券不可与会员折扣同用');
+                    }
+                }
+                // 适用范围校验（指定商品）
+                if (memberCoupon.coupon?.applyScope === 'SPECIFIED') {
+                    const applicable = await this.prisma.couponApplicableProduct.findMany({ where: { couponId: memberCoupon.couponId }, select: { productId: true } });
+                    const allowed = new Set(applicable.map(a => a.productId));
+                    const allIn = items.every(it => (it.productId ? allowed.has(it.productId) : false));
+                    if (!allIn) throw new Error('订单中存在不适用该券的商品');
+                }
+                // 最低订单额校验
+                if (memberCoupon.coupon?.minOrderAmount != null) {
+                    const minAmt = new Prisma.Decimal(memberCoupon.coupon.minOrderAmount as any);
+                    if (total.lessThan(minAmt)) throw new Error('未达到使用门槛');
+                }
+                // 折扣金额：目前仅支持直减 faceValue
+                const face = new Prisma.Decimal(memberCoupon.coupon?.faceValue || 0);
+                if (face.greaterThan(0)) discountTotal = discountTotal.plus(face);
             }
             const shipping = new Prisma.Decimal(shippingFee as any);
             const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal(pointsAmount as any));
@@ -89,11 +215,14 @@ export class OrderService {
                     remark: remark ?? null,
                     usedPoints: usedPoints || 0,
                     pointsAmount: new Prisma.Decimal(pointsAmount as any),
-                    couponInfo: couponInfo ?? undefined,
+                    couponInfo: memberCoupon ? ({ id: memberCoupon.id, couponId: memberCoupon.couponId, faceValue: memberCoupon.coupon?.faceValue ?? null, name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null } as any) : (couponInfo ?? undefined),
                     shippingAddressId: addressIdToSave,
                     shippingAddressSnapshot: addressSnapshot,
                 },
             });
+            await this.writeTimeline({ tx, orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' });
+            await this.writeTimeline({ tx, orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' });
+            await this.writeTimeline({ tx, orderId: order.id, event: 'FULFILLMENT', value: String(order.fulfillmentStatus) });
             for (const it of items) {
                 await tx.orderItem.create({
                     data: {
@@ -110,16 +239,20 @@ export class OrderService {
                     },
                 });
             }
+            // 标记用券
+            if (memberCoupon) {
+                await (this.prisma as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
+            }
             return { id: order.id, no: order.no };
         });
     }
 
     getOrder(id: number) {
-        return this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true } });
+        return this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
     }
 
     getOrderByNo(no: string) {
-        return this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true } });
+        return this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
     }
 
     async getMemberOpenId(memberId: number): Promise<string | null> {
@@ -139,7 +272,10 @@ export class OrderService {
             if (scene === 'PENDING_PAYMENT') {
                 (where as any).payStatus = 'UNPAID';
             } else if (scene === 'REFUND_AFTERSALE') {
-                (where as any).payStatus = 'REFUNDED';
+                (where as any).OR = [
+                    { payStatus: 'REFUNDED' },
+                    { afterSalesRequests: { some: { status: { in: ['PENDING','APPROVED'] as any } } } },
+                ];
             } else if (scene === 'PENDING_SERVICE') {
                 (where as any).type = 'SERVICE';
                 (where as any).payStatus = 'PAID';
@@ -177,6 +313,15 @@ export class OrderService {
                         { payStatus: 'CANCELLED' },
                     ];
                 }
+            } else if (scene === 'REVIEW') {
+                const rules: any[] = [
+                    { AND: [{ type: 'SERVICE' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'DONE' }] },
+                    { AND: [{ type: 'SP' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'RECEIVED' }] },
+                    { AND: [{ type: 'FK' }, { payStatus: 'PAID' }] },
+                    { AND: [{ type: 'SERVICE' }, { status: 'FULFILLED' }] },
+                    { AND: [{ type: 'SP' }, { status: 'CLOSED' }] },
+                ];
+                (where as any).OR = rules;
             } else if (scene === 'DELETED') {
                 (where as any).deletedAt = { not: null } as any;
             }
@@ -205,7 +350,77 @@ export class OrderService {
             }
             if (Object.keys(createdAt).length) (where as any).createdAt = createdAt;
         }
-        return this.prisma.order.findMany({ where, orderBy: [{ id: 'desc' }], include: { items: true, member: true } });
+        return this.prisma.order.findMany({ where, orderBy: [{ id: 'desc' }], include: { items: true, member: true, afterSalesRequests: true } });
+    }
+
+    // 评价相关方法
+    private isOrderCompletedForReview(o: any): boolean {
+        if (!o) return false;
+        if (o.type === 'SERVICE') return (o.payStatus === 'PAID') && (o.fulfillmentStatus === 'DONE' || o.status === 'FULFILLED');
+        if (o.type === 'SP') return (o.payStatus === 'PAID') && (o.fulfillmentStatus === 'RECEIVED' || o.status === 'CLOSED');
+        if (o.type === 'FK') return o.payStatus === 'PAID';
+        return false;
+    }
+
+    async createOrderReview(params: { orderId: number; memberId: number; rating: number; content?: string | null; images?: any }) {
+        const order = await this.prisma.order.findUniqueOrThrow({ where: { id: params.orderId } });
+        if (order.memberId !== params.memberId) throw new Error('订单不属于当前用户');
+        if (!this.isOrderCompletedForReview(order)) throw new Error('仅已完成订单可评价');
+        if (order.reviewStatus === 'REVIEWED') throw new Error('订单已评价');
+        const exists = await (this.prisma as any).orderReview.findUnique({ where: { orderId: params.orderId } });
+        if (exists) throw new Error('订单已评价');
+        const rating = Math.max(1, Math.min(5, Number(params.rating || 5)));
+        const created = await (this.prisma as any).orderReview.create({ data: { orderId: params.orderId, memberId: params.memberId, rating, content: params.content ?? null, imagesJson: params.images ?? undefined } });
+        await this.prisma.order.update({ where: { id: order.id }, data: { reviewStatus: 'REVIEWED' as any } });
+        // 时间线：用户已评价（记录评分）
+        await this.writeTimeline({ orderId: order.id, event: 'REVIEW', value: 'RATED', remark: `评分${rating}`, operatorUserId: null });
+        return created;
+    }
+
+    getOrderReviewByOrderId(orderId: number) {
+        return (this.prisma as any).orderReview.findUnique({ where: { orderId }, include: { replyUser: { select: { name: true } } } });
+    }
+
+    listReviews(query: { page?: number; pageSize?: number; memberId?: number | undefined; orderNo?: string | undefined; ratingMin?: number | undefined; ratingMax?: number | undefined; start?: string | undefined; end?: string | undefined }) {
+        const page = Math.max(1, Number(query.page || 1));
+        const pageSize = Math.max(1, Math.min(100, Number(query.pageSize || 20)));
+        const where: any = {};
+        if (query.memberId) where.memberId = query.memberId;
+        if (query.ratingMin != null || query.ratingMax != null) {
+            where.rating = {};
+            if (query.ratingMin != null) where.rating.gte = Number(query.ratingMin);
+            if (query.ratingMax != null) where.rating.lte = Number(query.ratingMax);
+        }
+        if (query.start || query.end) {
+            const createdAt: any = {};
+            if (query.start) createdAt.gte = new Date(query.start);
+            if (query.end) createdAt.lte = new Date(query.end);
+            where.createdAt = createdAt;
+        }
+        if (query.orderNo) {
+            where.order = { no: { contains: String(query.orderNo) } };
+        }
+        return (this.prisma as any).orderReview.findMany({
+            where,
+            orderBy: { id: 'desc' },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            include: { order: { select: { no: true } }, member: { select: { name: true, phone: true } } },
+        });
+    }
+
+    async deleteReview(id: number) {
+        const r = await (this.prisma as any).orderReview.findUnique({ where: { id } });
+        if (!r) return null;
+        await this.prisma.order.update({ where: { id: r.orderId }, data: { reviewStatus: 'NONE' as any } });
+        return (this.prisma as any).orderReview.delete({ where: { id } });
+    }
+
+    async replyReview(id: number, replyContent: string, replyUserId?: number | null) {
+        const updated = await (this.prisma as any).orderReview.update({ where: { id }, data: { replyContent, replyUserId: replyUserId ?? null, replyAt: new Date() } });
+        // 时间线：商家已回复
+        try { await this.writeTimeline({ orderId: updated.orderId, event: 'REVIEW', value: 'REPLIED', operatorUserId: replyUserId ?? null }); } catch {}
+        return updated;
     }
 
     // 支付（手动确认）：现金/收钱吧/线下
@@ -215,6 +430,8 @@ export class OrderService {
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可标记支付');
         const paidAt = params.paidAt ?? new Date();
         const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt } });
+        await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
+        await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         // 支付成功后，若订单包含绑定洗车计次卡的商品，则为会员发放洗车卡，并记录购买日志（含订单号）
         const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
@@ -389,13 +606,25 @@ export class OrderService {
     async refundOrder(id: number, reason?: string, operatorUserId?: number | null) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可退款');
+        // 创建/补充 RefundRecord（内部退款，默认全额，部分退款调用方应传渠道接口）
+        try{
+            await this.createRefundRecord({ orderId: id, memberId: order.memberId, amount: order.payAmount as any, method: order.payMethod ?? null, reasonCode: 'INTERNAL', reasonText: reason || null, status: 'SUCCESS' as any });
+        }catch{}
         const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
             if (!it.productId) continue;
             const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
             if (!product || product.type !== 'PHYSICAL') continue;
             if (product.specType === 'MULTI') {
-                if (!it.skuId) continue;
+                if (!it.skuId) {
+                    // 兜底：缺失 skuId 时回补到商品总库存并写异常备注
+                    const before = product.stockQuantity ?? 0;
+                    const change = Math.abs(it.quantity);
+                    const after = before + change;
+                    await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
+                    await this.prisma.inventoryLog.create({ data: { productId: product.id, skuId: null, change, beforeStock: before, afterStock: after, reason: 'REFUND_RETURN' as any, remark: `退款回仓（缺少SKU，订单号：${order.no}）`, operatorUserId: operatorUserId ?? null } });
+                    continue;
+                }
                 const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
                 const before = sku.stockQuantity;
                 const change = Math.abs(it.quantity);
@@ -435,6 +664,69 @@ export class OrderService {
         return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'REFUNDED', remark: reason ?? undefined } });
     }
 
+    // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
+    async cancelOrder(id: number, reason?: string, operatorUserId?: number | null) {
+        const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
+        if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
+        // 若有占用库存，回滚（与 closeOrder 中 UNPAID 分支一致）
+        const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
+        for (const it of items) {
+            if (!it.productId) continue;
+            const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
+            if (!product) continue;
+            if (product.type === 'PHYSICAL') {
+                if (product.specType === 'MULTI') {
+                    if (!it.skuId) {
+                        const before = product.stockQuantity ?? 0;
+                        const change = Math.abs(it.quantity);
+                        const after = before + change;
+                        await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
+                        await this.prisma.inventoryLog.create({ data: { productId: product.id, skuId: null, change, beforeStock: before, afterStock: after, reason: 'ORDER_ROLLBACK' as any, remark: `取消订单回滚（缺少SKU，订单号：${order.no}）`, operatorUserId: operatorUserId ?? null } });
+                        continue;
+                    }
+                    const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
+                    const before = sku.stockQuantity;
+                    const change = Math.abs(it.quantity);
+                    const after = before + change;
+                    await this.prisma.productSku.update({ where: { id: sku.id }, data: { stockQuantity: after } });
+                    await this.prisma.inventoryLog.create({
+                        data: {
+                            productId: product.id,
+                            skuId: sku.id,
+                            change,
+                            beforeStock: before,
+                            afterStock: after,
+                            reason: 'ORDER_ROLLBACK' as any,
+                            remark: `取消订单回滚（订单号：${order.no}）` ,
+                            operatorUserId: operatorUserId ?? null,
+                        },
+                    });
+                } else {
+                    const before = product.stockQuantity ?? 0;
+                    const change = Math.abs(it.quantity);
+                    const after = before + change;
+                    await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
+                    await this.prisma.inventoryLog.create({
+                        data: {
+                            productId: product.id,
+                            skuId: null,
+                            change,
+                            beforeStock: before,
+                            afterStock: after,
+                            reason: 'ORDER_ROLLBACK' as any,
+                            remark: `取消订单回滚（订单号：${order.no}）` ,
+                            operatorUserId: operatorUserId ?? null,
+                        },
+                    });
+                }
+            }
+        }
+        const updated = await this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined } });
+        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', operatorUserId });
+        await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', operatorUserId });
+        return updated;
+    }
+
     // 软删除订单：仅打标 deletedAt，不改变其他状态
     async softDeleteOrder(id: number, operatorUserId?: number | null) {
         await this.prisma.order.findUniqueOrThrow({ where: { id } });
@@ -462,7 +754,13 @@ export class OrderService {
             shipExpressTrackingNo: payload?.trackingNo ?? null,
             shipExpressExtra: payload?.extra ?? undefined,
         };
-        return this.prisma.order.update({ where: { id }, data });
+        const updatedShip = await this.prisma.order.update({ where: { id }, data });
+        await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'SHIPPED', operatorUserId });
+        const remark = [payload?.companyName || payload?.companyCode, payload?.trackingNo].filter(Boolean).join(' / ');
+        if (remark) await this.writeTimeline({ orderId: id, event: 'LOGISTICS', value: 'SHIPPED', remark, operatorUserId });
+        // 若存在最近的“换货”售后，发货后自动完结该售后
+        await this.completeLatestAftersalesByOrderAndType(id, 'EXCHANGE', operatorUserId ?? null);
+        return updatedShip;
     }
 
     // 确认收货（SP）：SHIPPED -> RECEIVED，并置为完成（CLOSED）
@@ -470,7 +768,10 @@ export class OrderService {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SP') throw new Error('仅商品订单可收货');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可收货');
-        return this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'RECEIVED' as any, status: 'CLOSED' } });
+        const updatedReceive = await this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'RECEIVED' as any, status: 'CLOSED' } });
+        await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'RECEIVED', operatorUserId });
+        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CLOSED', operatorUserId });
+        return updatedReceive;
     }
 
     // 开始服务（SERVICE）：PENDING -> IN_SERVICE
@@ -478,7 +779,9 @@ export class OrderService {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SERVICE') throw new Error('仅服务订单可开始服务');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可开始服务');
-        return this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'IN_SERVICE' as any } });
+        const updatedStart = await this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'IN_SERVICE' as any } });
+        await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'IN_SERVICE', operatorUserId });
+        return updatedStart;
     }
 
     // 结束服务（SERVICE）：IN_SERVICE/PENDING -> DONE，并置为已完成（FULFILLED）
@@ -486,7 +789,167 @@ export class OrderService {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SERVICE') throw new Error('仅服务订单可结束服务');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可结束服务');
-        return this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'DONE' as any, status: 'FULFILLED' } });
+        const updatedFinish = await this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'DONE' as any, status: 'FULFILLED' } });
+        await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'DONE', operatorUserId });
+        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'FULFILLED', operatorUserId });
+        // 若存在最近的“重新服务”售后，服务完成后自动完结
+        await this.completeLatestAftersalesByOrderAndType(id, 'RE_SERVICE', operatorUserId ?? null);
+        return updatedFinish;
+    }
+
+    // ========================
+    // 售后与退款
+    // ========================
+    async createAfterSalesRequest(params: {
+        orderId: number;
+        memberId: number;
+        type: AfterSalesType;
+        reasonCode?: string | null;
+        reasonText?: string | null;
+        description?: string | null;
+        imagesJson?: any;
+        exchangeAddressSnapshot?: any;
+        requestedAmount?: Prisma.Decimal | number | null;
+    }) {
+        // 校验订单归属
+        const order = await this.prisma.order.findUniqueOrThrow({ where: { id: params.orderId } });
+        if (order.memberId !== params.memberId) throw new Error('订单不属于当前用户');
+        // 并发防护：存在进行中售后则拒绝
+        const exists = await this.prisma.afterSalesRequest.findFirst({ where: { orderId: params.orderId, status: { in: ['PENDING','APPROVED'] as any } } }).catch(()=>null);
+        if (exists) throw new Error('该订单已有进行中的售后处理');
+        return this.prisma.afterSalesRequest.create({
+            data: {
+                orderId: params.orderId,
+                memberId: params.memberId,
+                type: params.type,
+                reasonCode: params.reasonCode || null,
+                reasonText: params.reasonText || null,
+                description: params.description || null,
+                imagesJson: params.imagesJson ?? undefined,
+                exchangeAddressSnapshot: params.exchangeAddressSnapshot ?? undefined,
+                status: 'PENDING' as any,
+                requestedAmount: params.requestedAmount != null ? new Prisma.Decimal(params.requestedAmount as any) : undefined,
+            },
+        });
+    }
+
+    async listAfterSales(query: { status?: AfterSalesStatus | undefined; memberId?: number | undefined }) {
+        const where: any = {};
+        if (query.status) where.status = query.status;
+        if (query.memberId) where.memberId = query.memberId;
+        return this.prisma.afterSalesRequest.findMany({ where, orderBy: { id: 'desc' }, include: { order: true, member: true, auditUser: true } });
+    }
+
+    async getAfterSales(id: number) {
+        return this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
+    }
+
+    async auditAfterSales(id: number, approve: boolean, auditRemark?: string | null, auditUserId?: number | null) {
+        const req = await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true } });
+        if (!req) throw new Error('售后申请不存在');
+        const nextStatus: AfterSalesStatus = approve ? 'APPROVED' : 'REJECTED';
+        // 先更新审核结果
+        const updated = await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: nextStatus, auditRemark: auditRemark || null, auditUserId: auditUserId ?? null, auditedAt: new Date() } });
+        await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: String(nextStatus), remark: req.type, operatorUserId: auditUserId ?? null });
+
+        if (!approve) {
+            return updated;
+        }
+
+        // 审核通过后的联动处理
+        if (req.type === 'REFUND') {
+            if (req.order?.payStatus === 'PAID') {
+                if ((req.order as any)?.payMethod === 'WECHAT_JSAPI') {
+                    // JSAPI 渠道退款：等待回调，不在此处完成售后
+                    return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });
+                } else {
+                    await this.refundOrder(req.orderId, '售后退款', auditUserId ?? null);
+                    await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+                    await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: req.type, operatorUserId: auditUserId ?? null });
+                    return await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
+                }
+            } else {
+                // 未支付：等同取消
+                await this.cancelOrder(req.orderId, '售后取消（未支付）', auditUserId ?? null);
+                await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+                await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: req.type, operatorUserId: auditUserId ?? null });
+                return await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
+            }
+        } else if (req.type === 'EXCHANGE') {
+            // 换货：商品订单且已支付
+            const ord = await this.prisma.order.findUnique({ where: { id: req.orderId } });
+            if (ord && ord.type === 'SP' && ord.payStatus === 'PAID') {
+                await this.prisma.order.update({ where: { id: ord.id }, data: { fulfillmentStatus: 'PENDING' as any, status: 'PAID' } });
+            } else {
+                return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'REJECTED' as any, auditRemark: '未支付不可换货' } });
+            }
+            await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+            await this.writeTimeline({ orderId: req.orderId, event: 'FULFILLMENT', value: 'PENDING', remark: 'EXCHANGE_RESET', operatorUserId: auditUserId ?? null });
+            await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: 'EXCHANGE', operatorUserId: auditUserId ?? null });
+        } else if (req.type === 'RE_SERVICE') {
+            // 重新服务：服务订单且已支付
+            const ord = await this.prisma.order.findUnique({ where: { id: req.orderId } });
+            if (ord && ord.type === 'SERVICE' && ord.payStatus === 'PAID') {
+                await this.prisma.order.update({ where: { id: ord.id }, data: { fulfillmentStatus: 'PENDING' as any, status: 'PAID' } });
+            } else {
+                return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'REJECTED' as any, auditRemark: '未支付不可重新服务' } });
+            }
+            await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+            await this.writeTimeline({ orderId: req.orderId, event: 'FULFILLMENT', value: 'PENDING', remark: 'RE_SERVICE_RESET', operatorUserId: auditUserId ?? null });
+            await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: 'RE_SERVICE', operatorUserId: auditUserId ?? null });
+        }
+        return this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
+    }
+
+    async completeAfterSales(id: number) {
+        return this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+    }
+
+    async createRefundRecord(params: { orderId: number; memberId: number; amount: Prisma.Decimal | number; method?: PayMethod | null; reasonCode?: string | null; reasonText?: string | null; outRefundNo?: string | null; wechatRefundId?: string | null; status?: RefundStatus }) {
+        return this.prisma.refundRecord.create({
+            data: {
+                orderId: params.orderId,
+                memberId: params.memberId,
+                amount: new Prisma.Decimal(params.amount as any),
+                method: params.method ?? null,
+                reasonCode: params.reasonCode || null,
+                reasonText: params.reasonText || null,
+                outRefundNo: params.outRefundNo || null,
+                wechatRefundId: params.wechatRefundId || null,
+                status: (params.status || 'PENDING') as any,
+            },
+        });
+    }
+
+    async updateRefundStatusByOutRefundNo(outRefundNo: string, status: RefundStatus, wechatRefundId?: string | null, failedReason?: string | null) {
+        const rec = await this.prisma.refundRecord.findFirst({ where: { outRefundNo } });
+        if (!rec) return null;
+        // 幂等：若已是目标状态，直接返回当前记录
+        if (rec.status === status) return rec;
+        return this.prisma.refundRecord.update({ where: { id: rec.id }, data: { status: status as any, wechatRefundId: wechatRefundId || undefined, failedReason: failedReason || undefined } });
+    }
+
+    // 完成指定订单的最新退款型售后（用于渠道退款回调）
+    async completeLatestRefundAftersalesByOrder(orderId: number, operatorUserId?: number | null) {
+        const afr = await this.prisma.afterSalesRequest.findFirst({
+            where: { orderId, type: 'REFUND' as any, status: { in: ['PENDING','APPROVED'] as any } },
+            orderBy: { id: 'desc' }
+        });
+        if (!afr) return null;
+        await this.prisma.afterSalesRequest.update({ where: { id: afr.id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+        await this.writeTimeline({ orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: 'REFUND', operatorUserId: operatorUserId ?? null });
+        return afr.id;
+    }
+
+    async completeLatestAftersalesByOrderAndType(orderId: number, type: 'EXCHANGE'|'RE_SERVICE', operatorUserId?: number | null) {
+        const afr = await this.prisma.afterSalesRequest.findFirst({
+            where: { orderId, type: type as any, status: { in: ['PENDING','APPROVED'] as any } },
+            orderBy: { id: 'desc' }
+        });
+        if (!afr) return null;
+        await this.prisma.afterSalesRequest.update({ where: { id: afr.id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+        await this.writeTimeline({ orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: type, operatorUserId: operatorUserId ?? null });
+        return afr.id;
     }
 }
 

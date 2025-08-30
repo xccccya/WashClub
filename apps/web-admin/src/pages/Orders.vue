@@ -53,24 +53,28 @@
 					<span class="link" :class="{ deleted: !!row.deletedAt }" title="双击查看详情" @dblclick="openByNo(row.no)" @click="copyNo(row.no)">{{ row.no }}</span>
 				</template>
 			</el-table-column>
-			<el-table-column label="类型" width="110">
+			<el-table-column label="类型" width="100">
 				<template #default="{ row }"><el-tag :type="row.deletedAt ? 'info' : ''">{{ typeLabel(row.type) }}</el-tag></template>
 			</el-table-column>
-			<el-table-column label="状态" width="110">
+			<el-table-column label="状态" width="100">
 				<template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag></template>
 			</el-table-column>
-			<el-table-column label="履约状态" width="130">
+			<el-table-column label="履约状态" width="120">
 				<template #default="{ row }"><el-tag type="info">{{ fulfillLabel(row.fulfillmentStatus) }}</el-tag></template>
 			</el-table-column>
-			<el-table-column label="支付状态" width="110">
+			<el-table-column label="支付状态" width="100">
 				<template #default="{ row }"><el-tag :type="payStatusTagType(row.payStatus)">{{ payStatusLabel(row.payStatus) }}</el-tag></template>
 			</el-table-column>
+            <el-table-column label="售后/退款" width="100">
+                <template #default="{ row }">
+                    <el-tag v-if="Array.isArray((row as any).afterSalesRequests) && (row as any).afterSalesRequests.some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')" type="warning">售后中</el-tag>
+                    <span v-else>-</span>
+                </template>
+            </el-table-column>
 			<el-table-column label="支付方式" width="120">
 				<template #default="{ row }">{{ payMethodLabel(row.payMethod) }}</template>
 			</el-table-column>
 			<el-table-column prop="totalAmount" label="订单总额" width="120" />
-			<el-table-column prop="discountAmount" label="减免金额" width="120" />
-			<el-table-column prop="shippingFee" label="配送费" width="100" />
 			<el-table-column prop="payAmount" label="支付金额" width="120" />
 			<el-table-column prop="createdAt" label="下单时间" width="170">
 				<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
@@ -86,15 +90,11 @@
 				</template>
 			</el-table-column>
 			<el-table-column prop="remark" label="备注" min-width="160" />
-			<el-table-column label="收货地址" min-width="240">
+			<el-table-column label="操作" width="400">
 				<template #default="{ row }">
-					<span v-if="row.shippingAddressSnapshot" :title="addrDisplay(row.shippingAddressSnapshot)">{{ addrShort(row.shippingAddressSnapshot) }}</span>
-					<span v-else>-</span>
-				</template>
-			</el-table-column>
-			<el-table-column label="操作" width="580">
-				<template #default="{ row }">
-					<el-button size="small" @click="open(row.id)">查看</el-button>
+					<el-tooltip content="查看">
+						<el-button text class="icon-btn" title="查看" @click="open(row.id)"><img class="icon" :src="SeeIcon" /></el-button>
+					</el-tooltip>
 					<el-button v-if="row.payStatus==='UNPAID' && !row.deletedAt" size="small" type="success" @click="openPay(row)">标记支付</el-button>
 					<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="small" type="warning" @click="openRefund(row)">退款</el-button>
 					<!-- 商品履约：发货/收货 -->
@@ -103,7 +103,13 @@
 					<!-- 服务履约：开始/结束 -->
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">开始服务</el-button>
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务</el-button>
-					<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
+					<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)">
+						<template #reference>
+							<el-tooltip content="删除">
+								<el-button text class="icon-btn danger" title="删除"><img class="icon" :src="DeleteIcon" /></el-button>
+							</el-tooltip>
+						</template>
+					</el-popconfirm>
 					<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="small" type="warning">恢复</el-button></template></el-popconfirm>
 				</template>
 			</el-table-column>
@@ -163,10 +169,13 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import SeeIcon from '../static/icons/see.png';
+import DeleteIcon from '../static/icons/delete.png';
 
 const router = useRouter();
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const list = ref<any[]>([]);
 const keyword = ref('');
 const type = ref<string | ''>('');
@@ -273,21 +282,6 @@ function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status
 
 async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
 
-function addrDisplay(info: any){
-    try{
-        const a = typeof info === 'string' ? JSON.parse(info) : info;
-        if (!a) return '-';
-        const line1 = [a?.province, a?.city, a?.district, a?.street].filter(Boolean).join(' ');
-        const line2 = [a?.detail, a?.phone].filter(Boolean).join(' · ');
-        return `${line1} ${line2 ? (' / ' + line2) : ''}`;
-    }catch{ return '-'; }
-}
-function addrShort(info:any){
-    const full = addrDisplay(info);
-    if (full.length > 22) return full.slice(0, 22) + '...';
-    return full;
-}
-
 onMounted(fetchList);
 </script>
 
@@ -296,6 +290,9 @@ onMounted(fetchList);
 .card{ background:#fff; border:1px solid #eee; border-radius:8px; padding:12px; }
 .link{ color:#409EFF; cursor:pointer; }
 .deleted{ text-decoration: line-through; opacity: .65; }
+.icon-btn{ padding: 4px; min-width: auto; }
+.icon-btn.danger{ color:#F56C6C; }
+.icon{ width: 18px; height: 18px; object-fit: contain; display:inline-block; }
 </style>
 
 

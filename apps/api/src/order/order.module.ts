@@ -5,6 +5,7 @@ import { OrderService } from './order.service.js';
 import { TanshuService } from './tanshu.service.js';
 import { OrderController } from './order.controller.js';
 import { WxpayService } from './wxpay.service.js';
+import { OrderTimeoutService } from './timeout.service.js';
 
 @Module({
     imports: [
@@ -13,7 +14,7 @@ import { WxpayService } from './wxpay.service.js';
         })
     ],
     controllers: [OrderController],
-    providers: [PrismaService, OrderService, TanshuService, WxpayService],
+    providers: [PrismaService, OrderService, TanshuService, WxpayService, OrderTimeoutService],
 })
 export class OrderModule {}
 

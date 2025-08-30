@@ -96,9 +96,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 const categories = ref<any[]>([]);
 const products = ref<any[]>([]);

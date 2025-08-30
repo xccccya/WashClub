@@ -181,9 +181,11 @@
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Vehicle = { id: number; plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; isDefault: boolean; memberId: number | null; brandImage?: string | null; seriesImage?: string | null; createdAt?: string | null; updatedAt?: string | null; member?: { id: number; name: string; phone: string } };
 
@@ -201,7 +203,7 @@ const current = ref<Vehicle | null>(null);
 const form = ref<any>({ plateNumber: '', vin: '', brandId: undefined as number | undefined, brandName: '', seriesId: undefined as number | undefined, seriesName: '', typeMain: '', typeSub: '', color: '', isDefault: false, memberId: undefined as number | undefined });
 type MemberOption = { id: number; name: string; phone: string };
 const memberOptions = ref<MemberOption[]>([]);
-function toAbs(u?: string | null){ if (!u) return ''; if (/^https?:\/\//i.test(u)) return u; return `http://localhost:3000${u.startsWith('/')?u:('/'+u)}`; }
+function toAbs(u?: string | null){ return absUrl(u || ''); }
 
 const delDialog = ref(false);
 const delId = ref<number | null>(null);
@@ -255,7 +257,7 @@ function applyBrandFilter(){
 async function fetchBrands(){
     brandLoading.value = true;
     try {
-        const resp = await fetch(`http://localhost:3000/content/car/brands`);
+        const resp = await fetch(`${API_BASE}/content/car/brands`);
         const json = await resp.json();
         const arr: BrandItem[] = json || [];
         const flat: FlatBrand[] = [];
@@ -274,7 +276,7 @@ async function fetchSeries(brandId: number){
     if (!brandId) { seriesOptions.value = []; return; }
     seriesLoading.value = true;
     try {
-        const resp = await fetch(`http://localhost:3000/content/car/series?brandId=${brandId}`);
+        const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`);
         const json = await resp.json();
         const arr: any[] = json || [];
         seriesOptions.value = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));

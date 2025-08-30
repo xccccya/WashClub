@@ -21,6 +21,7 @@
 					<template #title>内容管理</template>
 					<el-menu-item v-if="can('content-notices')" index="/content/notices">滚动通知</el-menu-item>
 					<el-menu-item v-if="can('content-banners')" index="/content/banners">广告横幅</el-menu-item>
+					<el-menu-item v-if="can('content-reviews')" index="/content/reviews">评价管理</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/store">
 					<template #title>商店管理</template>
@@ -37,6 +38,7 @@
 					<template #title>卡券管理</template>
 					<el-menu-item v-if="can('coupon-groups')" index="/coupon/groups">分组管理</el-menu-item>
 					<el-menu-item v-if="can('coupons')" index="/coupon/list">卡券列表</el-menu-item>
+					<el-menu-item v-if="can('member-coupons')" index="/coupon/member-coupons">会员卡券</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/system">
 					<template #title>系统设置</template>
@@ -93,10 +95,11 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 
 const router = useRouter();
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const active = ref('/members');
 
 const nick = ref('');

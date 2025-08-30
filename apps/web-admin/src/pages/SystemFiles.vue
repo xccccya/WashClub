@@ -2,7 +2,7 @@
 	<BasePage title="文件管理">
 		<template #actions>
 			<el-upload
-				action="http://localhost:3000/file/upload"
+				:action="`${API_BASE}/file/upload`"
 				:name="'file'"
 				:show-file-list="false"
 				:headers="authHeaders"
@@ -28,7 +28,7 @@
 			</el-table-column>
 			<el-table-column label="预览" width="120">
 				<template #default="{ row }">
-					<a :href="`http://localhost:3000${row.url}`" target="_blank">打开</a>
+					<a :href="absUrl(row.url)" target="_blank">打开</a>
 				</template>
 			</el-table-column>
 			<el-table-column label="操作" width="120">
@@ -44,9 +44,11 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type FileItem = { name: string; url: string; path: string; size: number; mtime: number };
 const files = ref<FileItem[]>([]);

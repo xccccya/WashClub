@@ -37,6 +37,21 @@
 		}
 		,
 		{
+			"path": "pages/aftersales/apply",
+			"style": { "navigationBarTitleText": "售后申请" }
+		}
+		,
+		{
+			"path": "pages/review/create",
+			"style": { "navigationBarTitleText": "发表评价" }
+		}
+		,
+		{
+			"path": "pages/review/view",
+			"style": { "navigationBarTitleText": "评价详情" }
+		}
+		,
+		{
 			"path": "pages/login/index",
 			"style": { "navigationBarTitleText": "" }
 		}

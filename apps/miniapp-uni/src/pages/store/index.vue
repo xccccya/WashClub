@@ -80,6 +80,7 @@ import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+import { AMAP_API_BASE } from '../../utils/thirdparty';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
 declare const wx: any;
@@ -136,12 +137,12 @@ async function updateStoreDistance(){
 						const gpsLng = Number(res?.longitude); const gpsLat = Number(res?.latitude);
 						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
 						// 坐标转换（WGS84->GCJ02/高德）
-						const convertResp = await requestJSON('https://restapi.amap.com/v3/assistant/coordinate/convert', { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
+						const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
 						const locStr = String(convertResp?.locations||'').trim();
 						const userConv = parseLngLat(locStr);
 						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
 						// 驾车路径规划（策略10）
-						const driveResp = await requestJSON('https://restapi.amap.com/v3/direction/driving', {
+						const driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
 							key,
 							origin: `${originLng},${originLat}`,
 							destination: `${storeCoord.lng},${storeCoord.lat}`,
@@ -173,11 +174,11 @@ async function updateStoreDistance(){
 					try{
 						const gpsLat = Number(pos?.coords?.latitude); const gpsLng = Number(pos?.coords?.longitude);
 						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
-						const convertResp = await requestJSON('https://restapi.amap.com/v3/assistant/coordinate/convert', { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
+						const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
 						const locStr = String(convertResp?.locations||'').trim();
 						const userConv = parseLngLat(locStr);
 						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
-						const driveResp = await requestJSON('https://restapi.amap.com/v3/direction/driving', {
+						const driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
 							key,
 							origin: `${originLng},${originLat}`,
 							destination: `${storeCoord.lng},${storeCoord.lat}`,

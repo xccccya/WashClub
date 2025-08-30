@@ -38,9 +38,10 @@
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Level = { id: number; name: string; weight: number; isDefault?: boolean };
 const levels = ref<Level[]>([]);

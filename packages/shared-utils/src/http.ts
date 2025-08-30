@@ -1,6 +1,7 @@
 export type HttpClientConfig = {
 	baseUrl?: string;
 	getToken?: () => string | undefined;
+	onUnauthorized?: () => void;
 };
 
 // 覆盖 RequestInit 的 body 类型，允许直接传入对象
@@ -16,7 +17,7 @@ export type HttpRequestOptions = Omit<RequestInit, 'body'> & {
 declare const uni: any;
 
 function createHttpClientFactory(config: HttpClientConfig = {}) {
-	const { baseUrl = '', getToken } = config;
+	const { baseUrl = '', getToken, onUnauthorized } = config;
 	return async function request<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
 		const headers: HeadersInit = {
 			'Content-Type': 'application/json',
@@ -59,6 +60,7 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 						if (resp.statusCode >= 200 && resp.statusCode < 300) {
 							resolve(resp.data as T);
 						} else {
+							if (resp.statusCode === 401) { try { onUnauthorized?.(); } catch {} }
 							// 友好提取 message 字段
 							const raw = resp.data;
 							const msg = (raw && typeof raw === 'object' && (raw as any).message) ? String((raw as any).message) :
@@ -81,6 +83,7 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 			body: rawBody !== undefined && rawBody !== null && typeof rawBody !== 'string' ? JSON.stringify(rawBody) : (rawBody as any),
 		});
 		if (!res.ok) {
+			if (res.status === 401) { try { onUnauthorized?.(); } catch {} }
 			const contentType = res.headers.get('content-type') || '';
 			if (contentType.includes('application/json')) {
 				let messageFromJson: string | undefined;

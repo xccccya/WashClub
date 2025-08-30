@@ -23,10 +23,11 @@
 			<el-table-column prop="expiryType" label="有效期类型" width="120" />
 			<el-table-column prop="startAt" label="开始时间" width="180" />
 			<el-table-column prop="endAt" label="结束时间" width="180" />
-			<el-table-column label="操作" width="200">
+			<el-table-column label="操作" width="360">
 				<template #default="{ row }">
 					<el-button size="small" @click="openEdit(row)">编辑</el-button>
 					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
+					<el-button size="small" type="success" @click="openIssue(row)">发放</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -61,6 +62,7 @@
 				<template v-if="form.type==='COUPON'">
 					<el-form-item label="面值"><el-input-number v-model="form.faceValue" :min="0" :step="1" /></el-form-item>
 					<el-form-item label="发行总数"><el-input-number v-model="form.issueTotal" :min="0" :step="1" /></el-form-item>
+					<el-form-item label="每人限领"><el-input-number v-model="form.perMemberLimit" :min="0" :step="1" /></el-form-item>
 					<el-form-item label="最低订单额"><el-input-number v-model="form.minOrderAmount" :min="0" :step="1" /></el-form-item>
 					<el-form-item label="适用范围">
 						<el-radio-group v-model="form.applyScope">
@@ -74,6 +76,14 @@
 						</el-select>
 					</el-form-item>
 					<el-form-item label="规则JSON"><el-input type="textarea" :rows="3" v-model="form.ruleJsonText" placeholder='{"kind":"direct","amount":5}' /></el-form-item>
+					<el-form-item label="小程序可领"><el-switch v-model="form.allowMiniappClaim" /></el-form-item>
+					<el-form-item label="叠加策略">
+						<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+							<el-checkbox v-model="form.allowCombine">可与其他券同用</el-checkbox>
+							<el-checkbox v-model="form.allowStackWithPoints">可与积分同用</el-checkbox>
+							<el-checkbox v-model="form.allowStackWithMemberDiscount">可与会员折扣同用</el-checkbox>
+						</div>
+					</el-form-item>
 				</template>
 				<template v-else>
 					<el-form-item label="总次数"><el-input-number v-model="form.totalTimes" :min="0" /></el-form-item>
@@ -84,15 +94,36 @@
 				<el-button type="primary" @click="save">保存</el-button>
 			</template>
 		</el-dialog>
+
+		<!-- 发放对话框 -->
+		<el-dialog v-model="issueShow" title="发放优惠券" width="720px">
+			<div style="display:flex;gap:16px;align-items:flex-start;">
+				<div style="flex:1;">
+					<MemberSelector v-model:selected="issueMemberIds" />
+				</div>
+				<div style="width:240px;">
+					<el-form label-width="90">
+						<el-form-item label="每人张数"><el-input-number v-model="issueCount" :min="1" /></el-form-item>
+						<el-alert type="info" :closable="false" show-icon title="将按券配置校验发行总数与每人限领" />
+					</el-form>
+				</div>
+			</div>
+			<template #footer>
+				<el-button @click="issueShow=false">取消</el-button>
+				<el-button type="primary" :loading="issuing" @click="doIssue">发放</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import MemberSelector from './_components/MemberSelector.vue';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const groups = ref<any[]>([]);
 const list = ref<any[]>([]);
 const query = ref<{ groupId?: number; type?: 'COUPON'|'WASH_CARD' } >({});
@@ -118,14 +149,38 @@ const form = ref<any>({
 	adminRemark: '',
 	// 优惠券专用
 	faceValue: undefined,
+	perMemberLimit: undefined,
 	minOrderAmount: undefined,
 	applyScope: 'ALL',
 	applicableProductIds: [],
 	ruleJsonText: '',
+	allowMiniappClaim: false,
+	allowCombine: false,
+	allowStackWithPoints: true,
+	allowStackWithMemberDiscount: true,
 	// 计次卡
 	totalTimes: 0,
 });
 const range = ref<[Date, Date] | ''>('');
+
+// 发放弹窗状态
+const issueShow = ref(false);
+const issueCouponId = ref<number | null>(null);
+const issueMemberIds = ref<number[]>([]);
+const issueCount = ref(1);
+const issuing = ref(false);
+
+function openIssue(row:any){ issueCouponId.value = row.id; issueMemberIds.value = []; issueCount.value = 1; issueShow.value = true; }
+async function doIssue(){
+    if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; }
+    issuing.value = true;
+    try{
+        for (const mid of issueMemberIds.value){
+            await http(`/coupons/${issueCouponId.value}/issue`, { method:'POST', body: { memberId: mid, count: issueCount.value } });
+        }
+        issueShow.value = false; ElMessage.success('已发放');
+    } finally { issuing.value = false; }
+}
 
 function openCreate(){
 	form.value = {
@@ -143,10 +198,15 @@ function openCreate(){
 		adminRemark: '',
 		faceValue: undefined,
 		issueTotal: undefined,
+		perMemberLimit: undefined,
 		minOrderAmount: undefined,
 		applyScope: 'ALL',
 		applicableProductIds: [],
 		ruleJsonText: '',
+		allowMiniappClaim: false,
+		allowCombine: false,
+		allowStackWithPoints: true,
+		allowStackWithMemberDiscount: true,
 		totalTimes: 0,
 	};
 	range.value='';
@@ -168,10 +228,15 @@ function openEdit(row:any){
 		adminRemark: row.adminRemark || '',
 		faceValue: row.faceValue,
 		issueTotal: row.issueTotal,
+		perMemberLimit: row.perMemberLimit,
 		minOrderAmount: row.minOrderAmount,
 		applyScope: row.applyScope || 'ALL',
 		applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [],
 		ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '',
+		allowMiniappClaim: !!row.allowMiniappClaim,
+		allowCombine: !!row.allowCombine,
+		allowStackWithPoints: row.allowStackWithPoints !== false,
+		allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false,
 		totalTimes: row.totalTimes,
 	};
 	if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any;
@@ -199,9 +264,14 @@ async function save(){
 		try { payload.ruleJson = form.value.ruleJsonText ? JSON.parse(form.value.ruleJsonText) : null; } catch { ElMessage.error('规则JSON格式错误'); return; }
 		payload.faceValue = form.value.faceValue ?? null;
 		payload.issueTotal = form.value.issueTotal ?? null;
+		payload.perMemberLimit = form.value.perMemberLimit ?? null;
 		payload.minOrderAmount = form.value.minOrderAmount ?? null;
 		payload.applyScope = form.value.applyScope;
 		payload.applicableProductIds = form.value.applyScope==='SPECIFIED' ? (form.value.applicableProductIds || []) : [];
+		payload.allowMiniappClaim = !!form.value.allowMiniappClaim;
+		payload.allowCombine = !!form.value.allowCombine;
+		payload.allowStackWithPoints = form.value.allowStackWithPoints !== false;
+		payload.allowStackWithMemberDiscount = form.value.allowStackWithMemberDiscount !== false;
 	} else {
 		payload.totalTimes = form.value.totalTimes || 0;
 	}
@@ -219,7 +289,7 @@ async function onSelectImage(ev: Event){
 	fd.append('file', f);
 	fd.append('dir', 'admin');
 	const token = localStorage.getItem('token') || '';
-	const res = await fetch('http://localhost:3000/file/upload', { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: fd });
+	const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: fd });
 	if (!res.ok) { ElMessage.error('上传失败'); return; }
 	const j = await res.json();
 	form.value.imageUrl = j?.url || '';

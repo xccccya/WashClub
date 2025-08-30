@@ -7,6 +7,7 @@ import { SmsService } from './sms.service.js';
 import { AdminRoleController } from './role.controller.js';
 import { AdminRoleService } from './role.service.js';
 import { SmsAdminController } from './sms.controller.js';
+import { AdminGuard } from './admin.guard.js';
 
 @Module({
 	imports: [
@@ -16,7 +17,8 @@ import { SmsAdminController } from './sms.controller.js';
 		}),
 	],
 	controllers: [AuthController, AdminRoleController, SmsAdminController],
-	providers: [AuthService, AdminRoleService, PrismaService, SmsService],
+	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard],
+	exports: [AdminGuard, JwtModule],
 })
 export class AuthModule {}
 

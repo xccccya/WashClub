@@ -291,8 +291,10 @@ async function loadOrderBadges(){
         const t = uni.getStorageSync('token');
         if (!t) { unpaidCount.value=0; pendingReceiptCount.value=0; pendingServiceCount.value=0; return; }
         const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        // 拉全部后前端归类，避免后端额外接口；若有专门统计接口可替换
-        const q:any = {};
+        // 仅拉取当前会员的订单，避免统计到其他用户
+        const userObj:any = uni.getStorageSync('user') || {};
+        const memberIdNum = Number(userObj?.id) || 0;
+        const q:any = { memberId: memberIdNum > 0 ? memberIdNum : undefined };
         const list:any[] = await http('/orders', { method:'GET', query: q });
         const orders = Array.isArray(list) ? list : [];
         let unpaid=0, preceipt=0, pservice=0;
@@ -301,7 +303,7 @@ async function loadOrderBadges(){
             if (o?.payStatus === 'UNPAID') unpaid++;
             // 待收货（商品订单，已支付，发货中/已发货未收）
             if (o?.type === 'SP' && o?.payStatus === 'PAID'){
-                if (o?.fulfillmentStatus === 'SHIPPED' || o?.status === 'FULFILLED') preceipt++;
+                if (o?.fulfillmentStatus === 'SHIPPED') preceipt++;
             }
             // 待服务（服务订单，IN_SERVICE/PENDING 或 旧字段 PAID）
             if (o?.type === 'SERVICE'){

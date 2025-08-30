@@ -150,10 +150,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
-function toAbs(u?: string | null){ if (!u) return ''; if (/^https?:\/\//i.test(String(u))) return String(u); return `http://localhost:3000${String(u).startsWith('/')?u:('/'+u)}`; }
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
+function toAbs(u?: string | null){ return absUrl(u || ''); }
 
 type Task = { id:number; name:string; durationMin:number; status?: string };
 type QueueItem = { id:number; plateNumber:string; guest:boolean; currentTaskIndex:number; tasks: Task[]; aheadCount:number; aheadMinutes:number; remainingMinutes:number; vehicle?: { id:number; brand?:string|null; series?:string|null; brandImage?:string|null; member?: { name?: string|null; phone?: string|null } } };
@@ -289,8 +291,8 @@ function typeSubOptions(main?: string){ return main ? (typeSubMap[main] || []) :
 
 function selectLetter(ch: string | null){ selectedLetter.value = ch; applyBrandFilter(); try { brandSelectKey.value++; } catch {} }
 function applyBrandFilter(){ const all = brandOptionsAll.value; brandOptions.value = selectedLetter.value ? all.filter((b:any)=>(b.letter||'').toUpperCase()===selectedLetter.value) : all; }
-async function fetchBrands(){ brandLoading.value=true; try { const resp = await fetch(`http://localhost:3000/content/car/brands`); const json = await resp.json(); const arr:any[] = json || []; const flat:any[]=[]; for (const mb of arr){ for (const b of (mb.brand_list||[])){ flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img }); } } brandOptionsAll.value = flat; applyBrandFilter(); brandsLoaded.value=true; } catch { brandOptionsAll.value=[]; brandOptions.value=[]; } finally { brandLoading.value=false; } }
-async function fetchSeries(brandId: number){ if (!brandId) { seriesOptions.value=[]; return; } seriesLoading.value=true; try { const resp = await fetch(`http://localhost:3000/content/car/series?brandId=${brandId}`); const json = await resp.json(); const arr:any[] = json || []; seriesOptions.value = arr.map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale })); } catch { seriesOptions.value=[]; } finally { seriesLoading.value=false; } }
+async function fetchBrands(){ brandLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/brands`); const json = await resp.json(); const arr:any[] = json || []; const flat:any[]=[]; for (const mb of arr){ for (const b of (mb.brand_list||[])){ flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img }); } } brandOptionsAll.value = flat; applyBrandFilter(); brandsLoaded.value=true; } catch { brandOptionsAll.value=[]; brandOptions.value=[]; } finally { brandLoading.value=false; } }
+async function fetchSeries(brandId: number){ if (!brandId) { seriesOptions.value=[]; return; } seriesLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`); const json = await resp.json(); const arr:any[] = json || []; seriesOptions.value = arr.map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale })); } catch { seriesOptions.value=[]; } finally { seriesLoading.value=false; } }
 function onBrandChange(val: number){ const b = brandOptionsAll.value.find((x:any)=>x.brand_id===val); form.value.brandName = b?.brand_name || ''; currentBrand.value = b || null; form.value.seriesId = undefined; fetchSeries(val); }
 function onSeriesChange(val: number){ const s = seriesOptions.value.find((x:any)=>x.series_id===val); form.value.seriesName = s?.series_name || ''; const scale = (s?.scale||'').toString(); const { main, sub } = mapScaleToType(scale); if (main) form.value.typeMain = main; if (sub) form.value.typeSub = sub; lockTypeBySeries.value = !!val; }
 function onBrandDropdownVisible(visible: boolean){ if (visible && !brandsLoaded.value && !brandLoading.value) fetchBrands(); }

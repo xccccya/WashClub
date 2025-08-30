@@ -68,6 +68,93 @@ export class CouponService {
         });
     }
     deleteCoupon(id: number){ return this.prisma.coupon.delete({ where: { id } }); }
+
+    // =======================
+    // 会员优惠券实例管理
+    // =======================
+    async listMemberCoupons(query: { page?: number; pageSize?: number; memberId?: number | null; couponId?: number | null; used?: '0'|'1'|null; expired?: '0'|'1'|null }){
+        const page = Math.max(1, Number(query.page || 1));
+        const pageSize = Math.max(1, Math.min(100, Number(query.pageSize || 20)));
+        const where: any = {};
+        if (query.memberId != null) where.memberId = query.memberId;
+        if (query.couponId != null) where.couponId = query.couponId;
+        if (query.used === '0') where.usedAt = null;
+        if (query.used === '1') where.usedAt = { not: null };
+        if (query.expired === '0') where.OR = [
+            { endAt: null },
+            { endAt: { gt: new Date() } },
+        ];
+        if (query.expired === '1') where.endAt = { lte: new Date() };
+        const [total, items] = await this.prisma.$transaction([
+            (this.prisma as any).memberCoupon.count({ where }),
+            (this.prisma as any).memberCoupon.findMany({ where, orderBy: { id: 'desc' }, skip: (page-1)*pageSize, take: pageSize, include: { member: { select: { id:true, name:true, phone:true } }, coupon: { select: { id:true, name:true } }, order: { select: { id:true, no:true } } } }),
+        ]);
+        return { total, page, pageSize, items };
+    }
+
+    getMemberCoupon(id: number){ return (this.prisma as any).memberCoupon.findUnique({ where: { id }, include: { member: { select: { id:true, name:true, phone:true } }, coupon: true, order: { select: { id:true, no:true } } } }); }
+
+    async updateMemberCouponExpiry(id: number, payload: { startAt?: Date | null; endAt?: Date | null }){
+        const data: any = {};
+        if (payload.startAt !== undefined) data.startAt = payload.startAt;
+        if (payload.endAt !== undefined) data.endAt = payload.endAt;
+        return (this.prisma as any).memberCoupon.update({ where: { id }, data });
+    }
+
+    async deleteMemberCoupon(id: number){
+        return (this.prisma as any).memberCoupon.delete({ where: { id } });
+    }
+
+    // =======================
+    // 发放/领取
+    // =======================
+    async issueToMember(params: { couponId: number; memberId: number; count?: number }){
+        const { couponId, memberId } = params;
+        const count = Math.max(1, Number(params.count || 1));
+        const coupon = await this.prisma.coupon.findUnique({ where: { id: couponId } });
+        if (!coupon) throw new Error('卡券不存在');
+        if (!coupon.enabled) throw new Error('卡券未启用');
+        if (coupon.type !== 'COUPON') throw new Error('仅支持优惠券类型的发放');
+        if (coupon.issueTotal != null) {
+            const issued = await (this.prisma as any).memberCoupon.count({ where: { couponId } });
+            if (issued + count > Number(coupon.issueTotal)) throw new Error('发行数量不足');
+        }
+        // 每人限领次数校验
+        if (coupon.perMemberLimit != null) {
+            const owned = await (this.prisma as any).memberCoupon.count({ where: { couponId, memberId } });
+            if (owned + count > Number(coupon.perMemberLimit)) throw new Error('超过每人限领次数');
+        }
+        const now = new Date();
+        const buildPayload = () => {
+            const payload: any = { memberId, couponId, name: coupon.name, expiryType: coupon.expiryType };
+            if (coupon.expiryType === 'FIXED') {
+                payload.startAt = coupon.startAt ?? null;
+                payload.endAt = coupon.endAt ?? null;
+            } else if (coupon.expiryType === 'AFTER_RECEIVE') {
+                payload.startAt = now;
+                if (coupon.validDays && coupon.validDays > 0) {
+                    payload.endAt = new Date(now.getTime() + Number(coupon.validDays) * 24 * 60 * 60 * 1000);
+                } else {
+                    payload.endAt = null;
+                }
+            } else {
+                payload.startAt = null;
+                payload.endAt = null;
+            }
+            return payload;
+        };
+        const items = Array.from({ length: count }).map(() => buildPayload());
+        await (this.prisma as any).memberCoupon.createMany({ data: items });
+        return { ok: true, issued: count };
+    }
+
+    async claimForMember(params: { couponId: number; memberId: number }){
+        const coupon = await this.prisma.coupon.findUnique({ where: { id: params.couponId } });
+        if (!coupon) throw new Error('卡券不存在');
+        if (!coupon.enabled) throw new Error('卡券未启用');
+        if (!coupon.allowMiniappClaim) throw new Error('当前卡券不可自助领取');
+        return this.issueToMember({ couponId: params.couponId, memberId: params.memberId, count: 1 });
+    }
 }
 
 

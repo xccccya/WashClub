@@ -51,8 +51,9 @@
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type SmsItem = { id: number; phone: string; code: string; purpose: 'login'|'resetPwd'|'changePhone'; createdAt: string; expiresAt: string; usedAt?: string | null };
 

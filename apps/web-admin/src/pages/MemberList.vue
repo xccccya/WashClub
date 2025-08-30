@@ -58,7 +58,7 @@
 					<div style="display:flex;align-items:center;gap:12px;">
 						<img :src="formatAvatar(form.avatarUrl)" alt="avatar" style="width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid #eee;" />
 						<el-upload
-							action="http://localhost:3000/file/upload"
+							:action="`${API_BASE}/file/upload`"
 							:name="'file'"
 							:show-file-list="false"
 							:headers="authHeaders"
@@ -141,10 +141,12 @@
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 
 const http = createHttpClient({
-	baseUrl: 'http://localhost:3000',
+	baseUrl: API_BASE,
 	getToken: () => localStorage.getItem('token') || undefined,
 });
 
@@ -312,8 +314,8 @@ async function onDeleteConfirm(){
 
 onMounted(()=>{ fetchLevels(); fetchCategories(); fetchTags(); fetchList(); });
 
-const defaultAvatar = 'http://localhost:3000/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png';
-function toAbsUrl(path?: string | null) { if (!path) return defaultAvatar; if (/^https?:\/\//i.test(path)) return path; return `http://localhost:3000${path}`; }
+const defaultAvatar = `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`;
+function toAbsUrl(path?: string | null) { if (!path) return defaultAvatar; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
 function formatAvatar(url?: string | null){ return toAbsUrl(url); }
 const authHeaders = computed(()=>({ Authorization: `Bearer ${localStorage.getItem('token')||''}` }));
 function onAvatarUploaded(res: any){ form.value.avatarUrl = res?.url || null; ElMessage.success('头像已上传'); }

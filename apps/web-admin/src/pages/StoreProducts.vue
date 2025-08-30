@@ -174,13 +174,15 @@ import { ref, onMounted, watch, onBeforeUnmount, nextTick } from 'vue';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 
 // 兼容：将 Quill 暴露到全局，供 @vueup/vue-quill 内部使用
 try { if (typeof window !== 'undefined' && !(window as any).Quill) { (window as any).Quill = Quill; } } catch {}
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
-function abs(u?: string){ if(!u) return ''; if(/^https?:\/\//i.test(u)) return u; return `http://localhost:3000${u.startsWith('/')?u:('/'+u)}`; }
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
+function abs(u?: string){ return absUrl(u || ''); }
 const list = ref<any[]>([]);
 const categories = ref<any[]>([]);
 const keyword = ref('');
@@ -254,7 +256,7 @@ function openUpload(row:any){ currentProductId.value = row.id; uploadUrl.value='
 async function onFileChange(e:any){
 	const file = e.target.files?.[0]; if (!file) return;
 	const fd = new FormData(); fd.append('file', file);
-	const res = await fetch('http://localhost:3000/file/upload', { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+	const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); uploadUrl.value = j?.url || '';
 }
 async function applyImage(){ if (!currentProductId.value || !uploadUrl.value) return; await http(`/store/products/${currentProductId.value}`, { method:'PUT', body: { imageUrl: uploadUrl.value } }); ElMessage.success('已更新图片'); showUpload.value = false; await fetchList(); }
@@ -276,8 +278,8 @@ async function initQuill(){
 							input.onchange = async () => {
 								const file = input.files && input.files[0]; if (!file) return;
 								const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-								const res = await fetch('http://localhost:3000/file/upload', { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
-								const j = await res.json(); const url = j?.url ? (j.url.startsWith('http')? j.url : `http://localhost:3000${j.url.startsWith('/')?j.url:('/'+j.url)}`) : '';
+								const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+								const j = await res.json(); const url = j?.url ? (j.url.startsWith('http')? j.url : absUrl(j.url)) : '';
 								if (url) {
 									const range = quillInstance.getSelection(true);
 									quillInstance.insertEmbed(range ? range.index : 0, 'image', url, 'user');
@@ -314,7 +316,7 @@ async function onImagesChange(e:any){
 	const files: File[] = Array.from(e.target.files || []);
 	for (const file of files){
 		const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-		const res = await fetch('http://localhost:3000/file/upload', { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+		const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 		const j = await res.json(); if (j?.url) formImages.value.push(j.url);
 	}
 	try { e.target.value = ''; } catch {}
@@ -368,7 +370,7 @@ function generateSkuMatrix(){
 async function onSkuImageChange(row:any, e:any){
 	const file = e?.target?.files?.[0]; if (!file) return;
 	const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-	const res = await fetch('http://localhost:3000/file/upload', { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+	const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); if (j?.url) row.imageUrl = j.url;
 }
 

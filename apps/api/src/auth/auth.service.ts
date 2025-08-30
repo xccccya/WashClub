@@ -220,8 +220,11 @@ export class AuthService {
 		if (user.password !== hashed) throw new UnauthorizedException('密码错误');
 		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
 		const permissions = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
-		const token = await this.jwt.signAsync({ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone });
-		return { token, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions } };
+		const expiresIn = '1d';
+		const token = await this.jwt.signAsync({ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone }, { expiresIn });
+		let expiresAt: number | undefined = undefined;
+		try { const decoded: any = this.jwt.decode(token); const exp = Number(decoded?.exp||0); if (exp) expiresAt = exp * 1000; } catch {}
+		return { token, expiresAt, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions } };
 	}
 
 	// 小程序会员登录

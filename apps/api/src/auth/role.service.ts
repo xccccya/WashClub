@@ -6,6 +6,7 @@ export type AdminMenuKey =
 	| 'members'
 	| 'member-levels'
 	| 'member-categories'
+	| 'member-addresses'
 	| 'member-vehicles'
 	| 'member-washcards'
 	| 'service-queue'
@@ -16,13 +17,15 @@ export type AdminMenuKey =
 	| 'system-sms'
 	| 'content-notices'
 	| 'content-banners'
+	| 'content-reviews'
 	| 'store-categories'
 	| 'store-products'
 	| 'store-inventory'
 	| 'orders'
 	| 'after-sales'
 	| 'coupon-groups'
-	| 'coupons';
+	| 'coupons'
+	| 'member-coupons';
 
 @Injectable()
 export class AdminRoleService {
@@ -86,6 +89,7 @@ export class AdminRoleService {
 			{ key: 'members', name: '会员列表', path: '/members' },
 			{ key: 'member-levels', name: '会员等级', path: '/member-levels' },
 			{ key: 'member-categories', name: '会员分类', path: '/member-categories' },
+			{ key: 'member-addresses', name: '收货地址', path: '/member-addresses' },
 			{ key: 'member-vehicles', name: '会员车辆', path: '/member-vehicles' },
 			{ key: 'member-washcards', name: '洗车计次卡', path: '/member-washcards' },
 			{ key: 'member-tags', name: '会员标签', path: '/member-tags' },
@@ -96,6 +100,7 @@ export class AdminRoleService {
 			{ key: 'service-queue', name: '服务队列', path: '/service-queue' },
 			{ key: 'content-notices', name: '滚动通知', path: '/content/notices' },
 			{ key: 'content-banners', name: '广告横幅', path: '/content/banners' },
+			{ key: 'content-reviews', name: '评价管理', path: '/content/reviews' },
 			{ key: 'store-categories', name: '商品分类', path: '/store/categories' },
 			{ key: 'store-products', name: '商品列表', path: '/store/products' },
 			{ key: 'store-inventory', name: '库存管理', path: '/store/inventory' },
@@ -103,6 +108,7 @@ export class AdminRoleService {
 			{ key: 'after-sales', name: '售后', path: '/after-sales' },
 			{ key: 'coupon-groups', name: '卡券分组', path: '/coupon/groups' },
 			{ key: 'coupons', name: '卡券列表', path: '/coupon/list' },
+			{ key: 'member-coupons', name: '会员卡券', path: '/coupon/member-coupons' },
 		];
 	}
 }

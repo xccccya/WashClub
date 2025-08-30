@@ -34,7 +34,13 @@ function detectApiBase(): string {
   } catch {}
   return 'http://192.168.5.2:3000';
 }
-export const API_BASE = detectApiBase();
+// 原：export const API_BASE = detectApiBase();
+// 优先级：本地存储覆盖 > 环境变量 VITE_API_BASE > 自动探测
+let STORAGE_BASE: string | undefined;
+try { STORAGE_BASE = uni?.getStorageSync?.('API_BASE') || uni?.getStorageSync?.('apiBase'); } catch {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ENV_BASE: string | undefined = (import.meta as any)?.env?.VITE_API_BASE;
+export const API_BASE = STORAGE_BASE || ENV_BASE || detectApiBase();
 
 // 正式过期时间：7 天
 const TEST_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;

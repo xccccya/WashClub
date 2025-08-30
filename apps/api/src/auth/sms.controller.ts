@@ -1,15 +1,19 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
+import { AdminGuard } from './admin.guard.js';
+import { RequirePerm } from './perm.decorator.js';
 
 @ApiTags('system')
 @Controller('system')
+@UseGuards(AdminGuard)
 export class SmsAdminController {
     constructor(private prisma: PrismaService) {}
 
     // 短信记录列表（仅查询）
     @Get('sms-codes')
     @ApiOperation({ summary: '短信验证码记录列表（仅查询）' })
+    @RequirePerm('system-sms')
     async listSmsCodes(
         @Query('phone') phone?: string,
         @Query('purpose') purpose?: 'login' | 'resetPwd',

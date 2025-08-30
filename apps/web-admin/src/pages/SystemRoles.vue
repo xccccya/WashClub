@@ -30,22 +30,24 @@
 						<el-button size="small" @click="deselectAll">全不选</el-button>
 						<el-button size="small" @click="invertAll">反选</el-button>
 					</div>
-					<el-card v-for="g in menuGroups" :key="g.key" class="perm-group" shadow="never">
-						<template #header>
-							<div class="perm-group__header">
-								<el-checkbox :model-value="isGroupChecked(g)" :indeterminate="isGroupIndeterminate(g)" @change="(val:any)=>toggleGroup(g, val)">{{ g.name }}</el-checkbox>
-								<div class="perm-group__tools">
-									<span class="count">{{ selectedCount(g) }}/{{ g.children.length }}</span>
-									<el-button text size="small" @click="toggleGroup(g, true)">全选</el-button>
-									<el-button text size="small" @click="toggleGroup(g, false)">全不选</el-button>
-									<el-button text size="small" @click="invertGroup(g)">反选</el-button>
+					<el-collapse v-model="activeGroups" class="perm-collapse">
+						<el-collapse-item v-for="g in menuGroups" :key="g.key" :name="g.key">
+							<template #title>
+								<div class="perm-group__header">
+									<el-checkbox :model-value="isGroupChecked(g)" :indeterminate="isGroupIndeterminate(g)" @change="(val:any)=>toggleGroup(g, val)">{{ g.name }}</el-checkbox>
+									<div class="perm-group__tools">
+										<span class="count">{{ selectedCount(g) }}/{{ g.children.length }}</span>
+										<el-button text size="small" @click.stop="toggleGroup(g, true)">全选</el-button>
+										<el-button text size="small" @click.stop="toggleGroup(g, false)">全不选</el-button>
+										<el-button text size="small" @click.stop="invertGroup(g)">反选</el-button>
+									</div>
 								</div>
-							</div>
-						</template>
-						<el-checkbox-group v-model="form.permissions" class="perm-grid">
-							<el-checkbox v-for="m in g.children" :key="m.key" :label="m.key">{{ m.name }}</el-checkbox>
-						</el-checkbox-group>
-					</el-card>
+							</template>
+							<el-checkbox-group v-model="form.permissions" class="perm-grid">
+								<el-checkbox v-for="m in g.children" :key="m.key" :label="m.key">{{ m.name }}</el-checkbox>
+							</el-checkbox-group>
+						</el-collapse-item>
+					</el-collapse>
 				</el-form-item>
 			</el-form>
 			<template #footer>
@@ -60,9 +62,10 @@
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
+import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 
-const http = createHttpClient({ baseUrl: 'http://localhost:3000', getToken: () => localStorage.getItem('token') || undefined });
+const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Role = { id: number; name: string; enabled: boolean; isSystem: boolean; permissions: string[] };
 type Menu = { key: string; name: string; path: string };
@@ -71,6 +74,8 @@ const menus = ref<Menu[]>([]);
 const dialogVisible = ref(false);
 const current = ref<Role | null>(null);
 const form = ref<Partial<Role>>({ name: '', enabled: true, permissions: [] });
+// 折叠面板：默认全部收起
+const activeGroups = ref<string[]>([]);
 
 async function fetchAll(){
 	roles.value = await http<Role[]>('/system/roles', { method: 'GET' });
