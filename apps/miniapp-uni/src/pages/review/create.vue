@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { createHttp, checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -55,9 +55,34 @@ async function chooseImages(){
         const r:any = await new Promise((resolve)=> uni.chooseImage({ count: 6, success: resolve, fail: ()=>resolve(null) }));
         if (!r || !Array.isArray(r.tempFilePaths)) return;
         const http = createHttp();
+        const joinUrl = (base:string, pathStr:string) => {
+            if (!pathStr) return '';
+            if (/^https?:\/\//i.test(pathStr)) return pathStr;
+            const b = String(base||'').replace(/\/+$/, '');
+            const p = String(pathStr||'').replace(/^\/+/, '');
+            return b + '/' + p;
+        };
         for (const filePath of r.tempFilePaths){
             await new Promise<void>((resolve)=>{
-                uni.uploadFile({ url: (http as any).baseUrl + '/file/upload', filePath, name: 'file', formData: { dir: 'miniapp' }, header: { Authorization: 'Bearer ' + (http as any).getToken?.() }, success: (res:any)=>{ try{ const j=JSON.parse(res.data||'{}'); if (j?.url) images.value.push(j.url); }catch{} resolve(); }, fail: ()=> resolve() });
+                const base = API_BASE || '';
+                const token = getToken() || '';
+                uni.uploadFile({
+                    url: base + '/file/upload',
+                    filePath,
+                    name: 'file',
+                    formData: { dir: 'miniapp' },
+                    header: { Authorization: token ? ('Bearer ' + token) : '' },
+                    success: (res:any)=>{
+                        try{
+                            const j = JSON.parse(res.data||'{}');
+                            const u = j?.url || '';
+                            const full = joinUrl(base, u);
+                            if (full) images.value.push(full);
+                        }catch{}
+                        resolve();
+                    },
+                    fail: ()=> resolve(),
+                });
             });
         }
     }catch{}

@@ -28,9 +28,12 @@ export class OrderService {
         return { ok: true } as const;
     }
 
-    private async rollbackWashCardForRefund(orderId: number, operatorUserId?: number | null){
+    private async rollbackWashCardForRefund(orderId: number, operatorUserId?: number | null, ctx?: { outRefundNo?: string | null; wechatRefundId?: string | null }){
         const addLogs = await this.prisma.washCardLog.findMany({ where: { purchaseOrderId: orderId, reason: 'PURCHASE_ADD' as any } });
         if (!addLogs.length) return;
+        // 获取订单号用于日志备注展示
+        let orderNo: string | undefined;
+        try { const ord = await this.prisma.order.findUnique({ where: { id: orderId }, select: { no: true } }); orderNo = ord?.no; } catch {}
         for (const log of addLogs){
             const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId } });
             if (!card) continue;
@@ -38,7 +41,8 @@ export class OrderService {
             const before = card.remainingTimes;
             const afterRemain = before - canDeduct;
             await this.prisma.washCard.update({ where: { id: card.id }, data: { totalTimes: Math.max(0, card.totalTimes - canDeduct), remainingTimes: afterRemain } });
-            await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（订单号：${orderId}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
+            const mark = ctx?.outRefundNo ? `退款单号：${ctx.outRefundNo}` : (ctx?.wechatRefundId ? `微信退款ID：${ctx.wechatRefundId}` : `订单号：${orderNo || orderId}`);
+            await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（${mark}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
         }
         await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'WASHCARD_ROLLBACK', remark: '退款回收计次', operatorUserId: operatorUserId ?? null });
     }
@@ -78,14 +82,14 @@ export class OrderService {
         return !!(ok as any).ok;
     }
 
-    async applyRefundSuccess(params: { orderId: number; amountYuan: number; method?: PayMethod | null; operatorUserId?: number | null }){
+    async applyRefundSuccess(params: { orderId: number; amountYuan: number; method?: PayMethod | null; operatorUserId?: number | null; outRefundNo?: string | null; wechatRefundId?: string | null }){
         const { orderId, amountYuan, operatorUserId } = params;
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
         const isFull = Math.abs(Number(order.payAmount)) - Math.abs(Number(amountYuan)) < 0.000001;
         if (isFull){
             // 全额退款：回滚库存、更新订单状态为已取消/已退款、回退权益
             const updated = await this.refundOrder(orderId, '渠道退款成功', operatorUserId ?? null);
-            await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null);
+            await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null, { outRefundNo: params.outRefundNo ?? null, wechatRefundId: params.wechatRefundId ?? null });
             await this.rollbackPointsForRefund(orderId, operatorUserId ?? null);
             return updated;
         } else {
@@ -95,6 +99,14 @@ export class OrderService {
             await this.prisma.order.update({ where: { id: orderId }, data: { remark: `${order.remark ? order.remark + '；' : ''}部分退款¥${amountYuan.toFixed(2)}` } });
             return order;
         }
+    }
+
+    // 内部退款（非渠道）统一收尾：执行退款、回收权益（洗车卡、积分）
+    async finalizeInternalRefund(orderId: number, reason?: string, operatorUserId?: number | null){
+        const updated = await this.refundOrder(orderId, reason, operatorUserId ?? null);
+        try { await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null); } catch {}
+        try { await this.rollbackPointsForRefund(orderId, operatorUserId ?? null); } catch {}
+        return updated;
     }
 
     private generateOrderNo(type: 'SERVICE' | 'SP' | 'FK') {
@@ -424,12 +436,12 @@ export class OrderService {
     }
 
     // 支付（手动确认）：现金/收钱吧/线下
-    async markPaid(params: { orderId: number; method: PayMethod; paidAt?: Date | null; operatorUserId?: number | null }) {
+    async markPaid(params: { orderId: number; method: PayMethod; paidAt?: Date | null; operatorUserId?: number | null; wechatTransactionId?: string | null }) {
         // 仅未支付订单可标记
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id: params.orderId } });
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可标记支付');
         const paidAt = params.paidAt ?? new Date();
-        const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt } });
+        const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt, wechatTransactionId: params.wechatTransactionId ?? undefined } });
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         // 支付成功后，若订单包含绑定洗车计次卡的商品，则为会员发放洗车卡，并记录购买日志（含订单号）
@@ -489,11 +501,11 @@ export class OrderService {
                 });
             }
         }
-        // 扣减库存（仅实体商品 PHYSICAL）并写入库存流水：ORDER_DEDUCT
+        // 扣减库存（实体商品 PHYSICAL 与 虚拟卡券 VIRTUAL_CARD）并写入库存流水：ORDER_DEDUCT
         for (const it of items) {
             if (!it.productId) continue;
             const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
-            if (!product || product.type !== 'PHYSICAL') continue;
+            if (!product || (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD')) continue;
             if (product.specType === 'MULTI') {
                 if (!it.skuId) throw new Error('订单包含多规格商品但缺少 skuId');
                 const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
@@ -550,6 +562,12 @@ export class OrderService {
         return updated;
     }
 
+    // 容错：单独补写微信交易单号
+    async saveWechatTransactionId(orderId: number, transactionId: string){
+        if (!transactionId) return;
+        await this.prisma.order.update({ where: { id: orderId }, data: { wechatTransactionId: transactionId } });
+    }
+
     // 关闭/取消订单：如已支付且尚未退款，回滚库存并将支付状态置为 CANCELLED
     async closeOrder(id: number, reason?: string, operatorUserId?: number | null) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
@@ -558,7 +576,7 @@ export class OrderService {
             for (const it of items) {
                 if (!it.productId) continue;
                 const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
-                if (!product || product.type !== 'PHYSICAL') continue;
+                if (!product || (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD')) continue;
                 if (product.specType === 'MULTI') {
                     if (!it.skuId) continue;
                     const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
@@ -614,7 +632,7 @@ export class OrderService {
         for (const it of items) {
             if (!it.productId) continue;
             const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
-            if (!product || product.type !== 'PHYSICAL') continue;
+            if (!product || (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD')) continue;
             if (product.specType === 'MULTI') {
                 if (!it.skuId) {
                     // 兜底：缺失 skuId 时回补到商品总库存并写异常备注
@@ -674,7 +692,7 @@ export class OrderService {
             if (!it.productId) continue;
             const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
             if (!product) continue;
-            if (product.type === 'PHYSICAL') {
+            if (product.type === 'PHYSICAL' || product.type === 'VIRTUAL_CARD') {
                 if (product.specType === 'MULTI') {
                     if (!it.skuId) {
                         const before = product.stockQuantity ?? 0;
@@ -860,10 +878,11 @@ export class OrderService {
         if (req.type === 'REFUND') {
             if (req.order?.payStatus === 'PAID') {
                 if ((req.order as any)?.payMethod === 'WECHAT_JSAPI') {
-                    // JSAPI 渠道退款：等待回调，不在此处完成售后
+                    // JSAPI 渠道退款：标记审核通过，等待渠道回调（由回调完成售后与订单状态）
                     return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });
                 } else {
-                    await this.refundOrder(req.orderId, '售后退款', auditUserId ?? null);
+                    // 非微信渠道：内部退款并回收权益
+                    await this.finalizeInternalRefund(req.orderId, '售后退款', auditUserId ?? null);
                     await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
                     await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: req.type, operatorUserId: auditUserId ?? null });
                     return await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });

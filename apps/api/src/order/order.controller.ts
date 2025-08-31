@@ -69,7 +69,7 @@ export class OrderController {
         if (!Number.isFinite(amountYuan) || amountYuan <= 0) throw new BadRequestException('订单金额异常');
         const total = Math.round(amountYuan * 100);
         const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat';
-        const desc = `订单支付-${order.no}`;
+        const desc = `巨科汽车美容（威远店）-订单支付-${order.no}`;
         const { prepay_id } = await this.wxpay.createJsapi({
             appid: '', // 由服务内部覆盖为小程序 appid
             mchid: '', // 由服务内部覆盖为商户号
@@ -96,9 +96,14 @@ export class OrderController {
             // 处理状态
             if (decrypted?.trade_state === 'SUCCESS') {
                 const outTradeNo = decrypted?.out_trade_no;
+                const transactionId = decrypted?.transaction_id;
                 const order = await this.orders.getOrderByNo(outTradeNo);
                 if (order && order.payStatus === 'UNPAID') {
-                    await this.orders.markPaid({ orderId: order.id, method: 'WECHAT_JSAPI' as any, paidAt: new Date() });
+                    await this.orders.markPaid({ orderId: order.id, method: 'WECHAT_JSAPI' as any, paidAt: new Date(), wechatTransactionId: transactionId });
+                }
+                // 若已标记过支付，但缺少交易单号，则补写入（容错）
+                if (order && order.payStatus !== 'UNPAID' && transactionId && !(order as any).wechatTransactionId) {
+                    await (this.orders as any).saveWechatTransactionId(order.id, transactionId);
                 }
             }
             res.status(200).json({ code: 'SUCCESS' });
@@ -125,18 +130,20 @@ export class OrderController {
         return this.orders.softDeleteOrder(id, operatorUserId);
     }
 
-    // 取消订单（未支付）：若为JSAPI下单过的订单，调用微信关单
+    // 取消订单（未支付）：会员或管理员均可
     @Post(':id/cancel')
-    @UseGuards(AdminGuard)
-    @RequirePerm('orders')
     async cancelOrder(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string }, @Headers('authorization') authHeader?: string) {
-        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+        const memberId = this.extractMemberIdFromAuthHeader(authHeader);
+        if (!adminId && !memberId) throw new UnauthorizedException('未登录');
         const order: any = await this.orders.getOrder(id);
         if (!order) throw new BadRequestException('订单不存在');
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可取消');
+        // 会员必须为本人订单
+        if (memberId && order.memberId !== memberId) throw new UnauthorizedException('无权操作该订单');
         // 关单：按是否存在JSAPI预下单做兜底，这里直接调用关单接口（多次调用幂等）
         try { await this.wxpay.closeJsapi(order.no); } catch (e) { /* 忽略关单失败以避免卡住取消流程 */ }
-        return this.orders.cancelOrder(id, body?.reason, operatorUserId);
+        return this.orders.cancelOrder(id, body?.reason, adminId ?? null);
     }
 
     // 恢复软删除
@@ -151,9 +158,30 @@ export class OrderController {
     @Post(':id/refund')
     @UseGuards(AdminGuard)
     @RequirePerm('orders')
-    refund(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string }, @Headers('authorization') authHeader?: string) {
+    async refund(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string; amount?: number }, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
-        return this.orders.refundOrder(id, body?.reason, operatorUserId);
+        const order: any = await this.orders.getOrder(id);
+        if (!order) throw new BadRequestException('订单不存在');
+        if (order.payStatus !== 'PAID') throw new BadRequestException('仅已支付订单可退款');
+        if (order.payMethod === 'WECHAT_JSAPI') {
+            // 走渠道退款
+            const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
+            const outRefundNo = `R_${order.no}_${Date.now()}`;
+            const amountFen = Math.round(Number(order.payAmount) * 100);
+            const requestedFen = Math.round(Number(body?.amount ?? order.payAmount) * 100);
+            const existing:any = await this.orders.getOrder(id);
+            const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
+            const refundableFen = Math.max(0, amountFen - successSumFen);
+            const refundFen = Math.min(requestedFen, refundableFen);
+            if (refundFen <= 0) throw new BadRequestException('累计退款金额已达上限');
+            const allowed = await this.orders.verifyRefundAllowed(order.id, refundFen / 100);
+            if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已部分使用，无法全额退款');
+            const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
+            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.reason || null, outRefundNo, wechatRefundId: resp?.refund_id || null, status: 'PROCESSING' as any });
+            return { ok: true, outRefundNo } as any;
+        }
+        // 线下/其他渠道：内部退款并回收权益
+        return this.orders.finalizeInternalRefund(id, body?.reason, operatorUserId);
     }
 
     // ========================
@@ -192,10 +220,33 @@ export class OrderController {
     @Post('_after-sales/:id/audit')
     @UseGuards(AdminGuard)
     @RequirePerm('after-sales')
-    auditAfterSales(@Param('id', ParseIntPipe) id: number, @Body() body: { approve: boolean; remark?: string }, @Headers('authorization') authHeader?: string) {
+    async auditAfterSales(@Param('id', ParseIntPipe) id: number, @Body() body: { approve: boolean; remark?: string }, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
-        return this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId);
+        const result:any = await this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId);
+        // 审核通过且为微信JSAPI支付的退款型售后：自动发起渠道退款
+        try{
+            const afr:any = await this.orders.getAfterSales(id);
+            const ord:any = afr?.order;
+            if (afr && afr.status === 'APPROVED' && ord && ord.payMethod === 'WECHAT_JSAPI' && ord.payStatus === 'PAID'){
+                const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
+                const outRefundNo = `R_${ord.no}_${Date.now()}`;
+                const amountFen = Math.round(Number(ord.payAmount) * 100);
+                const requestedFen = Math.round(Number(afr?.requestedAmount ?? ord.payAmount) * 100);
+                const existing:any = await this.orders.getOrder(ord.id);
+                const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
+                const refundableFen = Math.max(0, amountFen - successSumFen);
+                const refundFen = Math.min(requestedFen, refundableFen);
+                if (refundFen > 0){
+                    const allowed = await this.orders.verifyRefundAllowed(ord.id, refundFen / 100);
+                    if (allowed){
+                        const resp = await this.wxpay.createRefund({ outTradeNo: ord.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.remark, notifyUrl });
+                        await this.orders.createRefundRecord({ orderId: ord.id, memberId: ord.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.remark || null, outRefundNo, wechatRefundId: resp?.refund_id || null, status: 'PROCESSING' as any });
+                    }
+                }
+            }
+        }catch{}
+        return result;
     }
 
     // 微信退款：供后台审核通过后调用或自动化
@@ -242,7 +293,7 @@ export class OrderController {
                     const rec:any = await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'SUCCESS' as any, refundId, null);
                     if (rec?.orderId) {
                         const amt = Number(rec?.amount||0);
-                        await this.orders.applyRefundSuccess({ orderId: rec.orderId, amountYuan: amt, method: 'WECHAT_JSAPI' as any, operatorUserId: undefined });
+                        await this.orders.applyRefundSuccess({ orderId: rec.orderId, amountYuan: amt, method: 'WECHAT_JSAPI' as any, operatorUserId: undefined, outRefundNo, wechatRefundId: refundId });
                         await this.orders.completeLatestRefundAftersalesByOrder(rec.orderId, undefined);
                     }
                 } else if (status === 'ABNORMAL') {
@@ -269,13 +320,19 @@ export class OrderController {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         return this.orders.shipOrder(id, operatorUserId, body);
     }
-    // 收货
+    // 收货：会员本人或管理员
     @Post(':id/receive')
-    @UseGuards(AdminGuard)
-    @RequirePerm('orders')
-    receive(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
-        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
-        return this.orders.receiveOrder(id, operatorUserId);
+    async receive(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
+        const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+        const memberId = this.extractMemberIdFromAuthHeader(authHeader);
+        if (!adminId && !memberId) throw new UnauthorizedException('未登录');
+        // 会员收货需校验归属
+        if (memberId) {
+            const order: any = await this.orders.getOrder(id);
+            if (!order) throw new BadRequestException('订单不存在');
+            if (order.memberId !== memberId) throw new UnauthorizedException('无权操作该订单');
+        }
+        return this.orders.receiveOrder(id, adminId ?? null);
     }
     // 开始服务
     @Post(':id/start-service')

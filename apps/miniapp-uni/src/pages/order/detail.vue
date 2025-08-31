@@ -51,6 +51,7 @@
 			<view class="sub-title">支付信息</view>
 			<view class="kv"><text class="k">支付方式</text><text class="v">{{ displayPayMethod(order.payMethod) }}</text></view>
 			<view class="kv"><text class="k">支付时间</text><text class="v">{{ order.paidAt ? formatTime(order.paidAt) : '-' }}</text></view>
+			<view class="kv" v-if="order.payMethod==='WECHAT_JSAPI' && (order as any)?.wechatTransactionId"><text class="k">微信交易单号</text><text class="v">{{ (order as any).wechatTransactionId }}</text></view>
 			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
@@ -421,6 +422,7 @@ function zhEvent(e: string){
 	if (v==='FULFILLMENT') return '履约状态';
 	if (v==='LOGISTICS') return '物流';
 	if (v==='AFTERSALES') return '售后';
+	if (v==='BENEFITS') return '权益变更';
 	if (v==='REVIEW') return '评价';
 	return e || '-';
 }
@@ -449,6 +451,12 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='SHIPPED') return '已发货';
 		if (v==='RECEIVED') return '已收货';
 		if (v==='DONE') return '已完成';
+	}
+	if (e==='BENEFITS'){
+		if (v==='WASHCARD_ROLLBACK') return '退款回收计次';
+		if (v==='POINTS_ROLLBACK') return '返还积分';
+		if (v==='COUPON_RESTORE') return '恢复优惠券';
+		if (v==='COUPON_NOTE') return '优惠券说明';
 	}
 	if (e==='AFTERSALES'){
 		if (v==='PENDING') return '处理中';

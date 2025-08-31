@@ -24,6 +24,11 @@
 				<text class="price">¥{{ displayPriceText }}</text>
 			</view>
 			<view v-if="product?.sellPoint" class="sell">{{ product?.sellPoint }}</view>
+			<!-- 单规格实物商品：直接展示库存信息 -->
+			<view v-if="product?.type==='PHYSICAL' && product?.specType==='SINGLE'" class="stock-chip" :class="stockClass">
+				<text class="dot"></text>
+				<text class="stock-text">{{ stockText }}</text>
+			</view>
 		</view>
 
 		<!-- 规格选择（多规格） -->
@@ -36,6 +41,11 @@
 				</view>
 			</view>
 			<view v-else class="desc">暂无可选规格，请联系门店</view>
+			<!-- 多规格实物商品：选择完整规格后展示库存信息 -->
+			<view v-if="product?.type==='PHYSICAL' && selectionComplete" class="stock-chip" :class="stockClass">
+				<text class="dot"></text>
+				<text class="stock-text">{{ stockText }}</text>
+			</view>
 		</view>
 
 		<!-- 商品介绍 -->
@@ -62,7 +72,7 @@
 				<!-- #endif -->
 				<text class="cart-text">加入购物车</text>
 			</view>
-			<view class="buy" @tap="openSheet">立即购买</view>
+			<view class="buy" :class="{ disabled: buyDisabled }" @tap="onBuyTap">{{ buyText }}</view>
 		</view>
 
 		<PurchaseSheet v-model:visible="sheetVisible" :product="product || null" :preselectedSkuId="selectedSkuId" :preselectedSpecValues="selectedSpecValues" @submitted="onSubmitted" />
@@ -141,13 +151,77 @@ async function fetchDetail(){
 }
 
 const displayImages = computed(() => {
+	const raw: string[] = [];
+	if (product.value?.imagesJson && Array.isArray(product.value.imagesJson)) raw.push(...product.value.imagesJson.filter(Boolean));
+	if (product.value?.imageUrl) raw.unshift(product.value.imageUrl);
+	// 去重：按解析后的绝对地址去重，避免头图重复显示
+	const seen = new Set<string>();
 	const urls: string[] = [];
-	if (product.value?.imagesJson && Array.isArray(product.value.imagesJson)) urls.push(...product.value.imagesJson.filter(Boolean));
-	if (product.value?.imageUrl) urls.unshift(product.value.imageUrl);
+	for (const u of raw) {
+		const abs = resolveImageUrl(u);
+		if (!abs) continue;
+		const key = abs.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		urls.push(u);
+	}
 	return urls.length ? urls : ['/static/icons/placeholder.png'];
 });
 
 const enabledSkus = computed(() => (product.value?.skus||[]).filter(s => s.enabled!==false));
+const selectionComplete = computed(() => {
+	if (product.value?.specType !== 'MULTI') return true;
+	const keys = specKeys.value || [];
+	if (!keys.length) return false;
+	for (const k of keys) { if (!selectedSpecValues.value[k]) return false; }
+	const matches = enabledSkus.value.filter(s => isSkuMatchSelection(s, selectedSpecValues.value));
+	return matches.length === 1;
+});
+
+const selectedSku = computed<Sku|undefined>(() => {
+	if (product.value?.specType !== 'MULTI') return undefined;
+	return enabledSkus.value.find(s => s.id === selectedSkuId.value);
+});
+
+const currentStock = computed<number|undefined>(() => {
+	if (!product.value || product.value.type !== 'PHYSICAL') return undefined;
+	if (product.value.specType === 'SINGLE') return Number(product.value.stockQuantity ?? 0);
+	const sku = selectedSku.value;
+	if (!selectionComplete.value || !sku) return undefined;
+	return Number(sku.stockQuantity ?? 0);
+});
+
+const stockText = computed<string>(() => {
+	if (product.value?.type !== 'PHYSICAL') return '';
+	const qty = currentStock.value;
+	if (qty === undefined) return '';
+	return qty <= 0 ? '库存不足' : `剩余 ${qty}`;
+});
+
+const stockClass = computed<string>(() => {
+	if (product.value?.type !== 'PHYSICAL') return '';
+	const qty = currentStock.value;
+	if (qty === undefined) return '';
+	return qty <= 0 ? 'low' : 'ok';
+});
+
+const buyDisabled = computed<boolean>(() => {
+	if (!product.value) return false;
+	if (product.value.type !== 'PHYSICAL') return false;
+	if (product.value.specType === 'SINGLE') return Number(product.value.stockQuantity ?? 0) <= 0;
+	// 多规格：未选择完整规格或所选SKU库存不足均禁用
+	if (!selectionComplete.value) return true;
+	const qty = Number(selectedSku.value?.stockQuantity ?? 0);
+	return qty <= 0;
+});
+
+const buyText = computed<string>(() => {
+	if (product.value?.type !== 'PHYSICAL') return '立即购买';
+	if (product.value.specType === 'SINGLE') return buyDisabled.value ? '当前商品售罄' : '立即购买';
+	// 多规格
+	if (!selectionComplete.value) return '立即购买';
+	return buyDisabled.value ? '当前商品售罄' : '立即购买';
+});
 
 // 规格归一化：兼容数组/字符串(JSON)/对象
 function normalizeSpecs(specsRaw: any): Array<{ key: string; value: string }>{
@@ -359,13 +433,28 @@ async function addToCart(){
 	if (!product.value) return;
 	if (product.value.type !== 'PHYSICAL') return;
 	if (product.value.specType==='MULTI' && typeof selectedSkuId.value !== 'number') { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
+	// 库存检查
+	if (product.value.specType === 'SINGLE') {
+		const qty = Number(product.value.stockQuantity ?? 0);
+		if (qty <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
+	} else {
+		const sku = enabledSkus.value.find(s => s.id===selectedSkuId.value);
+		const qty = Number(sku?.stockQuantity ?? 0);
+		if (qty <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
+	}
 	try {
 		await http('/cart/me/add', { method:'POST', body: { productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: 1 } });
 		uni.showToast({ title:'已加入购物车', icon:'none' });
 	} catch { uni.showToast({ title:'加入失败', icon:'none' }); }
 }
 
-function openSheet(){ sheetVisible.value = true; }
+function onBuyTap(){
+	if (!product.value) return;
+	if (product.value.type !== 'PHYSICAL') { sheetVisible.value = true; return; }
+	if (product.value.specType === 'MULTI' && !selectionComplete.value) { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
+	if (buyDisabled.value) return; // 售罄时不可点击
+	sheetVisible.value = true;
+}
 function onSubmitted(){ /* 可根据需要刷新 */ }
 </script>
 
@@ -382,6 +471,12 @@ function onSubmitted(){ /* 可根据需要刷新 */ }
 .price { font-size: 36rpx; color:#ef4444; font-weight: 800; }
 .price-hint { font-size: 24rpx; color:#6b7280; }
 .sell { margin-top: 8rpx; font-size: 24rpx; color:#374151; background:#f3f4f6; padding: 10rpx 12rpx; border-radius: 12rpx; }
+.stock-chip { margin-top: 10rpx; display:inline-flex; align-items:center; gap: 8rpx; padding: 8rpx 12rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#ffffff; }
+.stock-chip.ok { border-color:#86efac; background:#ecfdf5; }
+.stock-chip.low { border-color:#fca5a5; background:#fef2f2; }
+.stock-chip .dot { width: 10rpx; height: 10rpx; border-radius: 999rpx; background:#10b981; }
+.stock-chip.low .dot { background:#ef4444; }
+.stock-chip .stock-text { font-size: 22rpx; color:#0f172a; }
 .block-title { font-size: 26rpx; color:#374151; margin-bottom: 8rpx; }
 .sku-row { white-space: nowrap; padding: 0 8rpx; }
 .sku-chip { display:inline-flex; align-items:center; justify-content:center; padding: 10rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; color:#1f2937; background:#fff; }
@@ -406,6 +501,7 @@ function onSubmitted(){ /* 可根据需要刷新 */ }
 .cart-svg { width: 40rpx; height: 40rpx; display:block; }
 .cart-text { font-size: 22rpx; color:#111827; }
 .buy { flex:1; text-align:center; padding: 18rpx 0; border-radius: 16rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; font-size: 28rpx; }
+.buy.disabled { opacity: .6; filter: grayscale(0.15); }
 
 /* 返回按钮复用风格 */
 .nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }

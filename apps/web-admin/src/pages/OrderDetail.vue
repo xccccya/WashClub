@@ -11,6 +11,7 @@
 				<span style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</span>
 			</el-descriptions-item>
 			<el-descriptions-item label="支付方式">{{ displayPayMethod(data?.payMethod) }}</el-descriptions-item>
+			<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
 			<el-descriptions-item label="订单总额">{{ data?.totalAmount }}</el-descriptions-item>
 			<el-descriptions-item label="减免金额">{{ data?.discountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>
@@ -237,6 +238,7 @@ function zhEvent(e: string){
     if (v==='FULFILLMENT') return '履约状态';
     if (v==='LOGISTICS') return '物流';
     if (v==='AFTERSALES') return '售后';
+    if (v==='BENEFITS') return '权益变更';
     if (v==='REVIEW') return '评价';
     return e || '-';
 }
@@ -335,6 +337,12 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='SHIPPED') return '已发货';
 		if (v==='RECEIVED') return '已收货';
 		if (v==='DONE') return '已完成';
+	}
+	if (e==='BENEFITS'){
+		if (v==='WASHCARD_ROLLBACK') return '退款回收计次';
+		if (v==='POINTS_ROLLBACK') return '返还积分';
+		if (v==='COUPON_RESTORE') return '恢复优惠券';
+		if (v==='COUPON_NOTE') return '优惠券说明';
 	}
 	if (e==='AFTERSALES'){
 		return zhAftersalesStatus(v);

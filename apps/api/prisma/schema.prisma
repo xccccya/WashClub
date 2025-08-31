@@ -605,6 +605,8 @@ model Order {
   payStatus               PayStatus         @default(UNPAID)
   payMethod               PayMethod?
   paidAt                  DateTime?
+  // 微信支付：交易单号（回调 resource 解密字段 transaction_id）
+  wechatTransactionId     String?
   // 权益/积分/卡券
   usedPoints              Int               @default(0)
   pointsAmount            Decimal           @default(0)

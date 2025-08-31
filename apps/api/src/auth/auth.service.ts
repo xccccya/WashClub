@@ -132,8 +132,14 @@ export class AuthService {
 	}
 
 	private generateRandomName(): string {
-		const rnd = Math.random().toString(36).slice(2, 8);
-		return `注册会员${rnd}`;
+		// 生成4位由数字与大小写字母组成的随机串
+		const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+		let suffix = '';
+		for (let i = 0; i < 4; i++) {
+			const idx = Math.floor(Math.random() * alphabet.length);
+			suffix += alphabet[idx];
+		}
+		return `用户${suffix}`;
 	}
 
 	private async generateUniqueMemberUid(): Promise<number> {

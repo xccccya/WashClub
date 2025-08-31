@@ -31,7 +31,17 @@ export class CarDataController {
 		const url = `https://api.tanshuapi.com/api/car/v1/carBrand?key=${this.apiKey}`;
 		try {
 			const json: any = await this.fetchJson(url, 8000);
-			const data = Array.isArray(json?.data) ? json.data : [];
+			const raw = Array.isArray(json?.data) ? json.data : [];
+			const data = raw.map((b:any)=>{
+				const item = { ...b };
+				// 常见字段名兼容：logo、img、image、icon
+				['logo','img','image','icon','pic','pic_url','logo_url'].forEach((k)=>{
+					if (item[k] && typeof item[k] === 'string') {
+						item[k] = String(item[k]).replace(/^http:\/\//i, 'https://');
+					}
+				});
+				return item;
+			});
 			if (data.length) CarDataController.brandsCache = { data, ts: now };
 			return data;
 		} catch (e) {

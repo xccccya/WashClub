@@ -81,6 +81,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { AMAP_API_BASE } from '../../utils/thirdparty';
+import { readAmapKey, readStoreLocation } from '../../utils/env';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
 declare const wx: any;
@@ -110,91 +111,153 @@ function parseLngLat(input?: string|null): { lng: number; lat: number } | null {
 	} catch { return null; }
 }
 
+function haversineKm(a:{lng:number;lat:number}, b:{lng:number;lat:number}): number{
+	try{
+		const toRad = (d:number)=> d*Math.PI/180;
+		const R = 6371; // km
+		const dLat = toRad(b.lat - a.lat);
+		const dLng = toRad(b.lng - a.lng);
+		const lat1 = toRad(a.lat);
+		const lat2 = toRad(b.lat);
+		const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+		return 2*R*Math.asin(Math.min(1, Math.sqrt(h)));
+	}catch{ return NaN; }
+}
+
 async function requestJSON(url: string, query: Record<string, any>): Promise<any>{
 	return new Promise((resolve) => {
 		try {
 			const qs = Object.keys(query||{}).map(k=>`${encodeURIComponent(k)}=${encodeURIComponent(query[k]??'')}`).join('&');
 			const full = qs ? `${url}?${qs}` : url;
-			uni.request({ url: full, method: 'GET', success: (res:any)=> resolve(res?.data), fail: ()=> resolve(null) });
+			uni.request({ url: full, method: 'GET', timeout: 10000, dataType: 'json', success: (res:any)=> resolve(res?.data), fail: (err:any)=> { try{ console.warn('AMap request failed', full, err); }catch{} resolve(null); } });
 		} catch { resolve(null); }
 	});
 }
 
 async function updateStoreDistance(){
-	const key = readEnv('AMAP_WEB_KEY') || readEnv('AMAP_KEY') || readEnv('VITE_AMAP_KEY');
-	const storeCoord = parseLngLat(readEnv('STORE_LOCATION'));
-	if (!key || !storeCoord) { distanceText.value = '距离获取失败'; return; }
+	// 显示进行中的状态
+	distanceText.value = '定位中…';
 	// 仅小程序内获取定位
 	// #ifdef MP-WEIXIN
 	try {
 		await new Promise<void>((resolve)=>{
-			wx.getLocation({
-				type: 'wgs84',
-				isHighAccuracy: true,
-				highAccuracyExpireTime: 5000,
-				success: async (res:any) => {
-					try{
-						const gpsLng = Number(res?.longitude); const gpsLat = Number(res?.latitude);
-						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
-						// 坐标转换（WGS84->GCJ02/高德）
-						const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
-						const locStr = String(convertResp?.locations||'').trim();
-						const userConv = parseLngLat(locStr);
-						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
-						// 驾车路径规划（策略10）
-						const driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
-							key,
-							origin: `${originLng},${originLat}`,
-							destination: `${storeCoord.lng},${storeCoord.lat}`,
-							strategy: 10,
-							extensions: 'base'
-						});
-						const path = (driveResp?.route?.paths||[])[0] || {};
-						const distanceM = Number(path?.distance||0);
-						const durationS = Number(path?.duration||0);
-						if (!isFinite(distanceM) || distanceM<=0) { distanceText.value = '距离获取失败'; resolve(); return; }
-						const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
-						const min = Math.max(1, Math.round(durationS/60));
-						distanceText.value = `驾车 ${km}km · 约 ${min} 分钟`;
-						resolve();
-					}catch{ distanceText.value = '距离获取失败'; resolve(); }
-				},
-				fail: ()=>{ distanceText.value = '定位未授权'; resolve(); }
-			});
+			try{
+				try { uni.authorize({ scope: 'scope.userLocation', complete: ()=>{} }); } catch {}
+				uni.getLocation({
+					type: 'wgs84',
+					isHighAccuracy: true,
+					highAccuracyExpireTime: 5000,
+					success: async (res:any) => {
+						try{
+							const gpsLng = Number(res?.longitude); const gpsLat = Number(res?.latitude);
+							if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
+							// 读取配置（放在定位之后，确保先触发授权弹窗）
+							const key = readAmapKey();
+							const storeCoord = parseLngLat(readStoreLocation());
+							if (!key || !storeCoord) { distanceText.value = '配置缺失'; resolve(); return; }
+							const locs = `${gpsLng.toFixed(6)},${gpsLat.toFixed(6)}`;
+							// 坐标转换（WGS84->GCJ02/高德）
+							distanceText.value = '坐标转换中…';
+							const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: locs, coordsys: 'gps' });
+							if (!convertResp || String(convertResp?.status) !== '1') { distanceText.value = '坐标转换失败'; resolve(); return; }
+							const locStr = String(convertResp?.locations||'').trim();
+							const userConv = parseLngLat(locStr);
+							const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
+							// 路线规划2.0 驾车
+							distanceText.value = '路径规划中…';
+							let driveResp = await requestJSON(`${AMAP_API_BASE}/v5/direction/driving`, {
+								key,
+								origin: `${originLng},${originLat}`,
+								destination: `${storeCoord.lng},${storeCoord.lat}`,
+								show_fields: 'cost'
+							});
+							if (!driveResp || String(driveResp?.status) !== '1') {
+								// 回退到 v3 驾车
+								driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
+									key,
+									origin: `${originLng},${originLat}`,
+									destination: `${storeCoord.lng},${storeCoord.lat}`,
+									strategy: 10,
+									extensions: 'base'
+								});
+							}
+							const path = (driveResp?.route?.paths||[])[0] || {};
+							const distanceM = Number(path?.distance||0);
+							const durationS = Number(path?.cost?.duration||path?.duration||0);
+							if (!isFinite(distanceM) || distanceM<=0) {
+								const kmLine = haversineKm({lng:originLng,lat:originLat}, {lng:storeCoord.lng,lat:storeCoord.lat});
+								if (isFinite(kmLine)) { distanceText.value = `直线 ${Math.max(0.1, Math.round(kmLine*10)/10)}km`; resolve(); return; }
+								distanceText.value = '距离获取失败'; resolve(); return;
+							}
+							const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
+							const min = Math.max(1, Math.round(durationS/60));
+							distanceText.value = `距离${km}km.驾车预计${min}分钟`;
+							resolve();
+						}catch{ distanceText.value = '距离获取失败'; resolve(); }
+					},
+					fail: ()=>{ distanceText.value = '定位未授权'; resolve(); }
+				});
+			}catch{ distanceText.value = '定位失败'; resolve(); }
 		});
 	} catch { distanceText.value = '定位失败'; }
 	// #endif
-	// H5 环境：使用浏览器 Geolocation
+	// H5 环境：统一使用 uni.getLocation 以触发系统定位授权
 	// #ifdef H5
 	try {
-		await new Promise<void>((resolve)=>{
+		await new Promise<void>(async (resolve)=>{
 			try{
-				if (typeof navigator === 'undefined' || !navigator?.geolocation){ distanceText.value = '定位不可用'; resolve(); return; }
-				navigator.geolocation.getCurrentPosition(async (pos: any)=>{
-					try{
-						const gpsLat = Number(pos?.coords?.latitude); const gpsLng = Number(pos?.coords?.longitude);
-						if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
-						const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: `${gpsLng},${gpsLat}`, coordsys: 'gps' });
-						const locStr = String(convertResp?.locations||'').trim();
-						const userConv = parseLngLat(locStr);
-						const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
-						const driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
-							key,
-							origin: `${originLng},${originLat}`,
-							destination: `${storeCoord.lng},${storeCoord.lat}`,
-							strategy: 10,
-							extensions: 'base'
-						});
-						const path = (driveResp?.route?.paths||[])[0] || {};
-						const distanceM = Number(path?.distance||0);
-						const durationS = Number(path?.duration||0);
-						if (!isFinite(distanceM) || distanceM<=0) { distanceText.value = '距离获取失败'; resolve(); return; }
-						const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
-						const min = Math.max(1, Math.round(durationS/60));
-						distanceText.value = `驾车 ${km}km · 约 ${min} 分钟`;
-						resolve();
-					}catch{ distanceText.value = '距离获取失败'; resolve(); }
-				}, ()=>{ distanceText.value = '定位未授权'; resolve(); }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+				try { await new Promise(r => uni.authorize({ scope: 'scope.userLocation', complete: ()=> r(null) })); } catch {}
+				uni.getLocation({
+					type: 'wgs84',
+					isHighAccuracy: true,
+					highAccuracyExpireTime: 5000,
+					success: async (pos:any)=>{
+						try{
+							const gpsLng = Number(pos?.longitude); const gpsLat = Number(pos?.latitude);
+							if (!isFinite(gpsLng) || !isFinite(gpsLat)) { distanceText.value = '定位失败'; resolve(); return; }
+							// 读取配置（放在定位之后，确保先触发授权弹窗）
+							const key = readAmapKey();
+							const storeCoord = parseLngLat(readStoreLocation());
+							if (!key || !storeCoord) { distanceText.value = '配置缺失'; resolve(); return; }
+							const locs = `${gpsLng.toFixed(6)},${gpsLat.toFixed(6)}`;
+							distanceText.value = '坐标转换中…';
+							const convertResp = await requestJSON(`${AMAP_API_BASE}/v3/assistant/coordinate/convert`, { key, locations: locs, coordsys: 'gps' });
+							if (!convertResp || String(convertResp?.status) !== '1') { distanceText.value = '坐标转换失败'; resolve(); return; }
+							const locStr = String(convertResp?.locations||'').trim();
+							const userConv = parseLngLat(locStr);
+							const originLng = userConv?.lng ?? gpsLng; const originLat = userConv?.lat ?? gpsLat;
+							distanceText.value = '路径规划中…';
+							let driveResp = await requestJSON(`${AMAP_API_BASE}/v5/direction/driving`, {
+								key,
+								origin: `${originLng},${originLat}`,
+								destination: `${storeCoord.lng},${storeCoord.lat}`,
+								show_fields: 'cost'
+							});
+							if (!driveResp || String(driveResp?.status) !== '1') {
+								// 回退到 v3
+								driveResp = await requestJSON(`${AMAP_API_BASE}/v3/direction/driving`, {
+									key,
+									origin: `${originLng},${originLat}`,
+									destination: `${storeCoord.lng},${storeCoord.lat}`,
+									strategy: 10,
+									extensions: 'base'
+								});
+							}
+							const path = (driveResp?.route?.paths||[])[0] || {};
+							const distanceM = Number(path?.distance||0);
+							const durationS = Number(path?.cost?.duration||path?.duration||0);
+							if (!isFinite(distanceM) || distanceM<=0) {
+								const kmLine = haversineKm({lng:originLng,lat:originLat}, {lng:storeCoord.lng,lat:storeCoord.lat});
+								if (isFinite(kmLine)) { distanceText.value = `直线 ${Math.max(0.1, Math.round(kmLine*10)/10)}km`; resolve(); return; }
+								distanceText.value = '距离获取失败'; resolve(); return;
+							}
+							const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
+							const min = Math.max(1, Math.round(durationS/60));
+							distanceText.value = `距离${km}km.驾车预计${min}分钟`;
+							resolve();
+						}catch{ distanceText.value = '距离获取失败'; resolve(); }
+					}, fail: ()=>{ distanceText.value = '定位未授权'; resolve(); }
+				});
 			}catch{ distanceText.value = '定位失败'; resolve(); }
 		});
 	} catch { distanceText.value = '定位失败'; }

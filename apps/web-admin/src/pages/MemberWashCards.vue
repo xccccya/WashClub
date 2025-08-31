@@ -157,7 +157,7 @@
 				</el-table-column>
 				<el-table-column label="关联订单" width="140">
 					<template #default="{ row }">
-						<el-button v-if="row.reason==='PURCHASE_ADD' && row.purchaseOrderId" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
+						<el-button v-if="(row.reason==='PURCHASE_ADD' && row.purchaseOrderId) || (row.reason==='REFUND_DEDUCT' && row.purchaseOrderId)" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
 						<span v-else>—</span>
 					</template>
 				</el-table-column>
@@ -272,7 +272,8 @@ async function fetchLogs(){ if (!current.value) return; const res = await http<{
 function onLogsPageChange(p:number){ logsPage.value = p; fetchLogs(); }
 
 function gotoOrder(orderId: number){
-    try { window.open(`/orders/${orderId}`, '_blank'); } catch { location.href = `/orders/${orderId}`; }
+    const path = `/admin/orders/${orderId}`;
+    try { window.open(path, '_blank'); } catch { location.href = path; }
 }
 
 onMounted(()=>{ fetchMembers(); fetchList(); });

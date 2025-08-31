@@ -6,6 +6,7 @@
     "versionCode" : "100",
     "vueVersion" : "3",
     "transformPx" : true,
+    "sourceRoot" : "src",
     "mp-weixin" : {
         "appid" : "wx990c770d491db1d3",
         "setting" : {
@@ -21,8 +22,14 @@
     },
     "h5" : {
         "title" : "巨科汽车美容会员H5",
+        "router" : {
+            "mode" : "hash"
+        },
         "devServer" : {
             "https" : false
+        },
+        "sdkConfigs" : {
+            "maps" : {}
         }
     },
     "locale" : "zh-Hans"

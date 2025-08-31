@@ -3,7 +3,7 @@
 		<view class="box" @tap="openKeyboard">
 			<view class="cells">
 				<text v-for="(ch, idx) in cells" :key="idx" class="cell" :class="{ first: idx===0, nev: idx===7 }">{{ ch || '' }}</text>
-				<view v-if="isNewEnergy" class="nev-badge"><text v-for="c in nevChars" :key="c">{{ c }}</text></view>
+				<view v-if="isNewEnergy" class="nev-badge"><text class="nev-badge-text" v-for="c in nevChars" :key="c">{{ c }}</text></view>
 			</view>
 			<text class="placeholder" :class="{ hidden: hasPreviewPlate }">点击输入车牌</text>
 		</view>
@@ -143,7 +143,7 @@ function updatePreviewFromCells(){
 .placeholder { position:absolute; left: 18rpx; top: 18rpx; color:#9ca3af; font-size: 24rpx; transition: opacity 220ms ease; opacity: 1; pointer-events: none; }
 .placeholder.hidden { opacity: 0; }
 .nev-badge { display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 4rpx 4rpx; border-radius: 6rpx; background:#e6fff4; color:#16a34a; font-size: 18rpx; margin-left: 6rpx; }
-.nev-badge text { line-height: 18rpx; }
+.nev-badge-text { line-height: 18rpx; }
 
 .kb-mask { position: fixed; left:0; right:0; top:0; bottom:0; background:rgba(0,0,0,0.35); z-index: 999; }
 .kb-panel { position: fixed; left:0; right:0; bottom:0; background:#fff; border-radius: 24rpx 24rpx 0 0; padding: 16rpx; z-index: 1000; }

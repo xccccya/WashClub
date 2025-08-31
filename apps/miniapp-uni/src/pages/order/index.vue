@@ -58,11 +58,13 @@
 					<view class="btn ghost" @tap="confirmCancel(o)">取消订单</view>
 					<view class="btn primary" @tap="choosePay(o)">去支付</view>
 				</template>
-				<view v-else-if="canReceive(o)" class="btn primary" @tap="confirmReceive(o)">确认收货</view>
-				<view v-else-if="canReview(o)" class="btn primary" @tap="goReview(o)">去评价</view>
-				<view v-else-if="canViewReview(o)" class="btn ghost" @tap="viewReview(o)">查看评价</view>
-				<view v-else-if="canAfterSales(o)" class="btn ghost" @tap="openAfterSales(o, 'AUTO')">申请售后</view>
-				<view v-else-if="canRefund(o)" class="btn ghost" @tap="openAfterSales(o, 'REFUND')">申请退款</view>
+				<template v-else>
+					<view v-if="canReceive(o)" class="btn primary" @tap="confirmReceive(o)">确认收货</view>
+					<!-- 已完成订单仅允许申请售后，并且展示在评价按钮之前 -->
+					<view v-if="canAfterSales(o)" class="btn ghost" @tap="openAfterSales(o, 'AUTO')">申请售后</view>
+					<view v-if="canReview(o)" class="btn primary" @tap="goReview(o)">去评价</view>
+					<view v-if="canViewReview(o)" class="btn ghost" @tap="viewReview(o)">查看评价</view>
+				</template>
 			</view>
 		</view>
 	</view>
