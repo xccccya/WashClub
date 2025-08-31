@@ -6,7 +6,7 @@ import App from './App.vue';
 import Home from './pages/Home.vue';
 
 const router = createRouter({
-	history: createWebHistory(),
+	history: createWebHistory('/pos'),
 	routes: [
 		{ path: '/', component: Home },
 	],

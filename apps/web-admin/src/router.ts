@@ -27,7 +27,7 @@ import MemberCoupons from './pages/MemberCoupons.vue';
 import MemberAddresses from './pages/MemberAddresses.vue';
 
 const router = createRouter({
-	history: createWebHistory(),
+	history: createWebHistory('/admin'),
 	routes: [
 		{ path: '/login', component: Login },
 		{
