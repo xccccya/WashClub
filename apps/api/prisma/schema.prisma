@@ -29,6 +29,9 @@ model User {
 
   // 反向关联：回复的评价
   orderReviewsReplied OrderReview[] @relation("UserRepliesOrderReviews")
+
+  // 反向关联：操作的优惠券流水
+  couponFlowsOperated CouponFlowLog[] @relation("UserOperatesCouponFlows")
 }
 
 model Member {
@@ -69,6 +72,9 @@ model Member {
   orderReviews OrderReview[]
   // 反向关联：会员优惠券实例
   memberCoupons MemberCoupon[]
+
+  // 反向关联：优惠券流水
+  couponFlows CouponFlowLog[]
 }
 
 model MemberLevel {
@@ -249,33 +255,34 @@ model ServiceQueueItem {
   plateNumber String
   guest       Boolean @default(false)
 
-  status           ServiceQueueStatus @default(IN_QUEUE)
-  currentTaskIndex Int                @default(0)
-  startedAt        DateTime?
-  finishedAt       DateTime?
+  // 排队与执行状态
+  status            ServiceQueueStatus @default(IN_QUEUE)
+  orderSort         Int                @default(0)
+  currentTaskIndex  Int                @default(-1)
+  startedAt         DateTime?
+  finishedAt        DateTime?
 
-  orderSort Int @default(0)
-
+  // 任务明细
   tasks ServiceTask[]
 }
 
 model ServiceTask {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         Int               @id @default(autoincrement())
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   queueItemId Int
-  queueItem   ServiceQueueItem @relation(fields: [queueItemId], references: [id])
+  queueItem   ServiceQueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
 
-  name        String
-  durationMin Int               @default(5)
   orderIndex  Int               @default(0)
+  name        String
+  durationMin Int               @default(0)
   status      ServiceTaskStatus @default(PENDING)
   startedAt   DateTime?
   finishedAt  DateTime?
 
   @@index([queueItemId])
-  @@index([status])
+  @@index([orderIndex])
 }
 
 // 短信验证码记录
@@ -443,6 +450,8 @@ model Coupon {
   products Product[]
   // 反向关联：被领取的会员优惠券
   memberCoupons MemberCoupon[]
+  // 反向关联：优惠券流水
+  couponFlows   CouponFlowLog[]
 }
 
 // 卡券与可用商品的多对多关联
@@ -479,6 +488,9 @@ model MemberCoupon {
   // 可选：用于记录使用到的订单
   orderId   Int?
   order     Order?    @relation(fields: [orderId], references: [id])
+
+  // 反向关联：优惠券流水
+  couponFlows CouponFlowLog[]
 
   @@index([memberId])
   @@index([couponId])
@@ -639,6 +651,8 @@ model Order {
   afterSalesRequests AfterSalesRequest[] @relation("OrderToAfterSales")
   refundRecords      RefundRecord[]      @relation("OrderToRefundRecords")
   couponRestoreLogs  CouponRestoreLog[]
+  // 反向关联：优惠券流水
+  couponFlows        CouponFlowLog[]
   // 订单时间线（状态流转记录）
   timelines          OrderTimeline[]
 
@@ -795,6 +809,47 @@ model CouponRestoreLog {
 
   @@index([memberId])
   @@index([orderId])
+}
+
+// 通用优惠券流水（不含洗车卡）：记录发放/领取/使用/回退/作废/过期/调整等
+enum CouponFlowAction {
+  ISSUE    // 后台发放
+  CLAIM    // 小程序领取
+  USE      // 订单使用
+  RESTORE  // 退款回退
+  REVOKE   // 后台删除/作废
+  EXPIRE   // 到期失效（预留）
+  ADJUST   // 后台调整（预留）
+}
+
+model CouponFlowLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // 关联主体
+  memberId       Int?
+  member         Member?       @relation(fields: [memberId], references: [id])
+  orderId        Int?
+  order          Order?        @relation(fields: [orderId], references: [id])
+  couponId       Int?
+  coupon         Coupon?       @relation(fields: [couponId], references: [id])
+  memberCouponId Int?
+  memberCoupon   MemberCoupon? @relation(fields: [memberCouponId], references: [id])
+
+  // 动作与批量数量（如一次性发放多张）
+  action CouponFlowAction
+  count  Int              @default(1)
+
+  // 备注与快照
+  remark   String?
+  snapshot Json?
+
+  operatorUserId Int?
+  operatorUser   User? @relation("UserOperatesCouponFlows", fields: [operatorUserId], references: [id])
+
+  @@index([memberId])
+  @@index([orderId])
+  @@index([couponId])
 }
 
 // 订单时间线：记录订单状态/支付/履约等关键节点

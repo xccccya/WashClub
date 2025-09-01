@@ -55,21 +55,14 @@ export class OrderService {
             await this.prisma.member.update({ where: { id: order.memberId }, data: { points: { increment: points } } });
             await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'POINTS_ROLLBACK', remark: `返还积分 ${points}`, operatorUserId: operatorUserId ?? null });
         }
-        // 优惠券恢复：全额退款时恢复为未使用
-        const info: any = (order.couponInfo || null) as any;
-        const mcId = Number(info?.id || 0);
-        if (mcId > 0){
-            try{
-                const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: mcId } });
-                if (mc && mc.usedAt && mc.orderId === order.id){
-                    await (this.prisma as any).memberCoupon.update({ where: { id: mcId }, data: { usedAt: null, orderId: null } });
-                    await this.prisma.couponRestoreLog.create({ data: { memberId: order.memberId, orderId: order.id, couponSnapshot: order.couponInfo as any, remark: '全额退款恢复优惠券' } });
-                    await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_RESTORE', remark: '优惠券已恢复', operatorUserId: operatorUserId ?? null });
-                }
-            }catch{
-                await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_NOTE', remark: '优惠券恢复失败', operatorUserId: operatorUserId ?? null });
+        // 恢复所有与该订单绑定且已使用的优惠券
+        try{
+            const usedMcs: any[] = await (this.prisma as any).memberCoupon.findMany({ where: { orderId: order.id, usedAt: { not: null } }, include: { coupon: true } });
+            if (usedMcs && usedMcs.length){
+                for (const mc of usedMcs){ await (this.prisma as any).memberCoupon.update({ where: { id: mc.id }, data: { usedAt: null, orderId: null } }); try{ await (this.prisma as any).couponFlowLog.create({ data: { action: 'RESTORE', memberId: order.memberId, orderId: order.id, couponId: mc.couponId ?? null, memberCouponId: mc.id, count: 1, remark: '全额退款恢复优惠券', snapshot: order.couponInfo as any } }); }catch{} }
+                await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_RESTORE', remark: `恢复${usedMcs.length}张`, operatorUserId: operatorUserId ?? null });
             }
-        }
+        }catch{ await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'COUPON_NOTE', remark: '优惠券恢复失败', operatorUserId: operatorUserId ?? null }); }
     }
 
     async verifyRefundAllowed(orderId: number, amountYuan?: number | null){
@@ -366,9 +359,11 @@ export class OrderService {
             // 标记用券
             if (memberCoupon) {
                 await (this.prisma as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
+                try{ const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (this.prisma as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用' } }); }catch{}
             } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
                 for (const cid of memberCouponIds) {
                     await (this.prisma as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
+                    try{ const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); await (this.prisma as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用' } }); }catch{}
                 }
             }
             return { id: order.id, no: order.no };
@@ -590,49 +585,24 @@ export class OrderService {
             if (times <= 0) continue;
             const change = times * it.quantity;
             const remark = `购买入账（订单号：${order.no}）`;
-            // 为会员发放洗车卡，按数量叠加，并写 WashCardLog
+            // 计算有效期
+            let expiryAt: Date | null = null;
+            if (coupon.expiryType === 'FIXED') { expiryAt = coupon.endAt ? new Date(coupon.endAt as any) : null; }
+            else if (coupon.expiryType === 'AFTER_RECEIVE') { const now2 = new Date(); expiryAt = (coupon.validDays && coupon.validDays > 0) ? new Date(now2.getTime() + Number(coupon.validDays) * 24 * 60 * 60 * 1000) : null; }
+            else { expiryAt = null; }
             const existing = await this.prisma.washCard.findFirst({ where: { ownerMemberId: order.memberId, name: coupon.name } });
             if (existing) {
                 const before = existing.remainingTimes;
                 const afterRemaining = before + change;
-                await this.prisma.washCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + change, remainingTimes: afterRemaining } });
-                await this.prisma.washCardLog.create({
-                    data: {
-                        cardId: existing.id,
-                        action: 'ADD' as any,
-                        reason: 'PURCHASE_ADD' as any,
-                        change,
-                        beforeRemaining: before,
-                        afterRemaining,
-                        remark,
-                        purchaseOrderId: order.id,
-                    },
-                });
+                let nextExpiry: Date | null = existing.expiryAt ?? null;
+                if (expiryAt) { if (!nextExpiry || new Date(expiryAt) > new Date(nextExpiry)) nextExpiry = expiryAt; }
+                await this.prisma.washCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + change, remainingTimes: afterRemaining, expiryAt: nextExpiry } });
+                await this.prisma.washCardLog.create({ data: { cardId: existing.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: before, afterRemaining: afterRemaining, remark, purchaseOrderId: order.id } });
             } else {
-                // 生成唯一8位卡号
-                async function gen(tx: PrismaService){
-                    for (let i=0;i<20;i++){
-                        const n = Math.floor(Math.random()*100000000);
-                        const candidate = String(n).padStart(8,'0');
-                        const exists = await tx.washCard.findUnique({ where: { cardNo: candidate } }).catch(()=>null);
-                        if (!exists) return candidate;
-                    }
-                    return String(Date.now()).slice(-8);
-                }
+                async function gen(tx: PrismaService){ for (let i=0;i<20;i++){ const n = Math.floor(Math.random()*100000000); const candidate = String(n).padStart(8,'0'); const exists = await tx.washCard.findUnique({ where: { cardNo: candidate } }).catch(()=>null); if (!exists) return candidate; } return String(Date.now()).slice(-8); }
                 const cardNo = await gen(this.prisma);
-                const created = await this.prisma.washCard.create({ data: { ownerMemberId: order.memberId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo } });
-                await this.prisma.washCardLog.create({
-                    data: {
-                        cardId: created.id,
-                        action: 'ADD' as any,
-                        reason: 'PURCHASE_ADD' as any,
-                        change,
-                        beforeRemaining: 0,
-                        afterRemaining: change,
-                        remark,
-                        purchaseOrderId: order.id,
-                    },
-                });
+                const created = await this.prisma.washCard.create({ data: { ownerMemberId: order.memberId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo, expiryAt } });
+                await this.prisma.washCardLog.create({ data: { cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark, purchaseOrderId: order.id } });
             }
         }
         // 扣减库存（实体商品 PHYSICAL 与 虚拟卡券 VIRTUAL_CARD）并写入库存流水：ORDER_DEDUCT
@@ -922,7 +892,7 @@ export class OrderService {
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'SHIPPED', operatorUserId });
         const remark = [payload?.companyName || payload?.companyCode, payload?.trackingNo].filter(Boolean).join(' / ');
         if (remark) await this.writeTimeline({ orderId: id, event: 'LOGISTICS', value: 'SHIPPED', remark, operatorUserId });
-        // 若存在最近的“换货”售后，发货后自动完结该售后
+        // 若存在最近的"换货"售后，发货后自动完结该售后
         await this.completeLatestAftersalesByOrderAndType(id, 'EXCHANGE', operatorUserId ?? null);
         return updatedShip;
     }
@@ -956,7 +926,7 @@ export class OrderService {
         const updatedFinish = await this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'DONE' as any, status: 'FULFILLED' } });
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'DONE', operatorUserId });
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'FULFILLED', operatorUserId });
-        // 若存在最近的“重新服务”售后，服务完成后自动完结
+        // 若存在最近的"重新服务"售后，服务完成后自动完结
         await this.completeLatestAftersalesByOrderAndType(id, 'RE_SERVICE', operatorUserId ?? null);
         return updatedFinish;
     }

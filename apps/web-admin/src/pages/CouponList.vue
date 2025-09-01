@@ -31,8 +31,9 @@
 			<el-table-column prop="endAt" label="结束时间" width="200">
 				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
 			</el-table-column>
-			<el-table-column label="操作" width="360">
+			<el-table-column label="操作" width="440">
 				<template #default="{ row }">
+					<el-button size="small" @click="openView(row)">查看</el-button>
 					<el-button size="small" @click="openEdit(row)">编辑</el-button>
 					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
 					<el-button size="small" type="success" @click="openIssue(row)">发放</el-button>
@@ -55,7 +56,6 @@
 				</el-form-item>
 				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
 				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="1" :step="1" :precision="0" /></el-form-item>
-
 				<el-form-item label="图片">
 					<div style="display:flex;gap:8px;align-items:center;width:100%">
 						<el-input v-model="form.imageUrl" placeholder="图片URL或上传" />
@@ -104,13 +104,7 @@
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item label="最低小计门槛"><el-input-number v-model="form.ruleMinSubtotal" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
-					<el-alert
-						type="info"
-						:closable="false"
-						show-icon
-						title="生效说明（请先读完再保存）"
-						description="选择‘规则类型’后，仅按规则计算优惠，面值和最低订单额不再生效；适用范围选‘指定商品’时，订单中至少包含被指定商品，且优惠仅按这些商品的小计计算；需先达到最低小计门槛，百分比折扣可设置封顶，单券优惠不超过其计算口径金额；多券叠加需全部勾选‘可与其他券同用’，且总优惠不超过整单小计；‘领取后生效’必须填写正整数的有效天数。"
-					/>
+					<el-alert type="info" :closable="false" show-icon title="生效说明（请先读完再保存）" description="选择‘规则类型’后，仅按规则计算优惠，面值和最低订单额不再生效；适用范围选‘指定商品’时，订单中至少包含被指定商品，且优惠仅按这些商品的小计计算；需先达到最低小计门槛，百分比折扣可设置封顶，单券优惠不超过其计算口径金额；多券叠加需全部勾选‘可与其他券同用’，且总优惠不超过整单小计；‘领取后生效’必须填写正整数的有效天数。" />
 					<el-form-item label="规则JSON(高级)"><el-input type="textarea" :rows="3" v-model="form.ruleJsonText" placeholder='{"kind":"direct","amount":5,"cap":20,"applyBase":"auto"}' /></el-form-item>
 					<el-form-item label="小程序可领"><el-switch v-model="form.allowMiniappClaim" /></el-form-item>
 					<el-form-item label="叠加策略">
@@ -149,6 +143,21 @@
 				<el-button type="primary" :loading="issuing" @click="doIssue">发放</el-button>
 			</template>
 		</el-dialog>
+
+		<!-- 查看详情 -->
+		<el-dialog v-model="viewShow" title="卡券详情" width="640px">
+			<div v-if="view">
+				<el-descriptions :column="2" border>
+					<el-descriptions-item label="ID">{{ view.id }}</el-descriptions-item>
+					<el-descriptions-item label="名称">{{ view.name }}</el-descriptions-item>
+					<el-descriptions-item label="类型">{{ zhType(view.type) }}</el-descriptions-item>
+					<el-descriptions-item label="有效期">{{ view.expiryType==='FIXED' ? (formatLocal(view.startAt)+' ~ '+formatLocal(view.endAt)) : (view.expiryType==='AFTER_RECEIVE' ? ('领取后'+(view.validDays||'-')+'天') : '永久有效') }}</el-descriptions-item>
+					<el-descriptions-item label="已领取">{{ view.stats?.issuedCount ?? '-' }}</el-descriptions-item>
+					<el-descriptions-item label="已使用">{{ view.stats?.usedCount ?? '-' }}</el-descriptions-item>
+					<el-descriptions-item label="剩余发行">{{ view.stats?.remainingIssue ?? '-' }}</el-descriptions-item>
+				</el-descriptions>
+			</div>
+		</el-dialog>
 	</div>
 </template>
 
@@ -170,39 +179,7 @@ async function fetchList(){ list.value = await http('/coupons', { query: { group
 async function fetchProducts(){ productOptions.value = await http('/store/products', { query: { enabled: true } }); }
 
 const show = ref(false);
-const form = ref<any>({
-	id: 0,
-	type: 'COUPON',
-	name: '',
-	groupId: undefined,
-	enabled: true,
-	expiryType: 'PERMANENT',
-	startAt: '',
-	endAt: '',
-	validDays: undefined,
-	imageUrl: '',
-	description: '',
-	adminRemark: '',
-	// 优惠券专用
-	faceValue: undefined,
-	perMemberLimit: undefined,
-	minOrderAmount: undefined,
-	applyScope: 'ALL',
-	applicableProductIds: [],
-	ruleKind: 'none',
-	ruleAmount: undefined,
-	rulePercent: undefined,
-	ruleCap: undefined,
-	ruleApplyBase: 'auto',
-	ruleMinSubtotal: undefined,
-	ruleJsonText: '',
-	allowMiniappClaim: false,
-	allowCombine: false,
-	allowStackWithPoints: true,
-	allowStackWithMemberDiscount: true,
-	// 计次卡
-	totalTimes: 0,
-});
+const form = ref<any>({ id: 0, type: 'COUPON', name: '', groupId: undefined, enabled: true, expiryType: 'PERMANENT', startAt: '', endAt: '', validDays: undefined, imageUrl: '', description: '', adminRemark: '', faceValue: undefined, perMemberLimit: undefined, minOrderAmount: undefined, applyScope: 'ALL', applicableProductIds: [], ruleKind: 'none', ruleAmount: undefined, rulePercent: undefined, ruleCap: undefined, ruleApplyBase: 'auto', ruleMinSubtotal: undefined, ruleJsonText: '', allowMiniappClaim: false, allowCombine: false, allowStackWithPoints: true, allowStackWithMemberDiscount: true, totalTimes: 0 });
 const range = ref<[Date, Date] | ''>('');
 
 // 发放弹窗状态
@@ -213,163 +190,30 @@ const issueCount = ref(1);
 const issuing = ref(false);
 
 function openIssue(row:any){ issueCouponId.value = row.id; issueMemberIds.value = []; issueCount.value = 1; issueShow.value = true; }
-async function doIssue(){
-    if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; }
-    issuing.value = true;
-    try{
-        for (const mid of issueMemberIds.value){
-            await http(`/coupons/${issueCouponId.value}/issue`, { method:'POST', body: { memberId: mid, count: issueCount.value } });
-        }
-        issueShow.value = false; ElMessage.success('已发放');
-    } finally { issuing.value = false; }
-}
+async function doIssue(){ if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; } issuing.value = true; try{ for (const mid of issueMemberIds.value){ await http(`/coupons/${issueCouponId.value}/issue`, { method:'POST', body: { memberId: mid, count: issueCount.value } }); } issueShow.value = false; ElMessage.success('已发放'); } finally { issuing.value = false; } }
 
-function openCreate(){
-	form.value = {
-		id: 0,
-		type: 'COUPON',
-		name: '',
-		groupId: undefined,
-		enabled: true,
-		expiryType: 'PERMANENT',
-		startAt: '',
-		endAt: '',
-		validDays: undefined,
-		imageUrl: '',
-		description: '',
-		adminRemark: '',
-		faceValue: undefined,
-		issueTotal: undefined,
-		perMemberLimit: undefined,
-		minOrderAmount: undefined,
-		applyScope: 'ALL',
-		applicableProductIds: [],
-		ruleKind: 'none',
-		ruleAmount: undefined,
-		rulePercent: undefined,
-		ruleCap: undefined,
-		ruleApplyBase: 'auto',
-		ruleMinSubtotal: undefined,
-		ruleJsonText: '',
-		allowMiniappClaim: false,
-		allowCombine: false,
-		allowStackWithPoints: true,
-		allowStackWithMemberDiscount: true,
-		totalTimes: 0,
-	};
-	range.value='';
-	show.value = true;
-}
-function openEdit(row:any){
-	form.value = {
-		id: row.id,
-		type: row.type,
-		name: row.name,
-		groupId: row.groupId,
-		enabled: row.enabled,
-		expiryType: row.type==='WASH_CARD' ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'),
-		startAt: row.startAt,
-		endAt: row.endAt,
-		validDays: row.validDays,
-		imageUrl: row.imageUrl || '',
-		description: row.description || '',
-		adminRemark: row.adminRemark || '',
-		faceValue: row.faceValue,
-		issueTotal: row.issueTotal,
-		perMemberLimit: row.perMemberLimit,
-		minOrderAmount: row.minOrderAmount,
-		applyScope: row.applyScope || 'ALL',
-		applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [],
-		ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none',
-		ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined,
-		rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined,
-		ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined,
-		ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto',
-		ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined,
-		ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '',
-		allowMiniappClaim: !!row.allowMiniappClaim,
-		allowCombine: !!row.allowCombine,
-		allowStackWithPoints: row.allowStackWithPoints !== false,
-		allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false,
-		totalTimes: row.totalTimes,
-	};
-	if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any;
-	show.value = true;
-}
+function openCreate(){ form.value = { id: 0, type: 'COUPON', name: '', groupId: undefined, enabled: true, expiryType: 'PERMANENT', startAt: '', endAt: '', validDays: undefined, imageUrl: '', description: '', adminRemark: '', faceValue: undefined, issueTotal: undefined, perMemberLimit: undefined, minOrderAmount: undefined, applyScope: 'ALL', applicableProductIds: [], ruleKind: 'none', ruleAmount: undefined, rulePercent: undefined, ruleCap: undefined, ruleApplyBase: 'auto', ruleMinSubtotal: undefined, ruleJsonText: '', allowMiniappClaim: false, allowCombine: false, allowStackWithPoints: true, allowStackWithMemberDiscount: true, totalTimes: 0, }; range.value=''; show.value = true; }
+function openEdit(row:any){ form.value = { id: row.id, type: row.type, name: row.name, groupId: row.groupId, enabled: row.enabled, expiryType: row.type==='WASH_CARD' ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'), startAt: row.startAt, endAt: row.endAt, validDays: row.validDays, imageUrl: row.imageUrl || '', description: row.description || '', adminRemark: row.adminRemark || '', faceValue: row.faceValue, issueTotal: row.issueTotal, perMemberLimit: row.perMemberLimit, minOrderAmount: row.minOrderAmount, applyScope: row.applyScope || 'ALL', applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [], ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none', ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined, rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined, ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined, ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto', ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined, ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '', allowMiniappClaim: !!row.allowMiniappClaim, allowCombine: !!row.allowCombine, allowStackWithPoints: row.allowStackWithPoints !== false, allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false, totalTimes: row.totalTimes, }; if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any; show.value = true; }
+
+const viewShow = ref(false);
+const view = ref<any>(null);
+async function openView(row:any){ view.value = await http(`/coupons/${row.id}`); viewShow.value = true; }
 
 watch(range, (v)=>{ if (Array.isArray(v)) { form.value.startAt = v[0]; form.value.endAt = v[1]; } else { form.value.startAt=''; form.value.endAt=''; } });
 
-async function save(){
-	if (!form.value.name) { ElMessage.error('请输入名称'); return; }
-	const payload: any = {
-		type: form.value.type,
-		name: form.value.name,
-		groupId: form.value.groupId || null,
-		enabled: form.value.enabled,
-		expiryType: form.value.expiryType,
-		startAt: form.value.expiryType==='FIXED' ? (form.value.startAt || null) : null,
-		endAt: form.value.expiryType==='FIXED' ? (form.value.endAt || null) : null,
-		validDays: form.value.expiryType==='AFTER_RECEIVE' ? (form.value.validDays || null) : null,
-		imageUrl: form.value.imageUrl || null,
-		description: form.value.description || null,
-		adminRemark: form.value.adminRemark || null,
-	};
+async function save(){ if (!form.value.name) { ElMessage.error('请输入名称'); return; } const payload: any = { type: form.value.type, name: form.value.name, groupId: form.value.groupId || null, enabled: form.value.enabled, expiryType: form.value.expiryType, startAt: form.value.expiryType==='FIXED' ? (form.value.startAt || null) : null, endAt: form.value.expiryType==='FIXED' ? (form.value.endAt || null) : null, validDays: form.value.expiryType==='AFTER_RECEIVE' ? (form.value.validDays || null) : null, imageUrl: form.value.imageUrl || null, description: form.value.description || null, adminRemark: form.value.adminRemark || null, };
 	if (form.value.type === 'COUPON') {
-		// 生成 ruleJson（可视化优先，高级JSON覆盖）
 		let built:any = null;
-		if (form.value.ruleKind && form.value.ruleKind !== 'none') {
-			built = { kind: form.value.ruleKind } as any;
-			if (form.value.ruleKind==='direct') built.amount = Number(form.value.ruleAmount||0);
-			if (form.value.ruleKind==='percent') built.percent = Number(form.value.rulePercent||0);
-			if (form.value.ruleKind==='percent' && form.value.ruleCap!=null) built.cap = Number(form.value.ruleCap);
-			if (form.value.ruleApplyBase==='order') built.applyBase = 'order';
-			if (form.value.ruleMinSubtotal!=null) built.minSubtotal = Number(form.value.ruleMinSubtotal);
-		}
-		try {
-			const advanced = form.value.ruleJsonText ? JSON.parse(form.value.ruleJsonText) : null;
-			payload.ruleJson = advanced || built;
-		} catch { ElMessage.error('规则JSON格式错误'); return; }
-		// 规则优先：启用规则时忽略面值与最低订单额
-		if (payload.ruleJson) {
-			payload.faceValue = null;
-			payload.minOrderAmount = null;
-		} else {
-			payload.faceValue = form.value.faceValue ?? null;
-			payload.minOrderAmount = form.value.minOrderAmount ?? null;
-		}
-		payload.issueTotal = form.value.issueTotal ?? null;
-		payload.perMemberLimit = form.value.perMemberLimit ?? null;
-		payload.applyScope = form.value.applyScope;
-		if (form.value.applyScope==='SPECIFIED'){
-			if (!Array.isArray(form.value.applicableProductIds) || form.value.applicableProductIds.length===0){ ElMessage.error('请选择至少一个指定商品'); return; }
-			payload.applicableProductIds = form.value.applicableProductIds;
-		} else { payload.applicableProductIds = []; }
-		payload.allowMiniappClaim = !!form.value.allowMiniappClaim;
-		payload.allowCombine = !!form.value.allowCombine;
-		payload.allowStackWithPoints = form.value.allowStackWithPoints !== false;
-		payload.allowStackWithMemberDiscount = form.value.allowStackWithMemberDiscount !== false;
-	} else {
-		payload.totalTimes = form.value.totalTimes || 0;
-	}
-	if (form.value.id) await http(`/coupons/${form.value.id}`, { method:'PUT', body: payload }); else await http('/coupons', { method:'POST', body: payload });
-	show.value = false; ElMessage.success('已保存'); await fetchList();
-}
+		if (form.value.ruleKind && form.value.ruleKind !== 'none') { built = { kind: form.value.ruleKind } as any; if (form.value.ruleKind==='direct') built.amount = Number(form.value.ruleAmount||0); if (form.value.ruleKind==='percent') built.percent = Number(form.value.rulePercent||0); if (form.value.ruleKind==='percent' && form.value.ruleCap!=null) built.cap = Number(form.value.ruleCap); if (form.value.ruleApplyBase==='order') built.applyBase = 'order'; if (form.value.ruleMinSubtotal!=null) built.minSubtotal = Number(form.value.ruleMinSubtotal); }
+		try { const advanced = form.value.ruleJsonText ? JSON.parse(form.value.ruleJsonText) : null; payload.ruleJson = advanced || built; } catch { ElMessage.error('规则JSON格式错误'); return; }
+		if (payload.ruleJson) { payload.faceValue = null; payload.minOrderAmount = null; } else { payload.faceValue = form.value.faceValue ?? null; payload.minOrderAmount = form.value.minOrderAmount ?? null; }
+		payload.issueTotal = form.value.issueTotal ?? null; payload.perMemberLimit = form.value.perMemberLimit ?? null; payload.applyScope = form.value.applyScope; if (form.value.applyScope==='SPECIFIED'){ if (!Array.isArray(form.value.applicableProductIds) || form.value.applicableProductIds.length===0){ ElMessage.error('请选择至少一个指定商品'); return; } payload.applicableProductIds = form.value.applicableProductIds; } else { payload.applicableProductIds = []; } payload.allowMiniappClaim = !!form.value.allowMiniappClaim; payload.allowCombine = !!form.value.allowCombine; payload.allowStackWithPoints = form.value.allowStackWithPoints !== false; payload.allowStackWithMemberDiscount = form.value.allowStackWithMemberDiscount !== false; }
+	else { payload.totalTimes = form.value.totalTimes || 0; }
+	if (form.value.id) await http(`/coupons/${form.value.id}`, { method:'PUT', body: payload }); else await http('/coupons', { method:'POST', body: payload }); show.value = false; ElMessage.success('已保存'); await fetchList(); }
 
 async function remove(id:number){ await http(`/coupons/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); }
 
-async function onSelectImage(ev: Event){
-	const input = ev.target as HTMLInputElement;
-	if (!input?.files || input.files.length === 0) return;
-	const f = input.files[0];
-	const fd = new FormData();
-	fd.append('file', f);
-	fd.append('dir', 'admin');
-	const token = localStorage.getItem('token') || '';
-	const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: fd });
-	if (!res.ok) { ElMessage.error('上传失败'); return; }
-	const j = await res.json();
-	form.value.imageUrl = j?.url || '';
-}
+async function onSelectImage(ev: Event){ const input = ev.target as HTMLInputElement; if (!input?.files || input.files.length === 0) return; const f = input.files[0]; const fd = new FormData(); fd.append('file', f); fd.append('dir', 'admin'); const token = localStorage.getItem('token') || ''; const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: fd }); if (!res.ok) { ElMessage.error('上传失败'); return; } const j = await res.json(); form.value.imageUrl = j?.url || ''; }
 
 onMounted(async ()=>{ await Promise.all([fetchGroups(), fetchList(), fetchProducts()]); });
 
