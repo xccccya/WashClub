@@ -39,6 +39,19 @@
 				</view>
 			</scroll-view>
 			<view v-if="requiresAddress" class="addr-manage" @tap="gotoAddress">管理地址</view>
+			<!-- 优惠券选择（在支付方式前） -->
+			<view class="block-title">优惠券</view>
+			<view v-if="couponLoading" class="tip">加载可用优惠券...</view>
+			<view v-else-if="applicableCoupons.length===0" class="tip">暂无可用优惠券</view>
+			<view v-else class="coupon-list">
+				<view v-for="c in applicableCoupons" :key="c.id" class="coupon-chip" :class="{ active: selectedCouponIds.has(c.id), disabled: disabledByCombine(c) }" @tap="() => toggleCoupon(c)">
+					<text class="c-name">{{ c.name }}</text>
+					<text class="c-discount">-¥{{ formatPrice(c.discountApplied) }}</text>
+					<text v-if="!c.allowCombine" class="c-tag">不可叠加</text>
+				</view>
+			</view>
+			<view class="tip" v-if="couponDiscount>0">预计优惠：¥{{ formatPrice(couponDiscount) }}，应付：¥{{ payAmountWithCouponText }}</view>
+
 			<!-- 支付方式与备注 -->
 			<view class="block-title">支付方式</view>
 			<view class="pay-row">
@@ -57,9 +70,9 @@
 		<view class="bottom-bar" v-if="items.length>0">
 			<view class="summary">
 				<text class="label">合计：</text>
-				<text class="amount">¥{{ totalAmountText }}</text>
+				<text class="amount">¥{{ payAmountWithCouponText }}</text>
 			</view>
-			<view class="checkout" @tap="submit">立即支付¥{{ totalAmountText }}</view>
+			<view class="checkout" @tap="submit">立即支付¥{{ payAmountWithCouponText }}</view>
 		</view>
 	</view>
 </template>
@@ -83,6 +96,9 @@ function formatPrice(p:any){ const n=Number(p); return isNaN(n)? '0.00' : n.toFi
 const items = ref<any[]>([]);
 const remark = ref<string>('');
 const payMethod = ref<'WECHAT'|'OFFLINE'>('WECHAT');
+const couponLoading = ref<boolean>(false);
+const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
+const selectedCouponIds = ref<Set<number>>(new Set());
 type Address = { id: number; province: string; city: string; district: string; street: string; detail: string; phone: string };
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number|undefined>(undefined);
@@ -118,16 +134,34 @@ async function inc(it:any){
         const next = Math.min(max, Number(it.quantity||0)+1);
         if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
         it.quantity = next; await saveBack();
+        try{ await loadApplicableCoupons(); }catch{}
     }catch{}
 }
-function dec(it:any){ it.quantity = Math.max(1, Number(it.quantity||0)-1); saveBack(); }
+function dec(it:any){ it.quantity = Math.max(1, Number(it.quantity||0)-1); saveBack(); try{ loadApplicableCoupons(); }catch{} }
 
 const totalAmount = computed(()=> items.value.reduce((sum:number, it:any)=> sum + Number(it?.snapshot?.price||0)*Number(it.quantity||0), 0));
 const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
+const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
+const payAmountWithCoupon = computed(()=> Math.max(0, Number(totalAmount.value) - couponDiscount.value));
+const payAmountWithCouponText = computed(()=> payAmountWithCoupon.value.toFixed(2));
 const requiresAddress = computed(()=> items.value.some(it => String(it?.snapshot?.type||'')==='PHYSICAL'));
 function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); } catch {} }
 function selectAddress(id?: number){ selectedAddressId.value = id; }
 function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
+function buildApplicableItems(){ return items.value.map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) })); }
+function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
+function toggleCoupon(c:any){ if (!c) return; if (disabledByCombine(c)) return; const set=new Set(selectedCouponIds.value); if (set.has(c.id)) set.delete(c.id); else set.add(c.id); selectedCouponIds.value=set; }
+async function loadApplicableCoupons(){
+    couponLoading.value = true;
+    try{
+        const http = createHttp();
+        const body:any = { items: buildApplicableItems() };
+        const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+        applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
+        selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
+    }catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
+    finally{ couponLoading.value = false; }
+}
 
 async function submit(){
 	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
@@ -152,7 +186,7 @@ async function submit(){
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
-	const body:any = { type: 'SP', memberId, items: orderItems, remark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined };
+	const body:any = { type: 'SP', memberId, items: orderItems, remark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
 		// 清理后端已勾选条目
@@ -192,6 +226,7 @@ async function submit(){
 }
 
 loadSelected();
+loadApplicableCoupons();
 </script>
 
 <style>
@@ -217,6 +252,13 @@ loadSelected();
 .pay-chip { display:inline-flex; padding: 12rpx 18rpx; border-radius: 999rpx; background:#e5e7eb; color:#111827; font-size: 24rpx; }
 .pay-chip.active { background:#111827; color:#fff; }
 .tip { margin-top: 6rpx; color:#6b7280; font-size: 22rpx; }
+.coupon-list { display:flex; flex-wrap: wrap; gap: 10rpx; margin-top: 8rpx; }
+.coupon-chip { display:inline-flex; align-items:center; gap: 8rpx; padding: 10rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; color:#111827; }
+.coupon-chip.active { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-color: transparent; }
+.coupon-chip.disabled { opacity: .6; }
+.coupon-chip .c-name { font-size: 22rpx; }
+.coupon-chip .c-discount { font-size: 22rpx; color:#ef4444; font-weight: 700; }
+.coupon-chip .c-tag { font-size: 20rpx; color:#374151; background:#f3f4f6; padding: 2rpx 8rpx; border-radius: 999rpx; }
 .remark { width: 100%; min-height: 120rpx; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; box-sizing: border-box; }
 
 .bottom-bar { position: fixed; left:0; right:0; bottom:0; background:#ffffff; border-top: 2rpx solid #e5e7eb; padding: 12rpx 16rpx; display:flex; align-items:center; justify-content: space-between; gap: 12rpx; box-sizing: border-box; }

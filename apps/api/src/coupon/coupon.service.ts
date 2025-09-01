@@ -40,6 +40,9 @@ export class CouponService {
         if (payload.endAt) payload.endAt = new Date(payload.endAt);
 
         return this.prisma.$transaction(async (tx)=>{
+            if (payload.type === 'COUPON' && payload.expiryType === 'AFTER_RECEIVE') {
+                if (payload.validDays == null || Number(payload.validDays) <= 0) throw new Error('有效天数必须为正整数');
+            }
             const created = await tx.coupon.create({ data: payload });
             if (Array.isArray(applicableProductIds) && applicableProductIds.length > 0) {
                 await tx.couponApplicableProduct.createMany({ data: applicableProductIds.map((pid: number)=>({ couponId: created.id, productId: Number(pid) })) });
@@ -57,6 +60,9 @@ export class CouponService {
         if (payload.endAt) payload.endAt = new Date(payload.endAt);
 
         return this.prisma.$transaction(async (tx)=>{
+            if (payload.type === 'COUPON' && payload.expiryType === 'AFTER_RECEIVE') {
+                if (payload.validDays == null || Number(payload.validDays) <= 0) throw new Error('有效天数必须为正整数');
+            }
             await tx.coupon.update({ where: { id }, data: payload });
             if (Array.isArray(applicableProductIds)) {
                 await tx.couponApplicableProduct.deleteMany({ where: { couponId: id } });
@@ -144,7 +150,18 @@ export class CouponService {
             return payload;
         };
         const items = Array.from({ length: count }).map(() => buildPayload());
-        await (this.prisma as any).memberCoupon.createMany({ data: items });
+        // 并发保护：再次校验发行总数与每人限领
+        await this.prisma.$transaction(async (tx)=>{
+            if (coupon.issueTotal != null) {
+                const reCount = await (tx as any).memberCoupon.count({ where: { couponId } });
+                if (reCount + count > Number(coupon.issueTotal)) throw new Error('发行数量不足');
+            }
+            if (coupon.perMemberLimit != null) {
+                const reOwned = await (tx as any).memberCoupon.count({ where: { couponId, memberId } });
+                if (reOwned + count > Number(coupon.perMemberLimit)) throw new Error('超过每人限领次数');
+            }
+            await (tx as any).memberCoupon.createMany({ data: items });
+        });
         return { ok: true, issued: count };
     }
 
@@ -153,6 +170,12 @@ export class CouponService {
         if (!coupon) throw new Error('卡券不存在');
         if (!coupon.enabled) throw new Error('卡券未启用');
         if (!coupon.allowMiniappClaim) throw new Error('当前卡券不可自助领取');
+        // 有效期限制（领取时尽量避免无效券进入账户）
+        const now = new Date();
+        if (coupon.expiryType === 'FIXED') {
+            if (coupon.startAt && coupon.startAt > now) throw new Error('卡券未到领取时间');
+            if (coupon.endAt && coupon.endAt < now) throw new Error('卡券已过期');
+        }
         return this.issueToMember({ couponId: params.couponId, memberId: params.memberId, count: 1 });
     }
 }

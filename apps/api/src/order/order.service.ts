@@ -120,8 +120,8 @@ export class OrderService {
         return `${type}_${ts}_${rand}`;
     }
 
-    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; }): Promise<{ id: number; no: string }>{
-        const { type, memberId, vehicleId, shippingAddressId, items, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId } = params;
+    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; memberCouponIds?: number[] | null; }): Promise<{ id: number; no: string }>{
+        const { type, memberId, vehicleId, shippingAddressId, items, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId, memberCouponIds } = params;
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
         return this.prisma.$transaction(async (tx) => {
@@ -176,13 +176,17 @@ export class OrderService {
                 total = total.plus(price.mul(it.quantity));
                 discountTotal = discountTotal.plus(discount);
             }
-            // 优惠券校验与折扣（叠加策略：若不允许与积分/会员折扣叠加，则拒绝）
+            // 优惠券校验与折扣（兼容旧单券 memberCouponId；新增多券 memberCouponIds）
             let memberCoupon: any = null;
-            if (memberCouponId) {
+            const ids = Array.isArray(memberCouponIds) && memberCouponIds.length > 0 ? memberCouponIds : (memberCouponId ? [memberCouponId] : []);
+            if (ids.length === 1) {
+                const memberCouponId = ids[0];
                 memberCoupon = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCouponId }, include: { coupon: true } });
                 if (!memberCoupon || memberCoupon.memberId !== memberId) throw new Error('优惠券无效');
                 if (memberCoupon.usedAt) throw new Error('优惠券已使用');
-                if (memberCoupon.endAt && new Date(memberCoupon.endAt) < new Date()) throw new Error('优惠券已过期');
+                const now = new Date();
+                if (memberCoupon.endAt && new Date(memberCoupon.endAt) < now) throw new Error('优惠券已过期');
+                if (memberCoupon.startAt && new Date(memberCoupon.startAt) > now) throw new Error('优惠券未到生效时间');
                 if (!memberCoupon.coupon?.enabled) throw new Error('优惠券已停用');
                 if (memberCoupon.coupon?.type !== 'COUPON') throw new Error('优惠券类型不支持');
                 // 叠加策略：与积分/会员折扣
@@ -195,21 +199,126 @@ export class OrderService {
                         if (products.some(p => p.memberDiscount)) throw new Error('该券不可与会员折扣同用');
                     }
                 }
-                // 适用范围校验（指定商品）
+                // 适用范围与门槛口径
+                let discountBase = total; // 缺省按整单
+                let applicableSubtotal = total;
                 if (memberCoupon.coupon?.applyScope === 'SPECIFIED') {
                     const applicable = await this.prisma.couponApplicableProduct.findMany({ where: { couponId: memberCoupon.couponId }, select: { productId: true } });
                     const allowed = new Set(applicable.map(a => a.productId));
-                    const allIn = items.every(it => (it.productId ? allowed.has(it.productId) : false));
-                    if (!allIn) throw new Error('订单中存在不适用该券的商品');
+                    const applicableItems = items.filter(it => (it.productId ? allowed.has(it.productId) : false));
+                    if (applicableItems.length === 0) throw new Error('订单中无可用商品');
+                    applicableSubtotal = applicableItems.reduce((s, it) => s.plus(new Prisma.Decimal(it.price as any).mul(it.quantity)), new Prisma.Decimal(0));
+                    discountBase = applicableSubtotal; // 优惠口径按适用品项小计
                 }
-                // 最低订单额校验
+                // 最低订单额校验（按口径）
                 if (memberCoupon.coupon?.minOrderAmount != null) {
                     const minAmt = new Prisma.Decimal(memberCoupon.coupon.minOrderAmount as any);
-                    if (total.lessThan(minAmt)) throw new Error('未达到使用门槛');
+                    if (discountBase.lessThan(minAmt)) throw new Error('未达到使用门槛');
                 }
-                // 折扣金额：目前仅支持直减 faceValue
-                const face = new Prisma.Decimal(memberCoupon.coupon?.faceValue || 0);
-                if (face.greaterThan(0)) discountTotal = discountTotal.plus(face);
+                // 规则JSON折扣计算（优先），否则回退到面值直减
+                const rule: any = (memberCoupon.coupon as any)?.ruleJson || null;
+                let couponDiscount = new Prisma.Decimal(0);
+                try {
+                    if (rule && typeof rule === 'object') {
+                        // applyBase: 'order'|'applicableItems'，默认按当前口径（discountBase）
+                        const base = (rule.applyBase === 'order') ? total : discountBase;
+                        let calc = new Prisma.Decimal(0);
+                        if (rule.kind === 'percent') {
+                            const pct = new Prisma.Decimal(Number(rule.percent || rule.amount || 0)).div(100);
+                            if (pct.greaterThan(0)) calc = new Prisma.Decimal(base as any).mul(pct);
+                        } else if (rule.kind === 'direct') {
+                            calc = new Prisma.Decimal(Number(rule.amount || 0));
+                        }
+                        // 封顶
+                        if (rule.cap != null) {
+                            const cap = new Prisma.Decimal(Number(rule.cap || 0));
+                            if (cap.greaterThan(0) && calc.greaterThan(cap)) calc = cap;
+                        }
+                        // 最低小计
+                        if (rule.minSubtotal != null) {
+                            const minS = new Prisma.Decimal(Number(rule.minSubtotal || 0));
+                            if (base.lessThan(minS)) calc = new Prisma.Decimal(0);
+                        }
+                        // 折扣不得超过口径金额
+                        if (calc.greaterThan(base)) calc = base as any;
+                        couponDiscount = calc;
+                    }
+                } catch { /* ignore rule errors */ }
+                if (couponDiscount.greaterThan(0)) {
+                    discountTotal = discountTotal.plus(couponDiscount);
+                } else {
+                    // 回退面值直减，且不超过口径金额
+                    const face = new Prisma.Decimal(memberCoupon.coupon?.faceValue || 0);
+                    if (face.greaterThan(0)) discountTotal = discountTotal.plus(face.greaterThan(discountBase) ? discountBase : face);
+                }
+            } else if (ids.length > 1) {
+                const now = new Date();
+                const records: any[] = await (this.prisma as any).memberCoupon.findMany({ where: { id: { in: ids } }, include: { coupon: true } });
+                if (records.length !== ids.length) throw new Error('部分优惠券无效');
+                for (const mc of records) {
+                    if (mc.memberId !== memberId) throw new Error('优惠券归属无效');
+                    if (mc.usedAt) throw new Error('存在已使用的优惠券');
+                    if (mc.endAt && new Date(mc.endAt) < now) throw new Error('存在已过期优惠券');
+                    if (mc.startAt && new Date(mc.startAt) > now) throw new Error('存在未到生效时间的优惠券');
+                    if (!mc.coupon?.enabled) throw new Error('存在已停用优惠券');
+                    if (mc.coupon?.type !== 'COUPON') throw new Error('存在不支持的优惠券类型');
+                }
+                if (records.some((mc:any)=>!mc?.coupon?.allowCombine)) throw new Error('部分优惠券不支持叠加');
+                if (records.some((mc:any)=> mc?.coupon && mc.coupon.allowStackWithPoints === false)) {
+                    if (Number(usedPoints||0) > 0 || Number(pointsAmount||0) > 0) throw new Error('所选优惠券不可与积分同用');
+                }
+                if (records.some((mc:any)=> mc?.coupon && mc.coupon.allowStackWithMemberDiscount === false)) {
+                    const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
+                    if (productIds.length) {
+                        const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id:true, memberDiscount:true } });
+                        if (products.some(p => p.memberDiscount)) throw new Error('所选优惠券不可与会员折扣同用');
+                    }
+                }
+                for (const mc of records) {
+                    let discountBase = total;
+                    if (mc.coupon?.applyScope === 'SPECIFIED') {
+                        const applicable = await this.prisma.couponApplicableProduct.findMany({ where: { couponId: mc.couponId }, select: { productId: true } });
+                        const allowed = new Set(applicable.map(a => a.productId));
+                        const applicableItems = items.filter(it => (it.productId ? allowed.has(it.productId) : false));
+                        if (applicableItems.length === 0) throw new Error('订单中无可用商品');
+                        const subtotal = applicableItems.reduce((s, it) => s.plus(new Prisma.Decimal(it.price as any).mul(it.quantity)), new Prisma.Decimal(0));
+                        discountBase = subtotal;
+                    }
+                    if (mc.coupon?.minOrderAmount != null) {
+                        const minAmt = new Prisma.Decimal(mc.coupon.minOrderAmount as any);
+                        if (discountBase.lessThan(minAmt)) throw new Error('未达到使用门槛');
+                    }
+                    const rule:any = (mc.coupon as any)?.ruleJson || null;
+                    let calc = new Prisma.Decimal(0);
+                    try{
+                        if (rule && typeof rule === 'object'){
+                            const base = (rule.applyBase === 'order') ? total : discountBase;
+                            if (rule.kind === 'percent') {
+                                const pct = new Prisma.Decimal(Number(rule.percent || rule.amount || 0)).div(100);
+                                if (pct.greaterThan(0)) calc = new Prisma.Decimal(base as any).mul(pct);
+                            } else if (rule.kind === 'direct') {
+                                calc = new Prisma.Decimal(Number(rule.amount || 0));
+                            }
+                            if (rule.cap != null) {
+                                const cap = new Prisma.Decimal(Number(rule.cap || 0));
+                                if (cap.greaterThan(0) && calc.greaterThan(cap)) calc = cap;
+                            }
+                            if (rule.minSubtotal != null) {
+                                const minS = new Prisma.Decimal(Number(rule.minSubtotal || 0));
+                                const baseUse = (rule.applyBase === 'order') ? total : discountBase;
+                                if (baseUse.lessThan(minS)) calc = new Prisma.Decimal(0);
+                            }
+                            if (calc.greaterThan((rule.applyBase === 'order') ? total : discountBase)) calc = (rule.applyBase === 'order') ? (total as any) : (discountBase as any);
+                        }
+                    } catch { /* ignore */ }
+                    if (calc.lte(0)) {
+                        const face = new Prisma.Decimal(mc.coupon?.faceValue || 0);
+                        calc = face.greaterThan(discountBase) ? (discountBase as any) : face;
+                    }
+                    discountTotal = discountTotal.plus(calc);
+                }
+                if (discountTotal.greaterThan(total)) discountTotal = total;
+                // 记录：多券不写入 couponInfo 结构（前端可从订单金额与日志侧查明细）
             }
             const shipping = new Prisma.Decimal(shippingFee as any);
             const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal(pointsAmount as any));
@@ -257,6 +366,10 @@ export class OrderService {
             // 标记用券
             if (memberCoupon) {
                 await (this.prisma as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
+            } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
+                for (const cid of memberCouponIds) {
+                    await (this.prisma as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
+                }
             }
             return { id: order.id, no: order.no };
         });

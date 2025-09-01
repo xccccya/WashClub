@@ -57,6 +57,21 @@
 				</view>
 			</view>
 
+			<!-- 优惠券选择（在支付方式前） -->
+			<view class="block">
+				<view class="block-title">优惠券</view>
+				<view v-if="couponLoading" class="tip">加载可用优惠券...</view>
+				<view v-else-if="applicableCoupons.length===0" class="tip">暂无可用优惠券</view>
+				<view v-else class="coupon-list">
+					<view v-for="c in applicableCoupons" :key="c.id" class="coupon-chip" :class="{ active: selectedCouponIds.has(c.id), disabled: disabledByCombine(c) }" @tap="() => toggleCoupon(c)">
+						<text class="c-name">{{ c.name }}</text>
+						<text class="c-discount">-¥{{ formatPrice(c.discountApplied) }}</text>
+						<text v-if="!c.allowCombine" class="c-tag">不可叠加</text>
+					</view>
+				</view>
+				<view class="tip" v-if="couponDiscount>0">预计优惠：¥{{ formatPrice(couponDiscount) }}，应付：¥{{ payAmountWithCouponText }}</view>
+			</view>
+
 			<!-- 支付方式选择：支持 微信支付 / 线下支付 -->
 			<view class="block">
 				<view class="block-title">支付方式</view>
@@ -78,9 +93,9 @@
 			<view class="footer">
 				<view class="price-area">
 					<text class="label">应付金额</text>
-					<text class="amount">¥{{ payAmountText }}</text>
+					<text class="amount">¥{{ payAmountWithCouponText }}</text>
 				</view>
-				<view class="submit" @tap="submit">立即支付¥{{ payAmountText }}</view>
+				<view class="submit" @tap="submit">立即支付¥{{ payAmountWithCouponText }}</view>
 			</view>
 		</view>
 	</view>
@@ -273,6 +288,7 @@ function onSelectSpec(key: string, value: string){
 	selectedSpecValues.value = { ...selectedSpecValues.value, [key]: value };
 	const matches = enabledSkus.value.filter(s => isSkuMatchSelection(s, selectedSpecValues.value));
 	selectedSkuId.value = matches.length === 1 ? matches[0].id : undefined;
+	scheduleCouponReload();
 }
 
 const isPhysical = computed(() => product.value?.type === 'PHYSICAL');
@@ -308,6 +324,7 @@ watch(() => props.product, () => {
 			selectedSkuId.value = props.preselectedSkuId;
 		}
 	}
+	try { loadApplicableCoupons(); } catch {}
 });
 
 watch(visible, (v)=>{
@@ -324,6 +341,7 @@ watch(visible, (v)=>{
 				selectedSkuId.value = props.preselectedSkuId;
 			}
 		}
+		try { loadApplicableCoupons(); } catch {}
 	}
 });
 
@@ -358,7 +376,7 @@ function buildSpecsText(){
     return '默认规格';
 }
 
-function selectSku(id?: number){ selectedSkuId.value = id; }
+function selectSku(id?: number){ selectedSkuId.value = id; scheduleCouponReload(); }
 function inc(){
     const max = (()=>{
         const p = product.value; if (!p) return 99;
@@ -375,9 +393,9 @@ function inc(){
     })();
     const next = Math.min(max, quantity.value + 1);
     if (next === quantity.value) { uni.showToast({ title: '超过商品库存', icon: 'none' }); return; }
-    quantity.value = next;
+    quantity.value = next; scheduleCouponReload();
 }
-function dec(){ quantity.value = Math.max(1, quantity.value - 1); }
+function dec(){ quantity.value = Math.max(1, quantity.value - 1); scheduleCouponReload(); }
 
 const unitPrice = computed(() => {
 	if (!product.value) return 0;
@@ -389,6 +407,34 @@ const unitPrice = computed(() => {
 });
 const payAmount = computed(() => Math.max(0, Number(unitPrice.value) * quantity.value));
 const payAmountText = computed(() => payAmount.value.toFixed(2));
+const couponLoading = ref<boolean>(false);
+const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
+const selectedCouponIds = ref<Set<number>>(new Set());
+const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
+const payAmountWithCoupon = computed(()=> Math.max(0, Number(payAmount.value) - couponDiscount.value));
+const payAmountWithCouponText = computed(()=> payAmountWithCoupon.value.toFixed(2));
+
+function formatPrice(n:any){ const v=Number(n); return isNaN(v)? '0.00' : v.toFixed(2); }
+function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
+function toggleCoupon(c:any){ if (!c) return; if (disabledByCombine(c)) return; const set = new Set(selectedCouponIds.value); if (set.has(c.id)) set.delete(c.id); else set.add(c.id); selectedCouponIds.value = set; }
+
+function buildApplicableItems(){ return [ { productId: product.value?.id, price: unitPrice.value, quantity: quantity.value } ]; }
+async function loadApplicableCoupons(){
+    couponLoading.value = true;
+    try{
+        const body:any = { items: buildApplicableItems() };
+        const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+        applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
+        selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
+    }catch{ applicableCoupons.value = []; selectedCouponIds.value = new Set(); }
+    finally{ couponLoading.value = false; }
+}
+
+// 防抖刷新（规格/数量变化时刷新可用券）
+let couponReloadTid: any = null;
+function scheduleCouponReload(){ try { if (couponReloadTid) clearTimeout(couponReloadTid); } catch {}
+    couponReloadTid = setTimeout(()=>{ try { loadApplicableCoupons(); } catch {} }, 250);
+}
 
 async function loadAddresses(){
     try {
@@ -491,7 +537,8 @@ async function submit(){
 			}
 		],
 		remark: remark.value || undefined,
-		shippingAddressId: isPhysical.value ? selectedAddressId.value : undefined
+		shippingAddressId: isPhysical.value ? selectedAddressId.value : undefined,
+		memberCouponIds: Array.from(selectedCouponIds.value)
 	};
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
@@ -564,6 +611,13 @@ async function submit(){
 .pay-chip { padding: 12rpx 18rpx; border-radius: 999rpx; background:#e5e7eb; color:#111827; font-size: 24rpx; }
 .pay-chip.active { background:#111827; color:#fff; }
 .tip { margin-top: 6rpx; color:#6b7280; font-size: 22rpx; }
+.coupon-list { display:flex; flex-wrap: wrap; gap: 10rpx; }
+.coupon-chip { display:inline-flex; align-items:center; gap: 8rpx; padding: 10rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; color:#111827; }
+.coupon-chip.active { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-color: transparent; }
+.coupon-chip.disabled { opacity: .6; }
+.coupon-chip .c-name { font-size: 22rpx; }
+.coupon-chip .c-discount { font-size: 22rpx; color:#ef4444; font-weight: 700; }
+.coupon-chip .c-tag { font-size: 20rpx; color:#374151; background:#f3f4f6; padding: 2rpx 8rpx; border-radius: 999rpx; }
 .remark { width: 100%; min-height: 96rpx; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; box-sizing: border-box; }
 .footer { position: sticky; bottom: 0; left: 0; right:0; display:flex; align-items:center; justify-content: space-between; gap: 12rpx; padding-top: 12rpx; background:#fff; }
 .price-area { display:flex; flex-direction: column; }

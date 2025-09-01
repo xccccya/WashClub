@@ -15,14 +15,22 @@
 		<el-table :data="list" border size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="60" />
 			<el-table-column prop="name" label="名称" />
-			<el-table-column prop="type" label="类型" width="120" />
+			<el-table-column prop="type" label="类型" width="120">
+				<template #default="{ row }">{{ zhType(row.type) }}</template>
+			</el-table-column>
 			<el-table-column prop="group.name" label="分组" />
 			<el-table-column prop="enabled" label="启用" width="80">
 				<template #default="{ row }"> <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag> </template>
 			</el-table-column>
-			<el-table-column prop="expiryType" label="有效期类型" width="120" />
-			<el-table-column prop="startAt" label="开始时间" width="180" />
-			<el-table-column prop="endAt" label="结束时间" width="180" />
+			<el-table-column prop="expiryType" label="有效期类型" width="120">
+				<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
+			</el-table-column>
+			<el-table-column prop="startAt" label="开始时间" width="200">
+				<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
+			</el-table-column>
+			<el-table-column prop="endAt" label="结束时间" width="200">
+				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
+			</el-table-column>
 			<el-table-column label="操作" width="360">
 				<template #default="{ row }">
 					<el-button size="small" @click="openEdit(row)">编辑</el-button>
@@ -40,13 +48,13 @@
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="有效期类型">
 					<el-radio-group v-model="form.expiryType">
-						<el-radio label="FIXED">固定时间</el-radio>
+						<el-radio v-if="form.type!=='WASH_CARD'" label="FIXED">固定时间</el-radio>
 						<el-radio label="AFTER_RECEIVE">领取后生效</el-radio>
 						<el-radio label="PERMANENT">永久有效</el-radio>
 					</el-radio-group>
 				</el-form-item>
-				<el-form-item v-if="form.expiryType==='FIXED'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
-				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="0" /></el-form-item>
+				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
+				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="1" :step="1" :precision="0" /></el-form-item>
 
 				<el-form-item label="图片">
 					<div style="display:flex;gap:8px;align-items:center;width:100%">
@@ -60,10 +68,14 @@
 				<el-form-item label="描述"><el-input type="textarea" :rows="2" v-model="form.description" /></el-form-item>
 				<el-form-item label="后台备注"><el-input type="textarea" :rows="2" v-model="form.adminRemark" /></el-form-item>
 				<template v-if="form.type==='COUPON'">
-					<el-form-item label="面值"><el-input-number v-model="form.faceValue" :min="0" :step="1" /></el-form-item>
-					<el-form-item label="发行总数"><el-input-number v-model="form.issueTotal" :min="0" :step="1" /></el-form-item>
-					<el-form-item label="每人限领"><el-input-number v-model="form.perMemberLimit" :min="0" :step="1" /></el-form-item>
-					<el-form-item label="最低订单额"><el-input-number v-model="form.minOrderAmount" :min="0" :step="1" /></el-form-item>
+					<el-form-item label="面值">
+						<el-input-number v-model="form.faceValue" :disabled="form.ruleKind!=='none'" :min="0" :max="999999.99" :step="0.01" :precision="2" />
+					</el-form-item>
+					<el-form-item label="发行总数"><el-input-number v-model="form.issueTotal" :min="0" :step="1" :precision="0" /></el-form-item>
+					<el-form-item label="每人限领"><el-input-number v-model="form.perMemberLimit" :min="0" :step="1" :precision="0" /></el-form-item>
+					<el-form-item label="最低订单额">
+						<el-input-number v-model="form.minOrderAmount" :disabled="form.ruleKind!=='none'" :min="0" :max="999999.99" :step="0.01" :precision="2" />
+					</el-form-item>
 					<el-form-item label="适用范围">
 						<el-radio-group v-model="form.applyScope">
 							<el-radio label="ALL">全部商品</el-radio>
@@ -75,7 +87,31 @@
 							<el-option v-for="p in productOptions" :key="p.id" :label="p.name" :value="p.id" />
 						</el-select>
 					</el-form-item>
-					<el-form-item label="规则JSON"><el-input type="textarea" :rows="3" v-model="form.ruleJsonText" placeholder='{"kind":"direct","amount":5}' /></el-form-item>
+					<el-form-item label="规则类型">
+						<el-radio-group v-model="form.ruleKind">
+							<el-radio label="direct">直减</el-radio>
+							<el-radio label="percent">折扣%</el-radio>
+							<el-radio label="none">不使用规则JSON</el-radio>
+						</el-radio-group>
+					</el-form-item>
+					<el-form-item v-if="form.ruleKind==='direct'" label="直减金额"><el-input-number v-model="form.ruleAmount" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
+					<el-form-item v-if="form.ruleKind==='percent'" label="折扣百分比%"><el-input-number v-model="form.rulePercent" :min="0" :max="100" :step="1" :precision="0" /></el-form-item>
+					<el-form-item v-if="form.ruleKind==='percent'" label="封顶金额"><el-input-number v-model="form.ruleCap" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
+					<el-form-item label="口径">
+						<el-radio-group v-model="form.ruleApplyBase">
+							<el-radio label="auto">按适用品项小计</el-radio>
+							<el-radio label="order">按整单小计</el-radio>
+						</el-radio-group>
+					</el-form-item>
+					<el-form-item label="最低小计门槛"><el-input-number v-model="form.ruleMinSubtotal" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
+					<el-alert
+						type="info"
+						:closable="false"
+						show-icon
+						title="生效说明（请先读完再保存）"
+						description="选择‘规则类型’后，仅按规则计算优惠，面值和最低订单额不再生效；适用范围选‘指定商品’时，订单中至少包含被指定商品，且优惠仅按这些商品的小计计算；需先达到最低小计门槛，百分比折扣可设置封顶，单券优惠不超过其计算口径金额；多券叠加需全部勾选‘可与其他券同用’，且总优惠不超过整单小计；‘领取后生效’必须填写正整数的有效天数。"
+					/>
+					<el-form-item label="规则JSON(高级)"><el-input type="textarea" :rows="3" v-model="form.ruleJsonText" placeholder='{"kind":"direct","amount":5,"cap":20,"applyBase":"auto"}' /></el-form-item>
 					<el-form-item label="小程序可领"><el-switch v-model="form.allowMiniappClaim" /></el-form-item>
 					<el-form-item label="叠加策略">
 						<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -153,6 +189,12 @@ const form = ref<any>({
 	minOrderAmount: undefined,
 	applyScope: 'ALL',
 	applicableProductIds: [],
+	ruleKind: 'none',
+	ruleAmount: undefined,
+	rulePercent: undefined,
+	ruleCap: undefined,
+	ruleApplyBase: 'auto',
+	ruleMinSubtotal: undefined,
 	ruleJsonText: '',
 	allowMiniappClaim: false,
 	allowCombine: false,
@@ -202,6 +244,12 @@ function openCreate(){
 		minOrderAmount: undefined,
 		applyScope: 'ALL',
 		applicableProductIds: [],
+		ruleKind: 'none',
+		ruleAmount: undefined,
+		rulePercent: undefined,
+		ruleCap: undefined,
+		ruleApplyBase: 'auto',
+		ruleMinSubtotal: undefined,
 		ruleJsonText: '',
 		allowMiniappClaim: false,
 		allowCombine: false,
@@ -219,7 +267,7 @@ function openEdit(row:any){
 		name: row.name,
 		groupId: row.groupId,
 		enabled: row.enabled,
-		expiryType: row.expiryType || 'PERMANENT',
+		expiryType: row.type==='WASH_CARD' ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'),
 		startAt: row.startAt,
 		endAt: row.endAt,
 		validDays: row.validDays,
@@ -232,6 +280,12 @@ function openEdit(row:any){
 		minOrderAmount: row.minOrderAmount,
 		applyScope: row.applyScope || 'ALL',
 		applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [],
+		ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none',
+		ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined,
+		rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined,
+		ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined,
+		ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto',
+		ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined,
 		ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '',
 		allowMiniappClaim: !!row.allowMiniappClaim,
 		allowCombine: !!row.allowCombine,
@@ -261,13 +315,35 @@ async function save(){
 		adminRemark: form.value.adminRemark || null,
 	};
 	if (form.value.type === 'COUPON') {
-		try { payload.ruleJson = form.value.ruleJsonText ? JSON.parse(form.value.ruleJsonText) : null; } catch { ElMessage.error('规则JSON格式错误'); return; }
-		payload.faceValue = form.value.faceValue ?? null;
+		// 生成 ruleJson（可视化优先，高级JSON覆盖）
+		let built:any = null;
+		if (form.value.ruleKind && form.value.ruleKind !== 'none') {
+			built = { kind: form.value.ruleKind } as any;
+			if (form.value.ruleKind==='direct') built.amount = Number(form.value.ruleAmount||0);
+			if (form.value.ruleKind==='percent') built.percent = Number(form.value.rulePercent||0);
+			if (form.value.ruleKind==='percent' && form.value.ruleCap!=null) built.cap = Number(form.value.ruleCap);
+			if (form.value.ruleApplyBase==='order') built.applyBase = 'order';
+			if (form.value.ruleMinSubtotal!=null) built.minSubtotal = Number(form.value.ruleMinSubtotal);
+		}
+		try {
+			const advanced = form.value.ruleJsonText ? JSON.parse(form.value.ruleJsonText) : null;
+			payload.ruleJson = advanced || built;
+		} catch { ElMessage.error('规则JSON格式错误'); return; }
+		// 规则优先：启用规则时忽略面值与最低订单额
+		if (payload.ruleJson) {
+			payload.faceValue = null;
+			payload.minOrderAmount = null;
+		} else {
+			payload.faceValue = form.value.faceValue ?? null;
+			payload.minOrderAmount = form.value.minOrderAmount ?? null;
+		}
 		payload.issueTotal = form.value.issueTotal ?? null;
 		payload.perMemberLimit = form.value.perMemberLimit ?? null;
-		payload.minOrderAmount = form.value.minOrderAmount ?? null;
 		payload.applyScope = form.value.applyScope;
-		payload.applicableProductIds = form.value.applyScope==='SPECIFIED' ? (form.value.applicableProductIds || []) : [];
+		if (form.value.applyScope==='SPECIFIED'){
+			if (!Array.isArray(form.value.applicableProductIds) || form.value.applicableProductIds.length===0){ ElMessage.error('请选择至少一个指定商品'); return; }
+			payload.applicableProductIds = form.value.applicableProductIds;
+		} else { payload.applicableProductIds = []; }
 		payload.allowMiniappClaim = !!form.value.allowMiniappClaim;
 		payload.allowCombine = !!form.value.allowCombine;
 		payload.allowStackWithPoints = form.value.allowStackWithPoints !== false;
@@ -296,6 +372,10 @@ async function onSelectImage(ev: Event){
 }
 
 onMounted(async ()=>{ await Promise.all([fetchGroups(), fetchList(), fetchProducts()]); });
+
+function zhType(t?: string){ const v = String(t||''); if (v==='COUPON') return '优惠券'; if (v==='WASH_CARD') return '洗车计次卡'; return v || '-'; }
+function zhExpiryType(t?: string){ const v = String(t||''); if (v==='FIXED') return '固定时间'; if (v==='AFTER_RECEIVE') return '领取后生效'; if (v==='PERMANENT') return '永久有效'; return v || '-'; }
+function formatLocal(d?: string){ try { if (!d) return '-'; const dt = new Date(d); if (isNaN(dt.getTime())) return '-'; const y=dt.getFullYear(); const m=String(dt.getMonth()+1).padStart(2,'0'); const dd=String(dt.getDate()).padStart(2,'0'); const hh=String(dt.getHours()).padStart(2,'0'); const mm=String(dt.getMinutes()).padStart(2,'0'); const ss=String(dt.getSeconds()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`; } catch { return '-'; } }
 </script>
 
 <style scoped>

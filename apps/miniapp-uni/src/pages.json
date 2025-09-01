@@ -130,6 +130,16 @@
 			"path": "pages/cart/confirm",
 			"style": { "navigationBarTitleText": "确认订单" }
 		}
+		,
+		{
+			"path": "pages/coupon/index",
+			"style": { "navigationBarTitleText": "领券中心" }
+		}
+		,
+		{
+			"path": "pages/coupon/mine",
+			"style": { "navigationBarTitleText": "我的优惠券" }
+		}
 	],
 	"tabBar": {
 		"color": "#666666",

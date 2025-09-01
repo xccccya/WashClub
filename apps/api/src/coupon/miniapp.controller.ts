@@ -1,0 +1,153 @@
+import { Controller, Get, Post, Param, ParseIntPipe, Headers, Query } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma.service.js';
+import { CouponService } from './coupon.service.js';
+
+@ApiTags('MiniappCoupons')
+@Controller('coupon/miniapp')
+export class MiniappCouponController {
+    constructor(
+        private readonly jwt: JwtService,
+        private readonly prisma: PrismaService,
+        private readonly svc: CouponService,
+    ) {}
+
+    private async getMemberIdFromToken(headers: Record<string, string>, tokenParam?: string): Promise<number> {
+        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+        const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
+        const id = Number(decoded?.sub);
+        if (!id || decoded?.type !== 'member') throw new Error('Token无效');
+        return id;
+    }
+
+    @Get('claimable')
+    @ApiOperation({ summary: '小程序可领取优惠券列表（含售罄/达上限标记）' })
+    async listClaimable(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
+        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const coupons = await this.prisma.coupon.findMany({ where: { enabled: true, allowMiniappClaim: true, type: 'COUPON' }, orderBy: [{ id: 'desc' }] });
+        const result: any[] = [];
+        for (const c of coupons) {
+            const issued = await (this.prisma as any).memberCoupon.count({ where: { couponId: c.id } });
+            const owned = await (this.prisma as any).memberCoupon.count({ where: { couponId: c.id, memberId } });
+            const soldOut = c.issueTotal != null ? issued >= Number(c.issueTotal) : false;
+            const reachedLimit = c.perMemberLimit != null ? owned >= Number(c.perMemberLimit) : false;
+            const now = new Date();
+            const notStarted = c.expiryType === 'FIXED' && c.startAt ? (c.startAt > now) : false;
+            const expired = c.expiryType === 'FIXED' && c.endAt ? (c.endAt < now) : false;
+            const canClaim = !soldOut && !reachedLimit;
+            result.push({
+                id: c.id,
+                name: c.name,
+                imageUrl: c.imageUrl,
+                description: c.description,
+                expiryType: c.expiryType,
+                startAt: c.startAt,
+                endAt: c.endAt,
+                validDays: c.validDays,
+                faceValue: c.faceValue,
+                minOrderAmount: c.minOrderAmount,
+                perMemberLimit: c.perMemberLimit,
+                issueTotal: c.issueTotal,
+                allowMiniappClaim: c.allowMiniappClaim,
+                issuedCount: issued,
+                ownedCount: owned,
+                soldOut,
+                reachedLimit,
+                notStarted,
+                expired,
+                canClaim: canClaim && !notStarted && !expired,
+            });
+        }
+        return { items: result };
+    }
+
+    @Get('mine')
+    @ApiOperation({ summary: '小程序：我的优惠券列表' })
+    async myCoupons(
+        @Headers() headers: Record<string, string>,
+        @Query('token') tokenParam?: string,
+        @Query('used') used?: '0'|'1',
+        @Query('expired') expired?: '0'|'1',
+    ){
+        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const where: any = { memberId };
+        if (used === '0') where.usedAt = null;
+        if (used === '1') where.usedAt = { not: null };
+        if (expired === '0') where.OR = [{ endAt: null }, { endAt: { gt: new Date() } }];
+        if (expired === '1') where.endAt = { lte: new Date() };
+        const items = await (this.prisma as any).memberCoupon.findMany({ where, orderBy: { id: 'desc' }, include: { coupon: true } });
+        return { items };
+    }
+
+    @Post(':id/claim')
+    @ApiOperation({ summary: '小程序领取优惠券' })
+    async claim(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
+        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const r = await this.svc.claimForMember({ couponId: id, memberId });
+        return r;
+    }
+
+    // 计算当前商品/购物车可用优惠券与预计折扣
+    @Post('applicable')
+    async applicable(
+        @Headers() headers: Record<string, string>,
+        @Query('token') tokenParam?: string,
+        // body: { items: Array<{ productId:number; price:number; quantity:number }> }
+        // 备注：仅用于预计算，不持久化
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        body?: any,
+    ){
+        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const items: Array<{ productId?: number|null; price: number; quantity: number }> = Array.isArray(body?.items) ? body.items : [];
+        // 读取可用会员优惠券（未使用、未过期、已生效、启用）
+        const now = new Date();
+        const mcs: any[] = await (this.prisma as any).memberCoupon.findMany({ where: { memberId, usedAt: null }, include: { coupon: true } });
+        const total = items.reduce((s, it)=> s + Number(it?.price||0) * Number(it?.quantity||0), 0);
+        // 逐张计算
+        const out: any[] = [];
+        for (const mc of mcs) {
+            const c = mc.coupon;
+            if (!c || !c.enabled) continue;
+            if (c.type !== 'COUPON') continue;
+            if (mc.endAt && new Date(mc.endAt) < now) continue;
+            if (mc.startAt && new Date(mc.startAt) > now) continue;
+            // 计算口径
+            let discountBase = total;
+            if (c.applyScope === 'SPECIFIED') {
+                const applicable = await this.prisma.couponApplicableProduct.findMany({ where: { couponId: c.id }, select: { productId: true } });
+                const allowed = new Set(applicable.map(a=>a.productId));
+                const applicableItems = items.filter(it => (it?.productId ? allowed.has(Number(it.productId)) : false));
+                if (applicableItems.length === 0) continue;
+                discountBase = applicableItems.reduce((s, it)=> s + Number(it.price||0) * Number(it.quantity||0), 0);
+            }
+            if (c.minOrderAmount != null && Number(discountBase) < Number(c.minOrderAmount)) continue;
+            // 规则计算
+            let calc = 0;
+            const rule: any = c?.ruleJson || null;
+            try{
+                if (rule && typeof rule === 'object'){
+                    const base = (rule.applyBase === 'order') ? total : discountBase;
+                    if (rule.kind === 'percent') {
+                        const pct = Number(rule.percent || rule.amount || 0) / 100;
+                        if (pct > 0) calc = base * pct;
+                        if (rule.cap != null) calc = Math.min(calc, Number(rule.cap||0));
+                    } else if (rule.kind === 'direct') {
+                        calc = Number(rule.amount||0);
+                    }
+                    if (rule.minSubtotal != null){ const minS = Number(rule.minSubtotal||0); const baseUse = (rule.applyBase === 'order') ? total : discountBase; if (baseUse < minS) calc = 0; }
+                    calc = Math.min(calc, (rule.applyBase === 'order') ? total : discountBase);
+                }
+            }catch{}
+            if (!(calc > 0)) calc = Math.min(Number(c.faceValue||0), discountBase);
+            if (calc <= 0) continue;
+            out.push({ id: mc.id, couponId: c.id, name: mc.name || c.name, allowCombine: !!c.allowCombine, discountApplied: Number(calc.toFixed(2)) });
+        }
+        // 排序：折扣高优先
+        out.sort((a,b)=> Number(b.discountApplied||0) - Number(a.discountApplied||0));
+        return { applicable: out };
+    }
+}
+
+

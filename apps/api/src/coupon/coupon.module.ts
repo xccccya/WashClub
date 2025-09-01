@@ -5,10 +5,11 @@ import { CouponService } from './coupon.service.js';
 import { CouponGroupController } from './group.controller.js';
 import { CouponController } from './coupon.controller.js';
 import { MemberCouponAdminController } from './member-coupon.controller.js';
+import { MiniappCouponController } from './miniapp.controller.js';
 
 @Module({
     imports: [AuthModule],
-    controllers: [CouponGroupController, CouponController, MemberCouponAdminController],
+    controllers: [CouponGroupController, CouponController, MemberCouponAdminController, MiniappCouponController],
     providers: [PrismaService, CouponService],
 })
 export class CouponModule {}
