@@ -86,7 +86,10 @@
 
 		<el-dialog v-model="dialogPartial" title="部分退款" width="420px">
 			<el-form label-width="96px">
-				<el-form-item label="退款金额(元)"><el-input v-model.number="partialAmount" type="number" placeholder="例如 10.00" /></el-form-item>
+				<el-form-item label="退款金额(元)">
+					<el-input v-model="partialAmountText" inputmode="decimal" :placeholder="`输入金额，最低0.01，最高¥${refundableLeft.toFixed(2)}`" />
+					<div style="margin-left:8px;color:#666;">剩余可退：¥{{ refundableLeft.toFixed(2) }}</div>
+				</el-form-item>
 				<el-form-item label="原因"><el-input v-model="partialReason" placeholder="可选" /></el-form-item>
 			</el-form>
 			<template #footer>
@@ -153,7 +156,7 @@
 
 <script setup lang="ts">
 function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='PAID') return '已支付'; if(v==='FULFILLED') return '已履约'; if(v==='CLOSED') return '已完成'; if(v==='CANCELLED') return '已取消'; return v || '-'; }
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
@@ -198,13 +201,25 @@ async function openRetryRefund(){
 }
 
 const dialogPartial = ref(false);
-const partialAmount = ref<number|undefined>(undefined);
+const partialAmountText = ref<string>('');
 const partialReason = ref<string>('');
-function openPartialRefund(){ partialAmount.value = undefined; partialReason.value = ''; dialogPartial.value = true; }
-async function submitPartialRefund(){
-    if (!partialAmount.value || partialAmount.value < 0.01) { return; }
+const refundableLeft = computed(()=>{
     try{
-        await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: partialAmount.value } });
+        const rr = Array.isArray((data.value?.refundRecords)||[]) ? (data.value?.refundRecords) : [];
+        const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
+        const payAmt = Number(data.value?.payAmount||0);
+        return Math.max(0, payAmt - successSum);
+    }catch{ return 0; }
+});
+function openPartialRefund(){ partialAmountText.value = ''; partialReason.value = ''; dialogPartial.value = true; }
+async function submitPartialRefund(){
+    const raw = (partialAmountText.value||'').trim().replace(',', '.');
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) { (window as any).ElMessage?.error?.('金额格式不正确，最多保留2位小数'); return; }
+    const v = Number(raw);
+    if (!isFinite(v) || v < 0.01){ (window as any).ElMessage?.error?.('部分退款金额至少为0.01'); return; }
+    if (v > refundableLeft.value + 1e-6){ (window as any).ElMessage?.error?.('超出剩余可退金额'); return; }
+    try{
+        await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } });
         dialogPartial.value = false; fetchDetail();
     }catch{}
 }
