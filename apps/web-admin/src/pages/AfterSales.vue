@@ -62,11 +62,24 @@
 			</template>
 		</el-dialog>
 
-		<!-- 审核通过确认（仅用于提示后续退款确认在订单页面操作） -->
-		<el-dialog v-model="auditDialog" title="审核确认" width="480px">
+		<!-- 审核确认并发起退款（JSAPI 与订单页逻辑一致） -->
+		<el-dialog v-model="auditDialog" title="审核确认" width="520px">
 			<div v-if="auditRow">
 				<p>是否确认通过该售后申请？</p>
-				<p v-if="auditRow?.order?.payMethod==='WECHAT_JSAPI'" style="color:#666;">提示：通过后请到该订单详情或列表进行退款确认（支持全额/部分退款）。</p>
+				<template v-if="auditRow?.order?.payMethod==='WECHAT_JSAPI'">
+					<el-form label-width="96px" style="margin-top:8px;">
+						<el-form-item label="退款方式">
+							<el-radio-group v-model="auditRefundMode">
+								<el-radio label="FULL" :disabled="auditHasPartial">全额退款</el-radio>
+								<el-radio label="PART">部分退款</el-radio>
+							</el-radio-group>
+						</el-form-item>
+						<el-form-item v-if="auditRefundMode==='PART'" label="退款金额">
+							<el-input v-model="auditRefundAmountText" inputmode="decimal" :placeholder="`输入金额，最低0.01，最高¥${auditRefundableLeft.toFixed(2)}`" />
+							<div style="margin-left:8px;color:#666;">剩余可退：¥{{ auditRefundableLeft.toFixed(2) }}</div>
+						</el-form-item>
+					</el-form>
+				</template>
 			</div>
 			<template #footer>
 				<el-button @click="auditDialog=false">取消</el-button>
@@ -94,7 +107,7 @@ const current = ref<any>(null);
 const auditDialog = ref(false);
 const auditRow = ref<any>(null);
 const auditRefundMode = ref<'FULL'|'PART'>('FULL');
-const auditRefundAmount = ref<number|undefined>(undefined);
+const auditRefundAmountText = ref<string>('');
 const auditHasPartial = ref(false);
 const auditRefundableLeft = ref(0);
 
@@ -133,7 +146,7 @@ function openOrder(orderId?: number){ if (!orderId) return; window.open(`/orders
 function view(row: any){ current.value = row; detailVisible.value = true; }
 function openAudit(row: any, approve: boolean){
     auditRow.value = row; auditDialog.value = true;
-    auditRefundMode.value = 'FULL'; auditRefundAmount.value = undefined;
+    auditRefundMode.value = 'FULL'; auditRefundAmountText.value = '';
     // 预计算退款可用信息（仅JSAPI展示选项）
     const ord = row?.order || {};
     const rr = Array.isArray(ord.refundRecords) ? ord.refundRecords : [];
@@ -154,12 +167,14 @@ async function confirmAudit(){
                 if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); auditDialog.value=false; fetchList(); return; }
                 amount = Number(ord.payAmount||0);
             } else {
-                const v = Number(auditRefundAmount.value||0);
+                const raw = (auditRefundAmountText.value||'').trim().replace(',', '.');
+                if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); auditDialog.value=false; fetchList(); return; }
+                const v = Number(raw);
                 if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); auditDialog.value=false; fetchList(); return; }
                 if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); auditDialog.value=false; fetchList(); return; }
                 amount = v;
             }
-            const resp = await http(`/orders/${ord.id}/refund/wechat`, { method:'POST', body: { reason: '售后退款', amount } });
+            const resp:any = await http(`/orders/${ord.id}/refund/wechat`, { method:'POST', body: { reason: '售后退款', amount } });
             if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
         } else {
             // 非微信：内部退款

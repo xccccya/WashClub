@@ -629,7 +629,9 @@ export class OrderService {
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可退款');
         // 创建/补充 RefundRecord（内部退款，默认全额，部分退款调用方应传渠道接口）
         try{
-            await this.createRefundRecord({ orderId: id, memberId: order.memberId, amount: order.payAmount as any, method: order.payMethod ?? null, reasonCode: 'INTERNAL', reasonText: reason || null, status: 'SUCCESS' as any });
+            if ((order.payMethod as any) !== 'WECHAT_JSAPI'){
+                await this.createRefundRecord({ orderId: id, memberId: order.memberId, amount: order.payAmount as any, method: order.payMethod ?? null, reasonCode: 'INTERNAL', reasonText: reason || null, status: 'SUCCESS' as any });
+            }
         }catch{}
         const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
@@ -682,7 +684,12 @@ export class OrderService {
                 });
             }
         }
-        return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'REFUNDED', refundedAmount: order.payAmount, remark: reason ?? undefined } });
+        const updated = await this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'REFUNDED', refundedAmount: order.payAmount, remark: reason ?? undefined } });
+        try{
+            await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'REFUNDED', remark: reason || undefined, operatorUserId: operatorUserId ?? null });
+            await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: reason || undefined, operatorUserId: operatorUserId ?? null });
+        }catch{}
+        return updated;
     }
 
     // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
@@ -838,7 +845,7 @@ export class OrderService {
         // 并发防护：存在进行中售后则拒绝
         const exists = await this.prisma.afterSalesRequest.findFirst({ where: { orderId: params.orderId, status: { in: ['PENDING','APPROVED'] as any } } }).catch(()=>null);
         if (exists) throw new Error('该订单已有进行中的售后处理');
-        return this.prisma.afterSalesRequest.create({
+        const created = await this.prisma.afterSalesRequest.create({
             data: {
                 orderId: params.orderId,
                 memberId: params.memberId,
@@ -852,6 +859,8 @@ export class OrderService {
                 requestedAmount: params.requestedAmount != null ? new Prisma.Decimal(params.requestedAmount as any) : undefined,
             },
         });
+        try { await this.writeTimeline({ orderId: params.orderId, event: 'AFTERSALES', value: 'PENDING', remark: String(params.type||'') }); } catch {}
+        return created;
     }
 
     async listAfterSales(query: { status?: AfterSalesStatus | undefined; memberId?: number | undefined }) {
@@ -928,7 +937,7 @@ export class OrderService {
     }
 
     async createRefundRecord(params: { orderId: number; memberId: number; amount: Prisma.Decimal | number; method?: PayMethod | null; reasonCode?: string | null; reasonText?: string | null; outRefundNo?: string | null; wechatRefundId?: string | null; status?: RefundStatus }) {
-        return this.prisma.refundRecord.create({
+        const rec = await this.prisma.refundRecord.create({
             data: {
                 orderId: params.orderId,
                 memberId: params.memberId,
@@ -941,6 +950,8 @@ export class OrderService {
                 status: (params.status || 'PENDING') as any,
             },
         });
+        try { await this.writeTimeline({ orderId: params.orderId, event: 'PAY_STATUS', value: 'REFUND_REQUESTED', remark: `¥${Number(params.amount||0).toFixed(2)}` }); } catch {}
+        return rec;
     }
 
     async updateRefundStatusByOutRefundNo(outRefundNo: string, status: RefundStatus, wechatRefundId?: string | null, failedReason?: string | null) {

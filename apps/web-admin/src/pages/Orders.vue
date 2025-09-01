@@ -105,9 +105,7 @@
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务</el-button>
 					<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)">
 						<template #reference>
-							<el-tooltip content="删除">
-								<el-button text class="icon-btn danger" title="删除"><img class="icon" :src="DeleteIcon" /></el-button>
-							</el-tooltip>
+							<el-button text class="icon-btn danger" title="删除"><img class="icon" :src="DeleteIcon" /></el-button>
 						</template>
 					</el-popconfirm>
 					<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="small" type="warning">恢复</el-button></template></el-popconfirm>
@@ -137,7 +135,7 @@
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item v-if="refundMode==='PART'" label="退款金额">
-						<el-input v-model.number="refundAmount" placeholder="输入金额，最低0.01，最高剩余可退" />
+						<el-input v-model="refundAmountText" inputmode="decimal" :placeholder="`输入金额，最低0.01，最高¥${refundableLeft.toFixed(2)}`" />
 						<div style="margin-left:8px;color:#666;">剩余可退：¥{{ refundableLeft.toFixed(2) }}</div>
 					</el-form-item>
 				</template>
@@ -288,7 +286,7 @@ async function doMarkPaid(){ if (!currentOrderId.value) return; await http(`/ord
 const showRefund = ref(false);
 const refundReason = ref('');
 const refundMode = ref<'FULL'|'PART'>('FULL');
-const refundAmount = ref<number | undefined>(undefined);
+const refundAmountText = ref<string>('');
 const currentOrder = ref<any>(null);
 const refundableLeft = ref(0);
 const hasPartialRefund = ref(false);
@@ -297,7 +295,7 @@ async function openRefund(row:any){
     try{ currentOrder.value = await http(`/orders/${row.id}`); }catch{ currentOrder.value = row; }
     refundReason.value = '';
     refundMode.value = 'FULL';
-    refundAmount.value = undefined;
+    refundAmountText.value = '';
     // 计算已成功部分退款累计
     const rr = Array.isArray((currentOrder.value as any)?.refundRecords) ? (currentOrder.value as any).refundRecords : [];
     const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
@@ -316,7 +314,9 @@ async function doRefund(){
             if (hasPartialRefund.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); return; }
             amount = Number(row.payAmount||0);
         } else {
-            const v = Number(refundAmount.value||0);
+            const raw = (refundAmountText.value||'').trim().replace(',', '.');
+            if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); return; }
+            const v = Number(raw);
             if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
             if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
             amount = v;

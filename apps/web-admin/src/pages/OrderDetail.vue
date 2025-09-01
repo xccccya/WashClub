@@ -338,6 +338,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	if (e==='PAY_STATUS'){
 		if (v==='UNPAID') return '未支付';
 		if (v==='PAID') return '已支付';
+		if (v==='REFUND_REQUESTED') return '已提交退款';
 		if (v==='PARTIAL_REFUND') return '部分退款';
 		if (v==='REFUNDED') return '已退款';
 		if (v==='CANCELLED') return '已取消';

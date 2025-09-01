@@ -192,7 +192,9 @@ export class OrderController {
             }
         }
         // 线下/其他渠道：内部退款并回收权益
-        return this.orders.finalizeInternalRefund(id, body?.reason, operatorUserId);
+        const updated = await this.orders.finalizeInternalRefund(id, body?.reason, operatorUserId);
+        try{ await (this.orders as any).writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'REFUNDED', remark: body?.reason || undefined, operatorUserId: operatorUserId ?? null }); }catch{}
+        return updated;
     }
 
     // ========================
