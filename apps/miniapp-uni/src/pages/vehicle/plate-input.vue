@@ -134,7 +134,6 @@ function updatePreviewFromCells(){
 </script>
 
 <style>
-.plate-input { }
 .box { padding: 18rpx; background:#f3f4f6; border-radius: 12rpx; color:#111827; position: relative; }
 .cells { display:flex; gap: 8rpx; }
 .cell { width: 64rpx; height: 64rpx; background:#fff; border-radius: 8rpx; border: 2rpx solid #e5e7eb; display:flex; align-items:center; justify-content:center; font-weight:700; font-size: 28rpx; }

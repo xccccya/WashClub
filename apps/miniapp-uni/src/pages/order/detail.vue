@@ -201,6 +201,17 @@ async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) retur
     // #endif
 }catch{}}
 
+function goReviewInDetail(){
+    try{
+        const o:any = order.value; if(!o) return;
+        const url = `/pages/review/create?orderId=${o.id}`;
+        // #ifdef H5
+        try{ if (typeof window !== 'undefined'){ (window as any).location.hash = url.startsWith('/') ? `#${url}` : `#/${url}`; return; } }catch{}
+        // #endif
+        uni.navigateTo({ url });
+    }catch{}
+}
+
 async function reloadDetail(){ try{ const o:any = order.value; if(!o) return; const http = createHttp(); const data:any = await http(`/orders/${o.id}`, { method:'GET' }); order.value = data || null; try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; } }catch{} }
 const refundedAmountYuan = computed(()=>{
 	try{ const list = (order.value as any)?.refundRecords || []; const sum = list.filter((r:any)=>r?.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0); return sum; }catch{return 0}

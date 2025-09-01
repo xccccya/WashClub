@@ -267,7 +267,7 @@ function onTapProfile() { if (!isLoggedIn.value) navigate('/pages/login/index');
 
 async function loadCard(){ try { const t = uni.getStorageSync('token'); if (!t) { card.value = null; return; } const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t }); const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' }); const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null; card.value = def || null; } catch { card.value = null; } }
 
-function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index' | '/pages/login/index' | '/pages/washcard/index' | '/pages/order/index') {
+function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index' | '/pages/login/index' | '/pages/washcard/index' | '/pages/order/index' | '/pages/address/index') {
 	const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/order/index' || url === '/pages/me/index';
 	if (isTab) { try { uni.switchTab({ url }); return; } catch {}
 	}
