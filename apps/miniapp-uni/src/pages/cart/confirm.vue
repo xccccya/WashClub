@@ -102,7 +102,24 @@ async function loadSelected(){
 
 async function saveBack(){ /* 实时写入后端，不需要本地回写 */ }
 
-function inc(it:any){ it.quantity = Math.min(99, Number(it.quantity||0)+1); saveBack(); }
+async function inc(it:any){
+    try{
+        const http = createHttp();
+        const prod:any = await http(`/store/products/${it.productId}`, { method:'GET' });
+        let max = 99;
+        if (String(prod?.type||'') !== 'SERVICE'){
+            if (String(prod?.specType||'') === 'MULTI'){
+                const sku = (Array.isArray(prod?.skus)? prod.skus:[]).find((s:any)=> s?.id===it.skuId);
+                max = Math.max(1, Math.min(99, Number(sku?.stockQuantity||0)));
+            } else {
+                max = Math.max(1, Math.min(99, Number(prod?.stockQuantity||0)));
+            }
+        }
+        const next = Math.min(max, Number(it.quantity||0)+1);
+        if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
+        it.quantity = next; await saveBack();
+    }catch{}
+}
 function dec(it:any){ it.quantity = Math.max(1, Number(it.quantity||0)-1); saveBack(); }
 
 const totalAmount = computed(()=> items.value.reduce((sum:number, it:any)=> sum + Number(it?.snapshot?.price||0)*Number(it.quantity||0), 0));

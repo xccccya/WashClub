@@ -22,6 +22,7 @@
 			</view>
 			<view class="row-mid">
 				<text class="price">¥{{ displayPriceText }}</text>
+				<text class="list-price" v-if="Number(product?.listPrice||0)>0 && (product?.specType!=='MULTI')">¥{{ formatPrice(product?.listPrice) }}</text>
 			</view>
 			<view v-if="product?.sellPoint" class="sell">{{ product?.sellPoint }}</view>
 			<!-- 单规格实物商品：直接展示库存信息 -->
@@ -123,6 +124,8 @@ function goBack(){
 		uni.reLaunch({ url: '/pages/store/index' });
 	} catch { uni.reLaunch({ url: '/pages/store/index' }); }
 }
+
+function formatPrice(p:any){ const n=Number(p); return isNaN(n)? '0.00' : n.toFixed(2); }
 
 onLoad(async (q: any) => {
 	const pid = Number(q?.id || 0);
@@ -469,6 +472,7 @@ function onSubmitted(){ /* 可根据需要刷新 */ }
 .sales { font-size: 24rpx; color:#6b7280; }
 .row-mid { margin-top: 8rpx; display:flex; align-items: baseline; gap: 8rpx; }
 .price { font-size: 36rpx; color:#ef4444; font-weight: 800; }
+.list-price { font-size: 24rpx; color:#6b7280; text-decoration: line-through; }
 .price-hint { font-size: 24rpx; color:#6b7280; }
 .sell { margin-top: 8rpx; font-size: 24rpx; color:#374151; background:#f3f4f6; padding: 10rpx 12rpx; border-radius: 12rpx; }
 .stock-chip { margin-top: 10rpx; display:inline-flex; align-items:center; gap: 8rpx; padding: 8rpx 12rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#ffffff; }

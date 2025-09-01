@@ -359,7 +359,24 @@ function buildSpecsText(){
 }
 
 function selectSku(id?: number){ selectedSkuId.value = id; }
-function inc(){ quantity.value = Math.min(99, quantity.value + 1); }
+function inc(){
+    const max = (()=>{
+        const p = product.value; if (!p) return 99;
+        // 服务类商品不受库存限制，这里允许最大 99
+        if (p.type === 'SERVICE') return 99;
+        if (p.specType === 'MULTI'){
+            const sku = enabledSkus.value.find(s => s.id===selectedSkuId.value);
+            const stock = Number(sku?.stockQuantity || 0);
+            return Math.max(1, Math.min(99, stock));
+        }
+        // SINGLE 或无 SKU 的情况
+        const stock = Number(p.stockQuantity || 0);
+        return Math.max(1, Math.min(99, stock));
+    })();
+    const next = Math.min(max, quantity.value + 1);
+    if (next === quantity.value) { uni.showToast({ title: '超过商品库存', icon: 'none' }); return; }
+    quantity.value = next;
+}
 function dec(){ quantity.value = Math.max(1, quantity.value - 1); }
 
 const unitPrice = computed(() => {
@@ -442,6 +459,20 @@ async function submit(){
 	if (product.value.type === 'SERVICE') {
 		if (!selectedVehicleId.value) { uni.showToast({ title:'请选择车辆', icon:'none' }); return; }
 		vehicleId = selectedVehicleId.value;
+	}
+	// 数量与库存上限校验（非服务商品）：SINGLE 使用 product.stockQuantity，MULTI 使用所选 SKU 的 stockQuantity
+	const maxAllowed = (()=>{
+		const p = product.value; if (!p) return 99;
+		if (p.specType==='MULTI'){
+			const sku = enabledSkus.value.find(s => s.id===selectedSkuId.value);
+			return Math.max(1, Number(sku?.stockQuantity||0));
+		}
+		return Math.max(1, Number(p.stockQuantity||0));
+	})();
+	if (product.value.type !== 'SERVICE' && quantity.value > maxAllowed){
+		quantity.value = Math.max(1, Math.min(99, maxAllowed));
+		uni.showToast({ title:`库存不足，已调整为${quantity.value}`, icon:'none' });
+		return;
 	}
 	const body:any = {
 		type: product.value.type==='SERVICE' ? 'SERVICE' : 'SP',

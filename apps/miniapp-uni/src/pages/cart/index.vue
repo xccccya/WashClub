@@ -135,7 +135,25 @@ const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
 
 async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); } catch {} }
 async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; } catch {} }
-async function inc(it:any){ try { const http=createHttp(); const q=Math.min(99, Number(it.quantity||0)+1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q; } catch {} }
+async function inc(it:any){
+    try {
+        const http=createHttp();
+        // 获取最新商品/库存信息用于校验
+        const prod:any = await http(`/store/products/${it.productId}`, { method:'GET' });
+        let max = 99;
+        if (String(prod?.type||'') !== 'SERVICE'){
+            if (String(prod?.specType||'') === 'MULTI'){
+                const sku = (Array.isArray(prod?.skus)? prod.skus:[]).find((s:any)=> s?.id===it.skuId);
+                max = Math.max(1, Math.min(99, Number(sku?.stockQuantity||0)));
+            } else {
+                max = Math.max(1, Math.min(99, Number(prod?.stockQuantity||0)));
+            }
+        }
+        const next = Math.min(max, Number(it.quantity||0)+1);
+        if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
+        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next;
+    } catch {}
+}
 async function dec(it:any){
 	try {
 		const http=createHttp();

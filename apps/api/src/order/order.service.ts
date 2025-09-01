@@ -262,12 +262,30 @@ export class OrderService {
         });
     }
 
-    getOrder(id: number) {
-        return this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+    private async enrichOrderWithProductTypes(order: any){
+        try{
+            if (!order) return order;
+            const items = Array.isArray(order.items) ? order.items : [];
+            const rawIds: number[] = items
+                .map((it: any) => Number(it?.productId))
+                .filter((v: number) => Number.isFinite(v));
+            const productIds: number[] = Array.from(new Set(rawIds));
+            if (!productIds.length) return order;
+            const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, type: true } });
+            const map = new Map(products.map(p=> [p.id, p.type] as const));
+            order.items = items.map((it:any)=> ({ ...it, productType: it?.productId ? (map.get(it.productId) || null) : null }));
+        }catch{}
+        return order;
     }
 
-    getOrderByNo(no: string) {
-        return this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+    async getOrder(id: number) {
+        const o = await this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+        return await this.enrichOrderWithProductTypes(o);
+    }
+
+    async getOrderByNo(no: string) {
+        const o = await this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+        return await this.enrichOrderWithProductTypes(o);
     }
 
     async getMemberOpenId(memberId: number): Promise<string | null> {

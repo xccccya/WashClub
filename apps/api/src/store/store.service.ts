@@ -30,7 +30,7 @@ export class StoreService {
         if (query.categoryId !== undefined) where.categoryId = query.categoryId;
         if (query.type) where.type = query.type as any;
         if (query.enabled !== null && query.enabled !== undefined) where.enabled = query.enabled;
-        const list = await this.prisma.product.findMany({ where, orderBy: [{ sortWeight: 'desc' }, { id: 'desc' }], include: { skus: true, category: true } });
+        const list = await this.prisma.product.findMany({ where, orderBy: [{ sortWeight: 'desc' }, { id: 'desc' }], include: { skus: true, category: true, coupon: { select: { id: true, type: true, name: true } } } });
         if (!list.length) return [];
         const ids = list.map((p: any) => p.id);
         // 统计销量：仅统计已支付订单的订单项数量，并叠加 initialSales

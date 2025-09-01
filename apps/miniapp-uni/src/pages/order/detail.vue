@@ -55,8 +55,8 @@
 			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
-		<!-- 物流信息：商品订单展示 -->
-		<view class="logistics-card" v-if="order && order.type==='SP'">
+		<!-- 物流信息：商品订单展示（纯虚拟卡券订单不展示） -->
+		<view class="logistics-card" v-if="order && order.type==='SP' && !isVirtualOnly(order)">
 			<view class="logistics-head">物流信息</view>
 			<view v-if="(order as any).shipNoExpress" class="logistics-empty">商家已选择无需快递发货</view>
 			<view v-else-if="(order as any).shipExpressTrackingNo" class="logistics-body">
@@ -77,8 +77,8 @@
 			</view>
 		</view>
 
-		<!-- 收货地址横幅（商品订单显示，独立风格） -->
-		<view :class="['address-banner', addressGradientClass]" v-if="order && order.type==='SP'">
+		<!-- 收货地址横幅（商品订单显示，独立风格；纯虚拟卡券订单不展示） -->
+		<view :class="['address-banner', addressGradientClass]" v-if="order && order.type==='SP' && !isVirtualOnly(order)">
 			<view class="address-tag">收货地址</view>
 			<view class="address-banner-body">
 				<view class="address-info">
@@ -103,7 +103,7 @@
 		<view class="card" v-if="timelineList.length">
 			<view class="sub-title">订单进度</view>
 			<view class="timeline">
-				<view v-for="(it,idx) in (showAllTimeline ? timelineList : [timelineList[timelineList.length-1]])" :key="it.id" class="timeline-row">
+				<view v-for="(it,idx) in (showAllTimeline ? timelineList : [timelineList[timelineList.length-1]])" :key="it.id" :class="['timeline-row', timelineClass(it)]">
 					<view class="dot"></view>
 					<text class="time">{{ formatTime(it.createdAt) }}</text>
 					<text class="desc">{{ zhEvent(it.event) }}：{{ zhTimelineValue(it.event, it.value, order) }}<text v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</text></text>
@@ -174,9 +174,53 @@ const lastKey = ref<string>('');
 const timelineList = ref<Array<any>>([]);
 const showAllTimeline = ref<boolean>(false);
 const hasPartialRefund = ref<boolean>(false);
+// 是否为纯虚拟卡券商品的商品订单（SP）：基于后端返回的 item.productType 判断
+function isVirtualOnly(o?: any): boolean {
+    try{
+        if (!o || o.type !== 'SP') return false;
+        const items: any[] = Array.isArray(o.items) ? o.items : [];
+        if (!items.length) return false;
+        // productType 取值：SERVICE / PHYSICAL / VIRTUAL_CARD
+        return items.every((it:any)=> String(it?.productType||'').toUpperCase() === 'VIRTUAL_CARD');
+    }catch{ return false; }
+}
+// 时间线样式映射：参照洗车卡页面的不同色点
+function timelineClass(it: any){
+    try{
+        const e = String(it?.event||'').toUpperCase();
+        const v = String(it?.value||'').toUpperCase();
+        if (e==='ORDER_STATUS'){
+            if (v==='CREATED') return 'tl--created';
+            if (v==='PAID') return 'tl--paid';
+            if (v==='FULFILLED' || v==='CLOSED') return 'tl--done';
+            if (v==='CANCELLED') return 'tl--cancelled';
+        }
+        if (e==='PAY_STATUS'){
+            if (v==='UNPAID') return 'tl--unpaid';
+            if (v==='PAID') return 'tl--paid';
+            if (v==='PARTIAL_REFUND' || v==='REFUND_REQUESTED') return 'tl--partial';
+            if (v==='REFUNDED' || v==='CANCELLED') return 'tl--cancelled';
+        }
+        if (e==='FULFILLMENT'){
+            if (v==='PENDING') return 'tl--pending';
+            if (v==='IN_SERVICE' || v==='SHIPPED') return 'tl--inprogress';
+            if (v==='RECEIVED' || v==='DONE') return 'tl--done';
+        }
+        if (e==='AFTERSALES'){
+            if (v==='PENDING' || v==='APPROVED') return 'tl--aftersales';
+            if (v==='REJECTED') return 'tl--cancelled';
+            if (v==='COMPLETED' || v==='SUCCESS') return 'tl--done';
+        }
+        if (e==='LOGISTICS') return 'tl--inprogress';
+        if (e==='REVIEW') return 'tl--review';
+        if (e==='BENEFITS') return 'tl--benefit';
+        if (e==='NOTE') return 'tl--note';
+        return '';
+    }catch{ return ''; }
+}
 // 复用列表页的能力：在详情页内实现相同判断与操作
 function isAftersalesRunning(o: any){ return (o?.afterSalesRequests && Array.isArray(o.afterSalesRequests) && o.afterSalesRequests.some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')); }
-function canRefund(o: any){ if (isAftersalesRunning(o)) return false; return o?.payStatus === 'PAID'; }
+function canRefund(o: any){ if (isAftersalesRunning(o)) return false; try { if (displayStatus(o)==='已完成') return false; } catch {} return o?.payStatus === 'PAID'; }
 function canAfterSales(o: any){ if (isAftersalesRunning(o)) return false; try { return displayStatus(o)==='已完成'; } catch { return false; } }
 function canReceive(o: any){ if (!o) return false; if (o.type!=='SP') return false; if (o.payStatus!=='PAID') return false; return o.fulfillmentStatus==='SHIPPED' || o.status==='FULFILLED'; }
 function canReview(o: any){ try { if (!o) return false; if (o?.type==='FK') return false; const done = (o.type==='SERVICE') ? ((o.payStatus==='PAID')&&(o.fulfillmentStatus==='DONE'||o.status==='FULFILLED')) : ((o.type==='SP')?((o.payStatus==='PAID')&&(o.fulfillmentStatus==='RECEIVED'||o.status==='CLOSED')):false); return done && (o?.reviewStatus!=='REVIEWED'); } catch { return false; } }
@@ -562,7 +606,7 @@ function zhRemark(eventType?: string, remark?: string){
 .kv { display:flex; align-items:center; justify-content: space-between; padding: 10rpx 0; }
 .kv .k { color:#6b7280; }
 .kv .v { color:#111827; font-weight: 600; }
-.kv .v.v--small { font-size: 20rpx; font-weight: 500; color:#1f2937; }
+.kv .v.v--small { font-size: 24rpx; font-weight: 500; color:#1f2937; }
 .item { display:flex; gap: 12rpx; padding: 12rpx 0; border-bottom: 2rpx dashed #eef2f7; }
 .thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background:#f1f5f9; }
 .ibody { display:flex; flex-direction: column; gap: 6rpx; flex:1; min-width:0; }
@@ -632,9 +676,23 @@ function zhRemark(eventType?: string, remark?: string){
 .timeline { display:flex; flex-direction: column; gap: 12rpx; margin-top: 8rpx; }
 .timeline-row { position:relative; display:flex; flex-direction: column; gap: 4rpx; background:#ffffff; border: 2rpx dashed #e5e7eb; border-radius: 16rpx; padding: 12rpx 12rpx 12rpx 28rpx; }
 .timeline-row::before { content: ""; position:absolute; left: 12rpx; top: 12rpx; bottom: 12rpx; width: 2rpx; background: #e5e7eb; }
-.dot { position:absolute; left: 6rpx; top: 16rpx; width: 12rpx; height: 12rpx; border-radius: 999rpx; background: #10b981; box-shadow: 0 0 0 6rpx rgba(16,185,129,0.12); }
+.dot { position:absolute; left: 6rpx; top: 16rpx; width: 12rpx; height: 12rpx; border-radius: 999rpx; background: #94a3b8; box-shadow: 0 0 0 6rpx rgba(203,213,225,0.22); }
 .timeline .time { font-size: 22rpx; color:#6b7280; }
 .timeline .desc { font-size: 24rpx; color:#111827; }
+
+/* 参照洗车卡时间线的彩色点：为不同事件/状态赋色 */
+.timeline-row.tl--created .dot { background:#3b82f6; box-shadow: 0 0 0 6rpx rgba(59,130,246,0.12); }
+.timeline-row.tl--unpaid .dot { background:#64748b; box-shadow: 0 0 0 6rpx rgba(100,116,139,0.12); }
+.timeline-row.tl--paid .dot { background:#10b981; box-shadow: 0 0 0 6rpx rgba(16,185,129,0.12); }
+.timeline-row.tl--pending .dot { background:#f59e0b; box-shadow: 0 0 0 6rpx rgba(245,158,11,0.12); }
+.timeline-row.tl--inprogress .dot { background:#06b6d4; box-shadow: 0 0 0 6rpx rgba(6,182,212,0.12); }
+.timeline-row.tl--done .dot { background:#84cc16; box-shadow: 0 0 0 6rpx rgba(132,204,22,0.12); }
+.timeline-row.tl--cancelled .dot { background:#ef4444; box-shadow: 0 0 0 6rpx rgba(239,68,68,0.12); }
+.timeline-row.tl--partial .dot { background:#a855f7; box-shadow: 0 0 0 6rpx rgba(168,85,247,0.12); }
+.timeline-row.tl--aftersales .dot { background:#8b5cf6; box-shadow: 0 0 0 6rpx rgba(139,92,246,0.12); }
+.timeline-row.tl--review .dot { background:#f97316; box-shadow: 0 0 0 6rpx rgba(249,115,22,0.12); }
+.timeline-row.tl--benefit .dot { background:#0ea5e9; box-shadow: 0 0 0 6rpx rgba(14,165,233,0.12); }
+.timeline-row.tl--note .dot { background:#94a3b8; box-shadow: 0 0 0 6rpx rgba(148,163,184,0.12); }
 
 /* 展开全部/收起 胶囊按钮样式 */
 .actions .btn { display:inline-flex; align-items:center; gap: 6rpx; padding: 8rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; }
