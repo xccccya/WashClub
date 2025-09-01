@@ -52,8 +52,8 @@
 			<template #header>
 				<div class="card-header" style="display:flex;align-items:center;gap:12px;">
 					<span>退款记录</span>
-					<el-button v-if="data?.payMethod==='WECHAT_JSAPI'" size="small" type="primary" @click="openRetryRefund">重试渠道退款</el-button>
-					<el-button v-if="data?.payMethod==='WECHAT_JSAPI'" size="small" @click="openPartialRefund">部分退款</el-button>
+					<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowRetryRefund" size="small" type="primary" @click="openRetryRefund">重试渠道退款</el-button>
+					<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowPartialRefund" size="small" @click="openPartialRefund">部分退款</el-button>
 				</div>
 			</template>
 			<el-table :data="(data as any).refundRecords" size="small" border>
@@ -161,6 +161,8 @@ import { API_BASE } from '../config';
 const route = useRoute();
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const data = ref<any>(null);
+const canShowRetryRefund = ref(false);
+const canShowPartialRefund = ref(false);
 const showTrace = ref(false);
 const traceList = ref<Array<{ datetime:string; remark:string }>>([]);
 const traceStatusDesc = ref<string>('');
@@ -174,15 +176,24 @@ async function fetchDetail(){
         const id = Number(idParam);
         data.value = await http(`/orders/${id}`);
     }
+    // 计算按钮显隐
+    try{
+        const rr = Array.isArray((data.value?.refundRecords)||[]) ? (data.value?.refundRecords) : [];
+        const failedOrUnknown = rr.some((r:any)=> r.status==='FAILED' || !r.status);
+        canShowRetryRefund.value = failedOrUnknown;
+        const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
+        const payAmt = Number(data.value?.payAmount||0);
+        canShowPartialRefund.value = payAmt - successSum > 1e-6;
+    }catch{ canShowRetryRefund.value=false; canShowPartialRefund.value=false; }
 }
 onMounted(fetchDetail);
 
 async function openRetryRefund(){
-    // 简化：取最新一条退款记录金额重试
-    const rec = (data.value?.refundRecords||[])[0];
+    // 找到可重试的记录（FAILED或PENDING）
+    const rec = (data.value?.refundRecords||[]).find((r:any)=> r.status==='FAILED' || r.status==='PENDING');
     if (!rec) return;
     try{
-        await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: '重试退款', amount: rec.amount } });
+        await http(`/orders/_refunds/${rec.id}/retry`, { method:'POST' });
     }catch{}
 }
 
@@ -191,7 +202,7 @@ const partialAmount = ref<number|undefined>(undefined);
 const partialReason = ref<string>('');
 function openPartialRefund(){ partialAmount.value = undefined; partialReason.value = ''; dialogPartial.value = true; }
 async function submitPartialRefund(){
-    if (!partialAmount.value || partialAmount.value <= 0) { return; }
+    if (!partialAmount.value || partialAmount.value < 0.01) { return; }
     try{
         await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: partialAmount.value } });
         dialogPartial.value = false; fetchDetail();
@@ -327,6 +338,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	if (e==='PAY_STATUS'){
 		if (v==='UNPAID') return '未支付';
 		if (v==='PAID') return '已支付';
+		if (v==='PARTIAL_REFUND') return '部分退款';
 		if (v==='REFUNDED') return '已退款';
 		if (v==='CANCELLED') return '已取消';
 	}

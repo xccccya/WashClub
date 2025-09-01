@@ -169,16 +169,27 @@ export class OrderController {
             const outRefundNo = `R_${order.no}_${Date.now()}`;
             const amountFen = Math.round(Number(order.payAmount) * 100);
             const requestedFen = Math.round(Number(body?.amount ?? order.payAmount) * 100);
+            const isFullRequest = body?.amount == null || Math.abs(Number(body?.amount) - Number(order.payAmount)) < 0.000001;
+            if (requestedFen < 1) throw new BadRequestException('退款金额必须≥0.01元');
             const existing:any = await this.orders.getOrder(id);
             const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
             const refundableFen = Math.max(0, amountFen - successSumFen);
             const refundFen = Math.min(requestedFen, refundableFen);
+            if (isFullRequest && successSumFen > 0) throw new BadRequestException('已发生部分退款，不能再使用全额退款，请输入剩余可退金额');
             if (refundFen <= 0) throw new BadRequestException('累计退款金额已达上限');
             const allowed = await this.orders.verifyRefundAllowed(order.id, refundFen / 100);
             if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已部分使用，无法全额退款');
-            const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
-            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.reason || null, outRefundNo, wechatRefundId: resp?.refund_id || null, status: 'PROCESSING' as any });
-            return { ok: true, outRefundNo } as any;
+            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.reason || null, outRefundNo, status: 'PENDING' as any });
+            try{
+                const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, resp?.refund_id || null, null);
+                try{ await (this.orders as any).saveRefundWechatResp(outRefundNo, resp); }catch{}
+                return { ok: true, outRefundNo } as any;
+            }catch(e){
+                const msg = (e as any)?.message || String(e);
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, msg);
+                return { ok: false, outRefundNo, error: msg } as any;
+            }
         }
         // 线下/其他渠道：内部退款并回收权益
         return this.orders.finalizeInternalRefund(id, body?.reason, operatorUserId);
@@ -224,28 +235,7 @@ export class OrderController {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
         const result:any = await this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId);
-        // 审核通过且为微信JSAPI支付的退款型售后：自动发起渠道退款
-        try{
-            const afr:any = await this.orders.getAfterSales(id);
-            const ord:any = afr?.order;
-            if (afr && afr.status === 'APPROVED' && ord && ord.payMethod === 'WECHAT_JSAPI' && ord.payStatus === 'PAID'){
-                const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
-                const outRefundNo = `R_${ord.no}_${Date.now()}`;
-                const amountFen = Math.round(Number(ord.payAmount) * 100);
-                const requestedFen = Math.round(Number(afr?.requestedAmount ?? ord.payAmount) * 100);
-                const existing:any = await this.orders.getOrder(ord.id);
-                const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
-                const refundableFen = Math.max(0, amountFen - successSumFen);
-                const refundFen = Math.min(requestedFen, refundableFen);
-                if (refundFen > 0){
-                    const allowed = await this.orders.verifyRefundAllowed(ord.id, refundFen / 100);
-                    if (allowed){
-                        const resp = await this.wxpay.createRefund({ outTradeNo: ord.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.remark, notifyUrl });
-                        await this.orders.createRefundRecord({ orderId: ord.id, memberId: ord.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.remark || null, outRefundNo, wechatRefundId: resp?.refund_id || null, status: 'PROCESSING' as any });
-                    }
-                }
-            }
-        }catch{}
+        // 审核通过后不自动发起退款，由前端确认卡片决定是否调用退款接口
         return result;
     }
 
@@ -262,19 +252,29 @@ export class OrderController {
         const outRefundNo = `R_${order.no}_${Date.now()}`;
         const amountFen = Math.round(Number(order.payAmount) * 100);
         const requestedFen = Math.round(Number(body?.amount ?? order.payAmount) * 100);
-        if (requestedFen <= 0) throw new BadRequestException('退款金额必须大于0');
+        const isFullRequest = body?.amount == null || Math.abs(Number(body?.amount) - Number(order.payAmount)) < 0.000001;
+        if (requestedFen < 1) throw new BadRequestException('退款金额必须≥0.01元');
         // 累计部分退款上限校验（SUCCESS 之和应 ≤ 实付）
         const existing:any = await this.orders.getOrder(id);
         const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
         const refundableFen = Math.max(0, amountFen - successSumFen);
         const refundFen = Math.min(requestedFen, refundableFen);
+        if (isFullRequest && successSumFen > 0) throw new BadRequestException('已发生部分退款，不能再使用全额退款，请输入剩余可退金额');
         if (refundFen <= 0) throw new BadRequestException('累计退款金额已达上限');
         // 校验全额退款可行性（如洗车卡剩余次数不足则阻断）
         const allowed = await this.orders.verifyRefundAllowed(order.id, refundFen / 100);
         if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已部分使用，无法全额退款');
-        const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
-        await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.reason || null, outRefundNo, wechatRefundId: resp?.refund_id || null, status: 'PROCESSING' as any });
-        return { ok: true, outRefundNo };
+        await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_JSAPI' as any, reasonCode: 'WECHAT', reasonText: body?.reason || null, outRefundNo, status: 'PENDING' as any });
+        try{
+            const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, resp?.refund_id || null, null);
+            try{ await (this.orders as any).saveRefundWechatResp(outRefundNo, resp); }catch{}
+            return { ok: true, outRefundNo };
+        }catch(e){
+            const msg = (e as any)?.message || String(e);
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, msg);
+            return { ok: false, outRefundNo, error: msg } as any;
+        }
     }
 
     // 微信退款回调
@@ -305,6 +305,41 @@ export class OrderController {
             res.status(200).json({ code:'SUCCESS' });
         } catch (e) {
             res.status(500).json({ code:'ERROR', message: (e as any)?.message || String(e) });
+        }
+    }
+
+    // 退款重试接口
+    @Post('_refunds/:id/retry')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async retryRefund(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        const rec:any = await (this.orders as any).getRefundRecordById(id);
+        if (!rec) throw new BadRequestException('退款记录不存在');
+        if (rec.method !== 'WECHAT_JSAPI') throw new BadRequestException('仅支持微信渠道退款重试');
+        if (rec.status === 'SUCCESS') throw new BadRequestException('该退款已成功，无需重试');
+        const ord:any = rec.order;
+        if (!ord || ord.payStatus !== 'PAID') throw new BadRequestException('订单状态不支持重试');
+        const outRefundNo = rec.outRefundNo || `R_${ord.no}_${Date.now()}`;
+        if (!rec.outRefundNo){ await (this.orders as any).setRefundOutRefundNo(rec.id, outRefundNo); }
+        const amountFen = Math.round(Number(ord.payAmount) * 100);
+        const requestedFen = Math.round(Number(rec.amount) * 100);
+        if (requestedFen <= 0) throw new BadRequestException('退款金额必须大于0');
+        const existing:any = await this.orders.getOrder(ord.id);
+        const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
+        const refundableFen = Math.max(0, amountFen - successSumFen);
+        if (requestedFen > refundableFen) throw new BadRequestException('可退余额不足，请调整金额后新建退款');
+        const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
+        try{
+            const resp = await this.wxpay.createRefund({ outTradeNo: ord.no, outRefundNo, refundAmountFen: requestedFen, totalAmountFen: amountFen, reason: rec.reasonText || undefined, notifyUrl });
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, resp?.refund_id || null, null);
+            try{ await (this.orders as any).saveRefundWechatResp(outRefundNo, resp); }catch{}
+            return { ok: true, outRefundNo } as any;
+        }catch(e){
+            const msg = (e as any)?.message || String(e);
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, msg);
+            return { ok: false, outRefundNo, error: msg } as any;
         }
     }
 
