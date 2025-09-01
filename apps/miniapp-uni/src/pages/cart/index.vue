@@ -132,9 +132,27 @@ function saveCart(){ /* 后端持久化，前端无需本地保存 */ }
 const allChecked = computed(()=> items.value.length>0 && items.value.every(it=>!!it.checked));
 const totalAmount = computed(()=> items.value.filter(it=>it.checked).reduce((sum:number, it:any)=> sum + Number(it?.snapshot?.price||0)*Number(it.quantity||0), 0));
 const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
+const expectedCouponDiscount = ref<number>(0);
+const expectedPayAmount = computed(()=> Math.max(0, Number(totalAmount.value) - Number(expectedCouponDiscount.value||0)));
+const expectedPayAmountText = computed(()=> expectedPayAmount.value.toFixed(2));
 
-async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); } catch {} }
-async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; } catch {} }
+async function refreshExpectedCoupon(){
+	try{
+		// 懒加载校验，无需跳转
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		const authed = await checkAuthAndRefresh({ redirectIfExpired: false });
+		if (!authed) { expectedCouponDiscount.value = 0; return; }
+		const http = createHttp();
+		const itemsPayload = items.value.filter(it=>it.checked).map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) }));
+		if (!itemsPayload.length) { expectedCouponDiscount.value = 0; return; }
+		const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body: { items: itemsPayload } });
+		const arr:any[] = Array.isArray(res?.applicable) ? res.applicable : [];
+		expectedCouponDiscount.value = arr.length ? Number(arr[0]?.discountApplied||0) : 0;
+	}catch{ expectedCouponDiscount.value = 0; }
+}
+
+async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); await refreshExpectedCoupon(); } catch {} }
+async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; await refreshExpectedCoupon(); } catch {} }
 async function inc(it:any){
     try {
         const http=createHttp();
@@ -151,7 +169,7 @@ async function inc(it:any){
         }
         const next = Math.min(max, Number(it.quantity||0)+1);
         if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
-        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next;
+        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next; await refreshExpectedCoupon();
     } catch {}
 }
 async function dec(it:any){
@@ -160,11 +178,11 @@ async function dec(it:any){
 		const cur = Number(it.quantity||0);
 		if (cur <= 1) {
 			uni.showModal({ title:'提示', content:'是否删除该商品？', success: async (res:any) => {
-				if (res?.confirm) { try { await http(`/cart/me/${it.id}`, { method:'DELETE' }); await loadCart(); } catch {} }
+				if (res?.confirm) { try { await http(`/cart/me/${it.id}`, { method:'DELETE' }); await loadCart(); await refreshExpectedCoupon(); } catch {} }
 			}});
 			return;
 		}
-		const q=Math.max(1, cur-1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q;
+		const q=Math.max(1, cur-1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q; await refreshExpectedCoupon();
 	} catch {}
 }
 
@@ -304,7 +322,7 @@ function checkout(){
 }
 
 // 初始化
-loadCart();
+loadCart().then(()=>{ refreshExpectedCoupon(); });
 </script>
 
 <style>

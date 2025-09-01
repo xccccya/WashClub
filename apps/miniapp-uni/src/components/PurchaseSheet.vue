@@ -299,11 +299,13 @@ const selectedAddressId = ref<number|undefined>(undefined);
 const vehicles = ref<VehicleEx[]>([]);
 const selectedVehicleId = ref<number|undefined>(undefined);
 
-watch(() => props.product, () => {
+watch(() => props.product, async () => {
 	quantity.value = 1;
 	remark.value = '';
 	selectedSkuId.value = undefined;
 	selectedSpecValues.value = {};
+	const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+	if (!authed) { addresses.value = []; vehicles.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 	if (isPhysical.value) { loadAddresses(); }
 	if (isService.value) { loadVehicles(); }
 	// 若仅唯一 SKU，自动填充
@@ -324,11 +326,13 @@ watch(() => props.product, () => {
 			selectedSkuId.value = props.preselectedSkuId;
 		}
 	}
-	try { loadApplicableCoupons(); } catch {}
+	try { await loadApplicableCoupons(); } catch {}
 });
 
-watch(visible, (v)=>{
+watch(visible, async (v)=>{
 	if (v) {
+		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		if (!authed) { addresses.value = []; vehicles.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 		if (isService.value) loadVehicles();
 		if (isPhysical.value) loadAddresses();
 		// 可见时再次校正预选
@@ -341,7 +345,7 @@ watch(visible, (v)=>{
 				selectedSkuId.value = props.preselectedSkuId;
 			}
 		}
-		try { loadApplicableCoupons(); } catch {}
+		try { await loadApplicableCoupons(); } catch {}
 	}
 });
 

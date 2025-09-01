@@ -37,6 +37,22 @@ export class MiniappCouponController {
             const notStarted = c.expiryType === 'FIXED' && c.startAt ? (c.startAt > now) : false;
             const expired = c.expiryType === 'FIXED' && c.endAt ? (c.endAt < now) : false;
             const canClaim = !soldOut && !reachedLimit;
+            // 规则展示字段（便于小程序端展示直减与折扣）
+            let ruleKind: string | null = null;
+            let rulePercent: number | null = null; // 折扣百分比（OFF 百分比，例如 20 表示 20% OFF）
+            let ruleAmount: number | null = null;  // 直减金额
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const rule: any = (c as any)?.ruleJson || null;
+                if (rule && typeof rule === 'object') {
+                    ruleKind = String(rule.kind || '').toLowerCase() || null;
+                    if (ruleKind === 'percent') {
+                        rulePercent = Number(rule.percent ?? rule.amount ?? 0) || 0;
+                    } else if (ruleKind === 'direct') {
+                        ruleAmount = Number(rule.amount ?? 0) || 0;
+                    }
+                }
+            } catch {}
             result.push({
                 id: c.id,
                 name: c.name,
@@ -58,6 +74,10 @@ export class MiniappCouponController {
                 notStarted,
                 expired,
                 canClaim: canClaim && !notStarted && !expired,
+                // 新增字段：前端展示所需
+                ruleKind,
+                rulePercent,
+                ruleAmount,
             });
         }
         return { items: result };

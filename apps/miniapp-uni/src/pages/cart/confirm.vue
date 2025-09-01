@@ -225,8 +225,13 @@ async function submit(){
 	}
 }
 
-loadSelected();
-loadApplicableCoupons();
+// 进入页面时先校验登录，再加载选中商品与可用优惠券
+(async ()=>{
+	const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+	if (!authed) { items.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
+	await loadSelected();
+	await loadApplicableCoupons();
+})();
 </script>
 
 <style>

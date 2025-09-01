@@ -17,17 +17,20 @@
 			<view v-else-if="list.length === 0" class="empty">暂时没有可领取优惠券</view>
 			<view v-else>
 				<view v-for="it in list" :key="it.id" :class="['coupon-card', it.soldOut || it.reachedLimit ? 'coupon-card--disabled' : '']">
-					<!-- 左侧金额色块 -->
+					<!-- 左侧金额色块（支持直减/折扣展示） -->
 					<view class="cc-left">
-						<template v-if="faceYuan(it)">
+						<template v-if="displayRule(it)">
+							<view class="cc-row">
+								<text class="cc-currency" v-if="displayRule(it).currency">¥</text>
+								<text class="cc-amount">{{ displayRule(it).main }}</text>
+							</view>
+							<text class="cc-sub">{{ displayRule(it).sub }}</text>
+						</template>
+						<template v-else>
 							<view class="cc-row">
 								<text class="cc-currency">¥</text>
 								<text class="cc-amount">{{ faceYuan(it) }}</text>
 							</view>
-							<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
-						</template>
-						<template v-else>
-							<text class="cc-amount-text">优惠券</text>
 							<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
 						</template>
 					</view>
@@ -107,6 +110,25 @@ function formatDate(d?: string|null){ try { if(!d) return ''; const x=new Date(d
 function formatMoney(n?: any){ const v = Number(n); return isNaN(v) ? '' : v.toFixed(2); }
 
 function faceYuan(it: CouponItem){ try { const n = Number(it.faceValue||0); if (isNaN(n) || n<=0) return ''; const intv = Math.round(n); return String(intv); } catch { return ''; } }
+// 展示直减/折扣规则，不改变卡片高度
+function displayRule(it: any): { currency?: boolean; main: string; sub: string } | null {
+    try{
+        const kind = String(it?.ruleKind||'').toLowerCase();
+        if (kind === 'percent'){
+            const pct = Math.max(0, Number(it?.rulePercent||0));
+            if (pct > 0){
+                const off = Math.min(9.9, Math.max(0.1, 10 - pct/10));
+                return { currency: false, main: `${off.toFixed(1)}折`, sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '折扣券' };
+            }
+        } else if (kind === 'direct'){
+            const amt = Number(it?.ruleAmount||0);
+            if (amt > 0){
+                return { currency: true, main: String(Math.round(amt)), sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '立减券' };
+            }
+        }
+        return null;
+    }catch{ return null; }
+}
 function displayExpiry(it: CouponItem){
 	try{
 		const t = String(it.expiryType||'').toUpperCase();

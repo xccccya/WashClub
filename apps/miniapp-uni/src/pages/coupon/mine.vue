@@ -23,11 +23,20 @@
 			<view v-else>
 				<view v-for="it in list" :key="it.id" :class="['coupon-card', isDisabled(it) ? 'coupon-card--disabled' : '']">
 					<view class="cc-left">
-						<view class="cc-row">
-							<text class="cc-currency">¥</text>
-							<text class="cc-amount">{{ faceYuan(it) }}</text>
-						</view>
-						<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
+						<template v-if="displayRule(it)">
+							<view class="cc-row">
+								<text class="cc-currency" v-if="displayRule(it)?.currency">¥</text>
+								<text class="cc-amount">{{ displayRule(it)?.main }}</text>
+							</view>
+							<text class="cc-sub">{{ displayRule(it)?.sub }}</text>
+						</template>
+						<template v-else>
+							<view class="cc-row">
+								<text class="cc-currency">¥</text>
+								<text class="cc-amount">{{ faceYuan(it) }}</text>
+							</view>
+							<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
+						</template>
 					</view>
 					<view class="cc-divider">
 						<view class="cc-notch cc-notch--top"></view>
@@ -65,6 +74,9 @@ type MineItem = {
 	name?: string|null;
 	faceValue?: number|string|null;
 	minOrderAmount?: number|string|null;
+	ruleKind?: string|null;
+	rulePercent?: number|null;
+	ruleAmount?: number|null;
 	perMemberLimit?: number|null;
 	expiryType?: 'FIXED'|'AFTER_RECEIVE'|'PERMANENT';
 	startAt?: string|null;
@@ -84,6 +96,24 @@ function goBack(){ try { const pages = getCurrentPages?.() || []; if (pages.leng
 function formatDate(d?: string|null){ try { if(!d) return ''; const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const dd=String(x.getDate()).padStart(2,'0'); const hh=String(x.getHours()).padStart(2,'0'); const mm=String(x.getMinutes()).padStart(2,'0'); const ss=String(x.getSeconds()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`; } catch { return ''; } }
 function formatMoney(n?: any){ const v = Number(n); return isNaN(v) ? '' : v.toFixed(2); }
 function faceYuan(it: MineItem){ try { const n = Number(it.faceValue||0); if (isNaN(n) || n<=0) return ''; return String(Math.round(n)); } catch { return ''; } }
+function displayRule(it: any): { currency?: boolean; main: string; sub: string } | null {
+    try{
+        const kind = String(it?.ruleKind||'').toLowerCase();
+        if (kind === 'percent'){
+            const pct = Math.max(0, Number(it?.rulePercent||0));
+            if (pct > 0){
+                const off = Math.min(9.9, Math.max(0.1, 10 - pct/10));
+                return { currency: false, main: `${off.toFixed(1)}折`, sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '折扣券' };
+            }
+        } else if (kind === 'direct'){
+            const amt = Number(it?.ruleAmount||0);
+            if (amt > 0){
+                return { currency: true, main: String(Math.round(amt)), sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '立减券' };
+            }
+        }
+        return null;
+    }catch{ return null; }
+}
 function displayExpiry(it: MineItem){ try{ const t=String(it.expiryType||'').toUpperCase(); if(t==='PERMANENT') return '有效期：永久有效'; if(t==='FIXED') return `有效期：${formatDate(it.startAt)} ~ ${formatDate(it.endAt)}`; if(t==='AFTER_RECEIVE') return `有效期：领取后${Number(it.validDays||0)}天`; return '有效期：-'; }catch{ return '有效期：-'; } }
 function isExpired(it: any){ try { if (!it?.endAt) return false; return new Date(it.endAt) < new Date(); } catch { return false; } }
 function isNotStarted(it: any){ try { if (!it?.startAt) return false; return new Date(it.startAt) > new Date(); } catch { return false; } }
@@ -106,18 +136,23 @@ async function refresh(){
 		if (active.value==='expired') q.expired = '1';
 		const data:any = await http('/coupon/miniapp/mine', { method:'GET', query: q });
 		const arr:any[] = Array.isArray(data?.items) ? data.items : [];
-		list.value = arr.map((x:any)=>({
-			id: x.id,
-			name: x.name ?? x.coupon?.name ?? '优惠券',
-			faceValue: x.coupon?.faceValue ?? null,
-			minOrderAmount: x.coupon?.minOrderAmount ?? null,
-			perMemberLimit: x.coupon?.perMemberLimit ?? null,
-			expiryType: x.expiryType ?? x.coupon?.expiryType ?? 'PERMANENT',
-			startAt: x.startAt ?? x.coupon?.startAt ?? null,
-			endAt: x.endAt ?? x.coupon?.endAt ?? null,
-			validDays: x.coupon?.validDays ?? null,
-			usedAt: x.usedAt ?? null,
-		}));
+		list.value = arr.map((x:any)=>(
+			{
+				id: x.id,
+				name: x.name ?? x.coupon?.name ?? '优惠券',
+				faceValue: x.coupon?.faceValue ?? null,
+				minOrderAmount: x.coupon?.minOrderAmount ?? null,
+				ruleKind: x.coupon?.ruleJson?.kind ?? null,
+				rulePercent: (x.coupon?.ruleJson?.percent ?? x.coupon?.ruleJson?.amount) ?? null,
+				ruleAmount: x.coupon?.ruleJson?.kind === 'direct' ? (x.coupon?.ruleJson?.amount ?? null) : null,
+				perMemberLimit: x.coupon?.perMemberLimit ?? null,
+				expiryType: x.expiryType ?? x.coupon?.expiryType ?? 'PERMANENT',
+				startAt: x.startAt ?? x.coupon?.startAt ?? null,
+				endAt: x.endAt ?? x.coupon?.endAt ?? null,
+				validDays: x.coupon?.validDays ?? null,
+				usedAt: x.usedAt ?? null,
+			}
+		));
 		// 排序：可使用优先（已生效且未用且未过期）> 未生效 > 已使用 > 已失效
 		list.value.sort((a:any,b:any)=>{
 			const sa = isExpired(a)?3:(a.usedAt?2:(isNotStarted(a)?1:0));
