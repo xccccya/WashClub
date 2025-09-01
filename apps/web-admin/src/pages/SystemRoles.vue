@@ -116,6 +116,9 @@ const menuGroups = computed<MenuGroup[]>(() => {
   menus.value.forEach(m => {
     if (m.key === 'members') {
       groups.members.children.unshift(m);
+    } else if (m.key === 'member-coupons') {
+      // 指定：会员卡券归入卡券管理
+      groups.coupon.children.push(m);
     } else if (m.key.startsWith('member-') && m.key !== 'member-vehicles' && m.key !== 'member-washcards') {
       groups.members.children.push(m);
     } else if (['member-vehicles','service-queue'].includes(m.key)) {

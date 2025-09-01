@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<el-button @click="$router.back()" style="margin-bottom:12px;">返回</el-button>
-		<h3>订单详情 {{ data?.no ? ('#' + data?.no) : '' }}</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="订单号">{{ data?.no }}</el-descriptions-item>
 			<el-descriptions-item label="类型">{{ displayType(data?.type) }}</el-descriptions-item>

@@ -5,7 +5,7 @@
 			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">搜索</el-button>
 			<el-button type="primary" @click="openCreate">新增洗车卡</el-button>
 		</template>
-		<el-table :data="list" stripe style="width:100%" highlight-current-row>
+		<div class="table-scroll"><el-table :data="list" stripe style="min-width: 980px; width: 100%;" highlight-current-row>
 			<el-table-column prop="id" label="ID" width="80" />
 			<el-table-column prop="name" label="卡名称" min-width="160" show-overflow-tooltip />
 			<el-table-column prop="cardNo" label="卡号" width="140" />
@@ -43,7 +43,7 @@
 					<el-button size="small" link type="danger" @click="openDelete(row)">删除</el-button>
 				</template>
 			</el-table-column>
-		</el-table>
+		</el-table></div>
 		<div style="margin-top:12px;display:flex;justify-content:flex-end;">
 			<el-pagination background layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="onPageChange" />
 		</div>
@@ -297,6 +297,8 @@ async function onDeleteConfirm(){ if (!current.value) return; await http(`/wash-
 </script>
 
 <style scoped>
+.table-scroll{ overflow:auto; width:100%; }
+.base-page__header{ flex-wrap: wrap; gap:8px; width:100%; }
 </style>
 
 

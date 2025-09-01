@@ -145,6 +145,14 @@ TZ=Asia/Shanghai
 - 开发：`pnpm --filter web-admin dev`
 - 构建：`pnpm --filter web-admin build`
 
+#### 主题/配色切换
+- 右上角“🎨”按钮可切换明暗主题与配色方案；支持自定义主色。
+- 明暗：设置在 `document.documentElement` 的 `data-theme=dark` 与 `class=dark`，以适配 Element Plus 暗色变量。
+- 配色：通过 `data-color-scheme` 切换预设（default/green/violet/orange）。
+- 自定义主色：在 default 配色下生效，写入 CSS 变量 `--app-primary`；优先级高于默认主色。
+- 持久化：`localStorage` 保存 `theme`、`colorScheme`、`customColor`，刷新后自动恢复。
+- 变量定义：见 `apps/web-admin/src/App.vue` 中的 `:root` 变量段，包含 `--app-primary`/`--app-bg`/`--app-text` 等。
+
 ### 收银台（apps/web-pos）（开发中）
 - 开发：`pnpm --filter web-pos dev`
 - 构建：`pnpm --filter web-pos build`

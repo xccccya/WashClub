@@ -432,7 +432,7 @@ function colorTagStyle(color?: string | null): any {
 .el-tag { min-width: 40px; text-align: center; }
 .letter-bar { display:flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .letter { font-size: 12px; padding: 4px 6px; border-radius: 4px; cursor: pointer; color: #666; }
-.letter.active { background:#ecf5ff; color:#409EFF; }
+.letter.active { background:#ecf5ff; color: var(--app-primary); }
 .brand-option { display:flex; align-items:center; gap:8px; }
 .brand-logo { width:18px; height:18px; object-fit:contain; border-radius:2px; }
 .brand-logo.prefix { margin-right:6px; }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from './pages/Login.vue';
 import Home from './pages/Home.vue';
+import Dashboard from './pages/Dashboard.vue';
 import MemberList from './pages/MemberList.vue';
 import MemberLevels from './pages/MemberLevels.vue';
 import MemberCategories from './pages/MemberCategories.vue';
@@ -35,7 +36,8 @@ const router = createRouter({
 			component: Home,
 			meta: { requiresAuth: true },
 			children: [
-				{ path: '', redirect: '/members' },
+				{ path: '', redirect: '/dashboard' },
+				{ path: '/dashboard', component: Dashboard, meta: { perm: '*' } },
 				{ path: '/members', component: MemberList, meta: { perm: 'members' } },
 				{ path: '/member-levels', component: MemberLevels, meta: { perm: 'member-levels' } },
 				{ path: '/member-categories', component: MemberCategories, meta: { perm: 'member-categories' } },

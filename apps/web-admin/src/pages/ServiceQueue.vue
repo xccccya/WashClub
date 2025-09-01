@@ -379,9 +379,9 @@ function combinedRemainingModel(row: QueueItem, index: number): number {
 .steps-cell :deep(.el-step__title) { white-space:normal; }
 .steps-cell :deep(.el-step__description) { white-space:normal; }
 /* 进行中颜色改为蓝色 */
-.steps-cell :deep(.el-step__head.is-process) { color: #409EFF; border-color: #409EFF; }
-.steps-cell :deep(.el-step__title.is-process) { color: #409EFF; }
-.steps-cell :deep(.el-step__description.is-process) { color: #409EFF; }
+.steps-cell :deep(.el-step__head.is-process) { color: var(--app-primary); border-color: var(--app-primary); }
+.steps-cell :deep(.el-step__title.is-process) { color: var(--app-primary); }
+.steps-cell :deep(.el-step__description.is-process) { color: var(--app-primary); }
 /* 修复表格只显示一行：确保表格容器允许高度自适应 */
 /* 避免强行修改表格内部高度，恢复默认滚动与渲染 */
 </style>

@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<h3>评价管理</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<el-form :inline="true" style="margin-bottom:12px;">
 			<el-form-item label="会员ID"><el-input v-model.number="memberId" placeholder="可选" style="width:160px;" /></el-form-item>
 			<el-form-item label="订单号"><el-input v-model="orderNo" placeholder="可选" style="width:220px;" /></el-form-item>

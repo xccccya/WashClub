@@ -132,7 +132,7 @@ export class AuthService {
 	}
 
 	private generateRandomName(): string {
-		// 生成4位由数字与大小写字母组成的随机串
+		// 生成5位由数字与大小写字母组成的随机串
 		const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 		let suffix = '';
 		for (let i = 0; i < 4; i++) {

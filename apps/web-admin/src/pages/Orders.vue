@@ -1,7 +1,7 @@
 <template>
 	<div>
-		<h3>订单列表</h3>
-		<div class="toolbar card">
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
+		<div class="toolbar card no-wrap">
 			<el-input v-model="keyword" placeholder="订单号/备注/手机号" style="width:260px;margin-right:8px;" @keyup.enter="fetchList" />
 			<el-select v-model="type" placeholder="类型" style="width:140px;margin-right:8px;">
 				<el-option label="全部" value="" />
@@ -46,7 +46,7 @@
 			<el-button type="primary" @click="fetchList">查询</el-button>
 			<el-button @click="resetFilters">重置</el-button>
 		</div>
-		<el-table :data="list" border stripe size="small" style="width: 100%;border-radius:8px;overflow:hidden;">
+		<div class="table-scroll"><el-table :data="list" border stripe size="small" style="min-width: 980px; width: 100%; border-radius:8px;overflow:hidden;">
 			<el-table-column prop="id" label="ID" width="60" />
 			<el-table-column prop="no" label="订单号" min-width="200">
 				<template #default="{ row }">
@@ -90,7 +90,7 @@
 				</template>
 			</el-table-column>
 			<el-table-column prop="remark" label="备注" min-width="160" />
-			<el-table-column label="操作" width="400">
+			<el-table-column label="操作" width="400" fixed="right">
 				<template #default="{ row }">
 					<el-tooltip content="查看">
 						<el-button text class="icon-btn" title="查看" @click="open(row.id)"><img class="icon" :src="SeeIcon" /></el-button>
@@ -113,7 +113,7 @@
 					<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="small" type="warning">恢复</el-button></template></el-popconfirm>
 				</template>
 			</el-table-column>
-		</el-table>
+		</el-table></div>
 
 		<el-dialog v-model="showPay" title="手动确认支付" width="420px">
 			<el-select v-model="payMethod" placeholder="支付方式" style="width: 100%">
@@ -286,9 +286,11 @@ onMounted(fetchList);
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; gap:8px; }
+.toolbar{ display:flex; align-items:center; margin:12px 0; gap:8px; width:100%; }
+.no-wrap{ flex-wrap: wrap; }
 .card{ background:#fff; border:1px solid #eee; border-radius:8px; padding:12px; }
-.link{ color:#409EFF; cursor:pointer; }
+.table-scroll{ overflow:auto; width:100%; }
+.link{ color: var(--app-primary); cursor:pointer; }
 .deleted{ text-decoration: line-through; opacity: .65; }
 .icon-btn{ padding: 4px; min-width: auto; }
 .icon-btn.danger{ color:#F56C6C; }

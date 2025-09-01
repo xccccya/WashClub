@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<h3>会员卡券</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div class="toolbar">
 			<el-input v-model="query.memberId" placeholder="会员ID" style="width:140px;margin-right:8px;" />
 			<el-input v-model="query.couponId" placeholder="卡券ID" style="width:140px;margin-right:8px;" />

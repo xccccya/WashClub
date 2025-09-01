@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<h3>商品分类</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div style="margin:12px 0;">
 			<el-button type="primary" @click="openCreate">新增分类</el-button>
 		</div>

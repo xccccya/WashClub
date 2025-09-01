@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<h3>卡券列表</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div class="toolbar">
 			<el-select v-model="query.groupId" placeholder="分组" clearable style="width:160px;margin-right:8px;">
 				<el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />

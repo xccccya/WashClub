@@ -1,12 +1,12 @@
 <template>
 	<div>
-		<h3>商品列表</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div class="toolbar">
 			<el-input v-model="keyword" placeholder="搜索名称/条码" style="width:220px;margin-right:8px;" @keyup.enter="fetchList" />
 			<el-button @click="fetchList">查询</el-button>
 			<el-button type="primary" @click="openCreate">新增商品</el-button>
 		</div>
-		<el-table :data="list" border stripe size="small" style="width: 100%;border-radius:8px;">
+		<div class="table-scroll"><el-table :data="list" border stripe size="small" style="min-width: 980px; width: 100%; border-radius:8px;">
 			<el-table-column prop="id" label="ID" width="70" />
 			<el-table-column label="主图" width="90">
 				<template #default="{ row }"><img :src="abs(row.imageUrl)" v-if="row.imageUrl" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #eee;" /></template>
@@ -42,7 +42,7 @@
 					<el-popconfirm title="确认删除？若被引用将失败，建议下架" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
 				</template>
 			</el-table-column>
-		</el-table>
+		</el-table></div>
 
 		<el-dialog v-model="show" :title="form.id ? '编辑商品' : '新增商品'" width="820px" :destroy-on-close="false">
 			<el-tabs v-model="formTab">
@@ -64,7 +64,7 @@
 								<div style="display:flex;flex-wrap:wrap;gap:8px;">
 									<div v-for="(img,i) in formImages" :key="img" style="position:relative;width:88px;height:88px;border-radius:8px;overflow:hidden;border:1px solid #eee;">
 										<img :src="abs(img)" style="width:100%;height:100%;object-fit:cover;" />
-										<div v-if="i===0" style="position:absolute;left:0;top:0;background:#409EFF;color:#fff;font-size:12px;padding:2px 4px;border-bottom-right-radius:6px;">主图</div>
+										<div v-if="i===0" style="position:absolute;left:0;top:0;background:var(--app-primary);color:#fff;font-size:12px;padding:2px 4px;border-bottom-right-radius:6px;">主图</div>
 										<div @click="removeImage(i)" style="position:absolute;right:2px;top:2px;background:rgba(0,0,0,0.6);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</div>
 									</div>
 								</div>
@@ -403,9 +403,10 @@ function batchGenBarcodeIfEmpty(){ for(const r of (form.value.skus||[])){ if(!St
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; }
+.toolbar{ display:flex; align-items:center; margin:12px 0; flex-wrap: wrap; gap:8px; width:100%; }
 .nowrap{ white-space:nowrap; }
 .muted{ color:#999; font-size:12px; margin-left:4px; }
+.table-scroll{ overflow:auto; width:100%; }
 </style>
 
 

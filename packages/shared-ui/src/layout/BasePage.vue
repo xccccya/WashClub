@@ -1,7 +1,6 @@
 <template>
 	<div class="base-page">
 		<div class="base-page__header">
-			<h2>{{ title }}</h2>
 			<slot name="actions" />
 		</div>
 		<div class="base-page__content">
@@ -20,8 +19,10 @@ defineProps<{ title: string }>();
 }
 .base-page__header {
 	display: flex;
-	justify-content: space-between;
+	justify-content: flex-start;
 	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin-bottom: 12px;
 }
 </style>

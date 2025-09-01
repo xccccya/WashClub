@@ -8,6 +8,7 @@ import { AdminRoleController } from './role.controller.js';
 import { AdminRoleService } from './role.service.js';
 import { SmsAdminController } from './sms.controller.js';
 import { AdminGuard } from './admin.guard.js';
+import { MetricsController } from './metrics.controller.js';
 
 @Module({
 	imports: [
@@ -16,7 +17,7 @@ import { AdminGuard } from './admin.guard.js';
 			signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
 		}),
 	],
-	controllers: [AuthController, AdminRoleController, SmsAdminController],
+	controllers: [AuthController, AdminRoleController, SmsAdminController, MetricsController],
 	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard],
 	exports: [AdminGuard, JwtModule],
 })

@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<h3>库存管理</h3>
+		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div class="card">
 			<div class="row">
 				<el-select v-model="categoryId" placeholder="选择商品分类" style="width:220px;" @change="onCategoryChange">
