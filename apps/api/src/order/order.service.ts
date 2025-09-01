@@ -85,20 +85,23 @@ export class OrderService {
     async applyRefundSuccess(params: { orderId: number; amountYuan: number; method?: PayMethod | null; operatorUserId?: number | null; outRefundNo?: string | null; wechatRefundId?: string | null }){
         const { orderId, amountYuan, operatorUserId } = params;
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-        const isFull = Math.abs(Number(order.payAmount)) - Math.abs(Number(amountYuan)) < 0.000001;
-        if (isFull){
-            // 全额退款：回滚库存、更新订单状态为已取消/已退款、回退权益
+        const payAmountYuan = Number(order.payAmount);
+        const currentRefundedYuan = Number(order.refundedAmount || 0);
+        const nextRefundedYuan = Math.min(payAmountYuan, currentRefundedYuan + Number(amountYuan || 0));
+        const isAllRefunded = Math.abs(payAmountYuan - nextRefundedYuan) < 0.000001;
+
+        if (isAllRefunded){
+            // 全额退款达成（可能由多次部分退款累计触达）：回滚库存、更新订单状态、回退权益
             const updated = await this.refundOrder(orderId, '渠道退款成功', operatorUserId ?? null);
             await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null, { outRefundNo: params.outRefundNo ?? null, wechatRefundId: params.wechatRefundId ?? null });
             await this.rollbackPointsForRefund(orderId, operatorUserId ?? null);
+            await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: order.payAmount } });
             return updated;
-        } else {
-            // 部分退款：不改库存，不改订单状态（保留已支付），仅时间线与备注
-            await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
-            // 可选：累计部分退款金额（可加字段），此处仅追加备注
-            await this.prisma.order.update({ where: { id: orderId }, data: { remark: `${order.remark ? order.remark + '；' : ''}部分退款¥${amountYuan.toFixed(2)}` } });
-            return order;
         }
+        // 非全额：部分退款累计并记录时间线
+        await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: new Prisma.Decimal(nextRefundedYuan as any), remark: `${order.remark ? order.remark + '；' : ''}部分退款¥${amountYuan.toFixed(2)}` } });
+        await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
+        return order;
     }
 
     // 内部退款（非渠道）统一收尾：执行退款、回收权益（洗车卡、积分）
@@ -679,7 +682,7 @@ export class OrderService {
                 });
             }
         }
-        return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'REFUNDED', remark: reason ?? undefined } });
+        return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'REFUNDED', refundedAmount: order.payAmount, remark: reason ?? undefined } });
     }
 
     // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
@@ -958,6 +961,27 @@ export class OrderService {
         await this.prisma.afterSalesRequest.update({ where: { id: afr.id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
         await this.writeTimeline({ orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: 'REFUND', operatorUserId: operatorUserId ?? null });
         return afr.id;
+    }
+
+    // 记录微信退款原始响应（用于排障与重试判定）
+    async saveRefundWechatResp(outRefundNo: string, resp: any){
+        const rec = await this.prisma.refundRecord.findFirst({ where: { outRefundNo } });
+        if (!rec) return null;
+        return this.prisma.refundRecord.update({ where: { id: rec.id }, data: { wechatResp: resp as any } });
+    }
+
+    // 查询退款记录
+    async getRefundRecordById(id: number){
+        return this.prisma.refundRecord.findUnique({ where: { id }, include: { order: true, member: true } });
+    }
+
+    async getRefundRecordByOutRefundNo(outRefundNo: string){
+        return this.prisma.refundRecord.findFirst({ where: { outRefundNo } });
+    }
+
+    // 若退款记录缺少 outRefundNo，设置一个（用于重试）
+    async setRefundOutRefundNo(id: number, outRefundNo: string){
+        return this.prisma.refundRecord.update({ where: { id }, data: { outRefundNo } });
     }
 
     async completeLatestAftersalesByOrderAndType(orderId: number, type: 'EXCHANGE'|'RE_SERVICE', operatorUserId?: number | null) {
