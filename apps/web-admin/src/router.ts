@@ -25,6 +25,7 @@ import AfterSales from './pages/AfterSales.vue';
 import CouponGroups from './pages/CouponGroups.vue';
 import CouponList from './pages/CouponList.vue';
 import MemberCoupons from './pages/MemberCoupons.vue';
+import CouponLogs from './pages/CouponLogs.vue';
 import MemberAddresses from './pages/MemberAddresses.vue';
 
 const router = createRouter({
@@ -59,6 +60,7 @@ const router = createRouter({
 				{ path: '/coupon/groups', component: CouponGroups, meta: { perm: 'coupon-groups' } },
 				{ path: '/coupon/list', component: CouponList, meta: { perm: 'coupons' } },
 				{ path: '/coupon/member-coupons', component: MemberCoupons, meta: { perm: 'member-coupons' } },
+				{ path: '/coupon/logs', component: CouponLogs, meta: { perm: 'coupon-logs' } },
 				{ path: '/system/roles', component: SystemRoles, meta: { perm: 'system-roles' } },
 				{ path: '/system/admins', component: SystemAdmins, meta: { perm: 'system-admins' } },
 				{ path: '/system/files', component: SystemFiles, meta: { perm: 'system-files' } },

@@ -40,6 +40,7 @@
 					<el-menu-item v-if="can('coupon-groups')" index="/coupon/groups">分组管理</el-menu-item>
 					<el-menu-item v-if="can('coupons')" index="/coupon/list">卡券列表</el-menu-item>
 					<el-menu-item v-if="can('member-coupons')" index="/coupon/member-coupons">会员卡券</el-menu-item>
+					<el-menu-item v-if="can('coupon-logs')" index="/coupon/logs">卡券流水</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/system">
 					<template #title>系统设置</template>
@@ -205,6 +206,7 @@ function addTabByRoute(){
 		'/coupon/groups':'分组管理',
 		'/coupon/list':'卡券列表',
 		'/coupon/member-coupons':'会员卡券',
+		'/coupon/logs':'卡券流水',
 		'/system/roles':'后台角色',
 		'/system/admins':'后台管理员',
 		'/system/files':'文件管理',
@@ -229,6 +231,7 @@ function addTabByRoute(){
 	if (path.startsWith('/orders')) crumbs.push('订单管理');
 	if (path.startsWith('/after-sales')) crumbs.push('售后');
 	if (path.startsWith('/coupon/')) { crumbs.push('卡券管理'); if (path.includes('/groups')) crumbs.push('分组管理'); if (path.includes('/list')) crumbs.push('卡券列表'); if (path.includes('/member-coupons')) crumbs.push('会员卡券'); }
+	if (path.startsWith('/coupon/logs')) { crumbs.push('卡券管理'); crumbs.push('卡券流水'); }
 	if (path.startsWith('/system/')) { crumbs.push('系统设置'); if (path.includes('/roles')) crumbs.push('后台角色'); if (path.includes('/admins')) crumbs.push('后台管理员'); if (path.includes('/files')) crumbs.push('文件管理'); if (path.includes('/sms')) crumbs.push('短信管理'); }
 	if (crumbs.length===0) crumbs.push('首页');
 	breadcrumbList.value = crumbs;

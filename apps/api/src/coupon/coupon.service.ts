@@ -111,6 +111,20 @@ export class CouponService {
         return (this.prisma as any).memberCoupon.delete({ where: { id } });
     }
 
+    // 卡券流水列表（目前使用 CouponRestoreLog 作为券相关流水）
+    async listCouponLogs(query: { page?: number; pageSize?: number; memberId?: number | null; orderId?: number | null }){
+        const page = Math.max(1, Number(query.page || 1));
+        const pageSize = Math.max(1, Math.min(100, Number(query.pageSize || 20)));
+        const where: any = {};
+        if (query.memberId != null) where.memberId = query.memberId;
+        if (query.orderId != null) where.orderId = query.orderId;
+        const [total, items] = await this.prisma.$transaction([
+            this.prisma.couponRestoreLog.count({ where }),
+            this.prisma.couponRestoreLog.findMany({ where, orderBy: { id: 'desc' }, skip: (page-1)*pageSize, take: pageSize, include: { member: { select: { id:true, name:true, phone:true } }, order: { select: { id:true, no:true } } } })
+        ]);
+        return { total, page, pageSize, items };
+    }
+
     // =======================
     // 发放/领取
     // =======================

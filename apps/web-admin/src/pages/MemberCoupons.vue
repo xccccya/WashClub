@@ -20,10 +20,18 @@
 				<template #default="{ row }">{{ row.member?.name }}（{{ row.member?.phone }}）</template>
 			</el-table-column>
 			<el-table-column prop="coupon.name" label="卡券名称" min-width="160" />
-			<el-table-column prop="expiryType" label="有效期类型" width="120" />
-			<el-table-column prop="startAt" label="开始时间" width="180" />
-			<el-table-column prop="endAt" label="结束时间" width="180" />
-			<el-table-column prop="usedAt" label="使用时间" width="180" />
+			<el-table-column prop="expiryType" label="有效期类型" width="120">
+				<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
+			</el-table-column>
+			<el-table-column prop="startAt" label="开始时间" width="200">
+				<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
+			</el-table-column>
+			<el-table-column prop="endAt" label="结束时间" width="200">
+				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
+			</el-table-column>
+			<el-table-column prop="usedAt" label="使用时间" width="200">
+				<template #default="{ row }">{{ formatLocal(row.usedAt) }}</template>
+			</el-table-column>
 			<el-table-column label="操作" width="260">
 				<template #default="{ row }">
 					<el-button size="small" @click="openEdit(row)">修改有效期</el-button>
@@ -82,6 +90,28 @@ async function save(){
 async function remove(id:number){ await http(`/member-coupons/${id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
 
 onMounted(fetchList);
+
+function zhExpiryType(t?: string){
+  const v = String(t||'').toUpperCase();
+  if (v==='PERMANENT') return '永久有效';
+  if (v==='FIXED') return '固定区间';
+  if (v==='AFTER_RECEIVE') return '领取后生效';
+  return v || '-';
+}
+function formatLocal(d?: string | Date | null): string{
+  try{
+    if (!d) return '';
+    const dt = new Date(d);
+    if (!isFinite(dt.getTime())) return '';
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,'0');
+    const dd = String(dt.getDate()).padStart(2,'0');
+    const hh = String(dt.getHours()).padStart(2,'0');
+    const mm = String(dt.getMinutes()).padStart(2,'0');
+    const ss = String(dt.getSeconds()).padStart(2,'0');
+    return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`;
+  }catch{ return ''; }
+}
 </script>
 
 <style scoped>

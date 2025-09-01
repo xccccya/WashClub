@@ -26,6 +26,7 @@ export type AdminMenuKey =
 	| 'coupon-groups'
 	| 'coupons'
 	| 'member-coupons'
+	| 'coupon-logs'
 	// 预留：运营统计概览
 	| 'dashboard-metrics';
 
@@ -111,6 +112,7 @@ export class AdminRoleService {
 			{ key: 'coupon-groups', name: '卡券分组', path: '/coupon/groups' },
 			{ key: 'coupons', name: '卡券列表', path: '/coupon/list' },
 			{ key: 'member-coupons', name: '会员卡券', path: '/coupon/member-coupons' },
+			{ key: 'coupon-logs', name: '卡券流水', path: '/coupon/logs' },
 			{ key: 'dashboard-metrics', name: '运营概览', path: '/dashboard' },
 		];
 	}
