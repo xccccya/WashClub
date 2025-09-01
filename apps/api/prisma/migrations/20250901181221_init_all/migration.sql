@@ -186,10 +186,10 @@ CREATE TABLE `ServiceQueueItem` (
     `plateNumber` VARCHAR(191) NOT NULL,
     `guest` BOOLEAN NOT NULL DEFAULT false,
     `status` ENUM('IN_QUEUE', 'SERVING', 'COMPLETED') NOT NULL DEFAULT 'IN_QUEUE',
-    `currentTaskIndex` INTEGER NOT NULL DEFAULT 0,
+    `orderSort` INTEGER NOT NULL DEFAULT 0,
+    `currentTaskIndex` INTEGER NOT NULL DEFAULT -1,
     `startedAt` DATETIME(3) NULL,
     `finishedAt` DATETIME(3) NULL,
-    `orderSort` INTEGER NOT NULL DEFAULT 0,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -200,15 +200,15 @@ CREATE TABLE `ServiceTask` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `queueItemId` INTEGER NOT NULL,
-    `name` VARCHAR(191) NOT NULL,
-    `durationMin` INTEGER NOT NULL DEFAULT 5,
     `orderIndex` INTEGER NOT NULL DEFAULT 0,
+    `name` VARCHAR(191) NOT NULL,
+    `durationMin` INTEGER NOT NULL DEFAULT 0,
     `status` ENUM('PENDING', 'DOING', 'DONE') NOT NULL DEFAULT 'PENDING',
     `startedAt` DATETIME(3) NULL,
     `finishedAt` DATETIME(3) NULL,
 
     INDEX `ServiceTask_queueItemId_idx`(`queueItemId`),
-    INDEX `ServiceTask_status_idx`(`status`),
+    INDEX `ServiceTask_orderIndex_idx`(`orderIndex`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -515,6 +515,26 @@ CREATE TABLE `CouponRestoreLog` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `CouponFlowLog` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `memberId` INTEGER NULL,
+    `orderId` INTEGER NULL,
+    `couponId` INTEGER NULL,
+    `memberCouponId` INTEGER NULL,
+    `action` ENUM('ISSUE', 'CLAIM', 'USE', 'RESTORE', 'REVOKE', 'EXPIRE', 'ADJUST') NOT NULL,
+    `count` INTEGER NOT NULL DEFAULT 1,
+    `remark` VARCHAR(191) NULL,
+    `snapshot` JSON NULL,
+    `operatorUserId` INTEGER NULL,
+
+    INDEX `CouponFlowLog_memberId_idx`(`memberId`),
+    INDEX `CouponFlowLog_orderId_idx`(`orderId`),
+    INDEX `CouponFlowLog_couponId_idx`(`couponId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `OrderTimeline` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -640,7 +660,7 @@ ALTER TABLE `WashCardLog` ADD CONSTRAINT `WashCardLog_memberId_fkey` FOREIGN KEY
 ALTER TABLE `ServiceQueueItem` ADD CONSTRAINT `ServiceQueueItem_vehicleId_fkey` FOREIGN KEY (`vehicleId`) REFERENCES `Vehicle`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `ServiceTask` ADD CONSTRAINT `ServiceTask_queueItemId_fkey` FOREIGN KEY (`queueItemId`) REFERENCES `ServiceQueueItem`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `ServiceTask` ADD CONSTRAINT `ServiceTask_queueItemId_fkey` FOREIGN KEY (`queueItemId`) REFERENCES `ServiceQueueItem`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Coupon` ADD CONSTRAINT `Coupon_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `CouponGroup`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -713,6 +733,21 @@ ALTER TABLE `CouponRestoreLog` ADD CONSTRAINT `CouponRestoreLog_memberId_fkey` F
 
 -- AddForeignKey
 ALTER TABLE `CouponRestoreLog` ADD CONSTRAINT `CouponRestoreLog_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CouponFlowLog` ADD CONSTRAINT `CouponFlowLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CouponFlowLog` ADD CONSTRAINT `CouponFlowLog_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CouponFlowLog` ADD CONSTRAINT `CouponFlowLog_couponId_fkey` FOREIGN KEY (`couponId`) REFERENCES `Coupon`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CouponFlowLog` ADD CONSTRAINT `CouponFlowLog_memberCouponId_fkey` FOREIGN KEY (`memberCouponId`) REFERENCES `MemberCoupon`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CouponFlowLog` ADD CONSTRAINT `CouponFlowLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `OrderTimeline` ADD CONSTRAINT `OrderTimeline_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
