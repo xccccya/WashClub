@@ -351,8 +351,20 @@ async function addToCartFromList(p:any){
 		if (!p || p.type !== 'PHYSICAL') return;
 		const http = createHttp();
 		if (p.specType === 'MULTI') { goDetail(p); return; }
-		await http('/cart/me/add', { method:'POST', body: { productId: p.id, skuId: null, quantity: 1 } });
-		uni.showToast({ title:'已加入购物车', icon:'none' });
+		// 单规格：加入前做库存校验（商品库存 - 购物车已加数量）
+		const detail:any = await http(`/store/products/${p.id}`, { method:'GET' });
+		const stock = Math.max(0, Number(detail?.stockQuantity ?? p?.stockQuantity ?? 0));
+		if (stock <= 0) { uni.showToast({ title:'已售罄', icon:'none' }); return; }
+		let inCart = 0;
+		try{
+			const list:any[] = await http('/cart/me/list', { method:'GET' });
+			inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(p.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
+		}catch{}
+		if (inCart >= stock) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
+		const canAdd = Math.min(1, Math.max(0, stock - inCart));
+		if (canAdd <= 0) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
+		await http('/cart/me/add', { method:'POST', body: { productId: p.id, skuId: null, quantity: canAdd } });
+		uni.showToast({ title: canAdd===1 ? '已加入购物车' : `库存不足，已加入${canAdd}件`, icon:'none' });
 	}catch{
 		uni.showToast({ title:'加入失败', icon:'none' });
 	}

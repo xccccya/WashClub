@@ -53,6 +53,32 @@
 						</view>
 					</view>
 				</view>
+
+				<!-- 优惠券预计信息卡片（独立卡片，美观） -->
+				<view class="coupon-card">
+					<view class="coupon-card__header">
+						<text class="coupon-card__title">优惠券</text>
+						<text class="coupon-card__subtitle">为当前勾选商品智能匹配</text>
+					</view>
+					<view v-if="couponLoading" class="coupon-card__loading">加载可用优惠券...</view>
+					<view v-else>
+						<view v-if="applicableCoupons.length===0" class="coupon-card__empty">暂无可用优惠券</view>
+						<view v-else class="coupon-card__chips">
+							<view v-for="c in applicableCoupons" :key="c.id" class="coupon-chip" :class="{ active: selectedCouponIds.has(c.id), disabled: disabledByCombine(c) }" @tap="() => toggleCoupon(c)">
+								<text class="c-name">{{ c.name }}</text>
+								<text class="c-discount">-¥{{ formatPrice(c.discountApplied) }}</text>
+								<text v-if="!c.allowCombine" class="c-tag">不可叠加</text>
+							</view>
+						</view>
+						<view class="coupon-card__summary">
+							<text class="sum-label">预计优惠</text>
+							<text class="sum-discount">-¥{{ formatPrice(couponDiscount) }}</text>
+							<text class="sum-split">·</text>
+							<text class="sum-label">券后预计</text>
+							<text class="sum-pay">¥{{ expectedPayAmountText }}</text>
+						</view>
+					</view>
+				</view>
 			</view>
 		</view>
 
@@ -70,9 +96,9 @@
 			</label>
 			<view class="summary">
 				<text class="label">合计：</text>
-				<text class="amount">¥{{ totalAmountText }}</text>
+				<text class="amount">¥{{ expectedPayAmountText }}</text>
 			</view>
-			<view class="checkout" @tap="checkout">去结算¥{{ totalAmountText }}</view>
+			<view class="checkout" @tap="checkout">去结算¥{{ expectedPayAmountText }}</view>
 		</view>
 
 		<!-- 规格选择器（维度化选择） -->
@@ -96,8 +122,9 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { computed, reactive, ref, watch } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp } from '../../utils/auth';
+import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -132,27 +159,33 @@ function saveCart(){ /* 后端持久化，前端无需本地保存 */ }
 const allChecked = computed(()=> items.value.length>0 && items.value.every(it=>!!it.checked));
 const totalAmount = computed(()=> items.value.filter(it=>it.checked).reduce((sum:number, it:any)=> sum + Number(it?.snapshot?.price||0)*Number(it.quantity||0), 0));
 const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
-const expectedCouponDiscount = ref<number>(0);
-const expectedPayAmount = computed(()=> Math.max(0, Number(totalAmount.value) - Number(expectedCouponDiscount.value||0)));
+
+// 可用优惠券（购物车页直接展示与选择）
+const couponLoading = ref<boolean>(false);
+const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
+const selectedCouponIds = ref<Set<number>>(new Set());
+const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
+const expectedPayAmount = computed(()=> Math.max(0, Number(totalAmount.value) - Number(couponDiscount.value||0)));
 const expectedPayAmountText = computed(()=> expectedPayAmount.value.toFixed(2));
-
-async function refreshExpectedCoupon(){
+function buildApplicableItems(){ return items.value.filter(it=>it.checked).map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) })); }
+async function loadApplicableCoupons(){
+	couponLoading.value = true;
 	try{
-		// 懒加载校验，无需跳转
-		const { checkAuthAndRefresh } = await import('../../utils/auth');
 		const authed = await checkAuthAndRefresh({ redirectIfExpired: false });
-		if (!authed) { expectedCouponDiscount.value = 0; return; }
+		if (!authed) { applicableCoupons.value=[]; selectedCouponIds.value=new Set(); return; }
 		const http = createHttp();
-		const itemsPayload = items.value.filter(it=>it.checked).map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) }));
-		if (!itemsPayload.length) { expectedCouponDiscount.value = 0; return; }
-		const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body: { items: itemsPayload } });
-		const arr:any[] = Array.isArray(res?.applicable) ? res.applicable : [];
-		expectedCouponDiscount.value = arr.length ? Number(arr[0]?.discountApplied||0) : 0;
-	}catch{ expectedCouponDiscount.value = 0; }
+		const body:any = { items: buildApplicableItems() };
+		const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+		applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
+		selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
+	}catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
+	finally{ couponLoading.value=false; }
 }
+function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
+function toggleCoupon(c:any){ if (!c) return; if (disabledByCombine(c)) return; const set=new Set(selectedCouponIds.value); if (set.has(c.id)) set.delete(c.id); else set.add(c.id); selectedCouponIds.value=set; }
 
-async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); await refreshExpectedCoupon(); } catch {} }
-async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; await refreshExpectedCoupon(); } catch {} }
+async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); await loadApplicableCoupons(); } catch {} }
+async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; await loadApplicableCoupons(); } catch {} }
 async function inc(it:any){
     try {
         const http=createHttp();
@@ -169,7 +202,7 @@ async function inc(it:any){
         }
         const next = Math.min(max, Number(it.quantity||0)+1);
         if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
-        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next; await refreshExpectedCoupon();
+        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next; await loadApplicableCoupons();
     } catch {}
 }
 async function dec(it:any){
@@ -178,11 +211,11 @@ async function dec(it:any){
 		const cur = Number(it.quantity||0);
 		if (cur <= 1) {
 			uni.showModal({ title:'提示', content:'是否删除该商品？', success: async (res:any) => {
-				if (res?.confirm) { try { await http(`/cart/me/${it.id}`, { method:'DELETE' }); await loadCart(); await refreshExpectedCoupon(); } catch {} }
+				if (res?.confirm) { try { await http(`/cart/me/${it.id}`, { method:'DELETE' }); await loadCart(); await loadApplicableCoupons(); } catch {} }
 			}});
 			return;
 		}
-		const q=Math.max(1, cur-1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q; await refreshExpectedCoupon();
+		const q=Math.max(1, cur-1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q; await loadApplicableCoupons();
 	} catch {}
 }
 
@@ -322,7 +355,7 @@ function checkout(){
 }
 
 // 初始化
-loadCart().then(()=>{ refreshExpectedCoupon(); });
+loadCart().then(()=>{ loadApplicableCoupons(); });
 </script>
 
 <style>
@@ -373,4 +406,26 @@ loadCart().then(()=>{ refreshExpectedCoupon(); });
 .close { width: 48rpx; height: 48rpx; text-align:center; line-height:48rpx; border-radius: 12rpx; background:#f3f4f6; color:#111827; }
 .submit { padding: 16rpx 18rpx; background:#111827; color:#fff; border-radius: 12rpx; font-size: 26rpx; }
 .footer { display:flex; align-items:center; justify-content:flex-end; margin-top: 12rpx; }
+
+/* 优惠券预计信息卡片 */
+.coupon-card { background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); border-radius:24rpx; padding:16rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); margin-top: 12rpx; }
+.coupon-card__header { display:flex; align-items: baseline; justify-content: space-between; margin-bottom: 8rpx; }
+.coupon-card__title { font-size: 28rpx; font-weight: 800; color:#0b1220; }
+.coupon-card__subtitle { font-size: 22rpx; color:#6b7280; }
+.coupon-card__loading, .coupon-card__empty { padding: 12rpx; color:#6b7280; }
+.coupon-card__chips { display:flex; flex-wrap: wrap; gap: 10rpx; margin-top: 6rpx; }
+.coupon-card__summary { display:flex; align-items: baseline; gap: 10rpx; margin-top: 10rpx; padding-top: 10rpx; border-top: 2rpx dashed #e5e7eb; }
+.coupon-card__summary .sum-label { font-size: 22rpx; color:#6b7280; }
+.coupon-card__summary .sum-discount { font-size: 26rpx; color:#ef4444; font-weight: 700; }
+.coupon-card__summary .sum-split { color:#d1d5db; }
+.coupon-card__summary .sum-pay { font-size: 28rpx; color:#111827; font-weight: 800; }
+
+/* 可用券 Chips（与确认页风格一致） */
+.coupon-chip { display:inline-flex; align-items:center; gap: 8rpx; padding: 10rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; color:#111827; }
+.coupon-chip.active { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-color: transparent; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.08); }
+.coupon-chip.disabled { opacity: .6; }
+.coupon-chip .c-name { font-size: 22rpx; }
+.coupon-chip .c-discount { font-size: 22rpx; color:#ef4444; font-weight: 700; }
+.coupon-chip.active .c-discount { color:#fff; opacity: .95; }
+.coupon-chip .c-tag { font-size: 20rpx; color:#374151; background:#f3f4f6; padding: 2rpx 8rpx; border-radius: 999rpx; }
 </style>

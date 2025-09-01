@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, ParseIntPipe, Headers, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, ParseIntPipe, Headers, Query, Body } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
@@ -117,7 +117,7 @@ export class MiniappCouponController {
         // body: { items: Array<{ productId:number; price:number; quantity:number }> }
         // 备注：仅用于预计算，不持久化
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        body?: any,
+        @Body() body?: any,
     ){
         const memberId = await this.getMemberIdFromToken(headers, tokenParam);
         const items: Array<{ productId?: number|null; price: number; quantity: number }> = Array.isArray(body?.items) ? body.items : [];
