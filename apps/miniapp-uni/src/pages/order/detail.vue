@@ -15,7 +15,7 @@
 		<view class="card" v-if="order">
 			<view class="sub-title">基本信息</view>
 			<view class="kv"><text class="k">订单状态</text><text class="v">{{ displayStatus(order) }}</text></view>
-			<view class="kv"><text class="k">订单号</text><text class="v">{{ order.no }}</text></view>
+			<view class="kv"><text class="k">订单号</text><text class="v v--small">{{ order.no }}</text></view>
 			<view class="kv"><text class="k">下单时间</text><text class="v">{{ formatTime(order.createdAt) }}</text></view>
 			<view class="kv" v-if="isTimeoutUnpaid(order)"><text class="k">提示</text><text class="v" style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</text></view>
 			<view class="kv" v-if="order.remark"><text class="k">备注</text><text class="v">{{ order.remark }}</text></view>
@@ -51,7 +51,7 @@
 			<view class="sub-title">支付信息</view>
 			<view class="kv"><text class="k">支付方式</text><text class="v">{{ displayPayMethod(order.payMethod) }}</text></view>
 			<view class="kv"><text class="k">支付时间</text><text class="v">{{ order.paidAt ? formatTime(order.paidAt) : '-' }}</text></view>
-			<view class="kv" v-if="order.payMethod==='WECHAT_JSAPI' && (order as any)?.wechatTransactionId"><text class="k">微信交易单号</text><text class="v">{{ (order as any).wechatTransactionId }}</text></view>
+			<view class="kv" v-if="order.payMethod==='WECHAT_JSAPI' && (order as any)?.wechatTransactionId"><text class="k">微信交易单号</text><text class="v v--small">{{ (order as any).wechatTransactionId }}</text></view>
 			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
@@ -116,6 +116,23 @@
 				</view>
 			</view>
 		</view>
+
+		<!-- 底部操作区：与订单列表页保持一致的可操作按钮 -->
+		<view style="height: 24rpx;"></view>
+		<view class="actions actions--footer" v-if="order">
+			<template v-if="order.payStatus==='UNPAID'">
+				<view class="btn ghost" @tap="confirmCancelInDetail">取消订单</view>
+				<view class="btn primary" @tap="choosePayInDetail">去支付</view>
+			</template>
+			<template v-else>
+				<view v-if="canReceive(order as any)" class="btn primary" @tap="confirmReceiveInDetail">确认收货</view>
+				<!-- 申请退款按钮（支付后允许，且无进行中售后） -->
+				<view v-if="canRefund(order as any)" class="btn ghost" @tap="openAfterSalesInDetail('REFUND')">申请退款</view>
+				<!-- 已完成订单支持申请售后与评价 -->
+				<view v-if="canAfterSales(order as any)" class="btn ghost" @tap="openAfterSalesInDetail('AUTO')">申请售后</view>
+				<view v-if="canReview(order as any)" class="btn primary" @tap="goReviewInDetail">去评价</view>
+			</template>
+		</view>
 	</view>
 </template>
 
@@ -157,6 +174,34 @@ const lastKey = ref<string>('');
 const timelineList = ref<Array<any>>([]);
 const showAllTimeline = ref<boolean>(false);
 const hasPartialRefund = ref<boolean>(false);
+// 复用列表页的能力：在详情页内实现相同判断与操作
+function isAftersalesRunning(o: any){ return (o?.afterSalesRequests && Array.isArray(o.afterSalesRequests) && o.afterSalesRequests.some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')); }
+function canRefund(o: any){ if (isAftersalesRunning(o)) return false; return o?.payStatus === 'PAID'; }
+function canAfterSales(o: any){ if (isAftersalesRunning(o)) return false; try { return displayStatus(o)==='已完成'; } catch { return false; } }
+function canReceive(o: any){ if (!o) return false; if (o.type!=='SP') return false; if (o.payStatus!=='PAID') return false; return o.fulfillmentStatus==='SHIPPED' || o.status==='FULFILLED'; }
+function canReview(o: any){ try { if (!o) return false; if (o?.type==='FK') return false; const done = (o.type==='SERVICE') ? ((o.payStatus==='PAID')&&(o.fulfillmentStatus==='DONE'||o.status==='FULFILLED')) : ((o.type==='SP')?((o.payStatus==='PAID')&&(o.fulfillmentStatus==='RECEIVED'||o.status==='CLOSED')):false); return done && (o?.reviewStatus!=='REVIEWED'); } catch { return false; } }
+
+function openAfterSalesInDetail(mode: 'REFUND'|'AUTO'){
+    try{ const o:any = order.value; if (!o) return; const type = (mode==='REFUND') ? 'refund' : 'aftersales'; uni.navigateTo({ url: `/pages/aftersales/apply?orderId=${o.id}&type=${type}&orderType=${o.type}` }); }catch{}
+}
+async function confirmReceiveInDetail(){ try{ const o:any = order.value; if(!o) return; const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } }
+async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; const http = createHttp(); await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason:'用户主动取消' } }); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } }
+async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) return; let list = ['线下支付'];
+    // #ifdef MP-WEIXIN
+    list = ['微信支付','线下支付'];
+    // #endif
+    const res = await new Promise<any>(resolve=>{ uni.showActionSheet({ itemList: list, success:(r:any)=>resolve(r), fail:()=>resolve(null) }); }); if(!res||typeof res.tapIndex!=='number') return;
+    // #ifdef MP-WEIXIN
+    if (res.tapIndex===0){
+        try{ const http = createHttp(); const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method:'POST' }); await new Promise<void>((resolve,reject)=>{ (uni as any).requestPayment({ timeStamp: params.timeStamp, nonceStr: params.nonceStr, package: params.package, signType: params.signType || 'RSA', paySign: params.paySign, success:()=>resolve(), fail:(e:any)=>reject(e) }); }); uni.showToast({ title:'支付成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'支付未完成', icon:'none' }); }
+    } else { uni.showToast({ title:'请到店线下支付', icon:'none' }); }
+    // #endif
+    // #ifndef MP-WEIXIN
+    { uni.showToast({ title:'请到店线下支付', icon:'none' }); }
+    // #endif
+}catch{}}
+
+async function reloadDetail(){ try{ const o:any = order.value; if(!o) return; const http = createHttp(); const data:any = await http(`/orders/${o.id}`, { method:'GET' }); order.value = data || null; try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; } }catch{} }
 const refundedAmountYuan = computed(()=>{
 	try{ const list = (order.value as any)?.refundRecords || []; const sum = list.filter((r:any)=>r?.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0); return sum; }catch{return 0}
 });
@@ -424,6 +469,7 @@ function zhEvent(e: string){
 	if (v==='AFTERSALES') return '售后';
 	if (v==='BENEFITS') return '权益变更';
 	if (v==='REVIEW') return '评价';
+	if (v==='NOTE') return '备注';
 	return e || '-';
 }
 
@@ -471,6 +517,10 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='RATED') return '用户已评价';
 		if (v==='REPLIED') return '商家已回复';
 	}
+	if (e==='NOTE'){
+		if (v==='RECEIVED') return '用户已确认收货';
+		if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
+	}
 	return value || '-';
 }
 
@@ -484,6 +534,10 @@ function zhRemark(eventType?: string, remark?: string){
 		if (r==='EXCHANGE') return '换货';
 	}
 	if (r==='TIMEOUT_15MIN') return '超时15分钟';
+	if (e==='NOTE'){
+		if (r==='USER_CONFIRMED') return '用户操作';
+		if (r==='SYS_AUTO') return '系统自动';
+	}
 	return remark || '';
 }
 </script>
@@ -497,6 +551,7 @@ function zhRemark(eventType?: string, remark?: string){
 .kv { display:flex; align-items:center; justify-content: space-between; padding: 10rpx 0; }
 .kv .k { color:#6b7280; }
 .kv .v { color:#111827; font-weight: 600; }
+.kv .v.v--small { font-size: 20rpx; font-weight: 500; color:#1f2937; }
 .item { display:flex; gap: 12rpx; padding: 12rpx 0; border-bottom: 2rpx dashed #eef2f7; }
 .thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background:#f1f5f9; }
 .ibody { display:flex; flex-direction: column; gap: 6rpx; flex:1; min-width:0; }
@@ -574,6 +629,11 @@ function zhRemark(eventType?: string, remark?: string){
 .actions .btn { display:inline-flex; align-items:center; gap: 6rpx; padding: 8rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; }
 .actions .btn .btn-icon { font-size: 20rpx; color:#6b7280; }
 .actions .btn .btn-text { font-size: 24rpx; color:#374151; }
+/* 底部操作区样式与列表页一致 */
+.actions--footer { position: sticky; bottom: 0; background: transparent; display:flex; align-items:center; justify-content: flex-end; gap: 16rpx; padding: 12rpx 0 24rpx 0; }
+.actions--footer .btn { padding: 10rpx 22rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx solid #ffd6e7; color:#1f2937; font-size: 24rpx; }
+.actions--footer .btn.primary { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#ffffff; border: none; overflow: hidden; }
+.actions--footer .btn.ghost { background:#ffffff; color:#374151; border-color:#e5e7eb; }
 </style>
 
 

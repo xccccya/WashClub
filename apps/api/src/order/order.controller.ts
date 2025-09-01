@@ -369,7 +369,12 @@ export class OrderController {
             if (!order) throw new BadRequestException('订单不存在');
             if (order.memberId !== memberId) throw new UnauthorizedException('无权操作该订单');
         }
-        return this.orders.receiveOrder(id, adminId ?? null);
+        const res = await this.orders.receiveOrder(id, adminId ?? null);
+        // 若为会员主动确认收货，补充一条时间线记录以便前台/后台展示
+        if (memberId) {
+            try { await (this.orders as any).writeTimeline({ orderId: id, event: 'NOTE', value: 'RECEIVED', remark: 'USER_CONFIRMED' }); } catch {}
+        }
+        return res;
     }
     // 开始服务
     @Post(':id/start-service')

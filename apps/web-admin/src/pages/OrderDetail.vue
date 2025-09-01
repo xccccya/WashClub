@@ -266,6 +266,7 @@ function zhEvent(e: string){
     if (v==='AFTERSALES') return '售后';
     if (v==='BENEFITS') return '权益变更';
     if (v==='REVIEW') return '评价';
+    if (v==='NOTE') return '备注';
     return e || '-';
 }
 
@@ -379,6 +380,10 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='RATED') return '用户已评价';
 		if (v==='REPLIED') return '商家已回复';
 	}
+    if (e==='NOTE'){
+        if (v==='RECEIVED') return '用户已确认收货';
+        if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
+    }
 	return value || '-';
 }
 
@@ -392,6 +397,10 @@ function zhRemark(eventType?: string, remark?: string){
 		if (r==='EXCHANGE') return '换货';
 	}
 	if (r==='TIMEOUT_15MIN') return '超时15分钟';
+    if (e==='NOTE'){
+        if (r==='USER_CONFIRMED') return '用户操作';
+        if (r==='SYS_AUTO') return '系统自动';
+    }
 	return remark || '';
 }
 </script>
