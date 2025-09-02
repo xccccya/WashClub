@@ -78,7 +78,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp } from '../../utils/auth';
+import { createHttp, getToken, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { AMAP_API_BASE } from '../../utils/thirdparty';
 import { readAmapKey, readStoreLocation } from '../../utils/env';
@@ -337,18 +337,29 @@ onShow(async () => {
 	// #endif
 });
 
+// 登录校验：未登录跳转登录页，已登录则校验/刷新
+async function requireLogin(): Promise<boolean>{
+	try{
+		const token = getToken();
+		if (!token) { uni.navigateTo({ url: '/pages/login/index' }); return false; }
+		const ok = await checkAuthAndRefresh({ redirectIfExpired: true });
+		return !!ok;
+	}catch{ return false; }
+}
+
 // 购买：弹出统一确认卡片
 const sheetVisible = ref(false);
 const currentProduct = ref<any|null>(null);
-function openSheet(p:any){ currentProduct.value = p; sheetVisible.value = true; }
+async function openSheet(p:any){ if (!(await requireLogin())) return; currentProduct.value = p; sheetVisible.value = true; }
 function onSubmitted(){ /* 提交后可刷新订单页或本页 */ }
 
 function goDetail(p:any){ if (!p?.id) return; uni.navigateTo({ url: `/pages/store/detail?id=${p.id}` }); }
-function gotoCart(){ try { uni.navigateTo({ url: '/pages/cart/index' }); } catch {} }
+async function gotoCart(){ if (!(await requireLogin())) return; try { uni.navigateTo({ url: '/pages/cart/index' }); } catch {} }
 
 async function addToCartFromList(p:any){
 	try{
 		if (!p || p.type !== 'PHYSICAL') return;
+		if (!(await requireLogin())) return;
 		const http = createHttp();
 		if (p.specType === 'MULTI') { goDetail(p); return; }
 		// 单规格：加入前做库存校验（商品库存 - 购物车已加数量）
