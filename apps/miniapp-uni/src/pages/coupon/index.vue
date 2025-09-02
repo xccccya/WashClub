@@ -16,42 +16,61 @@
 			<view v-if="loading" class="empty">加载中...</view>
 			<view v-else-if="list.length === 0" class="empty">暂时没有可领取优惠券</view>
 			<view v-else>
-				<view v-for="it in list" :key="it.id" :class="['coupon-card', it.soldOut || it.reachedLimit ? 'coupon-card--disabled' : '']">
-					<!-- 左侧金额色块（支持直减/折扣展示） -->
-					<view class="cc-left">
-						<template v-if="displayRule(it)">
-							<view class="cc-row">
-								<text class="cc-currency" v-if="displayRule(it).currency">¥</text>
-								<text class="cc-amount">{{ displayRule(it).main }}</text>
-							</view>
-							<text class="cc-sub">{{ displayRule(it).sub }}</text>
-						</template>
-						<template v-else>
-							<view class="cc-row">
-								<text class="cc-currency">¥</text>
-								<text class="cc-amount">{{ faceYuan(it) }}</text>
-							</view>
-							<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
-						</template>
-					</view>
-					<!-- 中间虚线撕口分隔 -->
-					<view class="cc-divider">
-						<view class="cc-notch cc-notch--top"></view>
-						<view class="cc-dash"></view>
-						<view class="cc-notch cc-notch--bottom"></view>
-					</view>
-					<!-- 右侧信息区 -->
-					<view class="cc-right">
-						<view class="cc-name">{{ it.name }}</view>
-						<view class="cc-meta">{{ displayExpiry(it) }}</view>
-						<view class="cc-limit-row">
-							<text class="cc-limit" v-if="it.perMemberLimit != null">每人限领 {{ it.perMemberLimit }} 张</text>
+				<view v-for="it in list" :key="it.id" :class="['coupon-card', (it.soldOut || it.reachedLimit || it.notStarted || it.expired) ? 'coupon-card--disabled' : '']">
+					<view class="cc-row-wrap">
+						<!-- 左侧金额色块（支持直减/折扣展示） -->
+						<view class="cc-left">
+							<template v-if="displayRule(it)">
+								<view class="cc-row">
+									<text class="cc-currency" v-if="displayRule(it)?.currency">¥</text>
+									<text class="cc-amount">{{ displayRule(it)?.main }}</text>
+								</view>
+								<text class="cc-sub">{{ displayRule(it)?.sub }}</text>
+							</template>
+							<template v-else>
+								<view class="cc-row">
+									<text class="cc-currency">¥</text>
+									<text class="cc-amount">{{ faceYuan(it) }}</text>
+								</view>
+								<text class="cc-sub" v-if="it.minOrderAmount != null && Number(it.minOrderAmount)>0">满{{ formatMoney(it.minOrderAmount) }}可用</text>
+							</template>
 						</view>
-						<view class="cc-actions">
-							<view v-if="it.soldOut" class="status-tag soldout">已领完</view>
-							<view v-else-if="it.reachedLimit" class="status-tag limit">达到上限</view>
-							<view v-else class="btn-claim" :class="{ disabled: claimingIds.has(it.id) || it.notStarted || it.expired }" @tap="() => (!it.notStarted && !it.expired) ? claim(it) : null">{{ it.notStarted ? '未开始' : (it.expired ? '已过期' : '领取') }}</view>
+						<!-- 中间虚线撕口分隔 -->
+						<view class="cc-divider">
+							<view class="cc-notch cc-notch--top"></view>
+							<view class="cc-dash"></view>
+							<view class="cc-notch cc-notch--bottom"></view>
 						</view>
+						<!-- 右侧信息区 -->
+						<view class="cc-right">
+							<view class="cc-name">{{ it.name }}</view>
+							<view class="cc-meta">{{ displayExpiry(it) }}</view>
+							<view class="cc-limit-row">
+								<text class="cc-limit" v-if="it.perMemberLimit != null">每人限领 {{ it.perMemberLimit }} 张</text>
+							</view>
+							<view class="cc-actions">
+								<view v-if="it.soldOut" class="status-tag soldout">已领完</view>
+								<view v-else-if="it.reachedLimit" class="status-tag limit">账号领取次数已达上限</view>
+								<view v-else class="btn-claim" :class="{ disabled: claimingIds.has(it.id) || it.notStarted || it.expired }" @tap="() => (!it.notStarted && !it.expired) ? claim(it) : null">{{ it.notStarted ? '未开始' : (it.expired ? '已过期' : '领取') }}</view>
+							</view>
+						</view>
+					</view>
+					<!-- 展开详情：紧贴卡片下方 -->
+					<view class="coupon-detail">
+						<view class="detail-toggle" @tap="() => toggleExpand(it.id)">
+							<text class="toggle-text">{{ isExpanded(it.id) ? '点击收起详情' : '点击查看优惠详情' }}</text>
+						</view>
+						<transition name="detail-fade">
+							<view v-if="isExpanded(it.id)" class="detail-body">
+								<view v-if="detailDesc(it)" class="detail-item">{{ detailDesc(it) }}</view>
+								<view v-if="detailScope(it)" class="detail-item">适用范围：{{ detailScope(it) }}</view>
+								<view v-if="detailCap(it)" class="detail-item">折扣封顶金额：{{ detailCap(it) }}</view>
+								<view v-if="detailMin(it)" class="detail-item">最低可用门槛金额：{{ detailMin(it) }}</view>
+								<view v-if="detailCouponStack(it) !== null" class="detail-item">{{ detailCouponStack(it) ? '可与其他券同用' : '不可与其他券同用' }}</view>
+								<view v-if="detailPointsStack(it) !== null" class="detail-item">{{ detailPointsStack(it) ? '可与积分同用' : '不可与积分同用' }}</view>
+								<view v-if="detailMemberStack(it) !== null" class="detail-item">{{ detailMemberStack(it) ? '可与会员折扣同用' : '不可与会员折扣同用' }}</view>
+							</view>
+						</transition>
 					</view>
 				</view>
 			</view>
@@ -90,6 +109,18 @@ type CouponItem = {
 	soldOut?: boolean;
 	reachedLimit?: boolean;
 	canClaim?: boolean;
+	// added optional flags & rule fields to satisfy template
+	notStarted?: boolean;
+	expired?: boolean;
+	ruleKind?: string|null;
+	rulePercent?: number|null;
+	ruleAmount?: number|null;
+	ruleCap?: number|null;
+	ruleMinSubtotal?: number|null;
+	applyScope?: 'ALL'|'SPECIFIED'|string|null;
+	allowCombine?: boolean|null;
+	allowStackWithPoints?: boolean|null;
+	allowStackWithMemberDiscount?: boolean|null;
 };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
@@ -97,6 +128,10 @@ const http = createHttp();
 const loading = ref<boolean>(false);
 const list = ref<CouponItem[]>([]);
 const claimingIds = ref<Set<number>>(new Set());
+// 展开详情状态管理
+const expanded = ref<Set<number>>(new Set());
+function toggleExpand(id: number){ if (expanded.value.has(id)) expanded.value.delete(id); else expanded.value.add(id); }
+function isExpanded(id: number){ return expanded.value.has(id); }
 
 function goBack(){
 	try {
@@ -109,7 +144,7 @@ function goBack(){
 function formatDate(d?: string|null){ try { if(!d) return ''; const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const dd=String(x.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; } catch { return ''; } }
 function formatMoney(n?: any){ const v = Number(n); return isNaN(v) ? '' : v.toFixed(2); }
 
-function faceYuan(it: CouponItem){ try { const n = Number(it.faceValue||0); if (isNaN(n) || n<=0) return ''; const intv = Math.round(n); return String(intv); } catch { return ''; } }
+function faceYuan(it: CouponItem){ try { const n = Number(it.faceValue||0); if (!isFinite(n) || n<=0) return ''; return n.toFixed(2); } catch { return ''; } }
 // 展示直减/折扣规则，不改变卡片高度
 function displayRule(it: any): { currency?: boolean; main: string; sub: string } | null {
     try{
@@ -123,7 +158,7 @@ function displayRule(it: any): { currency?: boolean; main: string; sub: string }
         } else if (kind === 'direct'){
             const amt = Number(it?.ruleAmount||0);
             if (amt > 0){
-                return { currency: true, main: String(Math.round(amt)), sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '立减券' };
+                return { currency: true, main: Number(amt).toFixed(2), sub: (it.minOrderAmount!=null && Number(it.minOrderAmount)>0) ? `满${formatMoney(it.minOrderAmount)}可用` : '立减券' };
             }
         }
         return null;
@@ -138,6 +173,15 @@ function displayExpiry(it: CouponItem){
 		return '有效期：-';
 	}catch{ return '有效期：-'; }
 }
+
+// 详情展示：按后台配置原样与口径逐行展示
+function detailDesc(it:any){ try{ const s = String(it?.description||'').trim(); return s || ''; }catch{ return ''; } }
+function detailScope(it:any){ try{ const s=String(it?.applyScope||'').toUpperCase(); if(!s) return ''; return (s==='ALL')?'全店商品':'指定商品'; }catch{ return ''; } }
+function detailCap(it:any){ try{ const n=Number(it?.ruleCap||0); return n>0?`¥${n.toFixed(2)}`:''; }catch{ return ''; } }
+function detailMin(it:any){ try{ const n=Number(it?.ruleMinSubtotal ?? it?.minOrderAmount ?? 0); return n>0?`¥${n.toFixed(2)}`:''; }catch{ return ''; } }
+function detailCouponStack(it:any){ try{ if (typeof it?.allowCombine==='boolean') return !!it.allowCombine; return null; }catch{ return null; } }
+function detailPointsStack(it:any){ try{ if (typeof it?.allowStackWithPoints==='boolean') return !!it.allowStackWithPoints; return null; }catch{ return null; } }
+function detailMemberStack(it:any){ try{ if (typeof it?.allowStackWithMemberDiscount==='boolean') return !!it.allowStackWithMemberDiscount; return null; }catch{ return null; } }
 
 
 async function refresh(){
@@ -180,9 +224,12 @@ function goMyCoupons(){ try { uni.navigateTo({ url: '/pages/coupon/mine' }); } c
 .card { background: linear-gradient(180deg, rgba(243,249,255,0.92) 0%, rgba(255,247,251,0.92) 100%); border-radius: 24rpx; padding: 16rpx; box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06); backdrop-filter: blur(2rpx); }
 .empty { padding: 24rpx; color: #6b7280; text-align: center; }
 
-/* 券卡片全新布局：左金额色块 + 中间撕口 + 右信息与操作 */
-.coupon-card { display:flex; align-items:stretch; justify-content:flex-start; margin: 20rpx 8rpx; border-radius: 24rpx; overflow:hidden; background:#ffffff; box-shadow: 0 10rpx 28rpx rgba(0,0,0,0.06); border: 2rpx solid #f3f4f6; }
-.coupon-card--disabled { opacity: 0.85; filter: grayscale(10%); }
+/* 券卡片：纵向布局，第一行横向显示主体，第二行显示展开详情 */
+.coupon-card { display:flex; flex-direction: column; align-items:stretch; justify-content:flex-start; margin: 20rpx 8rpx; border-radius: 24rpx; overflow:hidden; background:#ffffff; box-shadow: 0 10rpx 28rpx rgba(0,0,0,0.06); border: 2rpx solid #f3f4f6; }
+.cc-row-wrap { display:flex; align-items:stretch; justify-content:flex-start; }
+.coupon-card--disabled { opacity: 0.9; position: relative; }
+/* 灰色遮罩：仅覆盖左侧渐变区域以形成明显对比 */
+.coupon-card--disabled .cc-left::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(17,24,39,.48), rgba(17,24,39,.56)); mix-blend-mode: multiply; pointer-events:none; }
 
 /* 左侧金额色块：粉紫渐变 */
 .cc-left { flex: 0 0 auto; min-width: 180rpx; padding: 16rpx 14rpx; background: linear-gradient(135deg, #fca5a5, #c084fc); color:#fff; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; position: relative; }
@@ -221,6 +268,17 @@ function goMyCoupons(){ try { uni.navigateTo({ url: '/pages/coupon/mine' }); } c
 /* 底部查看我的优惠券 */
 .actions-bottom { padding: 0 8rpx; }
 .btn-my-coupons { text-align:center; padding: 20rpx 0; border-radius: 999rpx; background: #fff; border: 2rpx solid #e5e7eb; color:#111827; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.04); }
+
+/* 详情展开样式 */
+.coupon-detail { margin: -8rpx 8rpx 12rpx 8rpx; border-radius: 20rpx; overflow: hidden; background: #ffffff; border: 2rpx solid #f1f5f9; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.04); }
+.detail-toggle { display:flex; align-items:center; justify-content:flex-end; gap: 8rpx; padding: 12rpx; color:#334155; background: #f8fafc; }
+.toggle-text { font-size: 24rpx; }
+.toggle-caret { transition: transform .2s ease; display:inline-block; line-height: 1; }
+.toggle-caret.open { transform: rotate(180deg); }
+.detail-body { padding: 12rpx 16rpx; color:#4b5563; background: #fff; }
+.detail-item { font-size: 22rpx; line-height: 1.7; padding: 6rpx 0; }
+.detail-fade-enter-active, .detail-fade-leave-active { transition: all .18s ease; }
+.detail-fade-enter-from, .detail-fade-leave-to { opacity: 0; transform: translateY(-4rpx); }
 </style>
 
 

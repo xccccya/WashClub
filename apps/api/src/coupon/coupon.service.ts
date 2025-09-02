@@ -107,7 +107,7 @@ export class CouponService {
     async deleteMemberCoupon(id: number){
         const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id } });
         const r = await (this.prisma as any).memberCoupon.delete({ where: { id } });
-        try{ if (mc) await this.writeFlow({ action: 'REVOKE', memberId: mc.memberId, couponId: mc.couponId, memberCouponId: mc.id, remark: '后台删除/作废' }); }catch{}
+        try{ if (mc) await this.writeFlow({ action: 'REVOKE', memberId: mc.memberId, couponId: mc.couponId, memberCouponId: mc.id, remark: '后台删除/作废', snapshot: { memberCouponId: mc.id, couponId: mc.couponId, name: mc.name } }); }catch{}
         return r; }
 
     // 卡券流水列表（新：使用 CouponFlowLog 作为券相关流水）
@@ -150,7 +150,7 @@ export class CouponService {
             if (coupon.issueTotal != null) { const reCount = await (tx as any).memberCoupon.count({ where: { couponId } }); if (reCount + count > Number(coupon.issueTotal)) throw new Error('发行数量不足'); }
             if (coupon.perMemberLimit != null) { const reOwned = await (tx as any).memberCoupon.count({ where: { couponId, memberId } }); if (reOwned + count > Number(coupon.perMemberLimit)) throw new Error('超过每人限领次数'); }
             await (tx as any).memberCoupon.createMany({ data: items }); });
-        await this.writeFlow({ action: params.action === 'CLAIM' ? 'CLAIM' : 'ISSUE', memberId, couponId, count, remark: params.action === 'CLAIM' ? '小程序领取' : '后台发放' });
+        await this.writeFlow({ action: params.action === 'CLAIM' ? 'CLAIM' : 'ISSUE', memberId, couponId, count, remark: params.action === 'CLAIM' ? '小程序领取' : '后台发放', snapshot: { couponId, couponName: coupon.name, count } });
         return { ok: true, issued: count }; }
 
     async claimForMember(params: { couponId: number; memberId: number }){

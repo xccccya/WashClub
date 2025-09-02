@@ -106,7 +106,7 @@ function openKeyboard(){
 	pos.value = i>=0 ? i : (isNewEnergy.value ? 7 : 6);
 	alphaMode.value = pos.value === 0 ? 'num' : 'alpha';
 }
-function close(){ visible.value = false; }
+function close(){ commitToModel(); visible.value = false; }
 function setPos(i: number){ pos.value = i; }
 function goProvince(){ pos.value = 0; }
 function toggleAlpha(){ alphaMode.value = alphaMode.value==='num' ? 'alpha' : 'num'; }
@@ -123,9 +123,12 @@ function input(ch: string){
 	if (currentPos === 0) alphaMode.value = 'alpha';
 	isNewEnergy.value = !!cells.value[7];
 	updatePreviewFromCells();
+	commitToModel();
 }
-function del(){ if (cells.value[pos.value]) { cells.value[pos.value] = ''; isNewEnergy.value = !!cells.value[7]; updatePreviewFromCells(); return; } if (pos.value > 0) { pos.value--; cells.value[pos.value] = ''; isNewEnergy.value = !!cells.value[7]; updatePreviewFromCells(); } }
-function confirm(){ const maxLen = cells.value[7] ? 8 : 7; const s = cells.value.slice(0, maxLen).join(''); emit('update:modelValue', s); previewValue.value = ''; close(); }
+function del(){ if (cells.value[pos.value]) { cells.value[pos.value] = ''; isNewEnergy.value = !!cells.value[7]; updatePreviewFromCells(); commitToModel(); return; } if (pos.value > 0) { pos.value--; cells.value[pos.value] = ''; isNewEnergy.value = !!cells.value[7]; updatePreviewFromCells(); commitToModel(); } }
+function confirm(){ commitToModel(); previewValue.value = ''; close(); }
+function commitToModel(){ const maxLen = cells.value[7] ? 8 : 7; const s = cells.value.slice(0, maxLen).join(''); emit('update:modelValue', s); }
+
 
 function updatePreviewFromCells(){
 	const filledChars = cells.value.filter(ch => !!ch);

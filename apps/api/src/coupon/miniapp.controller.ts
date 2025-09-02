@@ -41,6 +41,8 @@ export class MiniappCouponController {
             let ruleKind: string | null = null;
             let rulePercent: number | null = null; // 折扣百分比（OFF 百分比，例如 20 表示 20% OFF）
             let ruleAmount: number | null = null;  // 直减金额
+            let ruleCap: number | null = null;     // 折扣封顶金额（仅折扣券适用）
+            let ruleMinSubtotal: number | null = null; // 最低小计门槛（规则维度）
             try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const rule: any = (c as any)?.ruleJson || null;
@@ -48,9 +50,11 @@ export class MiniappCouponController {
                     ruleKind = String(rule.kind || '').toLowerCase() || null;
                     if (ruleKind === 'percent') {
                         rulePercent = Number(rule.percent ?? rule.amount ?? 0) || 0;
+                        if (rule.cap != null) ruleCap = Number(rule.cap || 0) || 0;
                     } else if (ruleKind === 'direct') {
                         ruleAmount = Number(rule.amount ?? 0) || 0;
                     }
+                    if (rule.minSubtotal != null) ruleMinSubtotal = Number(rule.minSubtotal || 0) || 0;
                 }
             } catch {}
             result.push({
@@ -78,6 +82,12 @@ export class MiniappCouponController {
                 ruleKind,
                 rulePercent,
                 ruleAmount,
+                ruleCap,
+                ruleMinSubtotal,
+                applyScope: c.applyScope,
+                allowCombine: c.allowCombine,
+                allowStackWithPoints: c.allowStackWithPoints,
+                allowStackWithMemberDiscount: c.allowStackWithMemberDiscount,
             });
         }
         return { items: result };
@@ -90,15 +100,26 @@ export class MiniappCouponController {
         @Query('token') tokenParam?: string,
         @Query('used') used?: '0'|'1',
         @Query('expired') expired?: '0'|'1',
+        @Query('notStarted') notStartedQ?: '0'|'1',
     ){
         const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const now = new Date();
         const where: any = { memberId };
         if (used === '0') where.usedAt = null;
         if (used === '1') where.usedAt = { not: null };
-        if (expired === '0') where.OR = [{ endAt: null }, { endAt: { gt: new Date() } }];
-        if (expired === '1') where.endAt = { lte: new Date() };
+        if (expired === '0') where.OR = [{ endAt: null }, { endAt: { gt: now } }];
+        if (expired === '1') where.endAt = { lte: now };
         const items = await (this.prisma as any).memberCoupon.findMany({ where, orderBy: { id: 'desc' }, include: { coupon: true } });
-        return { items };
+        // 前端需要“未生效”筛选：startAt 在未来的
+        const out = Array.isArray(items) ? items.filter((mc: any) => {
+            if (notStartedQ === '1') {
+                if (mc.startAt && new Date(mc.startAt) > now) return true;
+                if (!mc.startAt && mc.coupon?.startAt && new Date(mc.coupon.startAt) > now) return true;
+                return false;
+            }
+            return true;
+        }) : items;
+        return { items: out };
     }
 
     @Post(':id/claim')

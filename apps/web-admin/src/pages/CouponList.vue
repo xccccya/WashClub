@@ -104,7 +104,20 @@
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item label="最低小计门槛"><el-input-number v-model="form.ruleMinSubtotal" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
-					<el-alert type="info" :closable="false" show-icon title="生效说明（请先读完再保存）" description="选择‘规则类型’后，仅按规则计算优惠，面值和最低订单额不再生效；适用范围选‘指定商品’时，订单中至少包含被指定商品，且优惠仅按这些商品的小计计算；需先达到最低小计门槛，百分比折扣可设置封顶，单券优惠不超过其计算口径金额；多券叠加需全部勾选‘可与其他券同用’，且总优惠不超过整单小计；‘领取后生效’必须填写正整数的有效天数。" />
+					<el-alert type="info" :closable="false" show-icon title="生效说明（请先读完再保存）">
+						<template #default>
+							<div class="alert-desc">
+								<div>1）规则优先：选择‘规则类型’（直减/折扣%）后，仅按规则计算优惠；此时‘面值’与‘最低订单额’不再生效。</div>
+								<div>2）计算口径：规则默认按‘适用品项小计’计算；若口径选‘整单’，则按整单商品金额计算。无论哪种口径，单张券的优惠都不会超过该口径金额。</div>
+								<div>3）适用范围：选‘指定商品’时，订单中至少包含一件被指定的商品，且优惠仅按这些被指定商品的小计计算。</div>
+								<div>4）门槛与封顶：需先达到规则里的‘最低小计门槛’；折扣%可设置‘封顶金额’；直减不需要封顶。</div>
+								<div>5）多券叠加：仅当所选每一张券都勾选了‘可与其他券同用’时才允许叠加。叠加时，每张券各自按自身的口径/门槛/封顶独立计算优惠，再将各券优惠相加；系统还会做总量限制：所有券合计优惠不会超过‘整单商品金额’。</div>
+								<div>6）积分/会员折扣：若所选券中任意一张不允许与积分或会员折扣同用，则本次下单不可同时使用对应权益。</div>
+								<div>7）有效期：‘固定时间’使用开始/结束时间；‘领取后生效’必须填写正整数的有效天数；‘永久有效’无需填写时间。</div>
+								<div>8）其它：‘发行总数’与‘每人限领’会在发放与领取时校验；开启‘小程序可领’后，用户可在小程序自行领取。</div>
+							</div>
+						</template>
+					</el-alert>
 					<el-form-item label="规则JSON(高级)"><el-input type="textarea" :rows="3" v-model="form.ruleJsonText" placeholder='{"kind":"direct","amount":5,"cap":20,"applyBase":"auto"}' /></el-form-item>
 					<el-form-item label="小程序可领"><el-switch v-model="form.allowMiniappClaim" /></el-form-item>
 					<el-form-item label="叠加策略">
@@ -224,6 +237,7 @@ function formatLocal(d?: string){ try { if (!d) return '-'; const dt = new Date(
 
 <style scoped>
 .toolbar{ display:flex; align-items:center; margin:12px 0; }
+.alert-desc { white-space: normal; line-height: 1.6; display:flex; flex-direction: column; gap: 6px; }
 </style>
 
 

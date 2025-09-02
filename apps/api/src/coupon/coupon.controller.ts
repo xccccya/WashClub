@@ -10,6 +10,19 @@ import { RequirePerm } from '../auth/perm.decorator.js';
 export class CouponController {
     constructor(private readonly svc: CouponService) {}
 
+    // 注意：将静态路由放在动态 :id 之前，避免被错误匹配
+    @Get('logs')
+    @ApiOperation({ summary: '卡券流水列表' })
+    @RequirePerm('coupon-logs')
+    listLogs(
+        @Query('page') page?: string,
+        @Query('pageSize') pageSize?: string,
+        @Query('memberId') memberId?: string,
+        @Query('orderId') orderId?: string,
+    ){
+        return this.svc.listCouponLogs({ page: Number(page||1), pageSize: Number(pageSize||20), memberId: memberId? Number(memberId): null, orderId: orderId? Number(orderId): null });
+    }
+
     @Get('')
     @ApiOperation({ summary: '卡券列表' })
     @RequirePerm('coupons')
@@ -43,17 +56,6 @@ export class CouponController {
         return this.svc.issueToMember({ couponId: id, memberId: Number(body.memberId), count: Number(body?.count||1) });
     }
 
-    @Get('logs')
-    @ApiOperation({ summary: '卡券流水列表' })
-    @RequirePerm('coupon-logs')
-    listLogs(
-        @Query('page') page?: string,
-        @Query('pageSize') pageSize?: string,
-        @Query('memberId') memberId?: string,
-        @Query('orderId') orderId?: string,
-    ){
-        return this.svc.listCouponLogs({ page: Number(page||1), pageSize: Number(pageSize||20), memberId: memberId? Number(memberId): null, orderId: orderId? Number(orderId): null });
-    }
 }
 
 

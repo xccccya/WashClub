@@ -149,7 +149,29 @@
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="使用积分">{{ data?.usedPoints }}</el-descriptions-item>
 			<el-descriptions-item label="积分抵扣金额">{{ data?.pointsAmount }}</el-descriptions-item>
-			<el-descriptions-item label="卡券信息">{{ formatCoupon(data?.couponInfo) }}</el-descriptions-item>
+			<el-descriptions-item label="卡券信息">
+				<template v-if="Array.isArray(couponFlows) && couponFlows.length">
+					<div class="coupon-list">
+						<div v-for="flow in couponFlows" :key="flow.id" class="coupon-item">
+							<div class="coupon-left">
+								<div class="coupon-name">{{ flow.snapshot?.couponName || flow.coupon?.name || '优惠券' }}</div>
+								<div class="coupon-meta">
+									<span>会员券ID：{{ flow.memberCouponId || '-' }}</span>
+									<span v-if="flow.snapshot?.discountApplied != null">减免：¥{{ Number(flow.snapshot.discountApplied).toFixed(2) }}</span>
+								</div>
+							</div>
+							<div class="coupon-right">
+								<el-tag size="small" :type="flowTagType(flow.action)">{{ flowActionText(flow.action) }}</el-tag>
+							</div>
+						</div>
+						<div class="coupon-summary" v-if="couponDiscountSum != null">合计优惠：¥{{ couponDiscountSum.toFixed(2) }}</div>
+					</div>
+				</template>
+				<template v-else>
+					{{ formatCoupon(data?.couponInfo) }}
+					<span v-if="data?.couponInfo?.discountApplied != null" style="margin-left:8px;color:#67C23A;">(减免¥{{ Number(data?.couponInfo?.discountApplied||0).toFixed(2) }})</span>
+				</template>
+			</el-descriptions-item>
 		</el-descriptions>
 	</div>
 </template>
@@ -403,9 +425,49 @@ function zhRemark(eventType?: string, remark?: string){
     }
 	return remark || '';
 }
+
+const couponFlows = computed(() => {
+    try{
+        const flows = Array.isArray((data.value?.couponFlows)||[]) ? (data.value?.couponFlows) : [];
+        // 仅展示当前订单内的 USE 动作流水
+        return flows.filter((f:any)=> String(f?.action||'').toUpperCase()==='USE');
+    }catch{ return []; }
+});
+const couponDiscountSum = computed(()=>{
+    try{
+        const arr = couponFlows.value as any[];
+        const sum = arr.reduce((s, f:any)=> s + Number(f?.snapshot?.discountApplied||0), 0);
+        return Number.isFinite(sum) ? Number(sum) : 0;
+    }catch{ return 0; }
+});
+function flowActionText(a?: string){
+  switch(String(a||'')){
+    case 'USE': return '使用';
+    case 'RESTORE': return '回退';
+    case 'CLAIM': return '领取';
+    case 'ISSUE': return '发放';
+    default: return a||'-';
+  }
+}
+function flowTagType(a?: string){
+  switch(String(a||'')){
+    case 'USE': return 'warning';
+    case 'RESTORE': return 'info';
+    case 'CLAIM': return 'primary';
+    case 'ISSUE': return 'success';
+    default: return 'default';
+  }
+}
 </script>
 
 <style scoped>
+.coupon-list{ display:flex; flex-direction: column; gap:8px; }
+.coupon-item{ display:flex; align-items:center; justify-content: space-between; background: #fafafa; border:1px dashed #e5e7eb; border-radius:8px; padding:8px 12px; }
+.coupon-left{ display:flex; flex-direction: column; gap:4px; }
+.coupon-name{ font-weight: 600; color:#303133; }
+.coupon-meta{ display:flex; gap:12px; color:#606266; font-size:12px; }
+.coupon-right{ display:flex; align-items:center; gap:8px; }
+.coupon-summary{ text-align:right; color:#67C23A; font-weight:600; margin-top:4px; }
 </style>
 
 

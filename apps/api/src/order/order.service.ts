@@ -171,6 +171,10 @@ export class OrderService {
             }
             // 优惠券校验与折扣（兼容旧单券 memberCouponId；新增多券 memberCouponIds）
             let memberCoupon: any = null;
+            // 记录单券折扣金额，便于写入订单与日志
+            let singleCouponDiscountApplied: Prisma.Decimal = new Prisma.Decimal(0);
+            // 记录多券下每张券的折扣金额
+            const couponDiscountByMemberCouponId: Record<number, Prisma.Decimal> = {};
             const ids = Array.isArray(memberCouponIds) && memberCouponIds.length > 0 ? memberCouponIds : (memberCouponId ? [memberCouponId] : []);
             if (ids.length === 1) {
                 const memberCouponId = ids[0];
@@ -239,10 +243,13 @@ export class OrderService {
                 } catch { /* ignore rule errors */ }
                 if (couponDiscount.greaterThan(0)) {
                     discountTotal = discountTotal.plus(couponDiscount);
+                    singleCouponDiscountApplied = couponDiscount;
                 } else {
                     // 回退面值直减，且不超过口径金额
                     const face = new Prisma.Decimal(memberCoupon.coupon?.faceValue || 0);
-                    if (face.greaterThan(0)) discountTotal = discountTotal.plus(face.greaterThan(discountBase) ? discountBase : face);
+                    const applied = face.greaterThan(discountBase) ? (discountBase as any) : face;
+                    if (face.greaterThan(0)) discountTotal = discountTotal.plus(applied);
+                    singleCouponDiscountApplied = applied as any;
                 }
             } else if (ids.length > 1) {
                 const now = new Date();
@@ -308,6 +315,8 @@ export class OrderService {
                         const face = new Prisma.Decimal(mc.coupon?.faceValue || 0);
                         calc = face.greaterThan(discountBase) ? (discountBase as any) : face;
                     }
+                    // 记录该券实际折扣
+                    couponDiscountByMemberCouponId[mc.id] = calc as any;
                     discountTotal = discountTotal.plus(calc);
                 }
                 if (discountTotal.greaterThan(total)) discountTotal = total;
@@ -332,7 +341,7 @@ export class OrderService {
                     remark: remark ?? null,
                     usedPoints: usedPoints || 0,
                     pointsAmount: new Prisma.Decimal(pointsAmount as any),
-                    couponInfo: memberCoupon ? ({ id: memberCoupon.id, couponId: memberCoupon.couponId, faceValue: memberCoupon.coupon?.faceValue ?? null, name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null } as any) : (couponInfo ?? undefined),
+                    couponInfo: memberCoupon ? ({ id: memberCoupon.id, couponId: memberCoupon.couponId, faceValue: memberCoupon.coupon?.faceValue ?? null, name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } as any) : (couponInfo ?? undefined),
                     shippingAddressId: addressIdToSave,
                     shippingAddressSnapshot: addressSnapshot,
                 },
@@ -359,11 +368,11 @@ export class OrderService {
             // 标记用券
             if (memberCoupon) {
                 await (tx as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
-                try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用' } }); }catch{}
+                try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用', snapshot: { couponId: mc?.couponId ?? null, couponName: mc?.coupon?.name ?? null, memberCouponId: memberCouponId ?? null, memberCouponName: mc?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } } }); }catch{}
             } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
                 for (const cid of memberCouponIds) {
                     await (tx as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
-                    try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用' } }); }catch{}
+                    try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); const applied = couponDiscountByMemberCouponId[cid]; await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用', snapshot: { couponId: mc?.couponId ?? null, couponName: mc?.coupon?.name ?? null, memberCouponId: cid ?? null, memberCouponName: mc?.name ?? null, discountApplied: Number(applied || 0) } } }); }catch{}
                 }
             }
             return { id: order.id, no: order.no };
@@ -387,12 +396,12 @@ export class OrderService {
     }
 
     async getOrder(id: number) {
-        const o = await this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+        const o = await this.prisma.order.findUnique({ where: { id }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } }, couponFlows: { orderBy: { id: 'desc' }, include: { coupon: true, memberCoupon: true } } } });
         return await this.enrichOrderWithProductTypes(o);
     }
 
     async getOrderByNo(no: string) {
-        const o = await this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } } } });
+        const o = await this.prisma.order.findUnique({ where: { no }, include: { items: true, member: true, vehicle: true, afterSalesRequests: true, timelines: { orderBy: { createdAt: 'asc' } }, refundRecords: { orderBy: { id: 'desc' } }, couponRestoreLogs: { orderBy: { id: 'desc' } }, couponFlows: { orderBy: { id: 'desc' }, include: { coupon: true, memberCoupon: true } } } });
         return await this.enrichOrderWithProductTypes(o);
     }
 
