@@ -174,7 +174,7 @@ export class OrderService {
             const ids = Array.isArray(memberCouponIds) && memberCouponIds.length > 0 ? memberCouponIds : (memberCouponId ? [memberCouponId] : []);
             if (ids.length === 1) {
                 const memberCouponId = ids[0];
-                memberCoupon = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCouponId }, include: { coupon: true } });
+                memberCoupon = await (tx as any).memberCoupon.findUnique({ where: { id: memberCouponId }, include: { coupon: true } });
                 if (!memberCoupon || memberCoupon.memberId !== memberId) throw new Error('优惠券无效');
                 if (memberCoupon.usedAt) throw new Error('优惠券已使用');
                 const now = new Date();
@@ -246,7 +246,7 @@ export class OrderService {
                 }
             } else if (ids.length > 1) {
                 const now = new Date();
-                const records: any[] = await (this.prisma as any).memberCoupon.findMany({ where: { id: { in: ids } }, include: { coupon: true } });
+                const records: any[] = await (tx as any).memberCoupon.findMany({ where: { id: { in: ids } }, include: { coupon: true } });
                 if (records.length !== ids.length) throw new Error('部分优惠券无效');
                 for (const mc of records) {
                     if (mc.memberId !== memberId) throw new Error('优惠券归属无效');
@@ -358,12 +358,12 @@ export class OrderService {
             }
             // 标记用券
             if (memberCoupon) {
-                await (this.prisma as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
-                try{ const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (this.prisma as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用' } }); }catch{}
+                await (tx as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
+                try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用' } }); }catch{}
             } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
                 for (const cid of memberCouponIds) {
-                    await (this.prisma as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
-                    try{ const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); await (this.prisma as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用' } }); }catch{}
+                    await (tx as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
+                    try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用' } }); }catch{}
                 }
             }
             return { id: order.id, no: order.no };
