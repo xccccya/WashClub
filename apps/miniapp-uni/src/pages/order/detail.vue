@@ -18,7 +18,8 @@
 			<view class="kv"><text class="k">订单号</text><text class="v v--small">{{ order.no }}</text></view>
 			<view class="kv"><text class="k">下单时间</text><text class="v">{{ formatTime(order.createdAt) }}</text></view>
 			<view class="kv" v-if="isTimeoutUnpaid(order)"><text class="k">提示</text><text class="v" style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</text></view>
-			<view class="kv" v-if="order.remark"><text class="k">备注</text><text class="v">{{ order.remark }}</text></view>
+			<view class="kv" v-if="(order as any).userRemark"><text class="k">用户备注</text><text class="v">{{ (order as any).userRemark }}</text></view>
+			<view class="kv" v-if="order.remark"><text class="k">系统备注</text><text class="v">{{ order.remark }}</text></view>
 		</view>
 
 		<!-- 服务车辆横幅（独立风格，无标题） -->

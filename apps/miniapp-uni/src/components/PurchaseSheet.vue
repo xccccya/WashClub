@@ -540,7 +540,7 @@ async function submit(){
 				quantity: quantity.value
 			}
 		],
-		remark: remark.value || undefined,
+		userRemark: remark.value || undefined,
 		shippingAddressId: isPhysical.value ? selectedAddressId.value : undefined,
 		memberCouponIds: Array.from(selectedCouponIds.value)
 	};

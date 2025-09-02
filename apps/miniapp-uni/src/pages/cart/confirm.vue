@@ -186,7 +186,7 @@ async function submit(){
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
-	const body:any = { type: 'SP', memberId, items: orderItems, remark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
+	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
 		// 清理后端已勾选条目

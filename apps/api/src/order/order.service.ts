@@ -113,8 +113,8 @@ export class OrderService {
         return `${type}_${ts}_${rand}`;
     }
 
-    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; memberCouponIds?: number[] | null; }): Promise<{ id: number; no: string }>{
-        const { type, memberId, vehicleId, shippingAddressId, items, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId, memberCouponIds } = params;
+    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; userRemark?: string | null; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; memberCouponIds?: number[] | null; }): Promise<{ id: number; no: string }>{
+        const { type, memberId, vehicleId, shippingAddressId, items, userRemark, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId, memberCouponIds } = params;
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
         return this.prisma.$transaction(async (tx) => {
@@ -338,13 +338,14 @@ export class OrderService {
                     payStatus: 'UNPAID',
                     memberId,
                     vehicleId: vehicleId ?? null,
-                    remark: remark ?? null,
+                    // 用户备注写入 userRemark；系统备注 remark 留作系统流程使用
+                    userRemark: (userRemark ?? remark) ?? null,
                     usedPoints: usedPoints || 0,
                     pointsAmount: new Prisma.Decimal(pointsAmount as any),
                     couponInfo: memberCoupon ? ({ id: memberCoupon.id, couponId: memberCoupon.couponId, faceValue: memberCoupon.coupon?.faceValue ?? null, name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } as any) : (couponInfo ?? undefined),
                     shippingAddressId: addressIdToSave,
                     shippingAddressSnapshot: addressSnapshot,
-                },
+                } as any,
             });
             await this.writeTimeline({ tx, orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' });
             await this.writeTimeline({ tx, orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' });
@@ -485,8 +486,9 @@ export class OrderService {
             where.OR = [
                 { no: { contains: kw } },
                 { remark: { contains: kw } },
+                { userRemark: { contains: kw } },
                 { member: { phone: { contains: kw } } },
-            ];
+            ] as any;
         }
         if (query.start || query.end) {
             const createdAt: Prisma.DateTimeFilter = {};

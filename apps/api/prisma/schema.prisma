@@ -635,6 +635,8 @@ model Order {
   vehicle                 Vehicle?          @relation(fields: [vehicleId], references: [id])
   // 备注
   remark                  String?
+  // 用户下单备注（与系统备注分离）
+  userRemark              String?
 
   // 物流/发货信息（商品订单 SP 使用）
   shippedAt              DateTime?
@@ -672,6 +674,7 @@ model Order {
   @@index([createdAt])
   @@index([fulfillmentStatus])
   @@index([shippingAddressId])
+  @@index([userRemark])
 }
 
 model OrderItem {
