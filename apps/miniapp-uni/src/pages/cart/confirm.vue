@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+declare const uni: any;
 import { ref, computed } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
 import { checkAuthAndRefresh, createHttp } from '../../utils/auth';
@@ -95,7 +96,10 @@ function formatPrice(p:any){ const n=Number(p); return isNaN(n)? '0.00' : n.toFi
 
 const items = ref<any[]>([]);
 const remark = ref<string>('');
-const payMethod = ref<'WECHAT'|'OFFLINE'>('WECHAT');
+const payMethod = ref<'WECHAT'|'OFFLINE'|undefined>(undefined);
+// #ifdef MP-WEIXIN
+payMethod.value = 'WECHAT';
+// #endif
 const couponLoading = ref<boolean>(false);
 const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
 const selectedCouponIds = ref<Set<number>>(new Set());
@@ -186,6 +190,7 @@ async function submit(){
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
+	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
 	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });

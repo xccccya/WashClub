@@ -140,7 +140,10 @@ const product = computed(() => props.product);
 const selectedSkuId = ref<number|undefined>(undefined);
 const quantity = ref<number>(1);
 const remark = ref<string>('');
-const payMethod = ref<'WECHAT'|'OFFLINE'>('WECHAT');
+const payMethod = ref<'WECHAT'|'OFFLINE'|undefined>(undefined);
+// #ifdef MP-WEIXIN
+payMethod.value = 'WECHAT';
+// #endif
 
 const http = createHttp();
 
@@ -499,6 +502,8 @@ async function submit(){
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
+	// 校验支付方式（H5 下默认不选，需要用户手动选择）
+	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
 	// 获取会员信息
 	let profile: any = null;
 	try { profile = await http<any>('/member/me/profile', { method:'GET' }); } catch {}
