@@ -70,7 +70,9 @@
 		<view class="bottom-bar" v-if="items.length>0">
 			<view class="summary">
 				<text class="label">合计：</text>
-				<text class="amount">¥{{ payAmountWithCouponText }}</text>
+				<text class="amount amount-lg">¥{{ payAmountWithCouponText }}</text>
+				<text class="coupon-save" v-if="couponDiscount>0">(含券减 ¥{{ Number(couponDiscount||0).toFixed(2) }})</text>
+				<text class="coupon-over" v-if="couponOver>0">券减溢出 ¥{{ Number(couponOver||0).toFixed(2) }}</text>
 			</view>
 			<view class="checkout" @tap="submit">立即支付¥{{ payAmountWithCouponText }}</view>
 		</view>
@@ -146,8 +148,15 @@ function dec(it:any){ it.quantity = Math.max(1, Number(it.quantity||0)-1); saveB
 const totalAmount = computed(()=> items.value.reduce((sum:number, it:any)=> sum + Number(it?.snapshot?.price||0)*Number(it.quantity||0), 0));
 const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
 const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
-const payAmountWithCoupon = computed(()=> Math.max(0, Number(totalAmount.value) - couponDiscount.value));
-const payAmountWithCouponText = computed(()=> payAmountWithCoupon.value.toFixed(2));
+const payAmountNet = computed(()=> Math.max(0, Number(totalAmount.value) - couponDiscount.value));
+const payAmountDisplay = computed(()=> payAmountNet.value < 0.01 ? 0.01 : payAmountNet.value);
+const payAmountWithCouponText = computed(()=> payAmountDisplay.value.toFixed(2));
+const couponOver = computed(()=> {
+  const base = Number(totalAmount.value) || 0;
+  const disc = Number(couponDiscount.value) || 0;
+  const over = disc - base;
+  return over > 0 ? over : 0;
+});
 const requiresAddress = computed(()=> items.value.some(it => String(it?.snapshot?.type||'')==='PHYSICAL'));
 function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); } catch {} }
 function selectAddress(id?: number){ selectedAddressId.value = id; }
@@ -190,6 +199,7 @@ async function submit(){
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
+	// 允许券减溢出：不再前端拦截 < 0.01，展示层已按 0.01 显示，后端将按 0.01 入单
 	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
 	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
 	try {
@@ -275,6 +285,9 @@ async function submit(){
 .summary { display:flex; align-items: baseline; gap: 6rpx; }
 .label { font-size: 24rpx; color:#6b7280; }
 .amount { font-size: 30rpx; color:#ef4444; font-weight: 800; }
+.amount-lg { font-size: 36rpx; }
+.coupon-save { font-size: 22rpx; color:#67C23A; margin-left: 8rpx; }
+.coupon-over { font-size: 22rpx; color:#f59e0b; margin-left: 8rpx; }
 .checkout { padding: 18rpx 22rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-radius: 16rpx; font-size: 26rpx; }
 
 /* 返回按钮 */

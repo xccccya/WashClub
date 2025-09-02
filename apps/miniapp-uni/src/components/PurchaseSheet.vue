@@ -93,7 +93,9 @@
 			<view class="footer">
 				<view class="price-area">
 					<text class="label">应付金额</text>
-					<text class="amount">¥{{ payAmountWithCouponText }}</text>
+					<text class="amount amount-lg">¥{{ payAmountWithCouponText }}</text>
+					<text class="coupon-save" v-if="couponDiscount>0">(含券减 ¥{{ Number(couponDiscount||0).toFixed(2) }})</text>
+					<text class="coupon-over" v-if="couponOver>0">券减溢出 ¥{{ Number(couponOver||0).toFixed(2) }}</text>
 				</view>
 				<view class="submit" @tap="submit">立即支付¥{{ payAmountWithCouponText }}</view>
 			</view>
@@ -418,8 +420,15 @@ const couponLoading = ref<boolean>(false);
 const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
 const selectedCouponIds = ref<Set<number>>(new Set());
 const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
-const payAmountWithCoupon = computed(()=> Math.max(0, Number(payAmount.value) - couponDiscount.value));
-const payAmountWithCouponText = computed(()=> payAmountWithCoupon.value.toFixed(2));
+const payAmountNet = computed(()=> Math.max(0, Number(payAmount.value) - couponDiscount.value));
+const payAmountDisplay = computed(()=> payAmountNet.value < 0.01 ? 0.01 : payAmountNet.value);
+const payAmountWithCouponText = computed(()=> payAmountDisplay.value.toFixed(2));
+const couponOver = computed(()=> {
+    const base = Number(payAmount.value) || 0;
+    const disc = Number(couponDiscount.value) || 0;
+    const over = disc - base;
+    return over > 0 ? over : 0;
+});
 
 function formatPrice(n:any){ const v=Number(n); return isNaN(v)? '0.00' : v.toFixed(2); }
 function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
@@ -504,6 +513,7 @@ async function submit(){
 	}
 	// 校验支付方式（H5 下默认不选，需要用户手动选择）
 	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
+	// 允许优惠券超过应付，前端不拦截；后端会按最低支付 0.01 处理
 	// 获取会员信息
 	let profile: any = null;
 	try { profile = await http<any>('/member/me/profile', { method:'GET' }); } catch {}
@@ -632,6 +642,9 @@ async function submit(){
 .price-area { display:flex; flex-direction: column; }
 .label { font-size: 22rpx; color:#6b7280; }
 .amount { font-size: 32rpx; color:#ef4444; font-weight: 800; }
+.amount-lg { font-size: 38rpx; }
+.coupon-save { font-size: 22rpx; color:#67C23A; }
+.coupon-over { font-size: 22rpx; color:#f59e0b; margin-left: 6rpx; }
 .submit { flex-shrink:0; padding: 18rpx 24rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-radius: 16rpx; font-size: 26rpx; }
 
 /* 地址选择（多地址可横向选择） */

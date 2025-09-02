@@ -325,6 +325,9 @@ export class OrderService {
             }
             const shipping = new Prisma.Decimal(shippingFee as any);
             const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal(pointsAmount as any));
+            // 最低应付策略：若小于 0.01，按 0.01 计入订单（允许券减溢出）
+            const minPay = new Prisma.Decimal(0.01 as any);
+            const payAmountAdjusted = payAmount.lessThan(minPay) ? minPay : payAmount;
 
             const order = await tx.order.create({
                 data: {
@@ -334,7 +337,7 @@ export class OrderService {
                     fulfillmentStatus: (type === 'FK' ? 'NONE' : 'PENDING') as FulfillmentStatus,
                     totalAmount: total,
                     discountAmount: discountTotal,
-                    payAmount,
+                    payAmount: payAmountAdjusted,
                     shippingFee: shipping,
                     payStatus: 'UNPAID',
                     memberId,
