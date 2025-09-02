@@ -94,6 +94,7 @@
 			<view class="sub-title">金额汇总</view>
 			<view class="kv"><text class="k">商品总额</text><text class="v">¥{{ formatPrice(order.totalAmount) }}</text></view>
 			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
+			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
 			<view class="kv" v-if="order.type!=='SERVICE'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
 			<view class="kv" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>
 			<view class="kv total"><text class="k">应付金额</text><text class="v">¥{{ formatPrice(order.payAmount) }}</text></view>
@@ -169,6 +170,20 @@ type Order = {
 };
 
 const order = ref<Order|null>(null);
+const couponDisplayList = computed(() => {
+    try{
+        const o:any = order.value;
+        if (!o) return [];
+        const flows:any[] = Array.isArray(o.couponFlows) ? o.couponFlows : [];
+        const useFlows = flows.filter(f=> String(f?.action||'').toUpperCase()==='USE');
+        const list = useFlows.map(f=>({ name: f?.snapshot?.couponName || f?.coupon?.name || '优惠券', amount: Number(f?.snapshot?.discountApplied||0) }));
+        if (list.length) return list.filter(it=> it.amount>0);
+        // 回退到单券 couponInfo
+        const ci:any = (o as any).couponInfo || null;
+        if (ci && (ci.name || ci.discountApplied)) return [{ name: ci.name || '优惠券', amount: Number(ci.discountApplied||0) }];
+        return [];
+    }catch{ return []; }
+});
 const traceList = ref<Array<{ datetime: string; remark: string }>>([]);
 const lastKey = ref<string>('');
 const timelineList = ref<Array<any>>([]);
@@ -606,6 +621,8 @@ function zhRemark(eventType?: string, remark?: string){
 .kv { display:flex; align-items:center; justify-content: space-between; padding: 10rpx 0; }
 .kv .k { color:#6b7280; }
 .kv .v { color:#111827; font-weight: 600; }
+.kv.kv--sub .k { font-size: 22rpx; color:#7c7f85; }
+.kv.kv--sub .v { font-size: 22rpx; font-weight: 500; color:#444; }
 .kv .v.v--small { font-size: 24rpx; font-weight: 500; color:#1f2937; }
 .item { display:flex; gap: 12rpx; padding: 12rpx 0; border-bottom: 2rpx dashed #eef2f7; }
 .thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background:#f1f5f9; }
