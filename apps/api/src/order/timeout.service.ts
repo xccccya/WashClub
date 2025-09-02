@@ -1,13 +1,14 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { WxpayService } from './wxpay.service.js';
+import { CouponService } from '../coupon/coupon.service.js';
 
 @Injectable()
 export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger('OrderTimeoutService');
     private timer: NodeJS.Timeout | null = null;
 
-    constructor(private readonly prisma: PrismaService, private readonly wxpay: WxpayService) {}
+    constructor(private readonly prisma: PrismaService, private readonly wxpay: WxpayService, private readonly coupons: CouponService) {}
 
     onModuleInit() {
         const enabled = String(process.env.ORDER_TIMEOUT_ENABLED || 'true').toLowerCase() !== 'false';
@@ -39,6 +40,8 @@ export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
                 // 时间线
                 try { await (this.prisma as any).orderTimeline.create({ data: { orderId: ord.id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
                 try { await (this.prisma as any).orderTimeline.create({ data: { orderId: ord.id, event: 'PAY_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
+                // 统一封装：恢复优惠券（补充分发 memberCouponId 到快照）
+                try{ await this.coupons.restoreUsedCouponsForOrder({ orderId: ord.id, operatorUserId: null, reasonRemark: '系统超时取消恢复优惠券' }); }catch{}
             } catch (e) {
                 this.logger.warn(`Auto-cancel failed for order ${ord.id}/${ord.no}: ${(e as any)?.message || e}`);
             }

@@ -21,6 +21,25 @@ export class CouponService {
         }catch{}
     }
 
+    // 统一：按订单恢复所有已使用的优惠券（未支付取消/系统超时取消/全额退款后恢复等场景可重用）
+    async restoreUsedCouponsForOrder(params: { orderId: number; operatorUserId?: number | null; reasonRemark?: string | null; tx?: any }){
+        const db = params.tx ?? this.prisma;
+        const order = await db.order.findUnique({ where: { id: params.orderId } });
+        if (!order) return { restored: 0 } as const;
+        const usedMcs: any[] = await (db as any).memberCoupon.findMany({ where: { orderId: order.id, usedAt: { not: null } }, include: { coupon: true } });
+        if (!usedMcs || usedMcs.length === 0) return { restored: 0 } as const;
+        let restored = 0;
+        for (const mc of usedMcs){
+            await (db as any).memberCoupon.update({ where: { id: mc.id }, data: { usedAt: null, orderId: null } });
+            restored++;
+            try{
+                await this.writeFlow({ action: 'RESTORE', memberId: mc.memberId, orderId: order.id, couponId: mc.couponId ?? null, memberCouponId: mc.id, count: 1, remark: params.reasonRemark || '恢复优惠券', snapshot: { ...(order.couponInfo as any)||{}, memberCouponId: mc.id, memberCouponName: mc.name, couponId: mc.couponId }, operatorUserId: params.operatorUserId ?? null });
+            }catch{}
+        }
+        try{ await (db as any).orderTimeline.create({ data: { orderId: order.id, event: 'BENEFITS', value: 'COUPON_RESTORE', remark: `恢复${restored}张`, operatorUserId: params.operatorUserId ?? null } }); }catch{}
+        return { restored } as const;
+    }
+
     // 分组
     listGroups(){ return this.prisma.couponGroup.findMany({ orderBy: [{ weight: 'desc' }, { id: 'desc' }] }); }
     createGroup(data: { name: string; description?: string | null; enabled?: boolean; weight?: number }) {

@@ -155,9 +155,9 @@
 					<div class="coupon-list">
 						<div v-for="flow in couponFlows" :key="flow.id" class="coupon-item">
 							<div class="coupon-left">
-								<div class="coupon-name">{{ flow.snapshot?.couponName || flow.coupon?.name || '优惠券' }}</div>
+								<div class="coupon-name">{{ flow.snapshot?.couponName || flow.memberCoupon?.name || flow.coupon?.name || flow.snapshot?.memberCouponName || '优惠券' }}</div>
 								<div class="coupon-meta">
-									<span>会员券ID：{{ flow.memberCouponId || '-' }}</span>
+									<span>会员券ID：{{ flow.memberCouponId || flow.snapshot?.memberCouponId || flow.memberCoupon?.id || '-' }}</span>
 									<span v-if="flow.snapshot?.discountApplied != null">减免：¥{{ Number(flow.snapshot.discountApplied).toFixed(2) }}</span>
 								</div>
 							</div>

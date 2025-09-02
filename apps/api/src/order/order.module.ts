@@ -6,6 +6,7 @@ import { TanshuService } from './tanshu.service.js';
 import { OrderController } from './order.controller.js';
 import { WxpayService } from './wxpay.service.js';
 import { OrderTimeoutService } from './timeout.service.js';
+import { CouponService } from '../coupon/coupon.service.js';
 
 @Module({
     imports: [
@@ -14,7 +15,7 @@ import { OrderTimeoutService } from './timeout.service.js';
         })
     ],
     controllers: [OrderController],
-    providers: [PrismaService, OrderService, TanshuService, WxpayService, OrderTimeoutService],
+    providers: [PrismaService, CouponService, OrderService, TanshuService, WxpayService, OrderTimeoutService],
 })
 export class OrderModule {}
 

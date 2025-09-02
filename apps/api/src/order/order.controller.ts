@@ -143,7 +143,8 @@ export class OrderController {
         if (memberId && order.memberId !== memberId) throw new UnauthorizedException('无权操作该订单');
         // 关单：按是否存在JSAPI预下单做兜底，这里直接调用关单接口（多次调用幂等）
         try { await this.wxpay.closeJsapi(order.no); } catch (e) { /* 忽略关单失败以避免卡住取消流程 */ }
-        return this.orders.cancelOrder(id, body?.reason, adminId ?? null);
+        const userInitiated = !!memberId && order.memberId === memberId;
+        return this.orders.cancelOrder(id, body?.reason, adminId ?? null, { userInitiated });
     }
 
     // 恢复软删除

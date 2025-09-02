@@ -32,9 +32,9 @@
 									{{ (buildSnapshot(row).couponName || row.coupon?.name) || '-' }}
 									<span v-if="buildSnapshot(row).couponId">（ID: {{ buildSnapshot(row).couponId }}）</span>
 								</el-descriptions-item>
-								<el-descriptions-item label="会员券" v-if="buildSnapshot(row).memberCouponId || buildSnapshot(row).memberCouponName">
-									{{ buildSnapshot(row).memberCouponName || '-' }}
-									<span v-if="buildSnapshot(row).memberCouponId">（ID: {{ buildSnapshot(row).memberCouponId }}）</span>
+								<el-descriptions-item label="会员券" v-if="buildSnapshot(row).memberCouponId || buildSnapshot(row).memberCouponName || row.memberCoupon || row.memberCouponId">
+									{{ buildSnapshot(row).memberCouponName || row.memberCoupon?.name || '-' }}
+									<span v-if="buildSnapshot(row).memberCouponId || row.memberCouponId || row.memberCoupon?.id">（ID: {{ buildSnapshot(row).memberCouponId || row.memberCouponId || row.memberCoupon?.id }}）</span>
 								</el-descriptions-item>
 								<el-descriptions-item label="订单" v-if="row.order?.no || buildSnapshot(row).orderId || buildSnapshot(row).orderNo">
 									{{ row.order?.no || buildSnapshot(row).orderNo || buildSnapshot(row).orderId }}

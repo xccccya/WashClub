@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, OrderType, OrderStatus, PayMethod, PayStatus, FulfillmentStatus, AfterSalesStatus, AfterSalesType, RefundStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
+import { CouponService } from '../coupon/coupon.service.js';
 
 @Injectable()
 export class OrderService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }){
         try{
@@ -369,7 +370,7 @@ export class OrderService {
             // 标记用券
             if (memberCoupon) {
                 await (tx as any).memberCoupon.update({ where: { id: memberCoupon.id }, data: { usedAt: new Date(), orderId: order.id } });
-                try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCouponId, count: 1, remark: '订单使用', snapshot: { couponId: mc?.couponId ?? null, couponName: mc?.coupon?.name ?? null, memberCouponId: memberCouponId ?? null, memberCouponName: mc?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } } }); }catch{}
+                try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: memberCoupon.id }, include: { coupon: true } }); await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: memberCoupon?.id ?? null, count: 1, remark: '订单使用', snapshot: { couponId: mc?.couponId ?? null, couponName: mc?.coupon?.name ?? null, memberCouponId: memberCoupon?.id ?? null, memberCouponName: mc?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } } }); }catch{}
             } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
                 for (const cid of memberCouponIds) {
                     await (tx as any).memberCoupon.update({ where: { id: cid }, data: { usedAt: new Date(), orderId: order.id } });
@@ -810,7 +811,7 @@ export class OrderService {
     }
 
     // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
-    async cancelOrder(id: number, reason?: string, operatorUserId?: number | null) {
+    async cancelOrder(id: number, reason?: string, operatorUserId?: number | null, opts?: { userInitiated?: boolean }) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
         // 若有占用库存，回滚（与 closeOrder 中 UNPAID 分支一致）
@@ -867,8 +868,11 @@ export class OrderService {
             }
         }
         const updated = await this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined } });
-        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', operatorUserId });
-        await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', operatorUserId });
+        const cancelRemark = opts?.userInitiated ? '用户主动取消' : undefined;
+        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
+        await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
+        // 统一封装：恢复优惠券
+        try{ await this.coupons.restoreUsedCouponsForOrder({ orderId: id, operatorUserId: operatorUserId ?? null, reasonRemark: '取消订单恢复优惠券' }); }catch{}
         return updated;
     }
 
