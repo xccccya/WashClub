@@ -100,7 +100,7 @@
 					<!-- 商品履约：发货/收货 -->
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">发货</el-button>
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">确认收货</el-button>
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="small" @click="openEditTracking(row)">修改物流单号</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && row.payMethod==='WECHAT_JSAPI' && !row.deletedAt" size="small" @click="openEditTracking(row)">修改物流单号</el-button>
 					<!-- 服务履约：开始/结束 -->
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">开始服务</el-button>
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务{{ row.payMethod==='WECHAT_JSAPI' ? '（上报小程序）' : '' }}</el-button>
@@ -150,7 +150,7 @@
 			</template>
 		</el-dialog>
 
-		<el-dialog v-model="showShipDialog" title="发货（已接入小程序发货接口）" width="560px">
+		<el-dialog v-model="showShipDialog" :title="shipDialogTitle" width="560px">
 			<el-radio-group v-model="shipMode" style="margin-bottom:12px;">
 				<el-radio label="express">快递发货</el-radio>
 				<el-radio label="noExpress">无需快递发货</el-radio>
@@ -181,6 +181,11 @@
 
 		<el-dialog v-model="showEditTrackingDialog" title="修改物流单号（仅一次）" width="460px">
 			<el-input v-model="editTrackingNo" placeholder="新物流单号" />
+			<div v-if="editIsSF" style="margin-top:10px;">
+				<div style="color:#909399; font-size:12px; margin-bottom:6px;">顺丰要求提供寄件人或收件人联系方式（掩码规则：手机号中间四位用*替代，如 138****1234）</div>
+				<el-input v-model="contactSenderMasked" placeholder="寄件人手机号（掩码，可选，二选一）" style="margin-bottom:6px;" />
+				<el-input v-model="contactReceiverMasked" placeholder="收件人手机号（掩码，可选，二选一）" />
+			</div>
 			<template #footer>
 				<el-button @click="showEditTrackingDialog=false">取消</el-button>
 				<el-button type="primary" @click="doEditTracking">提交</el-button>
@@ -245,6 +250,10 @@ async function restore(id:number){ await http(`/orders/${id}/restore`, { method:
 const showShipDialog = ref(false);
 const shipOrderId = ref<number|null>(null);
 const shipMode = ref<'noExpress'|'express'>('express');
+const shipDialogTitle = computed(()=>{
+    const row = list.value.find(x=> x.id===shipOrderId.value);
+    return row && row.payMethod==='WECHAT_JSAPI' ? '发货（已接入小程序发货接口）' : '发货';
+});
 const companies = ref<Array<{ code:string; name:string; logo?:string }>>([]);
 const selectedCompanyCode = ref<string>('');
 const selectedCompany = ref<{ code:string; name:string; logo?:string }|null>(null);
@@ -261,6 +270,12 @@ const isSF = computed(()=>{
 const showEditTrackingDialog = ref(false);
 const editTrackingOrderId = ref<number|null>(null);
 const editTrackingNo = ref('');
+const editIsSF = computed(()=>{
+    const row = list.value.find(x=>x.id===editTrackingOrderId.value);
+    const code = String(row?.shipExpressCompanyCode||'').toUpperCase();
+    const name = String(row?.shipExpressCompanyName||'');
+    return code==='SF' || /顺丰/.test(name);
+});
 async function openEditTracking(row:any){ editTrackingOrderId.value = row?.id||null; editTrackingNo.value=''; contactSenderMasked.value=''; contactReceiverMasked.value=''; showEditTrackingDialog.value=true; }
 async function doEditTracking(){
     if(!editTrackingOrderId.value){ return; }
@@ -293,7 +308,11 @@ function openShip(row:any){
 }
 
 async function loadCompanies(){
-    try { companies.value = await http('/orders/_logistics/companies'); } catch { companies.value = []; }
+    try {
+        const row = list.value.find(x=> x.id===shipOrderId.value);
+        const url = row && row.payMethod==='WECHAT_JSAPI' ? '/orders/_logistics/companies' : '/orders/_logistics/companies/tanshu';
+        companies.value = await http(url);
+    } catch { companies.value = []; }
 }
 
 function onCompanyChange(code:string){
@@ -302,6 +321,7 @@ function onCompanyChange(code:string){
 
 async function doShip(){
     if (!shipOrderId.value) return;
+    const row = list.value.find(x=> x.id===shipOrderId.value);
     if (shipMode.value === 'noExpress'){
         await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{ noExpress: true } });
         ElMessage.success('已标记为无需快递发货');
@@ -319,6 +339,7 @@ async function doShip(){
             body.contactSenderPhoneMasked = contactSenderMasked.value || undefined;
             body.contactReceiverPhoneMasked = contactReceiverMasked.value || undefined;
         }
+        // 非微信支付订单：仅内部发货，不提示“已接入”
         await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body });
         ElMessage.success('已提交发货信息');
     }
@@ -373,8 +394,8 @@ async function doRefund(){
             if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
             amount = v;
         }
-        const res = await http(`/orders/${currentOrderId.value}/refund/wechat`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
-        if (res?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(res?.error || '退款申请失败'); }
+        const resAny: any = await http(`/orders/${currentOrderId.value}/refund/wechat`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
+        if (resAny && resAny.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error((resAny && resAny.error) || '退款申请失败'); }
     } else {
         // 非微信渠道：仅支持一次性内部退款
         const res = await http(`/orders/${currentOrderId.value}/refund`, { method:'POST', body: { reason: refundReason.value || undefined } });

@@ -456,6 +456,13 @@ export class OrderController {
         return list.map(it=>({ code: it.code, name: it.name }));
     }
 
+    // 物流公司列表（探数：旧数据源，非微信支付订单使用）
+    @Get('/_logistics/companies/tanshu')
+    async getCompaniesFromTanshu(){
+        const list = await this.tanshu.getCompanies();
+        return list;
+    }
+
     // 物流查询（探数 V2）- 管理端/小程序端均可调用（需网关限制实际部署时再加）
     @Get('/_logistics/query')
     async query(@Query('com') com?: string, @Query('no') no?: string, @Query('phone') phone?: string){
