@@ -106,6 +106,7 @@ export class WechatShippingService {
             logistics_type: params.logisticsType,
             delivery_mode: 1,
             shipping_list: [shipping],
+            upload_time: new Date().toISOString(),
         };
 
         try{
