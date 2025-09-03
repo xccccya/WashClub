@@ -28,11 +28,11 @@ export class WechatShippingService {
     async getDeliveryList(): Promise<Array<{ code: string; name: string }>> {
         try {
             const at = await this.token.getAccessToken();
-            // 参考文档：express_search#get_delivery_list
-            const url = `https://api.weixin.qq.com/wxa/sec/express/search/get_delivery_list?access_token=${encodeURIComponent(at)}`;
+            // 官方文档：/cgi-bin/express/delivery/open_msg/get_delivery_list  POST {}
+            const url = `https://api.weixin.qq.com/cgi-bin/express/delivery/open_msg/get_delivery_list?access_token=${encodeURIComponent(at)}`;
             const data = await this.postJson(url, {});
-            const list: any[] = Array.isArray((data as any)?.data?.list) ? (data as any).data.list : (Array.isArray((data as any)?.delivery_list) ? (data as any).delivery_list : []);
-            return list.map((it:any)=>({ code: String(it?.delivery_id || it?.id || it?.code || '').trim(), name: String(it?.delivery_name || it?.name || '').trim() })).filter(x=> x.code && x.name);
+            const list: any[] = Array.isArray((data as any)?.delivery_list) ? (data as any).delivery_list : [];
+            return list.map((it:any)=>({ code: String(it?.delivery_id || '').trim(), name: String(it?.delivery_name || '').trim() })).filter(x=> x.code && x.name);
         } catch { return []; }
     }
 
@@ -101,13 +101,19 @@ export class WechatShippingService {
             }
         }
 
-        const body = {
+        const body: any = {
             order_key: orderKey,
             logistics_type: params.logisticsType,
             delivery_mode: 1,
             shipping_list: [shipping],
             upload_time: new Date().toISOString(),
         };
+        // 附带 openid 以避免“支付单不属于openid所指定的用户”
+        try{
+            const m = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { weixinOpenId: true } });
+            const openid = String(m?.weixinOpenId || '').trim();
+            if (openid) body.openid = openid;
+        }catch{}
 
         try{
             const at = await this.token.getAccessToken();
