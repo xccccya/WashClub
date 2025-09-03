@@ -271,10 +271,26 @@ async function choosePay(o: Order){
 	}catch{}
 }
 
+// ===== 新增：微信确认收货组件 接入 =====
+const awaitingWxConfirm = ref<boolean>(false);
 async function confirmReceive(o: Order){
 	try {
 		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
 		if (!authed) return;
+		// #ifdef MP-WEIXIN
+		const isWeChatPay = (o as any)?.payMethod === 'WECHAT_JSAPI';
+		const txid = (o as any)?.wechatTransactionId;
+		if (isWeChatPay && txid){
+			try{
+				awaitingWxConfirm.value = true;
+				(uni as any).openBusinessView?.({ businessType: 'weappOrderConfirm', extraData: { transaction_id: txid }, success(){}, fail(){}, complete(){} });
+			}catch{ awaitingWxConfirm.value = false; }
+			return;
+		}
+		// #endif
+		// #ifndef MP-WEIXIN
+		if ((o as any)?.payMethod === 'WECHAT_JSAPI') { uni.showToast({ title:'微信支付订单请在微信小程序内确认收货', icon:'none' }); return; }
+		// #endif
 		const http = createHttp();
 		await http(`/orders/${o.id}/receive`, { method: 'POST' });
 		uni.showToast({ title: '收货成功', icon: 'success' });
@@ -315,6 +331,26 @@ onShow(async()=>{
         }
     } catch {}
     await fetchOrders();
+    // #ifdef MP-WEIXIN
+    if (awaitingWxConfirm.value){
+        try{
+            const enter:any = (uni as any).getEnterOptionsSync?.() || {};
+            const ref = enter?.referrerInfo || {};
+            const fromAppId = String(ref?.appId||'');
+            if (fromAppId === 'wx1183b055aeec94d1'){
+                const ed = ref?.extraData || {};
+                const status = String(ed?.status||'');
+                if (status === 'success'){
+                    uni.showToast({ title:'收货成功', icon:'success' });
+                    await fetchOrders();
+                } else {
+                    uni.showToast({ title:'未完成确认收货', icon:'none' });
+                }
+            }
+        }catch{}
+        awaitingWxConfirm.value = false;
+    }
+    // #endif
 });
 </script>
 

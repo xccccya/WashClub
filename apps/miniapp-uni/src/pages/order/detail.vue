@@ -245,7 +245,29 @@ function canReview(o: any){ try { if (!o) return false; if (o?.type==='FK') retu
 function openAfterSalesInDetail(mode: 'REFUND'|'AUTO'){
     try{ const o:any = order.value; if (!o) return; const type = (mode==='REFUND') ? 'refund' : 'aftersales'; uni.navigateTo({ url: `/pages/aftersales/apply?orderId=${o.id}&type=${type}&orderType=${o.type}` }); }catch{}
 }
-async function confirmReceiveInDetail(){ try{ const o:any = order.value; if(!o) return; const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } }
+const awaitingWxConfirm = ref<boolean>(false);
+async function confirmReceiveInDetail(){
+    try{
+        const o:any = order.value; if(!o) return;
+        // #ifdef MP-WEIXIN
+        if (o?.payMethod === 'WECHAT_JSAPI' && o?.wechatTransactionId){
+            try{
+                awaitingWxConfirm.value = true;
+                (uni as any).openBusinessView?.({
+                    businessType: 'weappOrderConfirm',
+                    extraData: { transaction_id: o.wechatTransactionId },
+                    success(){}, fail(){}, complete(){}
+                });
+            }catch{ awaitingWxConfirm.value = false; }
+            return;
+        }
+        // #endif
+        // #ifndef MP-WEIXIN
+        if (o?.payMethod === 'WECHAT_JSAPI') { uni.showToast({ title:'微信支付订单请在微信小程序内确认收货', icon:'none' }); return; }
+        // #endif
+        const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail();
+    }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); }
+}
 async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; const http = createHttp(); await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason:'用户主动取消' } }); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } }
 async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) return; let list = ['线下支付'];
     // #ifdef MP-WEIXIN
@@ -464,6 +486,25 @@ onShow(async ()=>{
 			showAllTimeline.value = false;
 			hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
 		}
+		// #ifdef MP-WEIXIN
+		if (awaitingWxConfirm.value){
+			try{
+				const enter:any = (uni as any).getEnterOptionsSync?.() || {};
+				const ref = enter?.referrerInfo || {};
+				const fromAppId = String(ref?.appId||'');
+				if (fromAppId === 'wx1183b055aeec94d1'){
+					const ed = ref?.extraData || {};
+					const status = String(ed?.status||'');
+					if (status === 'success'){
+						const o:any = order.value; if(o){ const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail(); }
+					} else {
+						uni.showToast({ title:'未完成确认收货', icon:'none' });
+					}
+				}
+			}catch{}
+			awaitingWxConfirm.value = false;
+		}
+		// #endif
 	}catch{}
 });
 

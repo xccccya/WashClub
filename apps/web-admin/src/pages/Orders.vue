@@ -181,6 +181,17 @@
 
 		<el-dialog v-model="showEditTrackingDialog" title="修改物流单号（仅一次）" width="460px">
 			<el-input v-model="editTrackingNo" placeholder="新物流单号" />
+			<div style="margin-top:10px;">
+				<div style="margin-bottom:6px;">（可选）更新快递公司</div>
+				<el-select v-model="selectedCompanyCode" placeholder="选择快递公司" style="width:100%;" filterable @change="onCompanyChange">
+					<el-option v-for="c in companies" :key="c.code" :label="c.name" :value="c.code">
+						<div style="display:flex;align-items:center;gap:8px;">
+							<img v-if="c.logo" :src="c.logo" style="width:18px;height:18px;object-fit:contain;" />
+							<span>{{ c.name }}</span>
+						</div>
+					</el-option>
+				</el-select>
+			</div>
 			<div v-if="editIsSF" style="margin-top:10px;">
 				<div style="color:#909399; font-size:12px; margin-bottom:6px;">顺丰要求提供寄件人或收件人联系方式（掩码规则：手机号中间四位用*替代，如 138****1234）</div>
 				<el-input v-model="contactSenderMasked" placeholder="寄件人手机号（掩码，可选，二选一）" style="margin-bottom:6px;" />
@@ -283,6 +294,11 @@ async function doEditTracking(){
     const row = list.value.find(x=>x.id===editTrackingOrderId.value);
     if (row && row.payMethod !== 'WECHAT_JSAPI'){ ElMessage.error('非微信支付订单不支持修改物流单号'); return; }
     const body:any = { trackingNo: editTrackingNo.value.trim() };
+    if (selectedCompany.value){
+        body.companyCode = selectedCompany.value.code;
+        body.companyName = selectedCompany.value.name;
+        body.companyLogo = selectedCompany.value.logo || undefined;
+    }
     const code = String(row?.shipExpressCompanyCode||'').toUpperCase();
     const name = String(row?.shipExpressCompanyName||'');
     const isSf2 = code==='SF' || /顺丰/.test(name);

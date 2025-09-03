@@ -365,11 +365,11 @@ export class OrderController {
     @RequirePerm('orders')
     editTracking(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { trackingNo: string; contactSenderPhoneMasked?: string; contactReceiverPhoneMasked?: string },
+        @Body() body: { trackingNo: string; companyCode?: string; companyName?: string; companyLogo?: string; contactSenderPhoneMasked?: string; contactReceiverPhoneMasked?: string },
         @Headers('authorization') authHeader?: string,
     ){
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
-        return this.orders.editShipTrackingNo(id, body?.trackingNo, operatorUserId, { contactSenderPhoneMasked: body?.contactSenderPhoneMasked, contactReceiverPhoneMasked: body?.contactReceiverPhoneMasked });
+        return this.orders.editShipTrackingNo(id, body?.trackingNo, operatorUserId, { companyCode: body?.companyCode, companyName: body?.companyName, companyLogo: body?.companyLogo, contactSenderPhoneMasked: body?.contactSenderPhoneMasked, contactReceiverPhoneMasked: body?.contactReceiverPhoneMasked });
     }
     // 收货：会员本人或管理员
     @Post(':id/receive')
