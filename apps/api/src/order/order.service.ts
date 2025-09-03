@@ -3,9 +3,11 @@ import { Prisma, OrderType, OrderStatus, PayMethod, PayStatus, FulfillmentStatus
 import { PrismaService } from '../prisma.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 
+import { WechatShippingService } from './wechat-shipping.service.js';
+
 @Injectable()
 export class OrderService {
-    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService) {}
+    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService, private readonly wxship?: WechatShippingService) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }){
         try{
@@ -678,6 +680,12 @@ export class OrderService {
                         await this.writeTimeline({ orderId: order.id, event: 'FULFILLMENT', value: 'RECEIVED', operatorUserId: params.operatorUserId ?? null });
                         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'CLOSED', operatorUserId: params.operatorUserId ?? null });
                         await this.writeTimeline({ orderId: order.id, event: 'NOTE', value: 'VIRTUAL_CARD_ISSUED', remark: 'SYS_AUTO', operatorUserId: params.operatorUserId ?? null });
+                        // JSAPI虚拟商品订单：卡券发放后按要求上报发货信息（logistics_type=3）
+                        try{
+                            if ((order as any).payMethod === 'WECHAT_JSAPI' && this.wxship){
+                                await this.wxship.uploadShippingInfo({ orderId: order.id, logisticsType: 3 });
+                            }
+                        }catch{}
                     }catch{}
                     return closed;
                 }
@@ -892,7 +900,7 @@ export class OrderService {
     }
 
     // 发货（SP）：支持无需快递/快递发货并记录物流信息
-    async shipOrder(id: number, operatorUserId?: number | null, payload?: { noExpress?: boolean; companyCode?: string | null; companyName?: string | null; companyLogo?: string | null; trackingNo?: string | null; extra?: any | null }) {
+    async shipOrder(id: number, operatorUserId?: number | null, payload?: { noExpress?: boolean; companyCode?: string | null; companyName?: string | null; companyLogo?: string | null; trackingNo?: string | null; extra?: any | null; contactSenderPhoneMasked?: string | null; contactReceiverPhoneMasked?: string | null }) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SP') throw new Error('仅商品订单可发货');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可发货');
@@ -910,6 +918,23 @@ export class OrderService {
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'SHIPPED', operatorUserId });
         const remark = [payload?.companyName || payload?.companyCode, payload?.trackingNo].filter(Boolean).join(' / ');
         if (remark) await this.writeTimeline({ orderId: id, event: 'LOGISTICS', value: 'SHIPPED', remark, operatorUserId });
+        // 若为微信JSAPI支付，则上报微信发货信息管理服务
+        try{
+            if (order.payMethod === 'WECHAT_JSAPI' && this.wxship){
+                const logisticsType = payload?.noExpress ? 4 : 1;
+                const contact = (payload?.companyName?.includes('顺丰') || (payload?.companyCode||'').toUpperCase()==='SF') ? {
+                    senderPhoneMasked: payload?.contactSenderPhoneMasked || undefined,
+                    receiverPhoneMasked: payload?.contactReceiverPhoneMasked || undefined,
+                } : undefined;
+                await this.wxship.uploadShippingInfo({
+                    orderId: order.id,
+                    logisticsType: logisticsType as any,
+                    deliveryId: payload?.companyCode || undefined,
+                    trackingNo: payload?.trackingNo || undefined,
+                    contact: contact as any,
+                });
+            }
+        }catch{/* ignore report errors */}
         // 若存在最近的"换货"售后，发货后自动完结该售后
         await this.completeLatestAftersalesByOrderAndType(id, 'EXCHANGE', operatorUserId ?? null);
         return updatedShip;
@@ -924,6 +949,23 @@ export class OrderService {
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'RECEIVED', operatorUserId });
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CLOSED', operatorUserId });
         return updatedReceive;
+    }
+
+    // 仅一次：修改物流单号（未收货前且仅能一次），记录时间线
+    async editShipTrackingNo(id: number, newTrackingNo: string, operatorUserId?: number | null){
+        const order: any = await this.prisma.order.findUniqueOrThrow({ where: { id } });
+        if (order.type !== 'SP') throw new Error('仅商品订单可修改物流单号');
+        if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可修改物流单号');
+        if (order.fulfillmentStatus !== 'SHIPPED') throw new Error('仅已发货且未收货订单可修改物流单号');
+        const extra: any = order.shipExpressExtra || {};
+        if (extra && typeof extra === 'object' && extra.editedOnce === true) throw new Error('物流单号仅允许修改一次');
+        const prev = String(order.shipExpressTrackingNo||'');
+        const next = String(newTrackingNo||'').trim();
+        if (!next) throw new Error('新物流单号不能为空');
+        const newExtra = { ...(extra||{}), editedOnce: true, editAt: new Date().toISOString(), prevTrackingNo: prev };
+        const updated = await this.prisma.order.update({ where: { id }, data: { shipExpressTrackingNo: next, shipExpressExtra: newExtra } });
+        await this.writeTimeline({ orderId: id, event: 'LOGISTICS', value: 'EDITED', remark: `${prev||'-'} -> ${next}`, operatorUserId });
+        return updated;
     }
 
     // 开始服务（SERVICE）：PENDING -> IN_SERVICE
@@ -946,6 +988,12 @@ export class OrderService {
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'FULFILLED', operatorUserId });
         // 若存在最近的"重新服务"售后，服务完成后自动完结
         await this.completeLatestAftersalesByOrderAndType(id, 'RE_SERVICE', operatorUserId ?? null);
+        // JSAPI服务订单：按要求上报发货信息（logistics_type=3）
+        try{
+            if (order.payMethod === 'WECHAT_JSAPI' && this.wxship){
+                await this.wxship.uploadShippingInfo({ orderId: id, logisticsType: 3 });
+            }
+        }catch{}
         return updatedFinish;
     }
 

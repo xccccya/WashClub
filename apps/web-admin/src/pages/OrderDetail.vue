@@ -124,6 +124,7 @@
 						<div>快递公司：{{ data?.shipExpressCompanyName || data?.shipExpressCompanyCode || '-' }}</div>
 						<div>运单号：{{ data?.shipExpressTrackingNo }}</div>
 						<div v-if="data?.shippedAt">发货时间：{{ formatDate(data?.shippedAt) }}</div>
+						<div v-if="(data?.shipExpressExtra||{}).editedOnce" style="color:#909399;">提示：该订单的物流单号已在{{ formatDate((data?.shipExpressExtra||{}).editAt) }}进行过一次修改（原单号：{{ (data?.shipExpressExtra||{}).prevTrackingNo||'-' }}）</div>
 					</div>
 					<el-button size="small" type="primary" @click="openTrace">查询物流</el-button>
 				</div>
@@ -395,6 +396,11 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='POINTS_ROLLBACK') return '返还积分';
 		if (v==='COUPON_RESTORE') return '恢复优惠券';
 		if (v==='COUPON_NOTE') return '优惠券说明';
+	}
+	if (e==='LOGISTICS'){
+		if (v==='SHIPPED') return '已发货';
+		if (v==='EDITED') return '已修改物流单号';
+		return '物流更新';
 	}
 	if (e==='AFTERSALES'){
 		return zhAftersalesStatus(v);

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Headers, Req, 
 import { ApiTags } from '@nestjs/swagger';
 import { OrderService } from './order.service.js';
 import { TanshuService } from './tanshu.service.js';
+import { WechatShippingService } from './wechat-shipping.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { WxpayService } from './wxpay.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
@@ -10,7 +11,7 @@ import { RequirePerm } from '../auth/perm.decorator.js';
 @ApiTags('Order')
 @Controller('orders')
 export class OrderController {
-    constructor(private readonly orders: OrderService, private readonly jwt: JwtService, private readonly tanshu: TanshuService, private readonly wxpay: WxpayService) {}
+    constructor(private readonly orders: OrderService, private readonly jwt: JwtService, private readonly tanshu: TanshuService, private readonly wxpay: WxpayService, private readonly wxship: WechatShippingService) {}
 
     @Post('')
     create(@Body() body: any) { return this.orders.createOrder(body); }
@@ -352,7 +353,7 @@ export class OrderController {
     @RequirePerm('orders')
     ship(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { noExpress?: boolean; companyCode?: string; companyName?: string; companyLogo?: string; trackingNo?: string; extra?: any },
+        @Body() body: { noExpress?: boolean; companyCode?: string; companyName?: string; companyLogo?: string; trackingNo?: string; extra?: any; contactSenderPhoneMasked?: string; contactReceiverPhoneMasked?: string },
         @Headers('authorization') authHeader?: string,
     ) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
@@ -360,6 +361,18 @@ export class OrderController {
     }
     // 收货：会员本人或管理员
     @Post(':id/receive')
+    // 修改物流单号（仅一次，未收货前）
+    @Post(':id/ship/edit-tracking')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    editTracking(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { trackingNo: string },
+        @Headers('authorization') authHeader?: string,
+    ){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        return this.orders.editShipTrackingNo(id, body?.trackingNo, operatorUserId);
+    }
     async receive(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
         const adminId = this.extractAdminIdFromAuthHeader(authHeader);
         const memberId = this.extractMemberIdFromAuthHeader(authHeader);
@@ -435,10 +448,12 @@ export class OrderController {
         return (this.orders as any).replyReview(id, body?.content || '', operatorUserId);
     }
 
-    // 物流公司列表（探数）
+    // 物流公司列表（切换为微信：get_delivery_list）
     @Get('/_logistics/companies')
     async getCompanies(){
-        return await this.tanshu.getCompanies();
+        const list = await this.wxship.getDeliveryList();
+        // 兼容 Admin 下拉需要的结构
+        return list.map(it=>({ code: it.code, name: it.name }));
     }
 
     // 物流查询（探数 V2）- 管理端/小程序端均可调用（需网关限制实际部署时再加）

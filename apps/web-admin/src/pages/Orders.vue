@@ -100,9 +100,10 @@
 					<!-- 商品履约：发货/收货 -->
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">发货</el-button>
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">确认收货</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="small" @click="openEditTracking(row)">修改物流单号</el-button>
 					<!-- 服务履约：开始/结束 -->
 					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">开始服务</el-button>
-					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务</el-button>
+					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务{{ row.payMethod==='WECHAT_JSAPI' ? '（上报小程序）' : '' }}</el-button>
 					<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)">
 						<template #reference>
 							<el-button text class="icon-btn danger" title="删除"><img class="icon" :src="DeleteIcon" /></el-button>
@@ -149,7 +150,7 @@
 			</template>
 		</el-dialog>
 
-		<el-dialog v-model="showShipDialog" title="发货" width="520px">
+		<el-dialog v-model="showShipDialog" title="发货（已接入小程序发货接口）" width="560px">
 			<el-radio-group v-model="shipMode" style="margin-bottom:12px;">
 				<el-radio label="express">快递发货</el-radio>
 				<el-radio label="noExpress">无需快递发货</el-radio>
@@ -166,17 +167,30 @@
 					</el-select>
 				</div>
 				<el-input v-model="trackingNo" placeholder="快递单号" />
+				<div v-if="isSF" style="margin-top:10px;">
+					<div style="color:#909399; font-size:12px; margin-bottom:6px;">顺丰要求提供寄件人或收件人联系方式（掩码规则：手机号中间四位用*替代，如 138****1234）</div>
+					<el-input v-model="contactSenderMasked" placeholder="寄件人手机号（掩码，可选，二选一）" style="margin-bottom:6px;" />
+					<el-input v-model="contactReceiverMasked" placeholder="收件人手机号（掩码，可选，二选一）" />
+				</div>
 			</div>
 			<template #footer>
 				<el-button @click="showShipDialog=false">取消</el-button>
 				<el-button type="primary" @click="doShip">提交</el-button>
 			</template>
 		</el-dialog>
+
+		<el-dialog v-model="showEditTrackingDialog" title="修改物流单号（仅一次）" width="460px">
+			<el-input v-model="editTrackingNo" placeholder="新物流单号" />
+			<template #footer>
+				<el-button @click="showEditTrackingDialog=false">取消</el-button>
+				<el-button type="primary" @click="doEditTracking">提交</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
@@ -235,6 +249,20 @@ const companies = ref<Array<{ code:string; name:string; logo?:string }>>([]);
 const selectedCompanyCode = ref<string>('');
 const selectedCompany = ref<{ code:string; name:string; logo?:string }|null>(null);
 const trackingNo = ref('');
+const contactSenderMasked = ref('');
+const contactReceiverMasked = ref('');
+const isSF = computed(()=>{
+    const code = String(selectedCompanyCode.value||'').toUpperCase();
+    const name = String(selectedCompany.value?.name||'');
+    return code==='SF' || /顺丰/.test(name);
+});
+
+// 修改物流单号（仅一次）
+const showEditTrackingDialog = ref(false);
+const editTrackingOrderId = ref<number|null>(null);
+const editTrackingNo = ref('');
+async function openEditTracking(row:any){ editTrackingOrderId.value = row?.id||null; editTrackingNo.value=''; showEditTrackingDialog.value=true; }
+async function doEditTracking(){ if(!editTrackingOrderId.value){ return; } if(!editTrackingNo.value.trim()){ ElMessage.error('请输入新物流单号'); return; } await http(`/orders/${editTrackingOrderId.value}/ship/edit-tracking`, { method:'POST', body:{ trackingNo: editTrackingNo.value.trim() } }); ElMessage.success('已修改'); showEditTrackingDialog.value=false; await fetchList(); }
 
 function openShip(row:any){
     shipOrderId.value = row?.id || null;
@@ -242,6 +270,8 @@ function openShip(row:any){
     selectedCompanyCode.value = '';
     selectedCompany.value = null;
     trackingNo.value = '';
+    contactSenderMasked.value = '';
+    contactReceiverMasked.value = '';
     showShipDialog.value = true;
     loadCompanies();
 }
@@ -261,13 +291,19 @@ async function doShip(){
         ElMessage.success('已标记为无需快递发货');
     } else {
         if (!selectedCompany.value || !trackingNo.value.trim()) { ElMessage.error('请选择快递公司并填写快递单号'); return; }
-        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{
+        const body:any = {
             noExpress: false,
             companyCode: selectedCompany.value.code,
             companyName: selectedCompany.value.name,
             companyLogo: selectedCompany.value.logo || undefined,
             trackingNo: trackingNo.value.trim(),
-        }});
+        };
+        if (isSF.value){
+            if (!contactSenderMasked.value && !contactReceiverMasked.value){ ElMessage.error('顺丰需二选一填写寄件人或收件人联系方式（掩码）'); return; }
+            body.contactSenderPhoneMasked = contactSenderMasked.value || undefined;
+            body.contactReceiverPhoneMasked = contactReceiverMasked.value || undefined;
+        }
+        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body });
         ElMessage.success('已提交发货信息');
     }
     showShipDialog.value = false;

@@ -66,6 +66,7 @@
 					<text class="line">快递公司：{{ (order as any).shipExpressCompanyName || (order as any).shipExpressCompanyCode || '-' }}</text>
 					<text class="line">运单号：{{ (order as any).shipExpressTrackingNo }}</text>
 					<text v-if="(order as any).shippedAt" class="line">发货时间：{{ formatTime((order as any).shippedAt) }}</text>
+					<text v-if="((order as any).shipExpressExtra||{}).editedOnce" class="line" style="color:#6b7280;">提示：物流单号已修改一次（{{ formatTime(((order as any).shipExpressExtra||{}).editAt) }}），原单号：{{ ((order as any).shipExpressExtra||{}).prevTrackingNo || '-' }}</text>
 				</view>
 				<view class="trace-btn" @tap="loadTrace">查看物流</view>
 			</view>
@@ -576,6 +577,11 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='POINTS_ROLLBACK') return '返还积分';
 		if (v==='COUPON_RESTORE') return '恢复优惠券';
 		if (v==='COUPON_NOTE') return '优惠券说明';
+	}
+	if (e==='LOGISTICS'){
+		if (v==='SHIPPED') return '已发货';
+		if (v==='EDITED') return '已修改物流单号';
+		return '物流更新';
 	}
 	if (e==='AFTERSALES'){
 		if (v==='PENDING') return '处理中';

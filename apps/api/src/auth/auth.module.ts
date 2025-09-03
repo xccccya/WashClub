@@ -20,7 +20,7 @@ import { MetricsController } from './metrics.controller.js';
 	],
 	controllers: [AuthController, AdminRoleController, SmsAdminController, MetricsController],
 	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard, WechatTokenService],
-	exports: [AdminGuard, JwtModule],
+	exports: [AdminGuard, JwtModule, WechatTokenService],
 })
 export class AuthModule {}
 
