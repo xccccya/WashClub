@@ -682,7 +682,7 @@ export class OrderService {
                         await this.writeTimeline({ orderId: order.id, event: 'NOTE', value: 'VIRTUAL_CARD_ISSUED', remark: 'SYS_AUTO', operatorUserId: params.operatorUserId ?? null });
                         // JSAPI虚拟商品订单：卡券发放后按要求上报发货信息（logistics_type=3）
                         try{
-                            if ((order as any).payMethod === 'WECHAT_JSAPI' && this.wxship){
+                            if ((params as any)?.method === 'WECHAT_JSAPI' && this.wxship){
                                 await this.wxship.uploadShippingInfo({ orderId: order.id, logisticsType: 3 });
                             }
                         }catch{}
