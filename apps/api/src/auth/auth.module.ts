@@ -8,6 +8,7 @@ import { AdminRoleController } from './role.controller.js';
 import { AdminRoleService } from './role.service.js';
 import { SmsAdminController } from './sms.controller.js';
 import { AdminGuard } from './admin.guard.js';
+import { WechatTokenService } from './wechat-token.service.js';
 import { MetricsController } from './metrics.controller.js';
 
 @Module({
@@ -18,7 +19,7 @@ import { MetricsController } from './metrics.controller.js';
 		}),
 	],
 	controllers: [AuthController, AdminRoleController, SmsAdminController, MetricsController],
-	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard],
+	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard, WechatTokenService],
 	exports: [AdminGuard, JwtModule],
 })
 export class AuthModule {}

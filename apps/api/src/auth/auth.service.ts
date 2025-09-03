@@ -2,19 +2,18 @@ import { Injectable, UnauthorizedException, ForbiddenException, BadRequestExcept
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { SmsService } from './sms.service.js';
+import { WechatTokenService } from './wechat-token.service.js';
 import * as crypto from 'node:crypto';
 
 @Injectable()
 export class AuthService {
-	constructor(private prisma: PrismaService, private jwt: JwtService, private sms: SmsService) {}
+	constructor(private prisma: PrismaService, private jwt: JwtService, private sms: SmsService, private wechatToken: WechatTokenService) {}
 
 	private hashPassword(raw: string) {
 		return crypto.createHash('sha256').update(raw).digest('hex');
 	}
 
 	// ====== WeChat MiniApp One-Tap Login Support ======
-	private wechatAccessTokenCache: { token: string; expiresAt: number } | null = null;
-	private wechatAccessTokenInFlight: Promise<string> | null = null;
 
 	private get wechatAppId(): string {
 		const v = process.env.WECHAT_MINIAPP_APPID || process.env.WECHAT_APPID;
@@ -28,48 +27,7 @@ export class AuthService {
 		return v;
 	}
 
-	private async getWechatAccessToken(): Promise<string> {
-		const now = Date.now();
-		if (this.wechatAccessTokenCache && this.wechatAccessTokenCache.expiresAt - 30_000 > now) {
-			return this.wechatAccessTokenCache.token;
-		}
-		if (this.wechatAccessTokenInFlight) return this.wechatAccessTokenInFlight;
-		this.wechatAccessTokenInFlight = (async () => {
-			const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(this.wechatAppId)}&secret=${encodeURIComponent(this.wechatSecret)}`;
-			let lastErr: any = null;
-			for (let attempt = 0; attempt < 3; attempt++) {
-				const controller = new AbortController();
-				const timeout = setTimeout(() => controller.abort(), 12000);
-				try {
-					const resp = await fetch(url, { signal: controller.signal });
-					clearTimeout(timeout);
-					if (!resp.ok) { lastErr = new Error(`${resp.status} ${resp.statusText}`); }
-					else {
-						const data = (await resp.json()) as any;
-						if (data?.access_token && data?.expires_in) {
-							this.wechatAccessTokenCache = {
-								token: data.access_token,
-								expiresAt: Date.now() + Number(data.expires_in) * 1000,
-							};
-							return this.wechatAccessTokenCache.token;
-						}
-						lastErr = new Error(`响应异常: ${JSON.stringify(data)}`);
-					}
-				} catch (e: any) {
-					clearTimeout(timeout);
-					lastErr = e;
-				}
-				// 简单退避
-				await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
-			}
-			throw new BadRequestException(`获取微信access_token网络失败: ${lastErr?.message || lastErr}`);
-		})();
-		try {
-			return await this.wechatAccessTokenInFlight;
-		} finally {
-			this.wechatAccessTokenInFlight = null;
-		}
-	}
+	private async getWechatAccessToken(): Promise<string> { return this.wechatToken.getAccessToken(); }
 
 	private async exchangeWechatPhoneNumberByCode(code: string): Promise<string> {
 		if (!code) throw new BadRequestException('缺少手机号动态令牌code');

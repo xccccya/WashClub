@@ -421,7 +421,12 @@ const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; a
 const selectedCouponIds = ref<Set<number>>(new Set());
 const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
 const payAmountNet = computed(()=> Math.max(0, Number(payAmount.value) - couponDiscount.value));
-const payAmountDisplay = computed(()=> payAmountNet.value < 0.01 ? 0.01 : payAmountNet.value);
+const payAmountDisplay = computed(()=>{
+    const base = Number(payAmount.value) || 0;
+    const net = Number(payAmountNet.value) || 0;
+    if (base <= 0) return 0; // 多规格未选或基础金额为 0 时不触发 0.01 最低价展示
+    return net < 0.01 ? 0.01 : net;
+});
 const payAmountWithCouponText = computed(()=> payAmountDisplay.value.toFixed(2));
 const couponOver = computed(()=> {
     const base = Number(payAmount.value) || 0;
