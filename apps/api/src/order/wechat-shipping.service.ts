@@ -13,6 +13,27 @@ export class WechatShippingService {
         private readonly prisma: PrismaService,
     ) {}
 
+    private get merchantId(): string | undefined {
+        try { return process.env.WXPAY_MCH_ID || process.env.wxpay_mchid || (process.env as any)['wxpay.mchid'] || undefined; } catch { return undefined; }
+    }
+
+    private formatRfc3339WithOffset(date: Date): string {
+        const pad = (n: number, w=2) => String(n).padStart(w, '0');
+        const y = date.getFullYear();
+        const m = pad(date.getMonth()+1);
+        const d = pad(date.getDate());
+        const hh = pad(date.getHours());
+        const mm = pad(date.getMinutes());
+        const ss = pad(date.getSeconds());
+        const ms = pad(date.getMilliseconds(), 3);
+        const offMin = -date.getTimezoneOffset();
+        const sign = offMin >= 0 ? '+' : '-';
+        const abs = Math.abs(offMin);
+        const oh = pad(Math.floor(abs/60));
+        const om = pad(abs % 60);
+        return `${y}-${m}-${d}T${hh}:${mm}:${ss}.${ms}${sign}${oh}:${om}`;
+    }
+
     private async postJson(url: string, body: any){
         try {
             const res = await fetch(url as any, { method: 'POST', headers: { 'content-type': 'application/json' } as any, body: JSON.stringify(body) });
@@ -79,7 +100,7 @@ export class WechatShippingService {
         const useTransaction = !!transactionId;
         const orderKey = useTransaction
             ? { order_number_type: 2, transaction_id: transactionId }
-            : { order_number_type: 1, merchant_trade_no: order.no };
+            : { order_number_type: 1, mchid: this.merchantId, out_trade_no: order.no };
 
         const itemDesc = await this.buildItemDesc(order.id);
         const isExpress = params.logisticsType === 1;
@@ -89,15 +110,15 @@ export class WechatShippingService {
             item_desc: itemDesc,
         };
         if (isExpress) {
-            if (params.deliveryId) shipping.delivery_id = params.deliveryId;
+            if (params.deliveryId) shipping.express_company = params.deliveryId;
             if (params.trackingNo) shipping.tracking_no = params.trackingNo;
             if (isSF && params.contact){
-                // 二选一传参：按微信掩码规则传递，服务端不做号码去掩码
-                shipping.contact = {} as any;
                 const sp = this.maskPhoneIfNeeded(params.contact.senderPhoneMasked);
                 const rp = this.maskPhoneIfNeeded(params.contact.receiverPhoneMasked);
-                if (sp) shipping.contact.sender_contact = { phone: sp };
-                if (rp) shipping.contact.receiver_contact = { phone: rp };
+                const contact: any = {};
+                if (sp) contact.consignor_contact = sp;
+                if (rp) contact.receiver_contact = rp;
+                if (Object.keys(contact).length) shipping.contact = contact;
             }
         }
 
@@ -106,20 +127,20 @@ export class WechatShippingService {
             logistics_type: params.logisticsType,
             delivery_mode: 1,
             shipping_list: [shipping],
-            upload_time: new Date().toISOString(),
+            upload_time: this.formatRfc3339WithOffset(new Date()),
         };
-        // 附带 openid 以避免“支付单不属于openid所指定的用户”
+        // 支付者 openid
         try{
             const m = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { weixinOpenId: true } });
             const openid = String(m?.weixinOpenId || '').trim();
-            if (openid) body.openid = openid;
+            if (openid) body.payer = { openid };
         }catch{}
 
         try{
             const at = await this.token.getAccessToken();
             // 发货信息录入接口：参考文档
             const url = `https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info?access_token=${encodeURIComponent(at)}`;
-            this.logger.debug?.(`upload_shipping_info body: ${JSON.stringify({ ...body, shipping_list: undefined })}`);
+            this.logger.debug?.(`upload_shipping_info body: ${JSON.stringify({ ...body, shipping_list: [{ item_desc: shipping.item_desc }] })}`);
             const resp = await this.postJson(url, body);
             const errcode = Number((resp as any)?.errcode ?? (resp as any)?.errCode ?? 0);
             const errmsg = String((resp as any)?.errmsg ?? (resp as any)?.message ?? 'ok');
