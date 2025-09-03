@@ -953,7 +953,7 @@ export class OrderService {
     }
 
     // 仅一次：修改物流单号（未收货前且仅能一次），记录时间线
-    async editShipTrackingNo(id: number, newTrackingNo: string, operatorUserId?: number | null){
+    async editShipTrackingNo(id: number, newTrackingNo: string, operatorUserId?: number | null, payload?: { contactSenderPhoneMasked?: string | null; contactReceiverPhoneMasked?: string | null }){
         const order: any = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SP') throw new Error('仅商品订单可修改物流单号');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可修改物流单号');
@@ -966,6 +966,18 @@ export class OrderService {
         const newExtra = { ...(extra||{}), editedOnce: true, editAt: new Date().toISOString(), prevTrackingNo: prev };
         const updated = await this.prisma.order.update({ where: { id }, data: { shipExpressTrackingNo: next, shipExpressExtra: newExtra } });
         await this.writeTimeline({ orderId: id, event: 'LOGISTICS', value: 'EDITED', remark: `${prev||'-'} -> ${next}`, operatorUserId });
+        // 若为微信JSAPI并存在快递公司（表示快递发货），上报微信：等价于发货上报但只有单号不同
+        try{
+            if ((order as any).payMethod === 'WECHAT_JSAPI' && !order.shipNoExpress && this.wxship){
+                await this.wxship.uploadShippingInfo({
+                    orderId: order.id,
+                    logisticsType: 1,
+                    deliveryId: order.shipExpressCompanyCode || undefined,
+                    trackingNo: next,
+                    contact: { senderPhoneMasked: payload?.contactSenderPhoneMasked || undefined, receiverPhoneMasked: payload?.contactReceiverPhoneMasked || undefined }
+                });
+            }
+        }catch{}
         return updated;
     }
 

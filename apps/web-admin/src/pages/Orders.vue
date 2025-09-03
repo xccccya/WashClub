@@ -261,8 +261,24 @@ const isSF = computed(()=>{
 const showEditTrackingDialog = ref(false);
 const editTrackingOrderId = ref<number|null>(null);
 const editTrackingNo = ref('');
-async function openEditTracking(row:any){ editTrackingOrderId.value = row?.id||null; editTrackingNo.value=''; showEditTrackingDialog.value=true; }
-async function doEditTracking(){ if(!editTrackingOrderId.value){ return; } if(!editTrackingNo.value.trim()){ ElMessage.error('请输入新物流单号'); return; } await http(`/orders/${editTrackingOrderId.value}/ship/edit-tracking`, { method:'POST', body:{ trackingNo: editTrackingNo.value.trim() } }); ElMessage.success('已修改'); showEditTrackingDialog.value=false; await fetchList(); }
+async function openEditTracking(row:any){ editTrackingOrderId.value = row?.id||null; editTrackingNo.value=''; contactSenderMasked.value=''; contactReceiverMasked.value=''; showEditTrackingDialog.value=true; }
+async function doEditTracking(){
+    if(!editTrackingOrderId.value){ return; }
+    if(!editTrackingNo.value.trim()){ ElMessage.error('请输入新物流单号'); return; }
+    const row = list.value.find(x=>x.id===editTrackingOrderId.value);
+    if (row && row.payMethod !== 'WECHAT_JSAPI'){ ElMessage.error('非微信支付订单不支持修改物流单号'); return; }
+    const body:any = { trackingNo: editTrackingNo.value.trim() };
+    const code = String(row?.shipExpressCompanyCode||'').toUpperCase();
+    const name = String(row?.shipExpressCompanyName||'');
+    const isSf2 = code==='SF' || /顺丰/.test(name);
+    if (isSf2){
+        if (!contactSenderMasked.value && !contactReceiverMasked.value){ ElMessage.error('顺丰需二选一填写寄件人或收件人联系方式（掩码）'); return; }
+        body.contactSenderPhoneMasked = contactSenderMasked.value || undefined;
+        body.contactReceiverPhoneMasked = contactReceiverMasked.value || undefined;
+    }
+    await http(`/orders/${editTrackingOrderId.value}/ship/edit-tracking`, { method:'POST', body });
+    ElMessage.success('已修改'); showEditTrackingDialog.value=false; await fetchList();
+}
 
 function openShip(row:any){
     shipOrderId.value = row?.id || null;
