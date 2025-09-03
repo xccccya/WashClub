@@ -140,7 +140,6 @@ export class WechatShippingService {
             const at = await this.token.getAccessToken();
             // 发货信息录入接口：参考文档
             const url = `https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info?access_token=${encodeURIComponent(at)}`;
-            this.logger.debug?.(`upload_shipping_info body: ${JSON.stringify({ ...body, shipping_list: [{ item_desc: shipping.item_desc }] })}`);
             const resp = await this.postJson(url, body);
             const errcode = Number((resp as any)?.errcode ?? (resp as any)?.errCode ?? 0);
             const errmsg = String((resp as any)?.errmsg ?? (resp as any)?.message ?? 'ok');

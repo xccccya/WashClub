@@ -945,6 +945,7 @@ export class OrderService {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.type !== 'SP') throw new Error('仅商品订单可收货');
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可收货');
+        // 收货不应触发“修改物流单号”校验路径，确保不调用 editShipTrackingNo
         const updatedReceive = await this.prisma.order.update({ where: { id }, data: { fulfillmentStatus: 'RECEIVED' as any, status: 'CLOSED' } });
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'RECEIVED', operatorUserId });
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CLOSED', operatorUserId });

@@ -359,8 +359,6 @@ export class OrderController {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         return this.orders.shipOrder(id, operatorUserId, body);
     }
-    // 收货：会员本人或管理员
-    @Post(':id/receive')
     // 修改物流单号（仅一次，未收货前）
     @Post(':id/ship/edit-tracking')
     @UseGuards(AdminGuard)
@@ -373,6 +371,8 @@ export class OrderController {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         return this.orders.editShipTrackingNo(id, body?.trackingNo, operatorUserId);
     }
+    // 收货：会员本人或管理员
+    @Post(':id/receive')
     async receive(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
         const adminId = this.extractAdminIdFromAuthHeader(authHeader);
         const memberId = this.extractMemberIdFromAuthHeader(authHeader);
