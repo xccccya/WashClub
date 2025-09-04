@@ -13,7 +13,7 @@
     "@wash/api-client": "workspace:*",
     "@wash/shared-ui": "workspace:*",
     "@wash/shared-utils": "workspace:*",
-    "element-plus": "^2.7.6",
+    "element-plus": "^2.11.1",
     "quill": "^2.0.3",
     "vue": "^3.4.31",
     "vue-router": "^4.3.2"

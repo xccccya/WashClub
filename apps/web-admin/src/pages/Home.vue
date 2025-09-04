@@ -3,51 +3,51 @@
 		<aside class="sider">
 			<div class="logo">WashClubAdmin</div>
 			<el-menu :default-active="active" class="menu" @select="onSelect">
-				<el-menu-item index="/dashboard">系统首页</el-menu-item>
+				<el-menu-item index="/dashboard"><el-icon style="margin-right:6px;"><HomeFilled /></el-icon>系统首页</el-menu-item>
 				<el-sub-menu index="/members">
-					<template #title>会员管理</template>
-					<el-menu-item v-if="can('members')" index="/members">会员列表</el-menu-item>
-					<el-menu-item v-if="can('member-levels')" index="/member-levels">会员等级</el-menu-item>
-					<el-menu-item v-if="can('member-categories')" index="/member-categories">会员分类</el-menu-item>
-					<el-menu-item v-if="can('member-tags')" index="/member-tags">会员标签</el-menu-item>
-					<el-menu-item v-if="can('member-washcards')" index="/member-washcards">洗车计次卡</el-menu-item>
-					<el-menu-item v-if="can('member-addresses')" index="/member-addresses">收货地址</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><User /></el-icon>会员管理</template>
+					<el-menu-item v-if="can('members')" index="/members"><el-icon style="margin-right:6px;"><User /></el-icon>会员列表</el-menu-item>
+					<el-menu-item v-if="can('member-levels')" index="/member-levels"><el-icon style="margin-right:6px;"><Medal /></el-icon>会员等级</el-menu-item>
+					<el-menu-item v-if="can('member-categories')" index="/member-categories"><el-icon style="margin-right:6px;"><Collection /></el-icon>会员分类</el-menu-item>
+					<el-menu-item v-if="can('member-tags')" index="/member-tags"><el-icon style="margin-right:6px;"><PriceTag /></el-icon>会员标签</el-menu-item>
+					<el-menu-item v-if="can('member-washcards')" index="/member-washcards"><el-icon style="margin-right:6px;"><Ticket /></el-icon>洗车计次卡</el-menu-item>
+					<el-menu-item v-if="can('member-addresses')" index="/member-addresses"><el-icon style="margin-right:6px;"><Location /></el-icon>收货地址</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/vehicles">
-					<template #title>车辆管理</template>
-					<el-menu-item v-if="can('member-vehicles')" index="/member-vehicles">会员车辆</el-menu-item>
-					<el-menu-item v-if="can('service-queue')" index="/service-queue">服务队列</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Van /></el-icon>车辆管理</template>
+					<el-menu-item v-if="can('member-vehicles')" index="/member-vehicles"><el-icon style="margin-right:6px;"><Truck /></el-icon>会员车辆</el-menu-item>
+					<el-menu-item v-if="can('service-queue')" index="/service-queue"><el-icon style="margin-right:6px;"><Timer /></el-icon>服务队列</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/content">
-					<template #title>内容管理</template>
-					<el-menu-item v-if="can('content-notices')" index="/content/notices">滚动通知</el-menu-item>
-					<el-menu-item v-if="can('content-banners')" index="/content/banners">广告横幅</el-menu-item>
-					<el-menu-item v-if="can('content-reviews')" index="/content/reviews">评价管理</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Document /></el-icon>内容管理</template>
+					<el-menu-item v-if="can('content-notices')" index="/content/notices"><el-icon style="margin-right:6px;"><Bell /></el-icon>滚动通知</el-menu-item>
+					<el-menu-item v-if="can('content-banners')" index="/content/banners"><el-icon style="margin-right:6px;"><Picture /></el-icon>广告横幅</el-menu-item>
+					<el-menu-item v-if="can('content-reviews')" index="/content/reviews"><el-icon style="margin-right:6px;"><ChatDotRound /></el-icon>评价管理</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/store">
-					<template #title>商店管理</template>
-					<el-menu-item v-if="can('store-categories')" index="/store/categories">商品分类</el-menu-item>
-					<el-menu-item v-if="can('store-products')" index="/store/products">商品列表</el-menu-item>
-					<el-menu-item v-if="can('store-inventory')" index="/store/inventory">库存管理</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Goods /></el-icon>商店管理</template>
+					<el-menu-item v-if="can('store-categories')" index="/store/categories"><el-icon style="margin-right:6px;"><CollectionTag /></el-icon>商品分类</el-menu-item>
+					<el-menu-item v-if="can('store-products')" index="/store/products"><el-icon style="margin-right:6px;"><ShoppingBag /></el-icon>商品列表</el-menu-item>
+					<el-menu-item v-if="can('store-inventory')" index="/store/inventory"><el-icon style="margin-right:6px;"><List /></el-icon>库存管理</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/orders">
-					<template #title>订单管理</template>
-					<el-menu-item v-if="can('orders')" index="/orders">订单列表</el-menu-item>
-					<el-menu-item v-if="can('after-sales')" index="/after-sales">售后</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单管理</template>
+					<el-menu-item v-if="can('orders')" index="/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单列表</el-menu-item>
+					<el-menu-item v-if="can('after-sales')" index="/after-sales"><el-icon style="margin-right:6px;"><Service /></el-icon>售后</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/coupon">
-					<template #title>卡券管理</template>
-					<el-menu-item v-if="can('coupon-groups')" index="/coupon/groups">分组管理</el-menu-item>
-					<el-menu-item v-if="can('coupons')" index="/coupon/list">卡券列表</el-menu-item>
-					<el-menu-item v-if="can('member-coupons')" index="/coupon/member-coupons">会员卡券</el-menu-item>
-					<el-menu-item v-if="can('coupon-logs')" index="/coupon/logs">卡券流水</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Ticket /></el-icon>卡券管理</template>
+					<el-menu-item v-if="can('coupon-groups')" index="/coupon/groups"><el-icon style="margin-right:6px;"><Collection /></el-icon>分组管理</el-menu-item>
+					<el-menu-item v-if="can('coupons')" index="/coupon/list"><el-icon style="margin-right:6px;"><PriceTag /></el-icon>卡券列表</el-menu-item>
+					<el-menu-item v-if="can('member-coupons')" index="/coupon/member-coupons"><el-icon style="margin-right:6px;"><Ticket /></el-icon>会员卡券</el-menu-item>
+					<el-menu-item v-if="can('coupon-logs')" index="/coupon/logs"><el-icon style="margin-right:6px;"><Document /></el-icon>卡券流水</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/system">
-					<template #title>系统设置</template>
-					<el-menu-item v-if="can('system-roles')" index="/system/roles">后台角色</el-menu-item>
-					<el-menu-item v-if="can('system-admins')" index="/system/admins">后台管理员</el-menu-item>
-					<el-menu-item v-if="can('system-files')" index="/system/files">文件管理</el-menu-item>
-					<el-menu-item v-if="can('system-sms')" index="/system/sms">短信管理</el-menu-item>
+					<template #title><el-icon style="margin-right:6px;"><Setting /></el-icon>系统设置</template>
+					<el-menu-item v-if="can('system-roles')" index="/system/roles"><el-icon style="margin-right:6px;"><UserFilled /></el-icon>后台角色</el-menu-item>
+					<el-menu-item v-if="can('system-admins')" index="/system/admins"><el-icon style="margin-right:6px;"><User /></el-icon>后台管理员</el-menu-item>
+					<el-menu-item v-if="can('system-files')" index="/system/files"><el-icon style="margin-right:6px;"><Folder /></el-icon>文件管理</el-menu-item>
+					<el-menu-item v-if="can('system-sms')" index="/system/sms"><el-icon style="margin-right:6px;"><Message /></el-icon>短信管理</el-menu-item>
 				</el-sub-menu>
 			</el-menu>
 		</aside>
@@ -60,8 +60,7 @@
 				</div>
 				<div class="actions">
 					<el-button class="icon-btn" text circle @click="toggleFullscreen" :title="isFullscreen? '退出全屏' : '全屏'">
-						<span v-if="!isFullscreen">⛶</span>
-						<span v-else>🗗</span>
+						<el-icon><FullScreen /></el-icon>
 					</el-button>
 					<el-popover placement="bottom-end" trigger="click" popper-class="theme-pop" :teleported="true" :width="280" :show-arrow="false" :offset="8" :popper-options="{ strategy: 'fixed', modifiers: [{ name: 'preventOverflow', options: { boundary: 'viewport', padding: 8 } }] }">
 						<template #reference>

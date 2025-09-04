@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@element-plus/icons-vue':
+        specifier: ^2.3.2
+        version: 2.3.2(vue@3.5.18(typescript@5.9.2))
       '@types/multer':
         specifier: ^2.0.0
         version: 2.0.0
@@ -168,8 +171,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared-utils
       element-plus:
-        specifier: ^2.7.6
-        version: 2.10.7(vue@3.5.18(typescript@5.9.2))
+        specifier: ^2.11.1
+        version: 2.11.1(vue@3.5.18(typescript@5.9.2))
       quill:
         specifier: ^2.0.3
         version: 2.0.3
@@ -2812,6 +2815,11 @@ packages:
 
   element-plus@2.10.7:
     resolution: {integrity: sha512-bL4yhepL8/0NEQA5+N2Q6ZVKLipIDkiQjK2mqtSmGh6CxJk1yaBMdG5HXfYkbk1htNcT3ULk9g23lzT323JGcA==}
+    peerDependencies:
+      vue: ^3.2.0
+
+  element-plus@2.11.1:
+    resolution: {integrity: sha512-weYFIniyNXTAe9vJZnmZpYzurh4TDbdKhBsJwhbzuo0SDZ8PLwHVll0qycJUxc6SLtH+7A9F7dvdDh5CnqeIVA==}
     peerDependencies:
       vue: ^3.2.0
 
@@ -8339,6 +8347,27 @@ snapshots:
   electron-to-chromium@1.5.207: {}
 
   element-plus@2.10.7(vue@3.5.18(typescript@5.9.2)):
+    dependencies:
+      '@ctrl/tinycolor': 3.6.1
+      '@element-plus/icons-vue': 2.3.2(vue@3.5.18(typescript@5.9.2))
+      '@floating-ui/dom': 1.7.3
+      '@popperjs/core': '@sxzz/popperjs-es@2.11.7'
+      '@types/lodash': 4.17.20
+      '@types/lodash-es': 4.17.12
+      '@vueuse/core': 9.13.0(vue@3.5.18(typescript@5.9.2))
+      async-validator: 4.2.5
+      dayjs: 1.11.13
+      escape-html: 1.0.3
+      lodash: 4.17.21
+      lodash-es: 4.17.21
+      lodash-unified: 1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.17.21)(lodash@4.17.21)
+      memoize-one: 6.0.0
+      normalize-wheel-es: 1.2.0
+      vue: 3.5.18(typescript@5.9.2)
+    transitivePeerDependencies:
+      - '@vue/composition-api'
+
+  element-plus@2.11.1(vue@3.5.18(typescript@5.9.2)):
     dependencies:
       '@ctrl/tinycolor': 3.6.1
       '@element-plus/icons-vue': 2.3.2(vue@3.5.18(typescript@5.9.2))
