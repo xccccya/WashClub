@@ -67,6 +67,7 @@
 					<text class="line">运单号：{{ (order as any).shipExpressTrackingNo }}</text>
 					<text v-if="(order as any).shippedAt" class="line">发货时间：{{ formatTime((order as any).shippedAt) }}</text>
 					<text v-if="((order as any).shipExpressExtra||{}).editedOnce" class="line" style="color:#6b7280;">提示：物流单号已修改一次（{{ formatTime(((order as any).shipExpressExtra||{}).editAt) }}），原单号：{{ ((order as any).shipExpressExtra||{}).prevTrackingNo || '-' }}</text>
+					<text v-if="mainTraceStatusDesc" class="line">状态：{{ mainTraceStatusDesc }}</text>
 				</view>
 				<view class="trace-btn" @tap="loadTrace">查看物流</view>
 			</view>
@@ -120,6 +121,29 @@
 			</view>
 		</view>
 
+		<!-- 换货发货：存在换货发货记录时展示 -->
+		<view class="logistics-card" v-if="exchangeShipments.length">
+			<view class="logistics-head">换货物流信息</view>
+			<view v-for="(ex,idx) in exchangeShipments" :key="idx" style="margin-bottom:12rpx;">
+				<view class="logistics-body">
+					<image v-if="ex.companyLogo" class="logistics-logo" :src="ex.companyLogo" mode="aspectFit" />
+					<view class="logistics-info">
+						<text class="line">快递公司：{{ ex.companyName || ex.companyCode || (ex.noExpress ? '无需快递' : '-') }}</text>
+						<text class="line" v-if="!ex.noExpress">运单号：{{ ex.trackingNo || '-' }}</text>
+						<text class="line">发货时间：{{ formatTime(ex.createdAt) }}</text>
+						<text class="line" v-if="getExStatusDesc(ex)">状态：{{ getExStatusDesc(ex) }}</text>
+					</view>
+					<view class="trace-btn" v-if="ex.trackingNo" @tap="openExchangeTrace(ex)">查看物流</view>
+				</view>
+				<view v-if="getExList(ex).length" class="trace-list">
+					<view v-for="(it,ii) in getExList(ex)" :key="ii" class="trace-item">
+						<text class="time">{{ it.datetime }}</text>
+						<text class="desc">{{ it.remark }}</text>
+					</view>
+				</view>
+			</view>
+		</view>
+
 		<!-- 底部操作区：与订单列表页保持一致的可操作按钮 -->
 		<view style="height: 24rpx;"></view>
 		<view class="actions actions--footer" v-if="order">
@@ -140,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
@@ -187,10 +211,51 @@ const couponDisplayList = computed(() => {
     }catch{ return []; }
 });
 const traceList = ref<Array<{ datetime: string; remark: string }>>([]);
+const mainTraceStatusDesc = ref<string>('');
 const lastKey = ref<string>('');
 const timelineList = ref<Array<any>>([]);
 const showAllTimeline = ref<boolean>(false);
 const hasPartialRefund = ref<boolean>(false);
+// 换货发货记录
+const exchangeShipments = computed(()=>{
+    try{
+        const extra:any = (order.value as any)?.shipExpressExtra || {};
+        const list:any[] = Array.isArray(extra?.exchangeShipments) ? extra.exchangeShipments : [];
+        return list.slice().sort((a:any,b:any)=> new Date(b?.createdAt||0).getTime() - new Date(a?.createdAt||0).getTime());
+    }catch{ return []; }
+});
+function exchangeShipmentText(ex:any){
+    try{
+        if (!ex) return '-';
+        if (ex.noExpress) return '无需快递';
+        const com = ex.companyName || ex.companyCode || '';
+        const no = ex.trackingNo || '';
+        const phones = [ex?.contact?.senderPhoneMasked, ex?.contact?.receiverPhoneMasked].filter(Boolean).join(' / ');
+        const tail = phones ? `（隐私号：${phones}）` : '';
+        return [com, no].filter(Boolean).join(' / ') + tail;
+    }catch{ return '-'; }
+}
+
+// 按换货记录独立维护轨迹（不影响主物流）
+const exchangeTraceMap = reactive<Record<string, { list: Array<{ datetime: string; remark: string }>; statusDesc: string }>>({});
+function exchangeKey(ex:any){ return `${ex?.companyCode||''}|${ex?.trackingNo||''}`; }
+function getExList(ex:any){ const k = exchangeKey(ex); const v = exchangeTraceMap[k]; return Array.isArray(v?.list) ? v.list : []; }
+function getExStatusDesc(ex:any){ const k = exchangeKey(ex); const v = exchangeTraceMap[k]; return v?.statusDesc || ''; }
+
+async function openExchangeTrace(ex:any){
+    try{
+        if (!ex?.trackingNo) return;
+        const http = createHttp();
+        const res:any = await http('/orders/_logistics/query', { method:'GET', query: { com: ex?.companyCode || undefined, no: ex?.trackingNo } });
+        const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
+        const getTime = (it:any)=> it?.datetime || it?.time || '';
+        const getRemark = (it:any)=> it?.remark || it?.context || '';
+        rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
+        const list = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
+        const statusDesc = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
+        exchangeTraceMap[exchangeKey(ex)] = { list, statusDesc };
+    }catch{}
+}
 // 是否为纯虚拟卡券商品的商品订单（SP）：基于后端返回的 item.productType 判断
 function isVirtualOnly(o?: any): boolean {
     try{
@@ -510,7 +575,7 @@ onShow(async ()=>{
 
 async function loadTrace(){
 	try{
-		traceList.value = [];
+		traceList.value = []; mainTraceStatusDesc.value = '';
 		const o:any = order.value;
 		if (!o?.shipExpressTrackingNo) return;
 		const http = createHttp();
@@ -520,6 +585,7 @@ async function loadTrace(){
 		const getRemark = (it:any)=> it?.remark || it?.context || '';
 		rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
 		traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
+		mainTraceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
 	}catch{}
 }
 
@@ -621,6 +687,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	}
 	if (e==='LOGISTICS'){
 		if (v==='SHIPPED') return '已发货';
+		if (v==='EXCHANGE_SHIPPED') return '换货已发货';
 		if (v==='EDITED') return '已修改物流单号';
 		return '物流更新';
 	}
@@ -650,6 +717,11 @@ function zhRemark(eventType?: string, remark?: string){
 		if (r==='REFUND') return '仅退款';
 		if (r==='RETURN') return '退货退款';
 		if (r==='EXCHANGE') return '换货';
+		if (r==='RE_SERVICE') return '重新服务';
+	}
+	if (e==='FULFILLMENT'){
+		if (r==='EXCHANGE_RESET') return '换货流转重置';
+		if (r==='RE_SERVICE_RESET') return '重新服务流转重置';
 	}
 	if (r==='TIMEOUT_15MIN') return '超时15分钟';
 	if (e==='NOTE'){

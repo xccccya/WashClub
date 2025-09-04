@@ -239,8 +239,22 @@ export class OrderController {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
         const result:any = await this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId);
-        // 审核通过后不自动发起退款，由前端确认卡片决定是否调用退款接口
+        // 审核通过后不自动发起退款，由前端确认卡片决定是否调用退款接口（仅退款类型才允许触发退款流程）
         return result;
+    }
+
+    // 换货售后：独立发货（不影响订单原始发货信息）
+    @Post('_after-sales/:id/exchange-ship')
+    @UseGuards(AdminGuard)
+    @RequirePerm('after-sales')
+    async shipExchange(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { noExpress?: boolean; companyCode?: string | null; companyName?: string | null; companyLogo?: string | null; trackingNo?: string | null; contactSenderPhoneMasked?: string | null; contactReceiverPhoneMasked?: string | null },
+        @Headers('authorization') authHeader?: string,
+    ){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        return await (this.orders as any).shipExchangeForAfterSales(id, operatorUserId, body);
     }
 
     // 微信退款：供后台审核通过后调用或自动化

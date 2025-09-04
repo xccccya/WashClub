@@ -1193,6 +1193,63 @@ export class OrderService {
         await this.writeTimeline({ orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: type, operatorUserId: operatorUserId ?? null });
         return afr.id;
     }
+
+    // 换货售后：独立发货（不改动订单主发货字段，只写入扩展JSON与时间线）
+    async shipExchangeForAfterSales(afrId: number, operatorUserId?: number | null, payload?: { noExpress?: boolean; companyCode?: string | null; companyName?: string | null; companyLogo?: string | null; trackingNo?: string | null; contactSenderPhoneMasked?: string | null; contactReceiverPhoneMasked?: string | null }){
+        const afr = await this.prisma.afterSalesRequest.findUnique({ where: { id: afrId }, include: { order: true } });
+        if (!afr) throw new Error('售后申请不存在');
+        if (afr.type !== 'EXCHANGE') throw new Error('仅换货售后可使用该接口');
+        const ord = afr.order as any;
+        if (!ord) throw new Error('关联订单不存在');
+        if (ord.type !== 'SP') throw new Error('仅商品订单支持换货发货');
+        if (ord.payStatus !== 'PAID') throw new Error('仅已支付订单可换货发货');
+
+        // 写入到订单扩展JSON中，独立记录换货发货
+        const extra: any = ord.shipExpressExtra || {};
+        const list: any[] = Array.isArray(extra.exchangeShipments) ? extra.exchangeShipments : [];
+        const entry = {
+            noExpress: !!payload?.noExpress,
+            companyCode: payload?.companyCode || null,
+            companyName: payload?.companyName || null,
+            companyLogo: payload?.companyLogo || null,
+            trackingNo: payload?.trackingNo || null,
+            contact: {
+                senderPhoneMasked: payload?.contactSenderPhoneMasked || null,
+                receiverPhoneMasked: payload?.contactReceiverPhoneMasked || null,
+            },
+            operatorUserId: operatorUserId ?? null,
+            createdAt: new Date().toISOString(),
+        };
+        list.push(entry);
+        const newExtra = { ...(extra||{}), exchangeShipments: list };
+        await this.prisma.order.update({ where: { id: ord.id }, data: { shipExpressExtra: newExtra } });
+
+        // 时间线：换货已发货
+        const remark = [payload?.companyName || payload?.companyCode, payload?.trackingNo].filter(Boolean).join(' / ');
+        await this.writeTimeline({ orderId: ord.id, event: 'LOGISTICS', value: 'EXCHANGE_SHIPPED', remark, operatorUserId });
+
+        // 更新履约状态：置为已发货（不覆盖主物流字段，仅用于状态与列表展示）
+        try{
+            const cur = await this.prisma.order.findUnique({ where: { id: ord.id }, select: { fulfillmentStatus: true } });
+            if (cur && (cur.fulfillmentStatus as any) === 'PENDING'){
+                await this.prisma.order.update({ where: { id: ord.id }, data: { fulfillmentStatus: 'SHIPPED' as any } });
+                await this.writeTimeline({ orderId: ord.id, event: 'FULFILLMENT', value: 'SHIPPED', remark: 'EXCHANGE', operatorUserId });
+            }
+        }catch{/* ignore */}
+
+        // 微信 JSAPI：条件上报发货信息（若已修改过物流单号，则认为已变更过发货，不再上报）
+        try{
+            const editedOnce = !!(extra && typeof extra==='object' && (extra as any).editedOnce === true);
+            if (ord.payMethod === 'WECHAT_JSAPI' && this.wxship && !editedOnce){
+                const logisticsType = payload?.noExpress ? 4 : 1;
+                const isSF = (payload?.companyName||'').includes('顺丰') || String(payload?.companyCode||'').toUpperCase()==='SF';
+                const contact = isSF ? { senderPhoneMasked: payload?.contactSenderPhoneMasked || undefined, receiverPhoneMasked: payload?.contactReceiverPhoneMasked || undefined } : undefined;
+                await this.wxship.uploadShippingInfo({ orderId: ord.id, logisticsType: logisticsType as any, deliveryId: payload?.companyCode || undefined, trackingNo: payload?.trackingNo || undefined, contact });
+            }
+        }catch{/* ignore report errors */}
+
+        return await this.prisma.order.findUnique({ where: { id: ord.id } });
+    }
 }
 
 

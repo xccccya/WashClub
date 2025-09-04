@@ -38,6 +38,8 @@
 			<div v-if="!((data as any).afterSalesRequests||[]).some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')" style="color:#909399; margin-top:8px;">无进行中售后</div>
 		</el-card>
 
+
+
 		<el-card v-if="(data as any)?.timelines?.length" class="box-card" style="margin-top:12px;">
 			<template #header>
 				<div class="card-header"><span>订单流转</span></div>
@@ -48,6 +50,10 @@
 				</el-timeline-item>
 			</el-timeline>
 		</el-card>
+
+
+
+
 
 		<el-card v-if="(data as any)?.refundRecords?.length" class="box-card" style="margin-top:12px;">
 			<template #header>
@@ -129,6 +135,24 @@
 					<el-button size="small" type="primary" @click="openTrace">查询物流</el-button>
 				</div>
 				<div v-else style="color:#909399;">暂无物流信息</div>
+			</template>
+		</el-card>
+
+		<!-- 换货物流信息：移动到主物流信息之后，样式与其保持一致 -->
+		<h4 v-if="exchangeShipments.length" style="margin-top:16px;">换货物流信息</h4>
+		<el-card v-if="exchangeShipments.length" class="box-card" shadow="hover">
+			<template #default>
+				<div v-for="(ex,idx) in exchangeShipments" :key="idx" :style="{ padding: '8px 0', borderBottom: idx===exchangeShipments.length-1 ? 'none' : '1px dashed #ebeef5' }">
+					<div v-if="ex.noExpress" style="color:#606266;">无需快递发货</div>
+					<div v-else style="display:flex;align-items:center;gap:12px;">
+						<div style="flex:1;min-width:0;">
+							<div>快递公司：{{ ex.companyName || ex.companyCode || '-' }}</div>
+							<div>运单号：{{ ex.trackingNo || '-' }}</div>
+							<div v-if="ex.createdAt">发货时间：{{ formatDate(ex.createdAt) }}</div>
+						</div>
+						<el-button v-if="canQueryExchangeTrace(ex)" size="small" type="primary" @click="openExchangeTrace(ex)">查询物流</el-button>
+					</div>
+				</div>
 			</template>
 		</el-card>
 
@@ -267,6 +291,30 @@ async function openTrace(){
     }
 }
 
+function canQueryExchangeTrace(ex: any){ return !!(ex && ex.trackingNo); }
+async function openExchangeTrace(ex: any){
+    if (!ex?.trackingNo) return;
+    showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = '';
+    try{
+        const res:any = await http('/orders/_logistics/query', { query: { com: ex?.companyCode || undefined, no: ex?.trackingNo } });
+        traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
+        const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
+        const getTime = (it:any)=> it?.datetime || it?.time || '';
+        const getRemark = (it:any)=> it?.remark || it?.context || '';
+        rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime());
+        traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() }));
+    }catch{
+        traceList.value = [];
+        traceStatusDesc.value = '';
+    }finally{
+        loadingTrace.value = false;
+    }
+}
+
+// 为换货物流维护独立的查询结果，防止覆盖主物流
+const exchangeTraceMap: Record<string, { list: Array<{ datetime:string; remark:string }>; statusDesc: string }> = {} as any;
+function exchangeKey(ex:any){ return `${ex?.companyCode||''}|${ex?.trackingNo||''}`; }
+
 function formatDate(val: string | null | undefined){
 	if(!val) return '-';
 	try{ return new Date(val).toLocaleString(); }catch{ return String(val); }
@@ -399,11 +447,18 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	}
 	if (e==='LOGISTICS'){
 		if (v==='SHIPPED') return '已发货';
+		if (v==='EXCHANGE_SHIPPED') return '换货已发货';
 		if (v==='EDITED') return '已修改物流单号';
 		return '物流更新';
 	}
 	if (e==='AFTERSALES'){
-		return zhAftersalesStatus(v);
+		// 已有状态中文化，补充兼容
+		if (v==='PENDING') return '处理中';
+		if (v==='APPROVED') return '已同意';
+		if (v==='REJECTED') return '已拒绝';
+		if (v==='SUCCESS' || v==='COMPLETED') return '已完成';
+		if (v==='CANCELLED') return '已取消';
+		return v;
 	}
 	if (e==='REVIEW'){
 		if (v==='RATED') return '用户已评价';
@@ -424,6 +479,11 @@ function zhRemark(eventType?: string, remark?: string){
 		if (r==='REFUND') return '仅退款';
 		if (r==='RETURN') return '退货退款';
 		if (r==='EXCHANGE') return '换货';
+		if (r==='RE_SERVICE') return '重新服务';
+	}
+	if (e==='FULFILLMENT'){
+		if (r==='EXCHANGE_RESET') return '换货流转重置';
+		if (r==='RE_SERVICE_RESET') return '重新服务流转重置';
 	}
 	if (r==='TIMEOUT_15MIN') return '超时15分钟';
     if (e==='NOTE'){
@@ -462,8 +522,28 @@ function flowTagType(a?: string){
     case 'RESTORE': return 'info';
     case 'CLAIM': return 'primary';
     case 'ISSUE': return 'success';
-    default: return 'default';
+    default: return undefined as any;
   }
+}
+
+// 换货发货记录：从 shipExpressExtra.exchangeShipments 读取
+const exchangeShipments = computed(() => {
+    try{
+        const extra:any = (data.value as any)?.shipExpressExtra || {};
+        const list:any[] = Array.isArray(extra?.exchangeShipments) ? extra.exchangeShipments : [];
+        return list.slice().sort((a:any,b:any)=> new Date(b?.createdAt||0).getTime() - new Date(a?.createdAt||0).getTime());
+    }catch{ return []; }
+});
+function exchangeShipmentText(ex: any){
+    try{
+        if (!ex) return '-';
+        if (ex.noExpress) return '无需快递';
+        const com = ex.companyName || ex.companyCode || '';
+        const no = ex.trackingNo || '';
+        const phones = [ex?.contact?.senderPhoneMasked, ex?.contact?.receiverPhoneMasked].filter(Boolean).join(' / ');
+        const tail = phones ? `（隐私号：${phones}）` : '';
+        return [com, no].filter(Boolean).join(' / ') + tail;
+    }catch{ return '-'; }
 }
 </script>
 
