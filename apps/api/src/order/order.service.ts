@@ -1088,8 +1088,11 @@ export class OrderService {
                     // 付款码支付：发起 v2 渠道退款，等待通知/查询回写
                     const order = req.order as any;
                     const amountFen = Math.round(Number(order.payAmount) * 100);
-                    const requestedFen = Math.round(Number((requestedAmountOverride != null ? requestedAmountOverride : req.requestedAmount) ?? order.payAmount) * 100);
-                    const isFullRequest = req.requestedAmount == null || Math.abs(Number(req.requestedAmount) - Number(order.payAmount)) < 0.000001;
+                    const requestedYuan = (requestedAmountOverride != null ? requestedAmountOverride : req.requestedAmount);
+                    const requestedFen = Math.round(Number((requestedYuan != null ? requestedYuan : order.payAmount)) * 100);
+                    const isFullRequest = (requestedAmountOverride != null)
+                        ? Math.abs(Number(requestedAmountOverride) - Number(order.payAmount)) < 0.000001
+                        : (req.requestedAmount == null || Math.abs(Number(req.requestedAmount) - Number(order.payAmount)) < 0.000001);
                     const existing:any = await this.getOrder(order.id);
                     const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
                     const refundableFen = Math.max(0, amountFen - successSumFen);
