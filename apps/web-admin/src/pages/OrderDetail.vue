@@ -75,6 +75,11 @@
 				<el-table-column prop="outRefundNo" label="商户退款单号" />
 				<el-table-column prop="wechatRefundId" label="微信退款单号" />
 				<el-table-column prop="failedReason" label="失败原因" />
+				<el-table-column label="操作" width="160">
+					<template #default="{ row }">
+						<el-button v-if="canQueryRefund(row)" size="small" @click="queryRefund(row)">查询结果</el-button>
+					</template>
+				</el-table-column>
 			</el-table>
 		</el-card>
 
@@ -247,6 +252,25 @@ async function openRetryRefund(){
     try{
         await http(`/orders/_refunds/${rec.id}/retry`, { method:'POST' });
     }catch{}
+}
+
+function canQueryRefund(row:any){
+    try{
+        if (!row) return false;
+        // 仅对 v2 付款码退款或状态不明确(PENDING/PROCESSING/FAILED/null)展示查询按钮
+        const st = String(row.status||'').toUpperCase();
+        const isUnknown = !st || st==='PENDING' || st==='PROCESSING' || st==='FAILED';
+        const hasOut = !!row.outRefundNo;
+        return hasOut && isUnknown;
+    }catch{ return false; }
+}
+async function queryRefund(row:any){
+    try{
+        if (!row?.outRefundNo){ ElMessage.error('缺少退款单号'); return; }
+        const res:any = await http(`/orders/_refunds/${encodeURIComponent(row.outRefundNo)}/query-v2`, { method:'POST' });
+        if (res?.ok){ ElMessage.success(`状态：${res.status}`); await fetchDetail(); }
+        else { ElMessage.error('查询失败'); }
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'查询失败')); }
 }
 
 const dialogPartial = ref(false);

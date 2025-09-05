@@ -411,6 +411,46 @@ export class OrderController {
         }
     }
 
+    // 管理后台：退款结果查询（v2，按 out_refund_no 主动查询并回写状态）
+    @Post('_refunds/:outRefundNo/query-v2')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async queryRefundV2(@Param('outRefundNo') outRefundNo: string){
+        if (!outRefundNo) throw new BadRequestException('缺少 outRefundNo');
+        const resp = await this.wxpay.queryRefundV2({ outRefundNo });
+        const rc = String(resp.return_code||'');
+        if (rc !== 'SUCCESS') throw new BadRequestException(`查询失败：${resp.return_msg||'UNKNOWN'}`);
+        const rcode = String(resp.result_code||'');
+        if (rcode !== 'SUCCESS') throw new BadRequestException(`查询失败：${resp.err_code_des || resp.err_code || 'UNKNOWN'}`);
+        // 解析退款状态与金额（单位：分）
+        const refundStatus = (resp as any).refund_status_0 || (resp as any).refund_status || '';
+        const refundFeeFenStr = (resp as any).refund_fee_0 || (resp as any).refund_fee || '0';
+        const refundId = (resp as any).refund_id_0 || (resp as any).refund_id || null;
+        const refundFeeFen = Number(refundFeeFenStr||0);
+        const amountYuan = Math.max(0, Math.round(refundFeeFen) / 100);
+        if (String(refundStatus).toUpperCase() === 'SUCCESS'){
+            const rec:any = await (this.orders as any).getRefundRecordByOutRefundNo(outRefundNo);
+            if (rec){
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'SUCCESS' as any, refundId, null);
+                // 回写订单维度累计退款，并触发售后收尾
+                await this.orders.applyRefundSuccess({ orderId: rec.orderId, amountYuan: amountYuan || Number(rec.amount||0), method: rec.method as any, operatorUserId: undefined, outRefundNo, wechatRefundId: refundId });
+                await this.orders.completeLatestRefundAftersalesByOrder(rec.orderId, undefined);
+            }
+            return { ok: true, status: 'SUCCESS', refundId, amount: amountYuan };
+        }
+        if (String(refundStatus).toUpperCase() === 'CLOSED'){
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'CANCELLED' as any, refundId, 'CLOSED_BY_QUERY');
+            return { ok: true, status: 'CANCELLED' };
+        }
+        if (String(refundStatus).toUpperCase() === 'ABNORMAL'){
+            await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, refundId, 'ABNORMAL');
+            return { ok: true, status: 'FAILED' };
+        }
+        // 其他状态（如 PROCESSING）：标记处理中
+        await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, refundId, null);
+        return { ok: true, status: 'PROCESSING' };
+    }
+
     // 退款重试接口
     @Post('_refunds/:id/retry')
     @UseGuards(AdminGuard)
