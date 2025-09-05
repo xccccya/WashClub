@@ -33,11 +33,25 @@
   - POST `/orders/:id/pay/manual` 手动确认支付（body: { method: CASH|SHOUQIANBA|OFFLINE, paidAt? }）
   - POST `/orders/:id/close` 关闭订单
 
+### 近期更新
+
+- 2025-09：虚拟卡券商品支持 SKU 级卡券绑定（数据库新增 `ProductSku.couponId`；请在 `apps/api` 执行 `pnpm prisma generate && pnpm prisma db push` 同步到数据库）
+- 2025-09：管理后台商品编辑体验优化：
+  - 多规格表格列宽优化，`价格/划线价/库存` 默认即可完整展示，表格 `:fit=false`，对话框宽度提升
+  - 虚拟卡券多规格支持“每 SKU 绑定卡券”
+  - 服务类商品不参与库存：UI 隐藏库存项并在保存时强制库存归零
+- 2025-09：主题/配色系统优化：
+  - 修复“自定义配色覆盖预设首项”的问题（改用 `custom` 通道，避免与 `default` 冲突）
+  - 新增马卡龙预设三色：粉/蓝/绿
+  - 暗色主题变量优化（背景/边框/填充/文字对比度）
+
 ### 管理后台（apps/web-admin）
 
 - 新增菜单：商品分类、商品列表、库存管理、订单列表/详情、售后（占位）
 - 角色权限键：`store-categories`、`store-products`、`store-inventory`、`orders`、`after-sales`
 - 超管角色（id=1）拥有 `*`；`scripts/seed.mjs` 会为超管补齐新菜单键（若未使用 `*`）
+- 商品编辑优化：多规格列宽与交互优化（按钮与输入完整显示）；虚拟卡券多规格支持每 SKU 绑定卡券；服务类商品不参与库存（UI 隐藏并保存时归零）
+- 主题设置优化：修复自定义配色覆盖预设首项；新增马卡龙预设（粉/蓝/绿）；暗色主题视觉对比提升
 
 ### 小程序端（apps/miniapp-uni）
 
@@ -148,10 +162,11 @@ TZ=Asia/Shanghai
 #### 主题/配色切换
 - 右上角“🎨”按钮可切换明暗主题与配色方案；支持自定义主色。
 - 明暗：设置在 `document.documentElement` 的 `data-theme=dark` 与 `class=dark`，以适配 Element Plus 暗色变量。
-- 配色：通过 `data-color-scheme` 切换预设（default/green/violet/orange）。
-- 自定义主色：在 default 配色下生效，写入 CSS 变量 `--app-primary`；优先级高于默认主色。
+- 配色：通过 `data-color-scheme` 切换预设（`default/green/violet/orange/macaron-pink/macaron-blue/macaron-green`）。自定义通道为 `custom`（以 default 变量承载主色）。
+- 自定义主色：在 `custom` 通道下生效，写入 CSS 变量 `--app-primary`；优先级高于默认主色。
 - 持久化：`localStorage` 保存 `theme`、`colorScheme`、`customColor`，刷新后自动恢复。
 - 变量定义：见 `apps/web-admin/src/App.vue` 中的 `:root` 变量段，包含 `--app-primary`/`--app-bg`/`--app-text` 等。
+*- 暗色主题已优化背景/边框/填充/文字对比度，避免灰蒙与对比不足*
 
 ### 收银台（apps/web-pos）（开发中）
 - 开发：`pnpm --filter web-pos dev`
@@ -167,8 +182,8 @@ TZ=Asia/Shanghai
 - 建议在仓库中忽略运行期上传与本地配置文件；示例见根 `.gitignore`
 
 ### 状态与路线图
-- 已完成：会员、车辆、计次卡、内容公告、服务排队、短信登录/重置、文件上传
-- 开发中：订单、商品、消息通知、收银台系统
+- 已完成：会员、车辆、计次卡、内容公告、服务排队、短信登录/重置、文件上传、商品（单/多规格、库存、虚拟卡券 SKU 绑定）、订单（手动支付流程）
+- 开发中：消息通知、收银台系统
 
 ### 安全与密钥
 - 所有密钥与连接串请放入 `.env`，不要提交到仓库
