@@ -1,7 +1,7 @@
 <template>
 	<BasePage title="后台角色">
 		<template #actions>
-			<el-button type="primary" @click="openCreate">新增角色</el-button>
+			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><UserFilled /></el-icon>新增角色</el-button>
 		</template>
 		<el-table :data="roles" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />

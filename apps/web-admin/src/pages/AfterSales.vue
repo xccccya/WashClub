@@ -13,9 +13,11 @@
 		</template>
 		<el-table :data="rows" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="order.no" label="订单号" width="200">
+			<el-table-column prop="order.no" label="订单号" width="280">
 				<template #default="{ row }">
-					<el-link type="primary" @click="openOrder(row.order?.id)">{{ row.order?.no }}</el-link>
+					<el-link type="primary" @click="openOrder(row.order?.no)">
+						<span>{{ headOrderNo(row.order?.no) }}</span><span class="order-tail">{{ tailOrderNo(row.order?.no) }}</span>
+					</el-link>
 				</template>
 			</el-table-column>
 			<el-table-column prop="member.phone" label="手机号" width="140" />
@@ -115,12 +117,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
+const router = useRouter();
 
 type Row = any;
 const rows = ref<Row[]>([]);
@@ -164,6 +168,9 @@ function zhReason(code?: string){
     return map[c] || code || '';
 }
 
+function headOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(0, Math.max(0, s.length-6)); }catch{ return String(no||''); } }
+function tailOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(-6); }catch{ return ''; } }
+
 async function fetchList(){
 	const list = await http('/orders/_after-sales', { method:'GET', query: { status: status.value || undefined } });
 	let data: any[] = Array.isArray(list) ? list : [];
@@ -174,7 +181,11 @@ async function fetchList(){
 	rows.value = data;
 }
 
-function openOrder(orderId?: number){ if (!orderId) return; window.open(`/orders/${orderId}`, '_blank'); }
+function openOrder(orderNo?: string){
+    if (!orderNo) return;
+    const href = router.resolve(`/orders/no/${encodeURIComponent(orderNo)}`).href;
+    window.open(href, '_blank');
+}
 function view(row: any){ current.value = row; detailVisible.value = true; }
 function openAudit(row: any, approve: boolean){
     auditRow.value = row; auditDialog.value = true;
@@ -263,6 +274,7 @@ onMounted(fetchList);
 </script>
 
 <style scoped>
+.order-tail{ font-weight: 700; font-size: 16px; margin-left:4px; }
 </style>
 
 

@@ -38,10 +38,10 @@
 			<el-table-column prop="createdAt" label="时间" width="180">
 				<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
 			</el-table-column>
-			<el-table-column label="操作" width="240">
+			<el-table-column label="操作" width="260">
 				<template #default="{ row }">
-					<el-button size="small" @click="openReply(row)">回复</el-button>
-					<el-button size="small" type="danger" @click="del(row)">删除</el-button>
+					<el-button size="small" @click="openReply(row)"><el-icon style="margin-right:4px;"><Message /></el-icon>回复</el-button>
+					<el-button size="small" type="danger" @click="del(row)"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -50,7 +50,7 @@
 			<el-input type="textarea" v-model="replyText" placeholder="输入回复内容" :rows="4" />
 			<template #footer>
 				<el-button @click="dialogReply=false">取消</el-button>
-				<el-button type="primary" @click="submitReply">提交</el-button>
+				<el-button type="primary" @click="submitReply"><el-icon style="margin-right:4px;"><Check /></el-icon>提交</el-button>
 			</template>
 		</el-dialog>
 	</div>

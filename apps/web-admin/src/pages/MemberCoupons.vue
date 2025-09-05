@@ -12,7 +12,7 @@
 				<el-option label="未过期" value="0" />
 				<el-option label="已过期" value="1" />
 			</el-select>
-			<el-button @click="fetchList">查询</el-button>
+			<el-button @click="fetchList"><el-icon style="margin-right:4px;"><Search /></el-icon>查询</el-button>
 		</div>
 		<el-table :data="list.items" border size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="60" />
@@ -32,10 +32,10 @@
 			<el-table-column prop="usedAt" label="使用时间" width="200">
 				<template #default="{ row }">{{ formatLocal(row.usedAt) }}</template>
 			</el-table-column>
-			<el-table-column label="操作" width="260">
+			<el-table-column label="操作" width="300">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)">修改有效期</el-button>
-					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
+					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>修改有效期</el-button>
+					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
 				</template>
 			</el-table-column>
 		</el-table>

@@ -1,7 +1,7 @@
 <template>
 	<BasePage title="广告横幅">
 		<template #actions>
-			<el-button type="primary" @click="openCreate">新建横幅</el-button>
+			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Picture /></el-icon>新建横幅</el-button>
 			<el-select v-model="filterEnabled" placeholder="筛选" style="width:160px;margin-left:8px;">
 				<el-option label="全部" value="" />
 				<el-option label="已启用" value="true" />
@@ -28,11 +28,11 @@
 					<el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '已启用' : '未启用' }}</el-tag>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="360">
+			<el-table-column label="操作" width="380">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)">编辑</el-button>
-					<el-button size="small" @click="toggleEnable(row)" :type="row.enabled ? 'warning' : 'primary'">{{ row.enabled ? '禁用' : '启用' }}</el-button>
-					<el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
+					<el-button size="small" @click="toggleEnable(row)" :type="row.enabled ? 'warning' : 'primary'"><el-icon style="margin-right:4px;"><SwitchButton /></el-icon>{{ row.enabled ? '禁用' : '启用' }}</el-button>
+					<el-button size="small" type="danger" @click="remove(row)"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button>
 				</template>
 			</el-table-column>
 		</el-table>

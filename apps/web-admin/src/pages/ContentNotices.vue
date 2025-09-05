@@ -1,7 +1,7 @@
 <template>
 	<BasePage title="滚动通知">
 		<template #actions>
-			<el-button type="primary" @click="openCreate">新建通知</el-button>
+			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Bell /></el-icon>新建通知</el-button>
 			<el-select v-model="filterType" placeholder="筛选类型" style="width:160px;margin-left:8px;">
 				<el-option label="全部" value="" />
 				<el-option label="首页通知" value="home" />
@@ -19,11 +19,11 @@
 					<el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '已启用' : '未启用' }}</el-tag>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="280">
+			<el-table-column label="操作" width="320">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)">编辑</el-button>
-					<el-button size="small" type="primary" @click="enable(row)" :disabled="row.enabled">启用该条</el-button>
-					<el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
+					<el-button size="small" type="primary" @click="enable(row)" :disabled="row.enabled"><el-icon style="margin-right:4px;"><Open /></el-icon>启用该条</el-button>
+					<el-button size="small" type="danger" @click="remove(row)"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button>
 				</template>
 			</el-table-column>
 		</el-table>

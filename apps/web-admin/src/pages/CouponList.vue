@@ -10,7 +10,7 @@
 				<el-option label="洗车计次卡" value="WASH_CARD" />
 			</el-select>
 			<el-button @click="fetchList">查询</el-button>
-			<el-button type="primary" @click="openCreate">新增卡券</el-button>
+			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Plus /></el-icon>新增卡券</el-button>
 		</div>
 		<el-table :data="list" border size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="60" />
@@ -31,12 +31,12 @@
 			<el-table-column prop="endAt" label="结束时间" width="200">
 				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
 			</el-table-column>
-			<el-table-column label="操作" width="440">
+			<el-table-column label="操作" width="480">
 				<template #default="{ row }">
-					<el-button size="small" @click="openView(row)">查看</el-button>
-					<el-button size="small" @click="openEdit(row)">编辑</el-button>
-					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
-					<el-button size="small" type="success" @click="openIssue(row)">发放</el-button>
+					<el-button size="small" @click="openView(row)"><el-icon style="margin-right:4px;"><View /></el-icon>查看</el-button>
+					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
+					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
+					<el-button size="small" type="success" @click="openIssue(row)"><el-icon style="margin-right:4px;"><Tickets /></el-icon>发放</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -153,7 +153,7 @@
 			</div>
 			<template #footer>
 				<el-button @click="issueShow=false">取消</el-button>
-				<el-button type="primary" :loading="issuing" @click="doIssue">发放</el-button>
+				<el-button type="primary" :loading="issuing" @click="doIssue"><el-icon style="margin-right:4px;"><Tickets /></el-icon>发放</el-button>
 			</template>
 		</el-dialog>
 
