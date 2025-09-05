@@ -492,6 +492,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
     if (e==='NOTE'){
         if (v==='RECEIVED') return '用户已确认收货';
         if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
+        if (v==='WECHAT_MICROPAY') return '微信付款码支付';
     }
 	return value || '-';
 }
@@ -514,6 +515,16 @@ function zhRemark(eventType?: string, remark?: string){
     if (e==='NOTE'){
         if (r==='USER_CONFIRMED') return '用户操作';
         if (r==='SYS_AUTO') return '系统自动';
+        const raw = String(remark||'');
+        const m = /交易成功；银行：([^；\s]+)；完成时间：([0-9]{14})/.exec(raw);
+        if (m){
+            const bank = m[1];
+            const ts = m[2];
+            const t = `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}:${ts.slice(12,14)}`;
+            const bankMap:any = { 'OTHERS':'其他' };
+            const bankZh = bankMap[bank] || bank;
+            return `交易成功，银行：${bankZh}，完成时间：${t}`;
+        }
     }
 	return remark || '';
 }

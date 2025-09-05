@@ -145,6 +145,19 @@ export class WxpayService {
         return map;
     }
 
+    // v2 退款通知 req_info 解密（AES-256-ECB / PKCS7Padding，key 为 apiV2Key 的 MD5 小写）
+    decryptRefundReqInfo(reqInfoBase64: string): Record<string,string> {
+        if (!this.apiV2Key) throw new BadRequestException('未配置微信支付 APIv2 密钥');
+        const b64 = Buffer.from(reqInfoBase64 || '', 'base64');
+        const md5 = crypto.createHash('md5').update(this.apiV2Key, 'utf8').digest('hex'); // 小写32位
+        const key = Buffer.from(md5, 'utf8');
+        const decipher = crypto.createDecipheriv('aes-256-ecb', key, null);
+        decipher.setAutoPadding(true);
+        const decrypted = Buffer.concat([decipher.update(b64), decipher.final()]);
+        const xml = decrypted.toString('utf8');
+        return this.parseXml(xml);
+    }
+
     private async v2Request(pathname: string, bodyXml: string, useMutualTLS = false): Promise<{ status: number; body: string }>{
         const options: https.RequestOptions = {
             method: 'POST',

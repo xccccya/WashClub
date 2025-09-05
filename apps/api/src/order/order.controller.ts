@@ -403,11 +403,39 @@ export class OrderController {
     @Post('_notify/wechat-refund-v2')
     async wechatRefundV2Notify(@Req() req: any, @Res() res: any){
         try{
-            // v2 通知为 XML，当前项目默认 JSON 解析中间件，实际生产建议做原始体解析与验签；
-            // 这里先直接返回成功，退款最终态以查询或运营确认为准。
-            res.status(200).send('SUCCESS');
+            // 退款结果通知（v2）：XML，字段 req_info 需解密。
+            const rawBody = req?.rawBody || req?.body || '';
+            const text = typeof rawBody === 'string' ? rawBody : (rawBody?.toString?.('utf8') || '');
+            // 解析 return_code 与 req_info
+            const parsed = this.wxpay['parseXml'] ? (this.wxpay as any)['parseXml'](text) : {};
+            if (String(parsed?.return_code||'').toUpperCase() !== 'SUCCESS') { res.status(200).send('SUCCESS'); return; }
+            const reqInfo = String(parsed?.req_info||'');
+            if (!reqInfo) { res.status(200).send('SUCCESS'); return; }
+            const dec = (this.wxpay as any).decryptRefundReqInfo(reqInfo) || {};
+            const outRefundNo = dec?.out_refund_no || '';
+            const refundId = dec?.refund_id || '';
+            const refundStatus = String(dec?.refund_status||'').toUpperCase();
+            const refundFeeFen = Number(dec?.refund_fee||0);
+            const amountYuan = Math.max(0, Math.round(refundFeeFen)/100);
+            if (!outRefundNo){ res.status(200).send('SUCCESS'); return; }
+            if (refundStatus === 'SUCCESS'){
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'SUCCESS' as any, refundId, null);
+                const rec:any = await (this.orders as any).getRefundRecordByOutRefundNo(outRefundNo);
+                if (rec){
+                    const amt = amountYuan || Number(rec.amount||0);
+                    await this.orders.applyRefundSuccess({ orderId: rec.orderId, amountYuan: amt, method: rec.method as any, operatorUserId: undefined, outRefundNo, wechatRefundId: refundId });
+                    await this.orders.completeLatestRefundAftersalesByOrder(rec.orderId, undefined);
+                }
+            } else if (refundStatus === 'CHANGE' || refundStatus === 'ABNORMAL'){
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, refundId, refundStatus);
+            } else if (refundStatus === 'REFUNDCLOSE' || refundStatus === 'CLOSED'){
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'CANCELLED' as any, refundId, 'CLOSED');
+            }
+            res.set('Content-Type', 'text/xml');
+            res.status(200).send('<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>');
         }catch{
-            res.status(200).send('SUCCESS');
+            res.set('Content-Type', 'text/xml');
+            res.status(200).send('<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>');
         }
     }
 
