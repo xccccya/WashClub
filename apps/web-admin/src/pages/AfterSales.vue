@@ -243,7 +243,7 @@ async function confirmAudit(){
     await http(`/orders/_after-sales/${afr.id}/audit`, { method:'POST', body: { approve: true, amount: amountPayload } });
     try{
         const ord = afr.order || {};
-        if (afr.type==='REFUND' && (ord.payMethod === 'WECHAT_JSAPI' || ord.payMethod==='WECHAT_MICROPAY')){
+        if (afr.type==='REFUND' && ord.payMethod === 'WECHAT_JSAPI'){
             let amount: number | undefined = undefined;
             if (auditRefundMode.value === 'FULL'){
                 if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); auditDialog.value=false; fetchList(); return; }
@@ -259,6 +259,7 @@ async function confirmAudit(){
             const resp:any = await http(`/orders/${ord.id}/refund`, { method:'POST', body: { reason: '售后退款', amount } });
             if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
         } else if (afr.type==='REFUND' && ord.payMethod==='WECHAT_MICROPAY'){
+            // 审核接口已触发渠道退款，这里不再重复调用退款接口
             ElMessage.success('已提交渠道退款');
         } else if (afr.type==='REFUND') {
             // 非微信：内部退款
@@ -279,9 +280,10 @@ async function confirmAudit(){
             await http(`/orders/_after-sales/${afr.id}/exchange-ship`, { method:'POST', body });
             ElMessage.success('换货发货信息已提交');
         }
-    }catch{}
+    }catch{} finally {
+        auditSubmitting.value = false;
+    }
     auditDialog.value = false; fetchList();
-    auditSubmitting.value = false;
 }
 async function audit(row: any, approve: boolean){ await http(`/orders/_after-sales/${row.id}/audit`, { method:'POST', body: { approve } }); ElMessage.success('已提交'); fetchList(); }
 
