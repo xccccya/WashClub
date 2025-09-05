@@ -216,6 +216,13 @@ const lastKey = ref<string>('');
 const timelineList = ref<Array<any>>([]);
 const showAllTimeline = ref<boolean>(false);
 const hasPartialRefund = ref<boolean>(false);
+function computePartialRefundFlag(data: any){
+	try{
+		const payAmountFen = Math.round(Number(data?.payAmount||0) * 100);
+		const successSumFen = Math.round((Array.isArray(data?.refundRecords) ? data.refundRecords : []).filter((r:any)=> r?.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r?.amount||0), 0) * 100);
+		return successSumFen > 0 && successSumFen < payAmountFen;
+	}catch{ return false; }
+}
 // 换货发货记录
 const exchangeShipments = computed(()=>{
     try{
@@ -518,7 +525,7 @@ onLoad(async (query:any)=>{
 		// 设置时间线
 		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
 		showAllTimeline.value = false;
-		hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
+		hasPartialRefund.value = computePartialRefundFlag(data);
 	} catch { uni.showToast({ title:'加载失败', icon:'none' }); }
 });
 
@@ -551,7 +558,7 @@ onShow(async ()=>{
 			// 设置时间线
 			try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
 			showAllTimeline.value = false;
-			hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
+			hasPartialRefund.value = computePartialRefundFlag(data);
 		}
 		// #ifdef MP-WEIXIN
 		if (awaitingWxConfirm.value){
@@ -622,7 +629,7 @@ async function handleHashChange(){
 		order.value = data || null;
 		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
 		showAllTimeline.value = false;
-		hasPartialRefund.value = Array.isArray((data as any)?.refundRecords) && (data as any).refundRecords.some((r:any)=> r?.status==='SUCCESS' && Number(r?.amount||0) > 0) && Number((data as any)?.payAmount||0) > Number((data as any)?.refundRecords?.reduce((s:number,r:any)=> r?.status==='SUCCESS'? s + Number(r.amount||0) : s, 0));
+		hasPartialRefund.value = computePartialRefundFlag(data);
 		const addr = getShippingAddress(order.value);
 		if (addr) {
 			addressLine1.value = `${addr.province||''} ${addr.city||''} ${addr.district||''} ${addr.street||''}`.replace(/\s+/g,' ').trim() || '-';

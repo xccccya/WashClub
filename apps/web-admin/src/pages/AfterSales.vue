@@ -195,12 +195,27 @@ function openAudit(row: any, approve: boolean){
     if (row?.type==='EXCHANGE'){
         loadDeliveryCompanies(row);
     }
-    // 预计算退款可用信息（仅JSAPI展示选项）
-    const ord = row?.order || {};
-    const rr = Array.isArray(ord.refundRecords) ? ord.refundRecords : [];
-    const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
-    auditHasPartial.value = successSum > 0;
-    auditRefundableLeft.value = Math.max(0, Number(ord.payAmount||0) - successSum);
+    // 预计算退款可用信息：拉取最新订单详情，避免使用旧数据
+    (async ()=>{
+        try{
+            const ord0 = row?.order || {};
+            const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
+            const fresh:any = ord0?.id ? await http(`/orders/${ord0.id}`) : ord0;
+            const rr = Array.isArray(fresh?.refundRecords) ? fresh.refundRecords : [];
+            const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
+            auditHasPartial.value = successSum > 0;
+            auditRefundableLeft.value = Math.max(0, Number(fresh?.payAmount||ord0?.payAmount||0) - successSum);
+            // 若已发生部分退款，则默认切换为 PART，并禁用 FULL（UI 已禁用）
+            if (auditHasPartial.value) auditRefundMode.value = 'PART';
+        }catch{
+            const ord = row?.order || {};
+            const rr = Array.isArray(ord.refundRecords) ? ord.refundRecords : [];
+            const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
+            auditHasPartial.value = successSum > 0;
+            auditRefundableLeft.value = Math.max(0, Number(ord.payAmount||0) - successSum);
+            if (auditHasPartial.value) auditRefundMode.value = 'PART';
+        }
+    })();
 }
 async function confirmAudit(){
     if (!auditRow.value) return;
@@ -225,7 +240,7 @@ async function confirmAudit(){
     await http(`/orders/_after-sales/${afr.id}/audit`, { method:'POST', body: { approve: true, amount: amountPayload } });
     try{
         const ord = afr.order || {};
-        if (afr.type==='REFUND' && ord.payMethod === 'WECHAT_JSAPI'){
+        if (afr.type==='REFUND' && (ord.payMethod === 'WECHAT_JSAPI' || ord.payMethod==='WECHAT_MICROPAY')){
             let amount: number | undefined = undefined;
             if (auditRefundMode.value === 'FULL'){
                 if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); auditDialog.value=false; fetchList(); return; }
@@ -238,10 +253,9 @@ async function confirmAudit(){
                 if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); auditDialog.value=false; fetchList(); return; }
                 amount = v;
             }
-            const resp:any = await http(`/orders/${ord.id}/refund/wechat`, { method:'POST', body: { reason: '售后退款', amount } });
+            const resp:any = await http(`/orders/${ord.id}/refund`, { method:'POST', body: { reason: '售后退款', amount } });
             if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
         } else if (afr.type==='REFUND' && ord.payMethod==='WECHAT_MICROPAY'){
-            // 付款码退款：审核接口已触发渠道退款，这里仅提示
             ElMessage.success('已提交渠道退款');
         } else if (afr.type==='REFUND') {
             // 非微信：内部退款
