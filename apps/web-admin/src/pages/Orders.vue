@@ -147,6 +147,12 @@
 				</el-tab-pane>
 				<el-tab-pane label="微信付款码" name="wx">
 					<el-input v-model="wxAuthCode" placeholder="请扫描/输入顾客微信付款码" maxlength="24" />
+					<div style="margin-top:8px; display:flex; gap:8px;">
+						<el-button @click="openScan">打开摄像头识别</el-button>
+						<el-upload :auto-upload="false" :show-file-list="false" accept="image/*" @change="onSelectImage">
+							<el-button>从图片识别</el-button>
+						</el-upload>
+					</div>
 					<div style="color:#909399;font-size:12px; margin-top:6px;">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
@@ -154,6 +160,17 @@
 					</div>
 				</el-tab-pane>
 			</el-tabs>
+		</el-dialog>
+
+		<el-dialog v-model="showScan" title="摄像头识别付款码" width="520px" @closed="stopScan">
+			<div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+				<video ref="videoRef" style="width:100%;max-height:360px;background:#000;" playsinline muted></video>
+				<canvas ref="canvasRef" style="display:none;"></canvas>
+				<div style="color:#909399;font-size:12px;">将顾客付款码对准摄像头，系统会自动识别</div>
+			</div>
+			<template #footer>
+				<el-button @click="showScan=false">关闭</el-button>
+			</template>
 		</el-dialog>
 
 		<el-dialog v-model="showRefund" title="退款确认" width="520px">
@@ -236,11 +253,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 // 替换为 Element Plus 内置图标（已在 main.ts 全局注册）
 
 const router = useRouter();
@@ -401,6 +419,11 @@ const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'|'CASH'>('CASH');
 const payTab = ref<'manual'|'wx'>('manual');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
+const showScan = ref(false);
+const videoRef = ref<HTMLVideoElement|null>(null);
+const canvasRef = ref<HTMLCanvasElement|null>(null);
+let mediaStream: MediaStream | null = null;
+let scanTimer: any = null;
 function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; showPay.value = true; }
 async function doMarkPaid(){ if (!currentOrderId.value) return; await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
 
@@ -420,6 +443,75 @@ async function doWxMicropay(){
     }finally{
         wxPayLoading.value = false;
     }
+}
+
+async function openScan(){
+    try{
+        showScan.value = true;
+        await nextTick();
+        if (!videoRef.value) return;
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        videoRef.value.srcObject = mediaStream as any;
+        await videoRef.value.play();
+        startDecodeLoop();
+    }catch(e:any){ ElMessage.error('无法打开摄像头：' + String(e?.message||e||'')); showScan.value=false; }
+}
+
+function stopScan(){
+    try{ if (scanTimer){ clearInterval(scanTimer); scanTimer=null; } }catch{}
+    try{ if (videoRef.value){ videoRef.value.pause(); videoRef.value.srcObject = null; } }catch{}
+    try{ if (mediaStream){ mediaStream.getTracks().forEach(t=> t.stop()); mediaStream=null; } }catch{}
+}
+
+function startDecodeLoop(){
+    const reader = new BrowserMultiFormatReader();
+    scanTimer = setInterval(async ()=>{
+        try{
+            if (!videoRef.value) return;
+            const video = videoRef.value;
+            const canvas = canvasRef.value;
+            if (!canvas) return;
+            const w = video.videoWidth; const h = video.videoHeight;
+            if (!w || !h) return;
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d'); if (!ctx) return;
+            ctx.drawImage(video, 0, 0, w, h);
+            const imgData = ctx.getImageData(0, 0, w, h);
+            // zxing 解码
+            const result = await reader.decodeFromImage(undefined as any, canvas.toDataURL('image/png'));
+            const text = String((result as any)?.getText?.()).trim();
+            if (/^\d{18,24}$/.test(text)){
+                wxAuthCode.value = text; ElMessage.success('识别成功'); showScan.value=false; stopScan();
+            }
+        }catch(err){ if (!(err instanceof NotFoundException)) {/* 非未识别错误忽略 */} }
+    }, 500);
+}
+
+async function onSelectImage(file: any){
+    try{
+        const f = file?.raw || file?.target?.files?.[0]; if (!f) return;
+        const reader = new FileReader();
+        reader.onload = async ()=>{
+            try{
+                const img = new Image();
+                img.onload = async ()=>{
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width; canvas.height = img.height;
+                    const ctx = canvas.getContext('2d'); if (!ctx) return;
+                    ctx.drawImage(img, 0, 0);
+                    const br = new BrowserMultiFormatReader();
+                    const res = await br.decodeFromImage(undefined as any, canvas.toDataURL('image/png'));
+                    const text = String((res as any)?.getText?.()).trim();
+                    if (/^\d{18,24}$/.test(text)) { wxAuthCode.value = text; ElMessage.success('识别成功'); }
+                    else { ElMessage.error('未检测到有效付款码'); }
+                };
+                img.onerror = ()=> ElMessage.error('图片读取失败');
+                img.src = String(reader.result||'');
+            }catch{ ElMessage.error('识别失败'); }
+        };
+        reader.onerror = ()=> ElMessage.error('图片读取失败');
+        reader.readAsDataURL(f);
+    }catch{ ElMessage.error('识别失败'); }
 }
 
 const showRefund = ref(false);
