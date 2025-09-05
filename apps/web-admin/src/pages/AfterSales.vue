@@ -109,7 +109,7 @@
 			</div>
 			<template #footer>
 				<el-button @click="auditDialog=false">取消</el-button>
-				<el-button type="primary" @click="confirmAudit">确认通过</el-button>
+				<el-button type="primary" :loading="auditSubmitting" :disabled="auditSubmitting" @click="confirmAudit">确认通过</el-button>
 			</template>
 		</el-dialog>
 	</BasePage>
@@ -133,6 +133,7 @@ const status = ref('');
 const detailVisible = ref(false);
 const current = ref<any>(null);
 const auditDialog = ref(false);
+const auditSubmitting = ref(false);
 const auditRow = ref<any>(null);
 const auditRefundMode = ref<'FULL'|'PART'>('FULL');
 const auditRefundAmountText = ref<string>('');
@@ -218,6 +219,8 @@ function openAudit(row: any, approve: boolean){
     })();
 }
 async function confirmAudit(){
+    if (auditSubmitting.value) return;
+    auditSubmitting.value = true;
     if (!auditRow.value) return;
     const afr = auditRow.value;
     // 先审核通过
@@ -278,6 +281,7 @@ async function confirmAudit(){
         }
     }catch{}
     auditDialog.value = false; fetchList();
+    auditSubmitting.value = false;
 }
 async function audit(row: any, approve: boolean){ await http(`/orders/_after-sales/${row.id}/audit`, { method:'POST', body: { approve } }); ElMessage.success('已提交'); fetchList(); }
 

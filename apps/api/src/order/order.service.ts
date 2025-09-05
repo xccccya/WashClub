@@ -1102,6 +1102,13 @@ export class OrderService {
                     const allowed = await this.verifyRefundAllowed(order.id, refundFen / 100);
                     if (!allowed) throw new Error('退款校验未通过：关联权益已部分使用');
                     const outRefundNo = `R_${order.no}_${Date.now()}`;
+                    // 避免重复提交：检查近1分钟内是否已存在相同金额的 PENDING/PROCESSING 记录
+                    try{
+                        const recent = await this.prisma.refundRecord.findFirst({ where: { orderId: order.id, status: { in: ['PENDING','PROCESSING'] as any }, amount: new Prisma.Decimal(refundFen/100 as any) }, orderBy: { id: 'desc' } });
+                        if (recent && (Date.now() - new Date((recent as any).createdAt||0).getTime()) < 60_000){
+                            return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });
+                        }
+                    }catch{}
                     await this.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_MICROPAY' as any, reasonCode: 'WECHAT', reasonText: '售后退款', outRefundNo, status: 'PENDING' as any });
                     const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund-v2';
                     try{
