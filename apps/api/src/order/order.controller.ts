@@ -70,7 +70,7 @@ export class OrderController {
         if (!Number.isFinite(amountYuan) || amountYuan <= 0) throw new BadRequestException('订单金额异常');
         const total = Math.round(amountYuan * 100);
         const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat';
-        const desc = `巨科汽车美容（威远店）-订单支付-${order.no}`;
+        const desc = `巨科汽车美容(威远店)-订单支付-${order.no}`;
         const { prepay_id } = await this.wxpay.createJsapi({
             appid: '', // 由服务内部覆盖为小程序 appid
             mchid: '', // 由服务内部覆盖为商户号
@@ -140,7 +140,7 @@ export class OrderController {
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可发起付款码支付');
         const totalFen = Math.round(Number(order.payAmount) * 100);
         if (totalFen <= 0) throw new BadRequestException('订单金额异常');
-        const desc = `巨科汽车美容（威远店）-订单支付-${order.no}`;
+        const desc = `巨科汽车美容(威远店)-订单支付-${order.no}`;
         const ip = (String(xff||'').split(',')[0] || req?.ip || req?.socket?.remoteAddress || '127.0.0.1').trim();
         if (!body?.authCode) throw new BadRequestException('缺少付款码');
         // 发起 V2 付款码支付：内含轮询查询与必要时撤销
@@ -343,6 +343,14 @@ export class OrderController {
             // 非 JSAPI：走通用退款逻辑（内部或 v2 付款码）
             return await (this as any).refund(id, body, authHeader);
         }
+        // JSAPI 分支：增加幂等校验（窗口 60s）
+        try{
+            const amtYuan = (body?.amount == null) ? Number(order.payAmount||0) : Number(body.amount||0);
+            if (amtYuan > 0){
+                const recent = await (this.orders as any).findRecentRefundRecord({ orderId: order.id, amountYuan: amtYuan, windowMs: 60_000 });
+                if (recent){ return { ok: true, outRefundNo: recent.outRefundNo || undefined } as any; }
+            }
+        }catch{}
         const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
         const outRefundNo = `R_${order.no}_${Date.now()}`;
         const amountFen = Math.round(Number(order.payAmount) * 100);

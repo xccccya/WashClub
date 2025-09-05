@@ -1160,6 +1160,22 @@ export class OrderService {
         return this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
     }
 
+    // 幂等：查找近窗口期内相同金额的退款记录（PENDING/PROCESSING）
+    async findRecentRefundRecord(params: { orderId: number; amountYuan: number; statuses?: RefundStatus[]; windowMs?: number }){
+        const { orderId, amountYuan } = params;
+        const statuses = (params.statuses && params.statuses.length) ? params.statuses : (['PENDING','PROCESSING'] as any);
+        const windowMs = Number.isFinite(params.windowMs as any) ? Number(params.windowMs) : 60_000;
+        const rec = await this.prisma.refundRecord.findFirst({ where: { orderId, status: { in: statuses as any }, amount: new Prisma.Decimal(amountYuan as any) }, orderBy: { id: 'desc' } });
+        if (!rec) return null;
+        try{
+            const createdAt: any = (rec as any).createdAt;
+            if (!createdAt) return rec;
+            const ts = new Date(createdAt).getTime();
+            if (Date.now() - ts <= windowMs) return rec;
+            return null;
+        }catch{ return rec; }
+    }
+
     async createRefundRecord(params: { orderId: number; memberId: number; amount: Prisma.Decimal | number; method?: PayMethod | null; reasonCode?: string | null; reasonText?: string | null; outRefundNo?: string | null; wechatRefundId?: string | null; status?: RefundStatus }) {
         const rec = await this.prisma.refundRecord.create({
             data: {
