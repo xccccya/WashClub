@@ -18,9 +18,16 @@ html, body, #app { height: 100%; }
 }
 [data-theme='dark']{
   color-scheme: dark;
-  --app-bg: #141414;
-  --app-text: #e5eaf3;
-  --app-muted: #c0c4cc;
+  --app-bg: #0f1114;
+  --app-text: #e9edf3;
+  --app-muted: #a6a9b2;
+  /* Element 基础暗色适配 */
+  --el-bg-color: var(--app-bg);
+  --el-text-color-primary: var(--app-text);
+  --el-text-color-regular: var(--app-muted);
+  --el-border-color: #2a2f3a;
+  --el-fill-color: #1a1d22;
+  --el-fill-color-light: #171a1f;
 }
 [data-color-scheme='green']{
   --app-primary: #18a058;
@@ -30,6 +37,15 @@ html, body, #app { height: 100%; }
 }
 [data-color-scheme='orange']{
   --app-primary: #ff7d00;
+}
+[data-color-scheme='macaron-pink']{
+  --app-primary: #ff9db5;
+}
+[data-color-scheme='macaron-blue']{
+  --app-primary: #91c9ff;
+}
+[data-color-scheme='macaron-green']{
+  --app-primary: #9fe3c0;
 }
 /* 覆盖 Element Plus 主色（仅对部分组件立即生效）*/
 :root{

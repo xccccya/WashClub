@@ -149,16 +149,20 @@ const presetColors = [
 	{ key:'green', color:'#18a058', label:'绿色' },
 	{ key:'violet', color:'#7c4dff', label:'紫色' },
 	{ key:'orange', color:'#ff7d00', label:'橙色' },
+	// 马卡龙色系
+	{ key:'macaron-pink', color:'#ff9db5', label:'马卡龙粉' },
+	{ key:'macaron-blue', color:'#91c9ff', label:'马卡龙蓝' },
+	{ key:'macaron-green', color:'#9fe3c0', label:'马卡龙绿' },
 ] as const;
 
-function selectPreset(key: 'default'|'green'|'violet'|'orange'){
+function selectPreset(key: 'default'|'green'|'violet'|'orange'|'macaron-pink'|'macaron-blue'|'macaron-green'){
 	colorScheme.value = key;
 	applyTheme();
 }
 
 function onCustomChange(){
-	// 自定义颜色使用默认配色通道以便变量覆盖生效
-	colorScheme.value = 'default';
+	// 自定义颜色走独立 custom 通道，避免覆盖默认首项
+	colorScheme.value = 'custom' as any;
 	applyTheme();
 }
 
@@ -291,7 +295,7 @@ function toggleFullscreen(){
 
 // 主题与配色
 const theme = ref<'light'|'dark'>('light');
-const colorScheme = ref<'default'|'green'|'violet'|'orange'>('default');
+const colorScheme = ref<'default'|'green'|'violet'|'orange'|'macaron-pink'|'macaron-blue'|'macaron-green'|'custom'>('default');
 const customColor = ref<string>('#409eff');
 function applyTheme(){
 	try{
@@ -299,12 +303,13 @@ function applyTheme(){
 		// 主题
 		if (theme.value === 'dark') { root.setAttribute('data-theme', 'dark'); root.classList.add('dark'); }
 		else { root.removeAttribute('data-theme'); root.classList.remove('dark'); }
-		// 预设配色
+		// 配色通道：default / 预设 / custom
 		if (colorScheme.value === 'default') root.removeAttribute('data-color-scheme');
+		else if (colorScheme.value === 'custom') root.setAttribute('data-color-scheme', 'default');
 		else root.setAttribute('data-color-scheme', colorScheme.value);
-		// 自定义主色仅在默认配色下生效；否则移除覆盖以便预设配色发挥作用
+		// 自定义主色仅在 custom 通道生效
 		root.style.removeProperty('--app-primary');
-		if (colorScheme.value === 'default' && customColor.value) {
+		if (colorScheme.value === 'custom' && customColor.value) {
 			root.style.setProperty('--app-primary', customColor.value);
 		}
 		// 持久化
@@ -322,7 +327,7 @@ onMounted(()=>{
 	// 初始化主题
 	try {
 		const t = localStorage.getItem('theme'); if (t==='dark'||t==='light') theme.value = t as any;
-		const c = localStorage.getItem('colorScheme'); if (c==='default'||c==='green'||c==='violet'||c==='orange') colorScheme.value = c as any;
+		const c = localStorage.getItem('colorScheme'); if (c && ['default','green','violet','orange','macaron-pink','macaron-blue','macaron-green','custom'].includes(c)) colorScheme.value = c as any;
 		const cc = localStorage.getItem('customColor'); if (cc) customColor.value = cc;
 		applyTheme();
 	} catch {}

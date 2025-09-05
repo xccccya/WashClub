@@ -44,7 +44,7 @@
 			</el-table-column>
 		</el-table></div>
 
-		<el-dialog v-model="show" :title="form.id ? '编辑商品' : '新增商品'" width="820px" :destroy-on-close="false">
+		<el-dialog v-model="show" :title="form.id ? '编辑商品' : '新增商品'" width="980px" :destroy-on-close="false">
 			<el-tabs v-model="formTab">
 				<el-tab-pane label="基础信息" name="base">
 					<el-form label-width="100">
@@ -79,6 +79,7 @@
 				<el-tab-pane label="扩展信息" name="extra">
 					<el-form label-width="100">
 						<el-form-item label="规格类型"><el-select v-model="form.specType"><el-option label="单规格" value="SINGLE" /><el-option label="多规格" value="MULTI" /></el-select></el-form-item>
+						<div v-if="form.type==='SERVICE'" style="margin:-4px 0 8px 100px;color:#909399;">提示：服务商品不参与库存统计，库存项将自动隐藏。</div>
 						<template v-if="form.specType==='SINGLE'">
 							<el-form-item label="价格"><el-input-number v-model="form.price" :min="0" :step="0.1" /></el-form-item>
 							<el-form-item label="划线价"><el-input-number v-model="form.listPrice" :min="0" :step="0.1" /></el-form-item>
@@ -98,18 +99,18 @@
 										<el-input v-model="specValueDraft" placeholder="输入规格值并回车" style="width:180px;" @keyup.enter="confirmAddSpecValue(i)" />
 									</div>
 								</div>
-								<div style="margin:8px 0;display:flex;gap:8px;align-items:center;"><el-button size="small" type="primary" @click="generateSkuMatrix">生成规格组合</el-button><small>将覆盖当前 SKU 列表</small></div>
+								<div style="margin:8px 0;display:flex;gap:8px;align-items:center;"><el-button size="small" type="primary" @click="generateSkuMatrix"><el-icon style="margin-right:4px;"><Grid /></el-icon>生成规格组合</el-button><small>将覆盖当前 SKU 列表</small></div>
 								<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
 									<b>SKU 列表</b>
 									<div style="display:flex;gap:8px;align-items:center;">
-										<el-button @click="addSku" size="small">新增SKU</el-button>
-										<el-button @click="batchGenSkuIfEmpty" size="small">为空项生成SKU编码</el-button>
-										<el-button @click="batchGenBarcodeIfEmpty" size="small">为空项生成条码</el-button>
+										<el-button @click="addSku" size="small"><el-icon style="margin-right:4px;"><CirclePlus /></el-icon>新增SKU</el-button>
+										<el-button @click="batchGenSkuIfEmpty" size="small"><el-icon style="margin-right:4px;"><Promotion /></el-icon>为空项生成SKU编码</el-button>
+										<el-button @click="batchGenBarcodeIfEmpty" size="small"><el-icon style="margin-right:4px;"><Ticket /></el-icon>为空项生成条码</el-button>
 									</div>
 								</div>
-								<el-table :data="form.skus" size="small" border>
+								<el-table :data="form.skus" size="small" border :fit="false" style="width:100%;">
 									<el-table-column label="名称"><template #default="{ row }"><el-input v-model="row.name" placeholder="规格名称" /></template></el-table-column>
-									<el-table-column label="SKU编码" width="240">
+									<el-table-column label="SKU编码" width="220">
 										<template #default="{ row }">
 											<div style="display:flex;gap:6px;align-items:center;">
 												<el-input v-model="row.skuCode" placeholder="自动/手填" />
@@ -117,7 +118,7 @@
 											</div>
 										</template>
 									</el-table-column>
-									<el-table-column label="条码" width="240">
+									<el-table-column label="条码" width="220">
 										<template #default="{ row }">
 											<div style="display:flex;gap:6px;align-items:center;">
 												<el-input v-model="row.barcode" placeholder="13位数字" />
@@ -133,9 +134,16 @@
 											</div>
 										</template>
 									</el-table-column>
-									<el-table-column label="价格" width="140"><template #default="{ row }"><el-input-number v-model="row.price" :min="0" :step="0.1" /></template></el-table-column>
-									<el-table-column label="划线价" width="140"><template #default="{ row }"><el-input-number v-model="row.listPrice" :min="0" :step="0.1" /></template></el-table-column>
-									<el-table-column label="库存" width="120"><template #default="{ row }"><el-input-number v-model="row.stockQuantity" :min="0" /></template></el-table-column>
+									<el-table-column label="价格" width="180"><template #default="{ row }"><el-input-number v-model="row.price" :min="0" :step="0.1" controls-position="right" style="width:140px;" /></template></el-table-column>
+									<el-table-column label="划线价" width="180"><template #default="{ row }"><el-input-number v-model="row.listPrice" :min="0" :step="0.1" controls-position="right" style="width:140px;" /></template></el-table-column>
+									<el-table-column v-if="form.type!=='SERVICE'" label="库存" width="160"><template #default="{ row }"><el-input-number v-model="row.stockQuantity" :min="0" controls-position="right" style="width:120px;" /></template></el-table-column>
+									<el-table-column v-if="form.type==='VIRTUAL_CARD'" label="绑定卡券" min-width="240">
+										<template #default="{ row }">
+											<el-select v-model="row.couponId" placeholder="选择卡券" filterable style="width:100%;">
+												<el-option v-for="c in couponOptions" :key="c.id" :label="c.name" :value="c.id" />
+											</el-select>
+										</template>
+									</el-table-column>
 									<el-table-column label="启用" width="90"><template #default="{ row }"><el-switch v-model="row.enabled" /></template></el-table-column>
 									<el-table-column label="操作" width="100"><template #default="{ $index }"><el-button size="small" type="danger" @click="removeSku($index)">删除</el-button></template></el-table-column>
 								</el-table>
@@ -177,6 +185,7 @@ import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
+import { Grid, CirclePlus, Promotion, Ticket } from '@element-plus/icons-vue';
 
 // 兼容：将 Quill 暴露到全局，供 @vueup/vue-quill 内部使用
 try { if (typeof window !== 'undefined' && !(window as any).Quill) { (window as any).Quill = Quill; } } catch {}
@@ -220,7 +229,7 @@ function openEdit(row:any){
 	show.value = true;
 }
 
-function addSku(){ form.value.skus.push({ name: '', skuCode: '', price: 0, listPrice: 0, stockQuantity: 0 }); }
+function addSku(){ form.value.skus.push({ name: '', skuCode: '', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined }); }
 function removeSku(i:number){ form.value.skus.splice(i,1); }
 
 async function save(){
@@ -240,6 +249,11 @@ async function save(){
 		form.value.specsDefinitionJson = specItems.value.filter(s=>s.name && s.values && s.values.length>0).map(s=>({ name: s.name.trim(), values: s.values.map(v=>String(v).trim()).filter(Boolean) }));
 	} else {
 		form.value.specsDefinitionJson = null;
+	}
+	// 服务商品不参与库存：确保提交时库存为0
+	if (form.value.type==='SERVICE'){
+		if (form.value.specType==='SINGLE') form.value.stockQuantity = 0;
+		else if (Array.isArray(form.value.skus)) for(const s of form.value.skus){ s.stockQuantity = 0; }
 	}
 	if (form.value.id) await http(`/store/products/${form.value.id}`, { method:'PUT', body: form.value });
 	else await http('/store/products', { method:'POST', body: form.value });

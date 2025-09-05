@@ -449,6 +449,8 @@ model Coupon {
 
   // 反向引用：被商品绑定
   products Product[]
+  // 反向引用：被 SKU 绑定
+  productSkus ProductSku[]
   // 反向关联：被领取的会员优惠券
   memberCoupons MemberCoupon[]
   // 反向关联：优惠券流水
@@ -568,6 +570,10 @@ model ProductSku {
   listPrice     Decimal  @default(0)
   stockQuantity Int      @default(0)
   enabled       Boolean  @default(true)
+
+  // 可选：虚拟卡券型商品在 SKU 级别绑定卡券
+  couponId      Int?
+  coupon        Coupon?  @relation(fields: [couponId], references: [id])
 
   inventoryLogs InventoryLog[]
 

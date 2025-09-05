@@ -265,6 +265,8 @@ export class StoreService {
             listPrice: Number(raw?.listPrice || 0),
             stockQuantity: Number(raw?.stockQuantity || 0),
             enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : true,
+            // 允许 SKU 级别绑定卡券（虚拟卡券商品）
+            couponId: (raw?.couponId===null || raw?.couponId===undefined || raw?.couponId==='') ? null : Number(raw?.couponId),
         };
     }
 
@@ -281,6 +283,7 @@ export class StoreService {
             listPrice: Number(raw?.listPrice || 0),
             stockQuantity: Number(raw?.stockQuantity || 0),
             enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : true,
+            couponId: (raw?.couponId===null || raw?.couponId===undefined || raw?.couponId==='') ? null : Number(raw?.couponId),
         };
         return data;
     }
