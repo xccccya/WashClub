@@ -122,6 +122,49 @@ export class OrderController {
         return this.orders.markPaid({ orderId: id, method: body.method, paidAt, operatorUserId });
     }
 
+    // 管理后台：微信付款码支付（V2 micropay 流程）
+    @Post(':id/pay/wx-micropay')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async wechatMicropay(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { authCode: string; deviceInfo?: string },
+        @Headers('x-forwarded-for') xff?: string,
+        @Req() req?: any,
+        @Headers('authorization') authHeader?: string,
+    ){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        const order: any = await this.orders.getOrder(id);
+        if (!order) throw new BadRequestException('订单不存在');
+        if (order.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可发起付款码支付');
+        const totalFen = Math.round(Number(order.payAmount) * 100);
+        if (totalFen <= 0) throw new BadRequestException('订单金额异常');
+        const desc = `巨科汽车美容（威远店）-订单支付-${order.no}`;
+        const ip = (String(xff||'').split(',')[0] || req?.ip || req?.socket?.remoteAddress || '127.0.0.1').trim();
+        if (!body?.authCode) throw new BadRequestException('缺少付款码');
+        // 发起 V2 付款码支付：内含轮询查询与必要时撤销
+        const flow = await this.wxpay.micropayFlow({
+            outTradeNo: order.no,
+            totalFeeFen: totalFen,
+            body: desc,
+            authCode: body.authCode,
+            spbillCreateIp: ip,
+            attach: JSON.stringify({ orderId: order.id }),
+            deviceInfo: body.deviceInfo || 'WEB_ADMIN',
+        });
+        if (flow.status === 'SUCCESS'){
+            await this.orders.markPaid({ orderId: order.id, method: 'WECHAT_MICROPAY' as any, paidAt: new Date(), operatorUserId, wechatTransactionId: flow.transactionId || undefined });
+            try{ await (this.orders as any).writeTimeline({ orderId: order.id, event: 'NOTE', value: 'WECHAT_MICROPAY', remark: `交易成功；银行：${flow.bankType||'-'}；完成时间：${flow.timeEnd||'-'}`, operatorUserId }); }catch{}
+            return { ok: true, trade_state: 'SUCCESS', transaction_id: flow.transactionId };
+        }
+        if (flow.status === 'REVERSED'){
+            try{ await (this.orders as any).writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'CANCELLED', remark: '付款码支付未确定，已撤销', operatorUserId }); }catch{}
+            throw new BadRequestException(`付款未完成，已撤销：${flow.errCodeDes || flow.errCode || 'UNKNOWN'}`);
+        }
+        throw new BadRequestException(`付款失败：${flow.errCodeDes || flow.errCode || 'UNKNOWN'}`);
+    }
+
     // 软删除（替换原“关闭”操作）：仅设置 deletedAt，不改其他状态
     @Post(':id/close')
     @UseGuards(AdminGuard)
@@ -185,6 +228,36 @@ export class OrderController {
             try{
                 const resp = await this.wxpay.createRefund({ outTradeNo: order.no, outRefundNo, refundAmountFen: refundFen, totalAmountFen: amountFen, reason: body?.reason, notifyUrl });
                 await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, resp?.refund_id || null, null);
+                try{ await (this.orders as any).saveRefundWechatResp(outRefundNo, resp); }catch{}
+                return { ok: true, outRefundNo } as any;
+            }catch(e){
+                const msg = (e as any)?.message || String(e);
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, msg);
+                return { ok: false, outRefundNo, error: msg } as any;
+            }
+        }
+        // 若订单为线下方式但备注/时间线显示使用微信付款码（或存在 wechatTransactionId），则尝试走 v2 退款
+        if ((order.payMethod === 'WECHAT_MICROPAY' || order.wechatTransactionId || String(order.remark||'').includes('WECHAT_MICROPAY') || (Array.isArray((order as any).timelines) && (order as any).timelines.some((t:any)=> t.value==='WECHAT_MICROPAY')))){
+            const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund-v2';
+            const outRefundNo = `R_${order.no}_${Date.now()}`;
+            const amountFen = Math.round(Number(order.payAmount) * 100);
+            const requestedFen = Math.round(Number(body?.amount ?? order.payAmount) * 100);
+            const isFullRequest = body?.amount == null || Math.abs(Number(body?.amount) - Number(order.payAmount)) < 0.000001;
+            if (requestedFen < 1) throw new BadRequestException('退款金额必须≥0.01元');
+            const existing:any = await this.orders.getOrder(id);
+            const rr = Array.isArray(existing?.refundRecords) ? existing.refundRecords : [];
+            const successSumFen = Math.round(rr.filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0) * 100);
+            const refundableFen = Math.max(0, amountFen - successSumFen);
+            const refundFen = Math.min(requestedFen, refundableFen);
+            if (isFullRequest && successSumFen > 0) throw new BadRequestException('已发生部分退款，不能再使用全额退款，请输入剩余可退金额');
+            if (refundFen <= 0) throw new BadRequestException('累计退款金额已达上限');
+            const allowed = await this.orders.verifyRefundAllowed(order.id, refundFen / 100);
+            if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已部分使用，无法全额退款');
+            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'OFFLINE' as any, reasonCode: 'WECHAT_MICROPAY', reasonText: body?.reason || null, outRefundNo, status: 'PENDING' as any });
+            try{
+                const resp = await this.wxpay.createRefundV2({ outTradeNo: order.no, outRefundNo, totalFeeFen: amountFen, refundFeeFen: refundFen, refundDesc: body?.reason, notifyUrl });
+                // v2 同步返回不代表最终态，按需查询；此处标记 PROCESSING 交由人工/定时任务查询
+                await this.orders.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, resp?.refund_id || undefined, null);
                 try{ await (this.orders as any).saveRefundWechatResp(outRefundNo, resp); }catch{}
                 return { ok: true, outRefundNo } as any;
             }catch(e){
@@ -323,6 +396,18 @@ export class OrderController {
             res.status(200).json({ code:'SUCCESS' });
         } catch (e) {
             res.status(500).json({ code:'ERROR', message: (e as any)?.message || String(e) });
+        }
+    }
+
+    // 微信退款回调（v2 兼容占位，无验签要求，这里仅作为将来可能的桥接；建议以查询为准）
+    @Post('_notify/wechat-refund-v2')
+    async wechatRefundV2Notify(@Req() req: any, @Res() res: any){
+        try{
+            // v2 通知为 XML，当前项目默认 JSON 解析中间件，实际生产建议做原始体解析与验签；
+            // 这里先直接返回成功，退款最终态以查询或运营确认为准。
+            res.status(200).send('SUCCESS');
+        }catch{
+            res.status(200).send('SUCCESS');
         }
     }
 

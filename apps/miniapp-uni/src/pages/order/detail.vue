@@ -52,7 +52,7 @@
 			<view class="sub-title">支付信息</view>
 			<view class="kv"><text class="k">支付方式</text><text class="v">{{ displayPayMethod(order.payMethod) }}</text></view>
 			<view class="kv"><text class="k">支付时间</text><text class="v">{{ order.paidAt ? formatTime(order.paidAt) : '-' }}</text></view>
-			<view class="kv" v-if="order.payMethod==='WECHAT_JSAPI' && (order as any)?.wechatTransactionId"><text class="k">微信交易单号</text><text class="v v--small">{{ (order as any).wechatTransactionId }}</text></view>
+			<view class="kv" v-if="(order as any)?.wechatTransactionId"><text class="k">微信交易单号</text><text class="v v--small">{{ (order as any).wechatTransactionId }}</text></view>
 			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
@@ -446,6 +446,8 @@ function displaySpecs(it: OrderItem){
 function displayPayMethod(m?: string|null){
 	const v = String(m||'').toUpperCase();
 	if (!v) return '-';
+	if (v==='WECHAT_JSAPI') return '微信支付';
+	if (v==='WECHAT_MICROPAY') return '微信付款码';
 	if (v.includes('WECHAT')) return '微信支付';
 	if (v.includes('ALI')) return '支付宝';
 	if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付';

@@ -133,15 +133,27 @@
 		</el-table></div>
 
 		<el-dialog v-model="showPay" title="手动确认支付" width="420px">
-			<el-select v-model="payMethod" placeholder="支付方式" style="width: 100%">
-				<el-option label="现金" value="CASH" />
-				<el-option label="收钱吧" value="SHOUQIANBA" />
-				<el-option label="线下其他" value="OFFLINE" />
-			</el-select>
-			<template #footer>
-				<el-button @click="showPay=false">取消</el-button>
-				<el-button type="primary" @click="doMarkPaid">确认支付</el-button>
-			</template>
+			<el-tabs v-model="payTab">
+				<el-tab-pane label="常规方式" name="manual">
+					<el-select v-model="payMethod" placeholder="支付方式" style="width: 100%">
+						<el-option label="现金" value="CASH" />
+						<el-option label="收钱吧" value="SHOUQIANBA" />
+						<el-option label="线下其他" value="OFFLINE" />
+					</el-select>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" @click="doMarkPaid">确认支付</el-button>
+					</div>
+				</el-tab-pane>
+				<el-tab-pane label="微信付款码" name="wx">
+					<el-input v-model="wxAuthCode" placeholder="请扫描/输入顾客微信付款码" maxlength="24" />
+					<div style="color:#909399;font-size:12px; margin-top:6px;">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" :loading="wxPayLoading" @click="doWxMicropay">发起付款码支付</el-button>
+					</div>
+				</el-tab-pane>
+			</el-tabs>
 		</el-dialog>
 
 		<el-dialog v-model="showRefund" title="退款确认" width="520px">
@@ -251,7 +263,7 @@ function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='
 function statusTagType(v?: string){ if(v==='CREATED') return 'info'; if(v==='PAID') return 'success'; if(v==='FULFILLED') return 'success'; if(v==='CLOSED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
 function payStatusLabel(v?: string){ if(v==='UNPAID') return '未支付'; if(v==='PAID') return '已支付'; if(v==='REFUNDED') return '已退款'; if(v==='CANCELLED') return '已作废'; return v || '-'; }
 function payStatusTagType(v?: string){ if(v==='UNPAID') return 'info'; if(v==='PAID') return 'success'; if(v==='REFUNDED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
-function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; return v; }
+function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; return v; }
 function fulfillLabel(v?: string){ if(!v) return '-'; if(v==='NONE') return '不需履约'; if(v==='PENDING') return '待履约/待发货'; if(v==='SHIPPED') return '已发货'; if(v==='RECEIVED') return '已收货'; if(v==='IN_SERVICE') return '服务中'; if(v==='DONE') return '服务完成'; return v; }
 
 async function fetchList(){
@@ -386,8 +398,29 @@ async function finishService(id:number){ await http(`/orders/${id}/finish-servic
 const showPay = ref(false);
 const currentOrderId = ref<number | null>(null);
 const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'|'CASH'>('CASH');
+const payTab = ref<'manual'|'wx'>('manual');
+const wxAuthCode = ref('');
+const wxPayLoading = ref(false);
 function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; showPay.value = true; }
 async function doMarkPaid(){ if (!currentOrderId.value) return; await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
+
+async function doWxMicropay(){
+    if (!currentOrderId.value) return;
+    const code = wxAuthCode.value.trim();
+    if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
+    try{
+        wxPayLoading.value = true;
+        await http(`/orders/${currentOrderId.value}/pay/wx-micropay`, { method:'POST', body: { authCode: code } });
+        ElMessage.success('付款成功，已标记订单为已支付');
+        showPay.value = false;
+        wxAuthCode.value = '';
+        await fetchList();
+    }catch(e:any){
+        ElMessage.error(String(e?.message||e||'付款失败'));
+    }finally{
+        wxPayLoading.value = false;
+    }
+}
 
 const showRefund = ref(false);
 const refundReason = ref('');

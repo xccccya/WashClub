@@ -356,6 +356,7 @@ enum PayMethod {
   SHOUQIANBA
   OFFLINE
   WECHAT_JSAPI
+  WECHAT_MICROPAY
 }
 
 // 履约与评价状态（方案B新增）
