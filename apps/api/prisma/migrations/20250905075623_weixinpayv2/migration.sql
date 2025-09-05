@@ -1,86 +1,86 @@
 -- DropIndex
-DROP INDEX `AfterSalesRequest_auditUserId_fkey` ON `aftersalesrequest`;
+DROP INDEX `AfterSalesRequest_auditUserId_fkey` ON `AfterSalesRequest`;
 
 -- DropIndex
-DROP INDEX `Coupon_groupId_fkey` ON `coupon`;
+DROP INDEX `Coupon_groupId_fkey` ON `Coupon`;
 
 -- DropIndex
-DROP INDEX `CouponFlowLog_memberCouponId_fkey` ON `couponflowlog`;
+DROP INDEX `CouponFlowLog_memberCouponId_fkey` ON `CouponFlowLog`;
 
 -- DropIndex
-DROP INDEX `CouponFlowLog_operatorUserId_fkey` ON `couponflowlog`;
+DROP INDEX `CouponFlowLog_operatorUserId_fkey` ON `CouponFlowLog`;
 
 -- DropIndex
-DROP INDEX `InventoryLog_operatorUserId_fkey` ON `inventorylog`;
+DROP INDEX `InventoryLog_operatorUserId_fkey` ON `InventoryLog`;
 
 -- DropIndex
-DROP INDEX `Member_categoryId_fkey` ON `member`;
+DROP INDEX `Member_categoryId_fkey` ON `Member`;
 
 -- DropIndex
-DROP INDEX `Member_levelId_fkey` ON `member`;
+DROP INDEX `Member_levelId_fkey` ON `Member`;
 
 -- DropIndex
-DROP INDEX `MemberCartItem_productId_fkey` ON `membercartitem`;
+DROP INDEX `MemberCartItem_productId_fkey` ON `MemberCartItem`;
 
 -- DropIndex
-DROP INDEX `MemberCartItem_skuId_fkey` ON `membercartitem`;
+DROP INDEX `MemberCartItem_skuId_fkey` ON `MemberCartItem`;
 
 -- DropIndex
-DROP INDEX `MemberCoupon_orderId_fkey` ON `membercoupon`;
+DROP INDEX `MemberCoupon_orderId_fkey` ON `MemberCoupon`;
 
 -- DropIndex
-DROP INDEX `MemberFavoriteProduct_productId_fkey` ON `memberfavoriteproduct`;
+DROP INDEX `MemberFavoriteProduct_productId_fkey` ON `MemberFavoriteProduct`;
 
 -- DropIndex
-DROP INDEX `Order_vehicleId_fkey` ON `order`;
+DROP INDEX `Order_vehicleId_fkey` ON `Order`;
 
 -- DropIndex
-DROP INDEX `OrderReview_replyUserId_fkey` ON `orderreview`;
+DROP INDEX `OrderReview_replyUserId_fkey` ON `OrderReview`;
 
 -- DropIndex
-DROP INDEX `OrderTimeline_operatorUserId_fkey` ON `ordertimeline`;
+DROP INDEX `OrderTimeline_operatorUserId_fkey` ON `OrderTimeline`;
 
 -- DropIndex
-DROP INDEX `Product_categoryId_fkey` ON `product`;
+DROP INDEX `Product_categoryId_fkey` ON `Product`;
 
 -- DropIndex
-DROP INDEX `Product_couponId_fkey` ON `product`;
+DROP INDEX `Product_couponId_fkey` ON `Product`;
 
 -- DropIndex
-DROP INDEX `RefundRecord_operatorUserId_fkey` ON `refundrecord`;
+DROP INDEX `RefundRecord_operatorUserId_fkey` ON `RefundRecord`;
 
 -- DropIndex
-DROP INDEX `ServiceQueueItem_vehicleId_fkey` ON `servicequeueitem`;
+DROP INDEX `ServiceQueueItem_vehicleId_fkey` ON `ServiceQueueItem`;
 
 -- DropIndex
-DROP INDEX `User_roleId_fkey` ON `user`;
+DROP INDEX `User_roleId_fkey` ON `User`;
 
 -- DropIndex
-DROP INDEX `Vehicle_memberId_fkey` ON `vehicle`;
+DROP INDEX `Vehicle_memberId_fkey` ON `Vehicle`;
 
 -- DropIndex
-DROP INDEX `WashCard_ownerMemberId_fkey` ON `washcard`;
+DROP INDEX `WashCard_ownerMemberId_fkey` ON `WashCard`;
 
 -- DropIndex
-DROP INDEX `WashCardLog_cardId_fkey` ON `washcardlog`;
+DROP INDEX `WashCardLog_cardId_fkey` ON `WashCardLog`;
 
 -- DropIndex
-DROP INDEX `WashCardLog_memberId_fkey` ON `washcardlog`;
+DROP INDEX `WashCardLog_memberId_fkey` ON `WashCardLog`;
 
 -- DropIndex
-DROP INDEX `WashCardLog_operatorUserId_fkey` ON `washcardlog`;
+DROP INDEX `WashCardLog_operatorUserId_fkey` ON `WashCardLog`;
 
 -- DropIndex
-DROP INDEX `WashCardLog_vehicleId_fkey` ON `washcardlog`;
+DROP INDEX `WashCardLog_vehicleId_fkey` ON `WashCardLog`;
 
 -- DropIndex
-DROP INDEX `WashCardShare_memberId_fkey` ON `washcardshare`;
+DROP INDEX `WashCardShare_memberId_fkey` ON `WashCardShare`;
 
 -- AlterTable
-ALTER TABLE `order` MODIFY `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL;
+ALTER TABLE `Order` MODIFY `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL;
 
 -- AlterTable
-ALTER TABLE `refundrecord` MODIFY `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL;
+ALTER TABLE `RefundRecord` MODIFY `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL;
 
 -- AddForeignKey
 ALTER TABLE `User` ADD CONSTRAINT `User_roleId_fkey` FOREIGN KEY (`roleId`) REFERENCES `AdminRole`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
