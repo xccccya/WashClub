@@ -330,15 +330,19 @@ export class OrderController {
         return await (this.orders as any).shipExchangeForAfterSales(id, operatorUserId, body);
     }
 
-    // 微信退款：供后台审核通过后调用或自动化
-    @Post(':id/refund/wechat')
+    // 微信退款：统一入口（JSAPI 走 v3，付款码走 v2）。供后台审核通过后调用或人工触发
+    @Post(':id/refund')
     @UseGuards(AdminGuard)
     @RequirePerm('orders')
     async wechatRefund(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string; amount?: number }, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
         const order: any = await this.orders.getOrder(id);
-        if (!order || order.payStatus !== 'PAID' || order.payMethod !== 'WECHAT_JSAPI') throw new BadRequestException('仅支持微信JSAPI已支付订单退款');
+        if (!order || order.payStatus !== 'PAID') throw new BadRequestException('仅已支付订单可退款');
+        if (order.payMethod !== 'WECHAT_JSAPI'){
+            // 非 JSAPI：走通用退款逻辑（内部或 v2 付款码）
+            return await (this as any).refund(id, body, authHeader);
+        }
         const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund';
         const outRefundNo = `R_${order.no}_${Date.now()}`;
         const amountFen = Math.round(Number(order.payAmount) * 100);

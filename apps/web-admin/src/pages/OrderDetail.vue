@@ -60,7 +60,7 @@
 				<div class="card-header" style="display:flex;align-items:center;gap:12px;">
 					<span>退款记录</span>
 					<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowRetryRefund" size="small" type="primary" @click="openRetryRefund">重试渠道退款</el-button>
-					<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowPartialRefund" size="small" @click="openPartialRefund">部分退款</el-button>
+					<el-button v-if="(data?.payMethod==='WECHAT_JSAPI' || data?.payMethod==='WECHAT_MICROPAY') && canShowPartialRefund" size="small" @click="openPartialRefund">部分退款</el-button>
 				</div>
 			</template>
 			<el-table :data="(data as any).refundRecords" size="small" border>
@@ -292,7 +292,7 @@ async function submitPartialRefund(){
     if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
     if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
     try{
-        await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } });
+        await http(`/orders/${data.value?.id}/refund`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } });
         dialogPartial.value = false; fetchDetail();
     }catch{}
 }

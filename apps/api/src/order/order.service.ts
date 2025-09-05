@@ -4,10 +4,11 @@ import { PrismaService } from '../prisma.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 
 import { WechatShippingService } from './wechat-shipping.service.js';
+import { WxpayService } from './wxpay.service.js';
 
 @Injectable()
 export class OrderService {
-    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService, private readonly wxship?: WechatShippingService) {}
+    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService, private readonly wxpay: WxpayService, private readonly wxship?: WechatShippingService) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }){
         try{
@@ -1101,11 +1102,8 @@ export class OrderService {
                     await this.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_MICROPAY' as any, reasonCode: 'WECHAT', reasonText: '售后退款', outRefundNo, status: 'PENDING' as any });
                     const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund-v2';
                     try{
-                        const wx = (this as any).wxpay as any;
-                        if (wx && typeof wx.createRefundV2==='function'){
-                            await wx.createRefundV2({ outTradeNo: order.no, outRefundNo, totalFeeFen: amountFen, refundFeeFen: refundFen, refundDesc: '售后退款', notifyUrl });
-                            await this.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, null, null);
-                        }
+                        await this.wxpay.createRefundV2({ outTradeNo: order.no, outRefundNo, totalFeeFen: amountFen, refundFeeFen: refundFen, refundDesc: '售后退款', notifyUrl });
+                        await this.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, null, null);
                     }catch(e:any){ await this.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, String(e?.message||e||'FAIL')); }
                     // 审核通过但等待渠道回调/查询，不立即完结售后
                     return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });

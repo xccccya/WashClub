@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as dns from 'node:dns';
+import * as express from 'express';
 
 async function bootstrap() {
 	// 优先使用 IPv4，避免部分环境 IPv6 连接失败导致 fetch 错误
@@ -14,6 +15,9 @@ async function bootstrap() {
 	// 统一 Node 进程时区，影响 dayjs/date-fns 等默认时区行为
 	if (!process.env.TZ) process.env.TZ = 'Asia/Shanghai';
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+	// 微信支付 v2 退款通知（XML）：为特定路由启用 text 解析，确保能读取原始 XML
+	app.use('/orders/_notify/wechat-refund-v2', express.text({ type: '*/*' }));
 
 	const config = new DocumentBuilder()
 		.setTitle('Wash Club API')

@@ -175,7 +175,7 @@
 
 		<el-dialog v-model="showRefund" title="退款确认" width="520px">
 			<el-form label-width="96px">
-				<template v-if="currentOrder && currentOrder.payMethod==='WECHAT_JSAPI'">
+				<template v-if="currentOrder && (currentOrder.payMethod==='WECHAT_JSAPI' || currentOrder.payMethod==='WECHAT_MICROPAY')">
 					<el-form-item label="退款方式">
 						<el-radio-group v-model="refundMode">
 							<el-radio label="FULL" :disabled="hasPartialRefund">全额退款</el-radio>
@@ -539,7 +539,7 @@ async function openRefund(row:any){
 async function doRefund(){
     if (!currentOrderId.value) return;
     const row = currentOrder.value;
-    if (row?.payMethod === 'WECHAT_JSAPI'){
+    if (row?.payMethod === 'WECHAT_JSAPI' || row?.payMethod === 'WECHAT_MICROPAY'){
         let amount: number | undefined = undefined;
         if (refundMode.value === 'FULL'){
             if (hasPartialRefund.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); return; }
@@ -552,7 +552,7 @@ async function doRefund(){
             if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
             amount = v;
         }
-        const resAny: any = await http(`/orders/${currentOrderId.value}/refund/wechat`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
+        const resAny: any = await http(`/orders/${currentOrderId.value}/refund`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
         if (resAny && resAny.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error((resAny && resAny.error) || '退款申请失败'); }
     } else {
         // 非微信渠道：仅支持一次性内部退款
