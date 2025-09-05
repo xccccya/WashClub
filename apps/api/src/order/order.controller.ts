@@ -236,8 +236,8 @@ export class OrderController {
                 return { ok: false, outRefundNo, error: msg } as any;
             }
         }
-        // 若订单为线下方式但备注/时间线显示使用微信付款码（或存在 wechatTransactionId），则尝试走 v2 退款
-        if ((order.payMethod === 'WECHAT_MICROPAY' || order.wechatTransactionId || String(order.remark||'').includes('WECHAT_MICROPAY') || (Array.isArray((order as any).timelines) && (order as any).timelines.some((t:any)=> t.value==='WECHAT_MICROPAY')))){
+        // 付款码支付订单（或识别为付款码支付）的退款：走 v2
+        if ((order.payMethod === 'WECHAT_MICROPAY' || (!order.payMethod && order.wechatTransactionId) || String(order.remark||'').includes('WECHAT_MICROPAY') || (Array.isArray((order as any).timelines) && (order as any).timelines.some((t:any)=> t.value==='WECHAT_MICROPAY')))){
             const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund-v2';
             const outRefundNo = `R_${order.no}_${Date.now()}`;
             const amountFen = Math.round(Number(order.payAmount) * 100);
@@ -253,7 +253,7 @@ export class OrderController {
             if (refundFen <= 0) throw new BadRequestException('累计退款金额已达上限');
             const allowed = await this.orders.verifyRefundAllowed(order.id, refundFen / 100);
             if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已部分使用，无法全额退款');
-            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'OFFLINE' as any, reasonCode: 'WECHAT_MICROPAY', reasonText: body?.reason || null, outRefundNo, status: 'PENDING' as any });
+            await this.orders.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_MICROPAY' as any, reasonCode: 'WECHAT_MICROPAY', reasonText: body?.reason || null, outRefundNo, status: 'PENDING' as any });
             try{
                 const resp = await this.wxpay.createRefundV2({ outTradeNo: order.no, outRefundNo, totalFeeFen: amountFen, refundFeeFen: refundFen, refundDesc: body?.reason, notifyUrl });
                 // v2 同步返回不代表最终态，按需查询；此处标记 PROCESSING 交由人工/定时任务查询
@@ -308,10 +308,10 @@ export class OrderController {
     @Post('_after-sales/:id/audit')
     @UseGuards(AdminGuard)
     @RequirePerm('after-sales')
-    async auditAfterSales(@Param('id', ParseIntPipe) id: number, @Body() body: { approve: boolean; remark?: string }, @Headers('authorization') authHeader?: string) {
+    async auditAfterSales(@Param('id', ParseIntPipe) id: number, @Body() body: { approve: boolean; remark?: string; amount?: number }, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
-        const result:any = await this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId);
+        const result:any = await this.orders.auditAfterSales(id, !!body.approve, body?.remark, operatorUserId, body?.amount);
         // 审核通过后不自动发起退款，由前端确认卡片决定是否调用退款接口（仅退款类型才允许触发退款流程）
         return result;
     }

@@ -95,7 +95,7 @@ export class OrderService {
             return updated;
         }
         // 非全额：部分退款累计并记录时间线
-        await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: new Prisma.Decimal(nextRefundedYuan as any), remark: `${order.remark ? order.remark + '；' : ''}部分退款¥${amountYuan.toFixed(2)}` } });
+        await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: new Prisma.Decimal(nextRefundedYuan as any) } });
         await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
         return order;
     }
@@ -758,7 +758,8 @@ export class OrderService {
         if (order.payStatus !== 'PAID') throw new Error('仅已支付订单可退款');
         // 创建/补充 RefundRecord（内部退款，默认全额，部分退款调用方应传渠道接口）
         try{
-            if ((order.payMethod as any) !== 'WECHAT_JSAPI'){
+            const pm = String(order.payMethod||'').toUpperCase();
+            if (pm !== 'WECHAT_JSAPI' && pm !== 'WECHAT_MICROPAY'){
                 await this.createRefundRecord({ orderId: id, memberId: order.memberId, amount: order.payAmount as any, method: order.payMethod ?? null, reasonCode: 'INTERNAL', reasonText: reason || null, status: 'SUCCESS' as any });
             }
         }catch{}
@@ -1062,7 +1063,7 @@ export class OrderService {
         return this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
     }
 
-    async auditAfterSales(id: number, approve: boolean, auditRemark?: string | null, auditUserId?: number | null) {
+    async auditAfterSales(id: number, approve: boolean, auditRemark?: string | null, auditUserId?: number | null, requestedAmountOverride?: number | null) {
         const req = await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true } });
         if (!req) throw new Error('售后申请不存在');
         const nextStatus: AfterSalesStatus = approve ? 'APPROVED' : 'REJECTED';
@@ -1077,16 +1078,43 @@ export class OrderService {
         // 审核通过后的联动处理
         if (req.type === 'REFUND') {
             if (req.order?.payStatus === 'PAID') {
-                if ((req.order as any)?.payMethod === 'WECHAT_JSAPI') {
+                const pm = String((req.order as any)?.payMethod||'').toUpperCase();
+                if (pm === 'WECHAT_JSAPI') {
                     // JSAPI 渠道退款：标记审核通过，等待渠道回调（由回调完成售后与订单状态）
                     return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });
-                } else {
-                    // 非微信渠道：内部退款并回收权益
-                    await this.finalizeInternalRefund(req.orderId, '售后退款', auditUserId ?? null);
-                    await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
-                    await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: req.type, operatorUserId: auditUserId ?? null });
-                    return await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
                 }
+                if (pm === 'WECHAT_MICROPAY'){
+                    // 付款码支付：发起 v2 渠道退款，等待通知/查询回写
+                    const order = req.order as any;
+                    const amountFen = Math.round(Number(order.payAmount) * 100);
+                    const requestedFen = Math.round(Number((requestedAmountOverride != null ? requestedAmountOverride : req.requestedAmount) ?? order.payAmount) * 100);
+                    const isFullRequest = req.requestedAmount == null || Math.abs(Number(req.requestedAmount) - Number(order.payAmount)) < 0.000001;
+                    const existing:any = await this.getOrder(order.id);
+                    const successSumFen = Math.round(((existing?.refundRecords||[]).filter((r:any)=>r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0)) * 100);
+                    const refundableFen = Math.max(0, amountFen - successSumFen);
+                    const refundFen = Math.min(requestedFen, refundableFen);
+                    if (isFullRequest && successSumFen > 0) throw new Error('已发生部分退款，不能再使用全额退款');
+                    if (refundFen <= 0) throw new Error('累计退款金额已达上限');
+                    const allowed = await this.verifyRefundAllowed(order.id, refundFen / 100);
+                    if (!allowed) throw new Error('退款校验未通过：关联权益已部分使用');
+                    const outRefundNo = `R_${order.no}_${Date.now()}`;
+                    await this.createRefundRecord({ orderId: order.id, memberId: order.memberId, amount: (refundFen/100), method: 'WECHAT_MICROPAY' as any, reasonCode: 'WECHAT', reasonText: '售后退款', outRefundNo, status: 'PENDING' as any });
+                    const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat-refund-v2';
+                    try{
+                        const wx = (this as any).wxpay as any;
+                        if (wx && typeof wx.createRefundV2==='function'){
+                            await wx.createRefundV2({ outTradeNo: order.no, outRefundNo, totalFeeFen: amountFen, refundFeeFen: refundFen, refundDesc: '售后退款', notifyUrl });
+                            await this.updateRefundStatusByOutRefundNo(outRefundNo, 'PROCESSING' as any, null, null);
+                        }
+                    }catch(e:any){ await this.updateRefundStatusByOutRefundNo(outRefundNo, 'FAILED' as any, null, String(e?.message||e||'FAIL')); }
+                    // 审核通过但等待渠道回调/查询，不立即完结售后
+                    return await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'APPROVED' as any } });
+                }
+                // 其它渠道：内部退款并回收权益
+                await this.finalizeInternalRefund(req.orderId, '售后退款', auditUserId ?? null);
+                await this.prisma.afterSalesRequest.update({ where: { id }, data: { status: 'COMPLETED' as any, completedAt: new Date() } });
+                await this.writeTimeline({ orderId: req.orderId, event: 'AFTERSALES', value: 'COMPLETED', remark: req.type, operatorUserId: auditUserId ?? null });
+                return await this.prisma.afterSalesRequest.findUnique({ where: { id }, include: { order: true, member: true, auditUser: true } });
             } else {
                 // 未支付：等同取消
                 await this.cancelOrder(req.orderId, '售后取消（未支付）', auditUserId ?? null);
