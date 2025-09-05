@@ -208,6 +208,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
+import { ElMessage } from 'element-plus';
 
 const route = useRoute();
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
@@ -262,10 +263,10 @@ const refundableLeft = computed(()=>{
 function openPartialRefund(){ partialAmountText.value = ''; partialReason.value = ''; dialogPartial.value = true; }
 async function submitPartialRefund(){
     const raw = (partialAmountText.value||'').trim().replace(',', '.');
-    if (!/^\d+(\.\d{1,2})?$/.test(raw)) { (window as any).ElMessage?.error?.('金额格式不正确，最多保留2位小数'); return; }
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); return; }
     const v = Number(raw);
-    if (!isFinite(v) || v < 0.01){ (window as any).ElMessage?.error?.('部分退款金额至少为0.01'); return; }
-    if (v > refundableLeft.value + 1e-6){ (window as any).ElMessage?.error?.('超出剩余可退金额'); return; }
+    if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
+    if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
     try{
         await http(`/orders/${data.value?.id}/refund/wechat`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } });
         dialogPartial.value = false; fetchDetail();

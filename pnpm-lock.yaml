@@ -237,10 +237,10 @@ importers:
         version: 3.25.76
 
   packages/shared-ui:
-    dependencies:
+    devDependencies:
       element-plus:
-        specifier: ^2.7.6
-        version: 2.10.7(vue@3.5.18(typescript@5.9.2))
+        specifier: ^2.11.1
+        version: 2.11.1(vue@3.5.18(typescript@5.9.2))
       vue:
         specifier: ^3.4.31
         version: 3.5.18(typescript@5.9.2)

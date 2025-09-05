@@ -15,7 +15,7 @@
 				</el-sub-menu>
 				<el-sub-menu index="/vehicles">
 					<template #title><el-icon style="margin-right:6px;"><Van /></el-icon>车辆管理</template>
-					<el-menu-item v-if="can('member-vehicles')" index="/member-vehicles"><el-icon style="margin-right:6px;"><Truck /></el-icon>会员车辆</el-menu-item>
+					<el-menu-item v-if="can('member-vehicles')" index="/member-vehicles"><el-icon style="margin-right:6px;"><Van /></el-icon>会员车辆</el-menu-item>
 					<el-menu-item v-if="can('service-queue')" index="/service-queue"><el-icon style="margin-right:6px;"><Timer /></el-icon>服务队列</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/content">

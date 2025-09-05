@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "dependencies": {
+  "peerDependencies": {
+    "vue": ">=3.3.0",
+    "element-plus": ">=2.11.1"
+  },
+  "devDependencies": {
     "vue": "^3.4.31",
-    "element-plus": "^2.7.6"
+    "element-plus": "^2.11.1"
   }
 }
 

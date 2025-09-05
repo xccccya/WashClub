@@ -93,20 +93,38 @@
 			<el-table-column label="操作" width="400" fixed="right">
 				<template #default="{ row }">
 					<el-tooltip content="查看">
-						<el-button text class="icon-btn" title="查看" @click="open(row.id)"><img class="icon" :src="SeeIcon" /></el-button>
+						<el-button text class="icon-btn" title="查看" @click="open(row.id)">
+							<el-icon><View /></el-icon>
+						</el-button>
 					</el-tooltip>
-					<el-button v-if="row.payStatus==='UNPAID' && !row.deletedAt" size="small" type="success" @click="openPay(row)">标记支付</el-button>
-					<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="small" type="warning" @click="openRefund(row)">退款</el-button>
+					<el-button v-if="row.payStatus==='UNPAID' && !row.deletedAt" size="small" type="success" @click="openPay(row)">
+						<el-icon style="margin-right:4px;"><Wallet /></el-icon>标记支付
+					</el-button>
+					<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="small" type="warning" @click="openRefund(row)">
+						<el-icon style="margin-right:4px;"><Money /></el-icon>退款
+					</el-button>
 					<!-- 商品履约：发货/收货 -->
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">发货</el-button>
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">确认收货</el-button>
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && row.payMethod==='WECHAT_JSAPI' && !row.deletedAt" size="small" @click="openEditTracking(row)">修改物流单号</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">
+						<el-icon style="margin-right:4px;"><Promotion /></el-icon>发货
+					</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">
+						<el-icon style="margin-right:4px;"><Finished /></el-icon>确认收货
+					</el-button>
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && row.payMethod==='WECHAT_JSAPI' && !row.deletedAt" size="small" @click="openEditTracking(row)">
+						<el-icon style="margin-right:4px;"><EditPen /></el-icon>修改物流单号
+					</el-button>
 					<!-- 服务履约：开始/结束 -->
-					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">开始服务</el-button>
-					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">结束服务{{ row.payMethod==='WECHAT_JSAPI' ? '（上报小程序）' : '' }}</el-button>
+					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="primary" @click="startService(row.id)">
+						<el-icon style="margin-right:4px;"><Timer /></el-icon>开始服务
+					</el-button>
+					<el-button v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" size="small" type="success" @click="finishService(row.id)">
+						<el-icon style="margin-right:4px;"><SuccessFilled /></el-icon>结束服务{{ row.payMethod==='WECHAT_JSAPI' ? '（上报小程序）' : '' }}
+					</el-button>
 					<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)">
 						<template #reference>
-							<el-button text class="icon-btn danger" title="删除"><img class="icon" :src="DeleteIcon" /></el-button>
+							<el-button text class="icon-btn danger" title="删除">
+								<el-icon><Delete /></el-icon>
+							</el-button>
 						</template>
 					</el-popconfirm>
 					<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="small" type="warning">恢复</el-button></template></el-popconfirm>
@@ -211,8 +229,7 @@ import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
-import SeeIcon from '../static/icons/see.png';
-import DeleteIcon from '../static/icons/delete.png';
+// 替换为 Element Plus 内置图标（已在 main.ts 全局注册）
 
 const router = useRouter();
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
