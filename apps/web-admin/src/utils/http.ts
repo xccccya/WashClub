@@ -4,6 +4,7 @@ import { API_BASE } from '../config';
 export const http = createHttpClient({
 	baseUrl: API_BASE,
 	getToken: () => localStorage.getItem('token') || undefined,
+	onUnauthorized: () => { try { (window as any).__HAS_SHOWN_401__ = true; } catch {} },
 });
 
 export async function httpWrap<T>(url: string, options: any = {}): Promise<T> {
@@ -14,7 +15,16 @@ export async function httpWrap<T>(url: string, options: any = {}): Promise<T> {
 		if (exp && Date.now()/1000 > exp - 10) {
 			localStorage.removeItem('token');
 			localStorage.removeItem('user');
-			if (typeof window !== 'undefined') { window.location.href = '/login'; }
+			if (typeof window !== 'undefined') {
+				try {
+					if (!(window as any).__HAS_SHOWN_401__) {
+						(window as any).__HAS_SHOWN_401__ = true;
+						const { ElMessage } = await import('element-plus');
+						ElMessage.error('登录已过期，请重新登录');
+					}
+				} catch {}
+				window.location.href = '/login';
+			}
 			throw new Error('登录已过期');
 		}
 	}catch{}
@@ -24,7 +34,16 @@ export async function httpWrap<T>(url: string, options: any = {}): Promise<T> {
 		const msg = String(e?.message||'');
 		if (/^HTTP\s*401/.test(msg) || /unauthorized/i.test(msg)){
 			try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch {}
-			if (typeof window !== 'undefined') { window.location.href = '/login'; }
+			if (typeof window !== 'undefined') {
+				try {
+					if (!(window as any).__HAS_SHOWN_401__) {
+						(window as any).__HAS_SHOWN_401__ = true;
+						const { ElMessage } = await import('element-plus');
+						ElMessage.error('登录已过期，请重新登录');
+					}
+				} catch {}
+				window.location.href = '/login';
+			}
 		}
 		throw e;
 	}

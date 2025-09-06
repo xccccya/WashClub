@@ -50,12 +50,14 @@ function openCreate(){ form.value = { id: 0, name: '', enabled: true, weight: 0,
 function openEdit(row:any){ form.value = { id: row.id, name: row.name, enabled: row.enabled, weight: row.weight, description: row.description||'' }; show.value = true; }
 
 async function save(){
-	if (!form.value.name) { ElMessage.error('请输入名称'); return; }
-	if (form.value.id) await http(`/coupon/groups/${form.value.id}`, { method:'PUT', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
-	else await http('/coupon/groups', { method:'POST', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
-	show.value = false; ElMessage.success('已保存'); await fetchList();
+	try{
+		if (!form.value.name) { ElMessage.error('请输入名称'); return; }
+		if (form.value.id) await http(`/coupon/groups/${form.value.id}`, { method:'PUT', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
+		else await http('/coupon/groups', { method:'POST', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
+		show.value = false; ElMessage.success('已保存'); await fetchList();
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
-async function remove(id:number){ await http(`/coupon/groups/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); }
+async function remove(id:number){ try { await http(`/coupon/groups/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 </script>

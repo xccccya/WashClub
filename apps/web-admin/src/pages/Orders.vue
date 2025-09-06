@@ -300,8 +300,14 @@ async function fetchList(){
 }
 function open(id:number){ router.push(`/orders/${id}`); }
 function openByNo(no:string){ router.push(`/orders/no/${encodeURIComponent(no)}`); }
-async function close(id:number){ await http(`/orders/${id}/close`, { method:'POST' }); ElMessage.success('已关闭'); await fetchList(); }
-async function restore(id:number){ await http(`/orders/${id}/restore`, { method:'POST' }); ElMessage.success('已恢复'); await fetchList(); }
+async function close(id:number){
+    try { await http(`/orders/${id}/close`, { method:'POST' }); ElMessage.success('已关闭'); await fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'关闭失败')); }
+}
+async function restore(id:number){
+    try { await http(`/orders/${id}/restore`, { method:'POST' }); ElMessage.success('已恢复'); await fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'恢复失败')); }
+}
 
 // 履约操作
 // 发货弹窗与逻辑
@@ -386,8 +392,8 @@ async function doShip(){
     if (!shipOrderId.value) return;
     const row = list.value.find(x=> x.id===shipOrderId.value);
     if (shipMode.value === 'noExpress'){
-        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{ noExpress: true } });
-        ElMessage.success('已标记为无需快递发货');
+        try { await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body:{ noExpress: true } }); ElMessage.success('已标记为无需快递发货'); }
+        catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); return; }
     } else {
         if (!selectedCompany.value || !trackingNo.value.trim()) { ElMessage.error('请选择快递公司并填写快递单号'); return; }
         const body:any = {
@@ -403,15 +409,15 @@ async function doShip(){
             body.contactReceiverPhoneMasked = contactReceiverMasked.value || undefined;
         }
         // 非微信支付订单：仅内部发货，不提示“已接入”
-        await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body });
-        ElMessage.success('已提交发货信息');
+        try { await http(`/orders/${shipOrderId.value}/ship`, { method:'POST', body }); ElMessage.success('已提交发货信息'); }
+        catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); return; }
     }
     showShipDialog.value = false;
     await fetchList();
 }
-async function receive(id:number){ await http(`/orders/${id}/receive`, { method:'POST' }); ElMessage.success('已收货'); await fetchList(); }
-async function startService(id:number){ await http(`/orders/${id}/start-service`, { method:'POST' }); ElMessage.success('已开始服务'); await fetchList(); }
-async function finishService(id:number){ await http(`/orders/${id}/finish-service`, { method:'POST' }); ElMessage.success('已结束服务'); await fetchList(); }
+async function receive(id:number){ try { await http(`/orders/${id}/receive`, { method:'POST' }); ElMessage.success('已收货'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function startService(id:number){ try { await http(`/orders/${id}/start-service`, { method:'POST' }); ElMessage.success('已开始服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function finishService(id:number){ try { await http(`/orders/${id}/finish-service`, { method:'POST' }); ElMessage.success('已结束服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 const showPay = ref(false);
 const currentOrderId = ref<number | null>(null);
@@ -425,7 +431,11 @@ const canvasRef = ref<HTMLCanvasElement|null>(null);
 let mediaStream: MediaStream | null = null;
 let scanTimer: any = null;
 function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; showPay.value = true; }
-async function doMarkPaid(){ if (!currentOrderId.value) return; await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
+async function doMarkPaid(){
+    if (!currentOrderId.value) return;
+    try { await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); }
+}
 
 async function doWxMicropay(){
     if (!currentOrderId.value) return;

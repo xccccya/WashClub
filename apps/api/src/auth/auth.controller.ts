@@ -5,12 +5,12 @@ import { IsNotEmpty, IsString, MinLength, IsInt, IsIn, IsOptional } from 'class-
 import { Type } from 'class-transformer';
 
 class LoginDto {
-	@IsString()
-	@IsNotEmpty()
+	@IsString({ message: '请输入手机号' })
+	@IsNotEmpty({ message: '请输入手机号' })
 	phone!: string;
 
-	@IsString()
-	@MinLength(6)
+	@IsString({ message: '请输入密码' })
+	@MinLength(6, { message: '密码至少6位' })
 	password!: string;
 }
 

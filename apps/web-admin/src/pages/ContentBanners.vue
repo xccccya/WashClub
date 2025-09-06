@@ -113,7 +113,10 @@ async function toggleEnable(row: Banner){
         ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '最多可同时启用3条横幅');
     }
 }
-async function remove(row: Banner){ await http(`/content/banners/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+async function remove(row: Banner){
+    try { await http(`/content/banners/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); }
+}
 
 async function uploadImage(options: any){
     const file = options?.file as File;

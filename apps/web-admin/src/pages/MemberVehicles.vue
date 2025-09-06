@@ -362,11 +362,13 @@ async function onSave(){
         } else {
             await http(`/vehicle/guest/create`, { method: 'POST', body: payload });
         }
-        dialogVisible.value = false; fetchList();
+        dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
+    } catch (e:any) {
+        ElMessage.error(String(e?.message||e||'保存失败'));
     } finally { saving.value = false; }
 }
 
-async function onDeleteConfirm(){ if (!delId.value) return; await http(`/vehicle/${delId.value}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); }
+async function onDeleteConfirm(){ if (!delId.value) return; try { await http(`/vehicle/${delId.value}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 async function fetchMemberOptions(){
     try {

@@ -178,10 +178,11 @@ export class AuthService {
 
 	// 管理后台用户登录（保留）
 	async loginAdminByPassword(phone: string, password: string) {
+		const invalidMsg = '账号或密码错误，请检查后重试';
 		const user = await this.prisma.user.findUnique({ where: { phone }, include: { roleRef: true } });
-		if (!user) throw new UnauthorizedException('账户不存在');
+		if (!user) throw new UnauthorizedException(invalidMsg);
 		const hashed = this.hashPassword(password);
-		if (user.password !== hashed) throw new UnauthorizedException('密码错误');
+		if (user.password !== hashed) throw new UnauthorizedException(invalidMsg);
 		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
 		const permissions = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
 		const expiresIn = '1d';

@@ -82,12 +82,14 @@ function openCreate(){ current.value = null; form.value = { name: '' }; dialogVi
 function openEdit(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可编辑'); return; } current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function onSave(){
-	if (current.value?.id) await http(`/member-tag/${current.value.id}`, { method: 'PUT', body: form.value });
-	else await http('/member-tag', { method: 'POST', body: form.value });
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchTags();
+	try{
+		if (current.value?.id) await http(`/member-tag/${current.value.id}`, { method: 'PUT', body: form.value });
+		else await http('/member-tag', { method: 'POST', body: form.value });
+		dialogVisible.value = false; ElMessage.success('已保存'); fetchTags();
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可删除'); return; } await http(`/member-tag/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchTags(); }
+async function remove(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可删除'); return; } try { await http(`/member-tag/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchTags(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 // 查看详情（双击标签名称列）
 async function openDetail(row: Tag){

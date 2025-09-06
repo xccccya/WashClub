@@ -87,8 +87,18 @@ async function fetchList(){
     list.value = Array.isArray(res) ? res : [];
 }
 function openReply(row: any){ currentId = row?.id || null; replyText.value = row?.replyContent || ''; dialogReply.value = true; }
-async function submitReply(){ if(!currentId) return; await http(`/orders/_reviews/${currentId}/reply`, { method:'POST', body: { content: replyText.value } }); dialogReply.value = false; ElMessage.success('已回复'); fetchList(); }
-async function del(row: any){ if(!row?.id) return; const ok = await ElMessageBox.confirm('确定删除该评价吗？','提示').then(()=>true).catch(()=>false); if(!ok) return; await http(`/orders/_reviews/${row.id}/delete`, { method:'POST' }); ElMessage.success('已删除'); fetchList(); }
+async function submitReply(){
+    if(!currentId) return;
+    try { await http(`/orders/_reviews/${currentId}/reply`, { method:'POST', body: { content: replyText.value } }); dialogReply.value = false; ElMessage.success('已回复'); fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); }
+}
+async function del(row: any){
+    if(!row?.id) return;
+    const ok = await ElMessageBox.confirm('确定删除该评价吗？','提示').then(()=>true).catch(()=>false);
+    if(!ok) return;
+    try { await http(`/orders/_reviews/${row.id}/delete`, { method:'POST' }); ElMessage.success('已删除'); fetchList(); }
+    catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); }
+}
 function gotoOrder(row:any){ const no = row?.order?.no; if (!no) return; router.push(`/orders/no/${encodeURIComponent(no)}`); }
 
 onMounted(fetchList);

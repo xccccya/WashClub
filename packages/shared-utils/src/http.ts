@@ -60,7 +60,7 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 						if (resp.statusCode >= 200 && resp.statusCode < 300) {
 							resolve(resp.data as T);
 						} else {
-							if (resp.statusCode === 401) { try { onUnauthorized?.(); } catch {} }
+							if (resp.statusCode === 401) { try { onUnauthorized?.(); } catch {} try { (globalThis as any).__ON_HTTP_401__?.(); } catch {} }
 							// 友好提取 message 字段
 							const raw = resp.data;
 							const msg = (raw && typeof raw === 'object' && (raw as any).message) ? String((raw as any).message) :
@@ -90,7 +90,7 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 				try {
 					const j = await res.json();
 					const raw = (j as any)?.message;
-					if (Array.isArray(raw)) messageFromJson = String(raw[0]);
+					if (Array.isArray(raw)) messageFromJson = raw.map((x: unknown) => String(x)).join('；');
 					else if (raw !== undefined && raw !== null) messageFromJson = String(raw);
 				} catch {}
 				throw new Error(messageFromJson || `HTTP ${res.status} ${res.statusText}`);

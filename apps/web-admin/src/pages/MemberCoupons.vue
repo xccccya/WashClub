@@ -80,14 +80,16 @@ const range = ref<[Date, Date] | ''>('');
 function openEdit(row:any){ editingId.value = row.id; range.value = (row.startAt && row.endAt) ? [new Date(row.startAt), new Date(row.endAt)] : '' as any; show.value = true; }
 
 async function save(){
-	if (!editingId.value) return;
-	const startAt = Array.isArray(range.value) ? range.value[0] : null;
-	const endAt = Array.isArray(range.value) ? range.value[1] : null;
-	await http(`/member-coupons/${editingId.value}/expiry`, { method: 'PUT', body: { startAt, endAt } });
-	show.value = false; ElMessage.success('已保存'); fetchList();
+	try{
+		if (!editingId.value) return;
+		const startAt = Array.isArray(range.value) ? range.value[0] : null;
+		const endAt = Array.isArray(range.value) ? range.value[1] : null;
+		await http(`/member-coupons/${editingId.value}/expiry`, { method: 'PUT', body: { startAt, endAt } });
+		show.value = false; ElMessage.success('已保存'); fetchList();
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(id:number){ await http(`/member-coupons/${id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+async function remove(id:number){ try { await http(`/member-coupons/${id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 

@@ -12,6 +12,7 @@ export type AdminMenuKey =
 	| 'service-queue'
 	| 'system-roles'
 	| 'system-admins'
+	| 'system-basic'
 	| 'member-tags'
 	| 'system-files'
 	| 'system-sms'
@@ -89,6 +90,7 @@ export class AdminRoleService {
 	// 菜单清单（供角色权限编辑选择）
 	listMenus() {
 		return [
+			{ key: 'system-basic', name: '基础设置', path: '/system/basic' },
 			{ key: 'members', name: '会员列表', path: '/members' },
 			{ key: 'member-levels', name: '会员等级', path: '/member-levels' },
 			{ key: 'member-categories', name: '会员分类', path: '/member-categories' },

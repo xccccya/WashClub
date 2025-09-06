@@ -76,16 +76,28 @@ function openCreate(){ current.value = null; form.value = { phone: '', name: '',
 function openEdit(row: Admin){ current.value = row; form.value = { id: row.id, phone: row.phone, name: row.name, roleId: row.roleId }; dialogVisible.value = true; }
 
 async function onSave(){
-	if (formRef.value) { await formRef.value.validate(); }
-	if (current.value?.id) {
-		await http(`/system/admins/${current.value.id}`, { method: 'PUT', body: { phone: form.value.phone, name: form.value.name, roleId: form.value.roleId } });
-	} else {
-		await http('/system/admins', { method: 'POST', body: { phone: form.value.phone, name: form.value.name, roleId: form.value.roleId, password: form.value.password } });
+	try {
+		if (formRef.value) { await formRef.value.validate(); }
+		if (current.value?.id) {
+			await http(`/system/admins/${current.value.id}`, { method: 'PUT', body: { phone: form.value.phone, name: form.value.name, roleId: form.value.roleId } });
+		} else {
+			await http('/system/admins', { method: 'POST', body: { phone: form.value.phone, name: form.value.name, roleId: form.value.roleId, password: form.value.password } });
+		}
+		dialogVisible.value = false; ElMessage.success('已保存'); fetchAll();
+	} catch (e:any) {
+		ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '保存失败');
 	}
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchAll();
 }
 
-async function remove(row: Admin){ await http(`/system/admins/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchAll(); }
+async function remove(row: Admin){
+	try {
+		await http(`/system/admins/${row.id}`, { method: 'DELETE' });
+		ElMessage.success('已删除');
+		fetchAll();
+	} catch (e:any) {
+		ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '删除失败');
+	}
+}
 
 onMounted(fetchAll);
 </script>

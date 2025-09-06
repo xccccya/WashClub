@@ -108,6 +108,20 @@ model AdminRole {
   users       User[]
 }
 
+// 站点基础设置（单行表，仅 id=1 使用）
+model SiteSetting {
+  id          Int      @id @default(autoincrement())
+  updatedAt   DateTime @updatedAt
+
+  // 基本信息
+  title       String   @default("WashClub 管理后台")
+  logoUrl     String?
+
+  // 背景：bing 每日壁纸 或 自定义图片
+  bgType      String   @default("bing") // bing | image
+  bgImageUrl  String?
+}
+
 model Vehicle {
   id           Int                @id @default(autoincrement())
   createdAt    DateTime           @default(now())

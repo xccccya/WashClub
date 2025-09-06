@@ -55,12 +55,14 @@ function openCreate(){ current.value = null; form.value = { name: '', weight: 0,
 function openEdit(row: Level){ current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function onSave(){
-	if (current.value?.id) await http(`/member-level/${current.value.id}`, { method: 'PUT', body: form.value });
-	else await http('/member-level', { method: 'POST', body: form.value });
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchLevels();
+	try {
+		if (current.value?.id) await http(`/member-level/${current.value.id}`, { method: 'PUT', body: form.value });
+		else await http('/member-level', { method: 'POST', body: form.value });
+		dialogVisible.value = false; ElMessage.success('已保存'); fetchLevels();
+	} catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Level){ await http(`/member-level/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchLevels(); }
+async function remove(row: Level){ try { await http(`/member-level/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchLevels(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchLevels);
 </script>

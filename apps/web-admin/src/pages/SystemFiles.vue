@@ -59,7 +59,7 @@ function formatTime(ms: number){ const d = new Date(ms); return `${d.getFullYear
 
 async function fetchList(){ files.value = await http<FileItem[]>('/file/list', { method: 'GET', query: { dir: dir.value } }); }
 function onUploaded(){ ElMessage.success('上传成功'); fetchList(); }
-async function remove(row: FileItem){ await http(`/file/${encodeURIComponent(row.path)}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+async function remove(row: FileItem){ try { await http(`/file/${encodeURIComponent(row.path)}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 watch(dir, () => { fetchList(); });

@@ -49,12 +49,14 @@ function openCreate(){ current.value = null; form.value = { name: '', weight: 0 
 function openEdit(row: Category){ current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function onSave(){
-	if (current.value?.id) await http(`/member-category/${current.value.id}`, { method: 'PUT', body: form.value });
-	else await http('/member-category', { method: 'POST', body: form.value });
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchCategories();
+	try{
+		if (current.value?.id) await http(`/member-category/${current.value.id}`, { method: 'PUT', body: form.value });
+		else await http('/member-category', { method: 'POST', body: form.value });
+		dialogVisible.value = false; ElMessage.success('已保存'); fetchCategories();
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Category){ await http(`/member-category/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchCategories(); }
+async function remove(row: Category){ try { await http(`/member-category/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchCategories(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchCategories);
 </script>

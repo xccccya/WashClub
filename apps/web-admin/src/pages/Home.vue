@@ -1,7 +1,10 @@
 <template>
 	<div class="layout">
 		<aside class="sider">
-			<div class="logo">WashClubAdmin</div>
+			<div class="sider-brand">
+				<img v-if="siteLogo" :src="absUrl(siteLogo)" class="sider-brand__logo" alt="logo" />
+				<div class="sider-brand__title" :title="siteTitle">{{ siteTitle || '管理后台' }}</div>
+			</div>
 			<el-menu :default-active="active" class="menu" @select="onSelect">
 				<el-menu-item index="/dashboard"><el-icon style="margin-right:6px;"><HomeFilled /></el-icon>系统首页</el-menu-item>
 				<el-sub-menu index="/members">
@@ -44,6 +47,7 @@
 				</el-sub-menu>
 				<el-sub-menu index="/system">
 					<template #title><el-icon style="margin-right:6px;"><Setting /></el-icon>系统设置</template>
+					<el-menu-item v-if="can('system-basic')" index="/system/basic"><el-icon style="margin-right:6px;"><Setting /></el-icon>基础设置</el-menu-item>
 					<el-menu-item v-if="can('system-roles')" index="/system/roles"><el-icon style="margin-right:6px;"><UserFilled /></el-icon>后台角色</el-menu-item>
 					<el-menu-item v-if="can('system-admins')" index="/system/admins"><el-icon style="margin-right:6px;"><User /></el-icon>后台管理员</el-menu-item>
 					<el-menu-item v-if="can('system-files')" index="/system/files"><el-icon style="margin-right:6px;"><Folder /></el-icon>文件管理</el-menu-item>
@@ -111,7 +115,7 @@
 						<el-tab-pane v-for="t in tabs" :key="t.path" :name="t.path" :label="t.title" :closable="t.path!=='/dashboard'" />
 					</el-tabs>
 				</div>
-				<router-view />
+				<router-view :key="router.currentRoute.value.fullPath" />
 			</main>
 		</section>
 	</div>
@@ -143,6 +147,7 @@ import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import themeIcon from '../static/icons/zt.png';
+import { absUrl } from '../utils/http';
 
 const presetColors = [
 	{ key:'default', color:'#409eff', label:'默认' },
@@ -171,6 +176,8 @@ const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.
 const active = ref('/dashboard');
 const tabs = ref<{ path:string; title:string }[]>([{ path:'/dashboard', title:'系统首页' }]);
 const breadcrumbList = ref<string[]>(['首页']);
+const siteTitle = ref<string>('');
+const siteLogo = ref<string>('');
 
 const nick = ref('');
 const permissions = ref<string[]>([]);
@@ -211,6 +218,7 @@ function addTabByRoute(){
 		'/coupon/member-coupons':'会员卡券',
 		'/coupon/logs':'卡券流水',
 		'/system/roles':'后台角色',
+		'/system/basic':'基础设置',
 		'/system/admins':'后台管理员',
 		'/system/files':'文件管理',
 		'/system/sms':'短信管理'
@@ -235,7 +243,7 @@ function addTabByRoute(){
 	if (path.startsWith('/after-sales')) crumbs.push('售后');
 	if (path.startsWith('/coupon/')) { crumbs.push('卡券管理'); if (path.includes('/groups')) crumbs.push('分组管理'); if (path.includes('/list')) crumbs.push('卡券列表'); if (path.includes('/member-coupons')) crumbs.push('会员卡券'); }
 	if (path.startsWith('/coupon/logs')) { crumbs.push('卡券管理'); crumbs.push('卡券流水'); }
-	if (path.startsWith('/system/')) { crumbs.push('系统设置'); if (path.includes('/roles')) crumbs.push('后台角色'); if (path.includes('/admins')) crumbs.push('后台管理员'); if (path.includes('/files')) crumbs.push('文件管理'); if (path.includes('/sms')) crumbs.push('短信管理'); }
+	if (path.startsWith('/system/')) { crumbs.push('系统设置'); if (path.includes('/basic')) crumbs.push('基础设置'); if (path.includes('/roles')) crumbs.push('后台角色'); if (path.includes('/admins')) crumbs.push('后台管理员'); if (path.includes('/files')) crumbs.push('文件管理'); if (path.includes('/sms')) crumbs.push('短信管理'); }
 	if (crumbs.length===0) crumbs.push('首页');
 	breadcrumbList.value = crumbs;
 }
@@ -260,8 +268,10 @@ function onTabClick(pane:any){
 function openEditNick(){ nickDraft.value = nick.value; showNick.value = true; }
 async function saveNick(){
 	if (!userId.value) { ElMessage.error('未获取到用户ID'); return; }
-	await http('/auth/admin/update-nickname', { method: 'POST', body: { userId: userId.value, name: nickDraft.value } });
-	nick.value = nickDraft.value; showNick.value = false; ElMessage.success('昵称已更新');
+	try{
+		await http('/auth/admin/update-nickname', { method: 'POST', body: { userId: userId.value, name: nickDraft.value } });
+		nick.value = nickDraft.value; showNick.value = false; ElMessage.success('昵称已更新');
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
 function openEditPwd(){ pwdOld.value=''; pwdNew.value=''; showPwd.value = true; }
@@ -324,6 +334,8 @@ onMounted(()=>{
 	try { const tokenPayload = JSON.parse(atob((localStorage.getItem('token')||'.').split('.')[1]||'{}')); userId.value = tokenPayload?.sub || null; } catch {};
 	try { const u = JSON.parse(localStorage.getItem('user') || '{}'); if (u && u.name) nick.value = u.name; if (u && u.permissions) permissions.value = u.permissions; } catch {}
 	addTabByRoute();
+	// 读取公共站点设置
+	http('/system/public/site-setting', { method:'GET' }).then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); }catch{} }).catch(()=>{});
 	// 初始化主题
 	try {
 		const t = localStorage.getItem('theme'); if (t==='dark'||t==='light') theme.value = t as any;
@@ -333,7 +345,7 @@ onMounted(()=>{
 	} catch {}
 });
 
-watch(()=>router.currentRoute.value.path, ()=>{
+watch(()=>router.currentRoute.value.fullPath, ()=>{
 	addTabByRoute();
 });
 </script>
@@ -341,11 +353,16 @@ watch(()=>router.currentRoute.value.path, ()=>{
 <style scoped>
 .layout { display:flex; height:100vh; }
 .sider { width: 160px; min-width:160px; flex: 0 0 160px; border-right: 1px solid #eee; padding: 12px; }
-.logo { font-weight: 700; margin: 8px 0 12px; font-size:16px; letter-spacing:0.3px; }
+.sider-brand{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin: 8px 0 12px; padding: 8px 6px; border-radius: 8px; width:100%; }
+.sider-brand__logo{ width:28px; height:28px; object-fit:cover; border-radius:6px; }
+.sider-brand__title{ font-weight:700; font-size:14px; letter-spacing:0.2px; color: var(--el-text-color-primary); max-width:100%; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .menu { border-right: none; }
 .main { flex:1; display:flex; flex-direction: column; min-width:0; }
 .topbar { height: 56px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content: space-between; padding: 0 16px; }
 .breadcrumbs :deep(.el-breadcrumb__item) { font-size: 14px; }
+.brand{ display:inline-flex; align-items:center; gap:8px; margin-right:12px; }
+.brand-logo{ width:18px; height:18px; border-radius:4px; object-fit:cover; }
+.brand-title{ font-weight:600; color: var(--el-text-color-primary); }
 .actions { display:flex; align-items:center; gap:10px; }
 .icon-btn { padding:0; width: 32px; height: 32px; display:inline-flex; align-items:center; justify-content:center; }
 .icon-btn:hover { background-color: var(--el-fill-color-light); }

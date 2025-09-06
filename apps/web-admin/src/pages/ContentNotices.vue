@@ -73,16 +73,18 @@ function openCreate(){ current.value = null; form.value = { type: 'home', conten
 function openEdit(row: Notice){ current.value = row; form.value = { id: row.id, type: row.type, content: row.content, enabled: row.enabled }; dialogVisible.value = true; }
 
 async function onSave(){
-	if (current.value?.id) {
-		await http(`/content/notices/${current.value.id}`, { method: 'PUT', body: { content: form.value.content, enabled: form.value.enabled } });
-	} else {
-		await http('/content/notices', { method: 'POST', body: { type: form.value.type, content: form.value.content, enabled: form.value.enabled } });
-	}
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
+	try{
+		if (current.value?.id) {
+			await http(`/content/notices/${current.value.id}`, { method: 'PUT', body: { content: form.value.content, enabled: form.value.enabled } });
+		} else {
+			await http('/content/notices', { method: 'POST', body: { type: form.value.type, content: form.value.content, enabled: form.value.enabled } });
+		}
+		dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function enable(row: Notice){ await http(`/content/notices/${row.id}/enable`, { method: 'POST' }); ElMessage.success('已启用'); fetchList(); }
-async function remove(row: Notice){ await http(`/content/notices/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+async function enable(row: Notice){ try { await http(`/content/notices/${row.id}/enable`, { method: 'POST' }); ElMessage.success('已启用'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function remove(row: Notice){ try { await http(`/content/notices/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 watch(filterType, fetchList);

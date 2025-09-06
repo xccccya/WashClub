@@ -260,10 +260,10 @@ async function onResetPwdSave(){
 	pwdDialog.value = false; ElMessage.success('密码已更新');
 }
 
-async function onSave() {
-	saving.value = true;
-	try {
-		if (formRef.value) { await formRef.value.validate(); }
+	async function onSave() {
+		saving.value = true;
+		try {
+			if (formRef.value) { await formRef.value.validate(); }
 		// 将新输入的标签名先创建，再转换为ID
 		const selected = Array.isArray(form.value.tagIds) ? [...form.value.tagIds] : [];
 		const tagIdsNumeric: number[] = [];
@@ -280,17 +280,20 @@ async function onSave() {
 		const payload: any = { name: String(form.value.name || '').trim(), phone: form.value.phone, levelId: form.value.levelId, categoryId: form.value.categoryId, tagIds: tagIdsNumeric, points: form.value.points, balance: form.value.balance };
 		if (form.value.avatarUrl !== undefined) payload.avatarUrl = form.value.avatarUrl;
 		if (!current.value?.id && form.value.password) payload.password = form.value.password;
-		if (current.value?.id) {
-			await http(`/member/${current.value.id}`, { method: 'PUT', body: payload });
-		} else {
-			await http('/member/create', { method: 'POST', body: payload });
+			if (current.value?.id) {
+				await http(`/member/${current.value.id}`, { method: 'PUT', body: payload });
+			} else {
+				await http('/member/create', { method: 'POST', body: payload });
+			}
+			dialogVisible.value = false;
+			ElMessage.success('已保存');
+			fetchList();
+		} catch (e:any) {
+			ElMessage.error(String(e?.message||e||'保存失败'));
+		} finally {
+			saving.value = false;
 		}
-		dialogVisible.value = false;
-		fetchList();
-	} finally {
-		saving.value = false;
 	}
-}
 
 function openDeleteDialog(item: Member){
 	delTarget.value = item;
