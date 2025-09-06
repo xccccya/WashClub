@@ -15,6 +15,7 @@
 		<view class="card" v-if="order">
 			<view class="sub-title">基本信息</view>
 			<view class="kv"><text class="k">订单状态</text><text class="v">{{ displayStatus(order) }}</text></view>
+			<view class="kv" v-if="order.payStatus==='UNPAID' && !isExpired"><text class="k">支付剩余</text><text class="v">{{ countdownText }}</text></view>
 			<view class="kv"><text class="k">订单号</text><text class="v v--small">{{ order.no }}</text></view>
 			<view class="kv"><text class="k">下单时间</text><text class="v">{{ formatTime(order.createdAt) }}</text></view>
 			<view class="kv" v-if="isTimeoutUnpaid(order)"><text class="k">提示</text><text class="v" style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</text></view>
@@ -37,7 +38,7 @@
 		<!-- 商品/服务 -->
 		<view class="card" v-if="order">
 			<view class="sub-title">商品/服务</view>
-			<view class="item" v-for="it in order.items" :key="it.id">
+			<view class="item" v-for="it in order.items" :key="it.id" @tap="goProductInDetail(it)">
 				<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/warning.png'" />
 				<view class="ibody">
 					<view class="name">{{ it.name }}</view>
@@ -165,7 +166,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
@@ -196,6 +197,39 @@ type Order = {
 };
 
 const order = ref<Order|null>(null);
+const countdownText = ref<string>('');
+const isExpired = ref<boolean>(false);
+let countdownTimer: any = null;
+let visibleRefreshTimer: any = null;
+let visibleRefreshStartAtMs: number = 0;
+
+function computeRemainMs(): number {
+    try{
+        const o:any = order.value; if (!o) return 0;
+        const expRaw:any = (o as any).paymentExpireAt || (o as any).expireAt || null;
+        if (!expRaw) return 0;
+        const exp = new Date(expRaw).getTime();
+        return Math.max(0, exp - Date.now());
+    }catch{ return 0; }
+}
+function fmt(ms: number): string {
+    const sec = Math.floor(ms / 1000);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function tickCountdown(){
+    const ms = computeRemainMs();
+    isExpired.value = ms <= 0;
+    countdownText.value = isExpired.value ? '' : fmt(ms);
+}
+function startCountdown(){
+    try{ if (countdownTimer){ clearInterval(countdownTimer); countdownTimer=null; } }catch{}
+    tickCountdown();
+    countdownTimer = setInterval(tickCountdown, 1000);
+}
 const couponDisplayList = computed(() => {
     try{
         const o:any = order.value;
@@ -348,6 +382,7 @@ async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) retur
     const res = await new Promise<any>(resolve=>{ uni.showActionSheet({ itemList: list, success:(r:any)=>resolve(r), fail:()=>resolve(null) }); }); if(!res||typeof res.tapIndex!=='number') return;
     // #ifdef MP-WEIXIN
     if (res.tapIndex===0){
+        if (isExpired.value) { uni.showToast({ title:'订单已超时，请重新下单', icon:'none' }); return; }
         try{ const http = createHttp(); const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method:'POST' }); await new Promise<void>((resolve,reject)=>{ (uni as any).requestPayment({ timeStamp: params.timeStamp, nonceStr: params.nonceStr, package: params.package, signType: params.signType || 'RSA', paySign: params.paySign, success:()=>resolve(), fail:(e:any)=>reject(e) }); }); uni.showToast({ title:'支付成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'支付未完成', icon:'none' }); }
     } else { uni.showToast({ title:'请到店线下支付', icon:'none' }); }
     // #endif
@@ -477,6 +512,14 @@ function vehicleBrandSeries(v?: Vehicle|null){
 	return text || '车辆信息';
 }
 
+function goProductInDetail(it: any){
+    try{
+        const pid = Number(it?.productId || it?.product_id || it?.pid || 0);
+        if (pid) { uni.navigateTo({ url: `/pages/store/detail?id=${pid}` }); return; }
+    }catch{}
+    uni.showToast({ title:'无法定位商品', icon:'none' });
+}
+
 const bannerVariants = ['vehicle-banner--v0', 'vehicle-banner--v1', 'vehicle-banner--v2'];
 const vehicleBannerStyleIndex = ref<number>(Math.floor(Math.random()*bannerVariants.length));
 const gradientClass = computed(() => bannerVariants[vehicleBannerStyleIndex.value] || bannerVariants[0]);
@@ -496,6 +539,7 @@ onLoad(async (query:any)=>{
 			? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
 			: await http<Order>(`/orders/${id}`, { method:'GET' });
 		order.value = data || null;
+		startCountdown();
 		// 若来自下单页，则调整返回行为：返回到订单列表
 		if (fromCreated) {
 			try{
@@ -538,27 +582,43 @@ onShow(async ()=>{
 		const idNum = opt?.id ? Number(opt.id) : NaN;
 		const idStr = isNaN(idNum) ? '' : String(idNum);
 		const key = `no=${no}&id=${idStr}`;
-		if (!lastKey.value || key !== lastKey.value) {
-			const http = createHttp();
-			const data = no
-				? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
-				: await http<Order>(`/orders/${idNum}`, { method:'GET' });
-			order.value = data || null;
-			// 初始化地址显示
-			const addr = getShippingAddress(order.value);
-			if (addr) {
-				addressLine1.value = `${addr.province||''} ${addr.city||''} ${addr.district||''} ${addr.street||''}`.replace(/\s+/g,' ').trim() || '-';
-				addressLine2.value = (addr.detail||'').trim() || '-';
-				addressLine3.value = (addr.phone||'').trim() || '-';
-			} else {
-				addressLine1.value = '-'; addressLine2.value = '-'; addressLine3.value = '-';
-			}
-			traceList.value = [];
-			lastKey.value = key;
-			// 设置时间线
-			try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
-			showAllTimeline.value = false;
-			hasPartialRefund.value = computePartialRefundFlag(data);
+		// 无条件轻量刷新一次（返回时也同步状态）
+		const http = createHttp();
+		const data = no
+			? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
+			: await http<Order>(`/orders/${idNum}`, { method:'GET' });
+		order.value = data || null;
+		startCountdown();
+		// 初始化地址显示
+		const addr = getShippingAddress(order.value);
+		if (addr) {
+			addressLine1.value = `${addr.province||''} ${addr.city||''} ${addr.district||''} ${addr.street||''}`.replace(/\s+/g,' ').trim() || '-';
+			addressLine2.value = (addr.detail||'').trim() || '-';
+			addressLine3.value = (addr.phone||'').trim() || '-';
+		} else {
+			addressLine1.value = '-'; addressLine2.value = '-'; addressLine3.value = '-';
+		}
+		traceList.value = [];
+		lastKey.value = key;
+		// 设置时间线
+		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
+		showAllTimeline.value = false;
+		hasPartialRefund.value = computePartialRefundFlag(data);
+
+		// 可见态低频轮询（仅 UNPAID），每15秒一次，最长2分钟或状态变更即停止
+		try{ if (visibleRefreshTimer) { clearInterval(visibleRefreshTimer); visibleRefreshTimer = null; } }catch{}
+		visibleRefreshStartAtMs = Date.now();
+		if ((order.value as any)?.payStatus === 'UNPAID'){
+			visibleRefreshTimer = setInterval(async ()=>{
+				try{
+					const o:any = order.value; if (!o) return;
+					if (o.payStatus !== 'UNPAID') { clearInterval(visibleRefreshTimer as any); visibleRefreshTimer=null; return; }
+					if (Date.now() - visibleRefreshStartAtMs > 120000) { clearInterval(visibleRefreshTimer as any); visibleRefreshTimer=null; return; }
+					const latest:any = await createHttp()(`/orders/${o.id}`, { method:'GET' });
+					const changed = !latest || latest.payStatus !== o.payStatus || latest.fulfillmentStatus !== (o as any).fulfillmentStatus || String(latest.updatedAt||'') !== String((o as any).updatedAt||'');
+					if (changed) { order.value = latest || null; }
+				}catch{}
+			}, 15000);
 		}
 		// #ifdef MP-WEIXIN
 		if (awaitingWxConfirm.value){
@@ -644,7 +704,9 @@ async function handleHashChange(){
 }
 
 onMounted(()=>{ try { window.addEventListener('hashchange', handleHashChange); } catch {} });
-onUnmounted(()=>{ try { window.removeEventListener('hashchange', handleHashChange); } catch {} });
+onUnmounted(()=>{ try { window.removeEventListener('hashchange', handleHashChange); } catch {} try{ if (countdownTimer){ clearInterval(countdownTimer); countdownTimer=null; } }catch{} try{ if (visibleRefreshTimer){ clearInterval(visibleRefreshTimer); visibleRefreshTimer=null; } }catch{} });
+onHide(()=>{ try{ if (visibleRefreshTimer){ clearInterval(visibleRefreshTimer); visibleRefreshTimer=null; } }catch{} });
+onUnload(()=>{ try{ if (visibleRefreshTimer){ clearInterval(visibleRefreshTimer); visibleRefreshTimer=null; } }catch{} });
 // #endif
 
 function toggleTimeline(){ showAllTimeline.value = !showAllTimeline.value; }

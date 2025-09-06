@@ -353,9 +353,9 @@ watch(()=>router.currentRoute.value.fullPath, ()=>{
 <style scoped>
 .layout { display:flex; height:100vh; }
 .sider { width: 160px; min-width:160px; flex: 0 0 160px; border-right: 1px solid #eee; padding: 12px; }
-.sider-brand{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin: 8px 0 12px; padding: 8px 6px; border-radius: 8px; width:100%; }
-.sider-brand__logo{ width:28px; height:28px; object-fit:cover; border-radius:6px; }
-.sider-brand__title{ font-weight:700; font-size:14px; letter-spacing:0.2px; color: var(--el-text-color-primary); max-width:100%; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sider-brand{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin: 8px 0 12px; padding: 8px 0; border-radius: 8px; width:100%; text-align:center; }
+.sider-brand__logo{ width:28px; height:28px; object-fit:cover; border-radius:6px; display:block; margin:0 auto; }
+.sider-brand__title{ font-weight:700; font-size:14px; letter-spacing:0.2px; color: var(--el-text-color-primary); max-width:100%; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; margin:0 auto; }
 .menu { border-right: none; }
 .main { flex:1; display:flex; flex-direction: column; min-width:0; }
 .topbar { height: 56px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content: space-between; padding: 0 16px; }

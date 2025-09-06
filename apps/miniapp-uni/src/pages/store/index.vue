@@ -5,7 +5,7 @@
 		<!-- 顶部店铺信息 -->
 		<view class="card store-header">
 			<text class="store-name">{{ storeName }}</text>
-			<text class="store-distance">{{ distanceText }}</text>
+			<text class="store-distance" @tap="manualRefresh" @click="manualRefresh">{{ distanceText }}</text>
 		</view>
 
 		<!-- 顶部滚动公告（保留API对接） -->
@@ -91,6 +91,7 @@ const { topSpacerHeight } = useSafeArea();
 // 顶部店铺信息（动态距离/时长）
 const storeName = ref('巨科汽车美容（威远店）');
 const distanceText = ref('距离计算中…');
+const lastLocateAt = ref<number>(0);
 
 function readEnv(key: string): string{
 	try {
@@ -192,6 +193,7 @@ async function updateStoreDistance(){
 							const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
 							const min = Math.max(1, Math.round(durationS/60));
 							distanceText.value = `距离${km}km.驾车预计${min}分钟`;
+							try { uni.setStorageSync('store_last_distance_text', distanceText.value); uni.setStorageSync('store_last_locate_at', Date.now()); } catch {}
 							resolve();
 						}catch{ distanceText.value = '距离获取失败'; resolve(); }
 					},
@@ -254,6 +256,7 @@ async function updateStoreDistance(){
 							const km = Math.max(0.1, Math.round((distanceM/1000)*10)/10);
 							const min = Math.max(1, Math.round(durationS/60));
 							distanceText.value = `距离${km}km.驾车预计${min}分钟`;
+							try { uni.setStorageSync('store_last_distance_text', distanceText.value); uni.setStorageSync('store_last_locate_at', Date.now()); } catch {}
 							resolve();
 						}catch{ distanceText.value = '距离获取失败'; resolve(); }
 					}, fail: ()=>{ distanceText.value = '定位未授权'; resolve(); }
@@ -263,6 +266,8 @@ async function updateStoreDistance(){
 	} catch { distanceText.value = '定位失败'; }
 	// #endif
 }
+
+function manualRefresh(){ lastLocateAt.value = 0; updateStoreDistance(); }
 
 // 顶部标签
 type TabKey = 'service' | 'goods' | 'flash';
@@ -312,7 +317,9 @@ async function fetchProducts(){
 		const http = createHttp();
 		const list = await http<any[]>('/store/products', { method:'GET', query: { categoryId: activeCategory.value || undefined } });
 		// 根据 Tab 过滤：服务 或 实物（仅 PHYSICAL）
-		products.value = (Array.isArray(list) ? list : []).filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : p.type==='PHYSICAL');
+		products.value = (Array.isArray(list) ? list : [])
+		  .filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : p.type==='PHYSICAL')
+		  .filter((p:any) => p?.enabled !== false);
 	} catch { products.value = []; }
 }
 
@@ -328,13 +335,22 @@ onShow(async () => {
 	} catch {}
 	await fetchCategories();
 	await fetchProducts();
-	// 计算到店距离（小程序、H5分别实现）
-	// #ifdef MP-WEIXIN
-	updateStoreDistance();
-	// #endif
-	// #ifdef H5
-	updateStoreDistance();
-	// #endif
+	// 计算到店距离：5分钟缓存
+	const now = Date.now();
+	const cachedAt = Number(uni.getStorageSync('store_last_locate_at') || 0);
+	if (!cachedAt || now - cachedAt > 5*60*1000) {
+		lastLocateAt.value = now;
+		uni.setStorageSync('store_last_locate_at', now);
+		// #ifdef MP-WEIXIN
+		updateStoreDistance();
+		// #endif
+		// #ifdef H5
+		updateStoreDistance();
+		// #endif
+	} else {
+		lastLocateAt.value = cachedAt;
+		distanceText.value = uni.getStorageSync('store_last_distance_text') || '距离已缓存';
+	}
 });
 
 // 登录校验：未登录跳转登录页，已登录则校验/刷新

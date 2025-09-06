@@ -24,10 +24,17 @@ export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
 
     private async scanAndCancelExpired() {
         // 超时时间：15分钟
-        const now = Date.now();
-        const threshold = new Date(now - 15 * 60 * 1000);
+        const now = new Date();
         const candidates = await this.prisma.order.findMany({
-            where: { payStatus: 'UNPAID' as any, deletedAt: null as any, createdAt: { lt: threshold } },
+            where: {
+                payStatus: 'UNPAID' as any,
+                deletedAt: null as any,
+                OR: [
+                    { paymentExpireAt: { lte: now } as any },
+                    // 兜底：兼容旧数据（未写入 paymentExpireAt），沿用 createdAt +15min
+                    { AND: [ { paymentExpireAt: null as any }, { createdAt: { lt: new Date(Date.now() - 15 * 60 * 1000) } as any } ] as any },
+                ] as any,
+            },
             take: 50, // 分批处理
             orderBy: { id: 'asc' }
         });
@@ -35,17 +42,47 @@ export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
             try {
                 // 尝试关闭微信订单（幂等）
                 try { await this.wxpay.closeJsapi(ord.no); } catch {}
-                // 执行统一取消逻辑（库存回滚仅针对已占用情况，这里为未支付大多不占用）
-                await this.prisma.order.update({ where: { id: ord.id }, data: { status: 'CANCELLED' as any, payStatus: 'CANCELLED' as any, remark: '系统超时取消（15分钟未支付）' } });
-                // 时间线
-                try { await (this.prisma as any).orderTimeline.create({ data: { orderId: ord.id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
-                try { await (this.prisma as any).orderTimeline.create({ data: { orderId: ord.id, event: 'PAY_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
-                // 统一封装：恢复优惠券（补充分发 memberCouponId 到快照）
-                try{ await this.coupons.restoreUsedCouponsForOrder({ orderId: ord.id, operatorUserId: null, reasonRemark: '系统超时取消恢复优惠券' }); }catch{}
+                // 执行统一取消逻辑（需要回滚预占库存与恢复优惠券）
+                await this.cancelUnpaidOrderAndRelease(ord.id);
             } catch (e) {
                 this.logger.warn(`Auto-cancel failed for order ${ord.id}/${ord.no}: ${(e as any)?.message || e}`);
             }
         }
+    }
+
+    private async cancelUnpaidOrderAndRelease(orderId: number){
+        // 在事务内回滚库存、更新状态并恢复优惠券
+        await this.prisma.$transaction(async (tx)=>{
+            const order = await tx.order.findUnique({ where: { id: orderId } });
+            if (!order || (order as any).payStatus !== 'UNPAID') return;
+            const items = await tx.orderItem.findMany({ where: { orderId } });
+            for (const it of items){
+                if (!it.productId) continue;
+                const product = await tx.product.findUnique({ where: { id: it.productId }, select: { id:true, type:true, specType:true } });
+                if (!product) continue;
+                if (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD') continue;
+                const qty = Math.max(1, Number(it.quantity||0));
+                if (product.specType === 'MULTI'){
+                    if (!it.skuId) continue;
+                    const beforeRow = await tx.productSku.findUnique({ where: { id: it.skuId }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity || 0);
+                    await tx.productSku.update({ where: { id: it.skuId }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: it.skuId, change: qty, beforeStock: before, afterStock: after, reason: 'ORDER_ROLLBACK' as any, remark: '超时取消回滚库存', operatorUserId: null } });
+                } else {
+                    const beforeRow = await tx.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity || 0);
+                    await tx.product.update({ where: { id: product.id }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: null, change: qty, beforeStock: before, afterStock: after, reason: 'ORDER_ROLLBACK' as any, remark: '超时取消回滚库存', operatorUserId: null } });
+                }
+            }
+            await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' as any, payStatus: 'CANCELLED' as any, remark: '系统超时取消（15分钟未支付）' } });
+            try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'ORDER_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
+            try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'PAY_STATUS', value: 'CANCELLED', remark: 'TIMEOUT_15MIN', operatorUserId: null } }); } catch {}
+        });
+        // 事务外恢复优惠券（幂等）
+        try{ await this.coupons.restoreUsedCouponsForOrder({ orderId, operatorUserId: null, reasonRemark: '系统超时取消恢复优惠券' }); }catch{}
     }
 }
 

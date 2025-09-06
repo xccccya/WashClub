@@ -6,7 +6,10 @@
 			<el-descriptions-item label="订单号">{{ data?.no }}</el-descriptions-item>
 			<el-descriptions-item label="类型">{{ displayType(data?.type) }}</el-descriptions-item>
 			<el-descriptions-item label="状态">{{ statusLabel(data?.status) }}</el-descriptions-item>
-			<el-descriptions-item label="支付状态">{{ displayPayStatus(data?.payStatus) }}</el-descriptions-item>
+			<el-descriptions-item label="支付状态">
+				<span>{{ displayPayStatus(data?.payStatus) }}</span>
+				<el-tag v-if="data?.payStatus==='UNPAID' && remainSeconds(data)>0" type="warning" effect="light" style="margin-left:6px;">倒计时 {{ formatRemain(remainSeconds(data)) }}</el-tag>
+			</el-descriptions-item>
 			<el-descriptions-item label="提醒" v-if="data?.remark && String(data?.remark).includes('系统超时取消')">
 				<span style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</span>
 			</el-descriptions-item>
@@ -244,6 +247,9 @@ async function fetchDetail(){
     }catch{ canShowRetryRefund.value=false; canShowPartialRefund.value=false; }
 }
 onMounted(fetchDetail);
+
+function remainSeconds(row:any): number { try{ const exp:any = row?.paymentExpireAt || null; if(!exp) return 0; const t = new Date(exp).getTime(); return Math.max(0, Math.floor((t - Date.now())/1000)); }catch{ return 0; } }
+function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
 async function openRetryRefund(){
     // 找到可重试的记录（FAILED或PENDING）

@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { createHttp } from '../../utils/auth';
+import { createHttp, getToken, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
@@ -138,6 +138,11 @@ onLoad(async (q: any) => {
 async function fetchDetail(){
 	try {
 		const res = await http<Product>(`/store/products/${id.value}`, { method:'GET' });
+		if (res && (res as any)?.enabled === false) {
+			uni.showToast({ title:'商品已下架', icon:'none' });
+			setTimeout(()=>{ goBack(); }, 600);
+			return;
+		}
 		product.value = res || null;
 		// 多规格：初始化规格维度，若仅有唯一 SKU 可直接选中
 		selectedSkuId.value = undefined;
@@ -427,6 +432,8 @@ function initCollect(){
 async function toggleCollect(){
 	if (!product.value?.id) return;
 	try {
+		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
+		const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
 		if (collected.value) { await http(`/favorite/me/${product.value.id}`, { method:'DELETE' }); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
 		else { await http(`/favorite/me/${product.value.id}`, { method:'POST' }); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
 	} catch {}
@@ -435,24 +442,44 @@ async function toggleCollect(){
 async function addToCart(){
 	if (!product.value) return;
 	if (product.value.type !== 'PHYSICAL') return;
-	if (product.value.specType==='MULTI' && typeof selectedSkuId.value !== 'number') { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
-	// 库存检查
-	if (product.value.specType === 'SINGLE') {
-		const qty = Number(product.value.stockQuantity ?? 0);
-		if (qty <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
-	} else {
-		const sku = enabledSkus.value.find(s => s.id===selectedSkuId.value);
-		const qty = Number(sku?.stockQuantity ?? 0);
-		if (qty <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
+	{
+		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
+		const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
 	}
+	if (product.value.specType==='MULTI' && typeof selectedSkuId.value !== 'number') { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
+	// 库存检查（考虑购物车已加数量，避免超过库存）
 	try {
-		await http('/cart/me/add', { method:'POST', body: { productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: 1 } });
-		uni.showToast({ title:'已加入购物车', icon:'none' });
-	} catch { uni.showToast({ title:'加入失败', icon:'none' }); }
+		let stock = 0;
+		if (product.value.specType === 'SINGLE') {
+			stock = Math.max(0, Number(product.value.stockQuantity ?? 0));
+		} else {
+			const sku = enabledSkus.value.find(s => s.id===selectedSkuId.value);
+			stock = Math.max(0, Number(sku?.stockQuantity ?? 0));
+		}
+		if (stock <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
+		let inCart = 0;
+		try{
+			const list:any[] = await http('/cart/me/list', { method:'GET' });
+			if (product.value.specType === 'SINGLE') {
+				inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(product.value?.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
+			} else {
+				const curSkuId = Number(selectedSkuId.value);
+				inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(product.value?.id) && Number(row?.skuId)===curSkuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
+			}
+		}catch{}
+		const canAdd = Math.min(1, Math.max(0, stock - inCart));
+		if (canAdd <= 0) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
+		await http('/cart/me/add', { method:'POST', body: { productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: canAdd } });
+		uni.showToast({ title: canAdd===1 ? '已加入购物车' : `库存不足，已加入${canAdd}件`, icon:'none' });
+	} catch {
+		uni.showToast({ title:'加入失败', icon:'none' });
+	}
 }
 
 function onBuyTap(){
 	if (!product.value) return;
+	if (!getToken()) { uni.navigateTo({ url:'/pages/login/index' }); return; }
+	checkAuthAndRefresh({ redirectIfExpired: true });
 	if (product.value.type !== 'PHYSICAL') { sheetVisible.value = true; return; }
 	if (product.value.specType === 'MULTI' && !selectionComplete.value) { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
 	if (buyDisabled.value) return; // 售罄时不可点击

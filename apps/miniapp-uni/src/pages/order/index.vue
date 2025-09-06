@@ -30,7 +30,7 @@
 
 			<!-- 商品/服务列表（逐行展示） -->
 			<view class="items">
-				<view class="item" v-for="it in o.items" :key="it.id">
+				<view class="item" v-for="it in o.items" :key="it.id" @tap="goProduct(it)">
 					<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/warning.png'" mode="aspectFill" />
 					<view class="ibody">
 						<view class="row-1">
@@ -156,6 +156,7 @@ function displayStatus(o: Order){
 	return '处理中';
 }
 
+
 function buildQuery(){
 	const q: any = {};
 	if (mainTab.value==='product') q.type = 'SP';
@@ -185,6 +186,16 @@ async function fetchOrders(){
 }
 
 function viewOrder(o: Order){ navigate(`/pages/order/detail?no=${encodeURIComponent(o.no)}`); }
+
+function goProduct(it: OrderItem){
+    // 订单项没有保存 productId 时可以在后端补充；这里先尝试从 specsJson 中回退
+    try{
+        const pid = Number((it as any)?.productId || (it as any)?.product_id || (it as any)?.pid || 0);
+        if (pid) { navigate(`/pages/store/detail?id=${pid}`); return; }
+    }catch{}
+    // 若无 productId，仅提示不可跳转
+    uni.showToast({ title:'无法定位商品', icon:'none' });
+}
 
 function canPay(o: Order){
 	return o.payStatus === 'UNPAID';
@@ -331,6 +342,20 @@ onShow(async()=>{
         }
     } catch {}
     await fetchOrders();
+    // 选做：若列表存在未支付订单，则在页面可见时低频刷新，最长2分钟
+    try{ (onShow as any).__poll && clearInterval((onShow as any).__poll); }catch{}
+    try{
+        const hasUnpaid = orders.value.some((o:any)=> o?.payStatus==='UNPAID');
+        if (hasUnpaid){
+            const start = Date.now();
+            (onShow as any).__poll = setInterval(async ()=>{
+                try{
+                    if (Date.now() - start > 120000){ clearInterval((onShow as any).__poll); (onShow as any).__poll=null; return; }
+                    await fetchOrders();
+                }catch{}
+            }, 30000);
+        }
+    }catch{}
     // #ifdef MP-WEIXIN
     if (awaitingWxConfirm.value){
         try{

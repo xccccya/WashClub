@@ -638,6 +638,8 @@ model Order {
   payStatus               PayStatus         @default(UNPAID)
   payMethod               PayMethod?
   paidAt                  DateTime?
+  // 新增：支付超时时间（下单 +15 分钟），用于自动取消
+  paymentExpireAt         DateTime?
   // 微信支付：交易单号（回调 resource 解密字段 transaction_id）
   wechatTransactionId     String?
   // 权益/积分/卡券
@@ -692,6 +694,7 @@ model Order {
   @@index([status])
   @@index([memberId])
   @@index([payStatus])
+  @@index([paymentExpireAt])
   @@index([createdAt])
   @@index([fulfillmentStatus])
   @@index([shippingAddressId])

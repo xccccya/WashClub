@@ -62,8 +62,13 @@
 			<el-table-column label="履约状态" width="120">
 				<template #default="{ row }"><el-tag type="info">{{ fulfillLabel(row.fulfillmentStatus) }}</el-tag></template>
 			</el-table-column>
-			<el-table-column label="支付状态" width="100">
-				<template #default="{ row }"><el-tag :type="payStatusTagType(row.payStatus)">{{ payStatusLabel(row.payStatus) }}</el-tag></template>
+			<el-table-column label="支付状态" width="160">
+				<template #default="{ row }">
+					<div style="display:flex;align-items:center;gap:6px;">
+						<el-tag :type="payStatusTagType(row.payStatus)">{{ payStatusLabel(row.payStatus) }}</el-tag>
+						<el-tag v-if="row.payStatus==='UNPAID' && remainSeconds(row)>0" type="warning" effect="light">倒计时 {{ formatRemain(remainSeconds(row)) }}</el-tag>
+					</div>
+				</template>
 			</el-table-column>
             <el-table-column label="售后/退款" width="100">
                 <template #default="{ row }">
@@ -270,6 +275,7 @@ const scene = ref<string | ''>('');
 const status = ref<string | ''>('');
 const payStatus = ref<string | ''>('');
 const createdAtRange = ref<[string, string] | null>(null);
+let tickTimer: any = null;
 
 function formatDate(val: string | null | undefined){
 	if(!val) return '-';
@@ -298,6 +304,8 @@ async function fetchList(){
 		end: end || undefined,
 	} });
 }
+function remainSeconds(row:any): number { try{ const exp:any = row?.paymentExpireAt || null; if(!exp) return 0; const t = new Date(exp).getTime(); return Math.max(0, Math.floor((t - Date.now())/1000)); }catch{ return 0; } }
+function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function open(id:number){ router.push(`/orders/${id}`); }
 function openByNo(no:string){ router.push(`/orders/no/${encodeURIComponent(no)}`); }
 async function close(id:number){
@@ -577,7 +585,7 @@ function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status
 
 async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
 
-onMounted(fetchList);
+onMounted(async()=>{ await fetchList(); try{ if(tickTimer) clearInterval(tickTimer); }catch{} tickTimer=setInterval(()=>{ list.value = list.value.slice(); }, 1000); });
 </script>
 
 <style scoped>

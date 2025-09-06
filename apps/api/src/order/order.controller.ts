@@ -62,6 +62,11 @@ export class OrderController {
         const order: any = await this.orders.getOrder(id);
         if (!order || order.memberId !== memberId) throw new BadRequestException('订单不存在或不属于当前用户');
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('订单非待支付状态');
+        // 若已过期，阻止拉起支付
+        try{
+            const expireAt = (order as any).paymentExpireAt ? new Date((order as any).paymentExpireAt) : null;
+            if (expireAt && expireAt.getTime() <= Date.now()) throw new BadRequestException('订单已超时，请重新下单');
+        }catch{}
         // 获取 openid
         const openid = await this.orders.getMemberOpenId(memberId);
         if (!openid) throw new BadRequestException('当前账号未绑定微信openid，请使用一键登录后重试');

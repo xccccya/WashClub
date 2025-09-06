@@ -332,9 +332,46 @@ export class OrderService {
             const minPay = new Prisma.Decimal(0.01 as any);
             const payAmountAdjusted = payAmount.lessThan(minPay) ? minPay : payAmount;
 
+            // 预生成订单号，便于库存预占日志记录
+            const orderNo = this.generateOrderNo(type as any);
+
+            // 下单即预占库存（仅实体商品 PHYSICAL 与 虚拟卡券 VIRTUAL_CARD）
+            for (const it of items) {
+                if (!it.productId) continue;
+                const product = await tx.product.findUnique({ where: { id: it.productId }, select: { id: true, type: true, specType: true } });
+                if (!product) continue;
+                if (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD') continue;
+                const qty = Math.max(1, Number(it.quantity || 0));
+                if (product.specType === 'MULTI') {
+                    if (!it.skuId) throw new Error('订单包含多规格商品但缺少 skuId');
+                    // 条件扣减：避免并发超卖
+                    const res = await tx.productSku.updateMany({ where: { id: it.skuId, stockQuantity: { gte: qty } }, data: { stockQuantity: { decrement: qty } } });
+                    if ((res as any).count !== undefined) {
+                        if (Number((res as any).count || 0) !== 1) throw new Error('库存不足，无法下单');
+                    } else {
+                        if (Number(res || 0) !== 1) throw new Error('库存不足，无法下单');
+                    }
+                    const afterRow = await tx.productSku.findUnique({ where: { id: it.skuId }, select: { stockQuantity: true } });
+                    const after = Number(afterRow?.stockQuantity || 0);
+                    const before = after + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: it.skuId, change: -qty, beforeStock: before, afterStock: after, reason: 'ORDER_DEDUCT' as any, remark: `订单预占（订单号：${orderNo}）`, operatorUserId: null } });
+                } else {
+                    const res = await tx.product.updateMany({ where: { id: product.id, stockQuantity: { gte: qty } }, data: { stockQuantity: { decrement: qty } } });
+                    if ((res as any).count !== undefined) {
+                        if (Number((res as any).count || 0) !== 1) throw new Error('库存不足，无法下单');
+                    } else {
+                        if (Number(res || 0) !== 1) throw new Error('库存不足，无法下单');
+                    }
+                    const afterRow = await tx.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });
+                    const after = Number(afterRow?.stockQuantity || 0);
+                    const before = after + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: null, change: -qty, beforeStock: before, afterStock: after, reason: 'ORDER_DEDUCT' as any, remark: `订单预占（订单号：${orderNo}）`, operatorUserId: null } });
+                }
+            }
+
             const order = await tx.order.create({
                 data: {
-                    no: this.generateOrderNo(type as any),
+                    no: orderNo,
                     type,
                     status: 'CREATED' as OrderStatus,
                     fulfillmentStatus: (type === 'FK' ? 'NONE' : 'PENDING') as FulfillmentStatus,
@@ -345,6 +382,7 @@ export class OrderService {
                     payStatus: 'UNPAID',
                     memberId,
                     vehicleId: vehicleId ?? null,
+                    paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
                     // 用户备注写入 userRemark；系统备注 remark 留作系统流程使用
                     userRemark: (userRemark ?? remark) ?? null,
                     usedPoints: usedPoints || 0,
@@ -383,7 +421,16 @@ export class OrderService {
                     try{ const mc = await (tx as any).memberCoupon.findUnique({ where: { id: cid }, include: { coupon: true } }); const applied = couponDiscountByMemberCouponId[cid]; await (tx as any).couponFlowLog.create({ data: { action: 'USE', memberId, orderId: order.id, couponId: mc?.couponId ?? null, memberCouponId: cid, count: 1, remark: '订单使用', snapshot: { couponId: mc?.couponId ?? null, couponName: mc?.coupon?.name ?? null, memberCouponId: cid ?? null, memberCouponName: mc?.name ?? null, discountApplied: Number(applied || 0) } } }); }catch{}
                 }
             }
-            return { id: order.id, no: order.no };
+            // 计算支付超时时间（15分钟）并返回给前端用于倒计时
+            try{
+                const createdAt: any = (order as any)?.createdAt || new Date();
+                const base = new Date(createdAt).getTime();
+                const expireAt = new Date(base + 15 * 60 * 1000);
+                const expireRemainSeconds = Math.max(0, Math.floor((expireAt.getTime() - Date.now()) / 1000));
+                return { id: order.id, no: order.no, expireAt, expireRemainSeconds } as any;
+            }catch{
+                return { id: order.id, no: order.no } as any;
+            }
         });
     }
 
@@ -623,51 +670,7 @@ export class OrderService {
                 await this.prisma.washCardLog.create({ data: { cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark, purchaseOrderId: order.id } });
             }
         }
-        // 扣减库存（实体商品 PHYSICAL 与 虚拟卡券 VIRTUAL_CARD）并写入库存流水：ORDER_DEDUCT
-        for (const it of items) {
-            if (!it.productId) continue;
-            const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
-            if (!product || (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD')) continue;
-            if (product.specType === 'MULTI') {
-                if (!it.skuId) throw new Error('订单包含多规格商品但缺少 skuId');
-                const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
-                const before = sku.stockQuantity;
-                const change = -Math.abs(it.quantity);
-                const after = before + change;
-                if (after < 0) throw new Error('库存不足，无法扣减');
-                await this.prisma.productSku.update({ where: { id: sku.id }, data: { stockQuantity: after } });
-                await this.prisma.inventoryLog.create({
-                    data: {
-                        productId: product.id,
-                        skuId: sku.id,
-                        change,
-                        beforeStock: before,
-                        afterStock: after,
-                        reason: 'ORDER_DEDUCT' as any,
-                        remark: `订单扣减（订单号：${updated.no}）`,
-                        operatorUserId: params.operatorUserId ?? null,
-                    },
-                });
-            } else {
-                const before = product.stockQuantity ?? 0;
-                const change = -Math.abs(it.quantity);
-                const after = before + change;
-                if (after < 0) throw new Error('库存不足，无法扣减');
-                await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
-                await this.prisma.inventoryLog.create({
-                    data: {
-                        productId: product.id,
-                        skuId: null,
-                        change,
-                        beforeStock: before,
-                        afterStock: after,
-                        reason: 'ORDER_DEDUCT' as any,
-                        remark: `订单扣减（订单号：${updated.no}）`,
-                        operatorUserId: params.operatorUserId ?? null,
-                    },
-                });
-            }
-        }
+        // 注意：库存已在“下单”阶段预占，此处不再扣减库存，避免重复扣减
         // 若为商品订单（SP）且所有订单项均为虚拟卡券商品，则发放完成后直接将订单置为已完成，并记录时间线
         if (order.type === 'SP') {
             const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
@@ -827,7 +830,7 @@ export class OrderService {
     async cancelOrder(id: number, reason?: string, operatorUserId?: number | null, opts?: { userInitiated?: boolean }) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
-        // 若有占用库存，回滚（与 closeOrder 中 UNPAID 分支一致）
+        // 若有占用库存，回滚（下单阶段已预占）
         const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
             if (!it.productId) continue;
