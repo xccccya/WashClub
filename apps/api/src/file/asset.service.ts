@@ -24,6 +24,7 @@ export type ListQuery = {
 	mimeType?: string;
 	q?: string;
 	tag?: string;
+	tags?: string[];
 };
 
 @Injectable()
@@ -91,6 +92,9 @@ export class AssetService {
 		if (query.mimeType) { conds.push('mimeType LIKE ?'); vals.push(query.mimeType.includes('/') ? `${query.mimeType}%` : `%${query.mimeType}%`); }
 		if (query.q) { conds.push('filename LIKE ?'); vals.push(`%${query.q}%`); }
 		if (query.tag) { conds.push('tagsJson IS NOT NULL AND JSON_CONTAINS(tagsJson, JSON_ARRAY(?))'); vals.push(query.tag); }
+		if (Array.isArray(query.tags) && query.tags.length) {
+			for (const t of query.tags) { conds.push('tagsJson IS NOT NULL AND JSON_CONTAINS(tagsJson, JSON_ARRAY(?))'); vals.push(t); }
+		}
 		const where = conds.join(' AND ');
 		const countSql = `SELECT COUNT(1) AS c FROM FileAsset WHERE ${where}`;
 		const listSql = `SELECT id, filename, extension, mimeType, size, url, objectKey, storage, createdAt, refCount, tagsJson FROM FileAsset WHERE ${where} ORDER BY createdAt DESC LIMIT ? OFFSET ?`;

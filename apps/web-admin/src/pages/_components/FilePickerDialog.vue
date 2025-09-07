@@ -8,7 +8,7 @@
 				<el-option label="音频" value="audio/" />
 				<el-option label="PDF" value="pdf" />
 			</el-select>
-			<el-select v-model="tagFilter" placeholder="标签" clearable filterable style="width:160px;">
+			<el-select v-model="tagFilters" placeholder="标签(可多选)" clearable filterable multiple style="width:220px;">
 				<el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
 			</el-select>
 			<el-button @click="fetchList">搜索</el-button>
@@ -63,8 +63,10 @@
 				</div>
 				<el-form label-width="80px">
 					<el-form-item label="标签">
-						<el-input v-model="tagsDraft" placeholder="逗号分隔" />
-						<el-button style="margin-left:8px;" @click="saveTags" :loading="savingTags">保存</el-button>
+						<el-select v-model="tagsInput" multiple filterable allow-create default-first-option placeholder="输入后回车创建或选择标签" style="width:100%">
+							<el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
+						</el-select>
+						<el-button style="margin-left:8px;" @click="saveTags(false)" :loading="savingTags">保存</el-button>
 					</el-form-item>
 					<el-form-item label="链接"><el-input :model-value="abs(current.url)" readonly /></el-form-item>
 				</el-form>
@@ -80,7 +82,9 @@
 			</div>
 		</el-drawer>
 		<el-dialog v-model="batchTagVisible" title="批量打标签" width="420px">
-			<el-input v-model="tagsDraft" placeholder="逗号分隔" />
+			<el-select v-model="tagsInput" multiple filterable allow-create default-first-option placeholder="输入后回车创建或选择标签" style="width:100%">
+				<el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
+			</el-select>
 			<template #footer>
 				<el-button @click="batchTagVisible=false">取消</el-button>
 				<el-button type="primary" @click="saveTags(true)" :loading="savingTags">保存</el-button>
@@ -108,6 +112,7 @@ const multiple = computed(()=>!!props.multiple);
 const page = ref(1); const pageSize = ref(18); const total = ref(0);
 const search = ref(''); const mimeFilter = ref('');
 const tagFilter = ref('');
+const tagFilters = ref<string[]>([]);
 const items = ref<Asset[]>([]);
 const viewMode = ref<'grid'|'table'>('grid');
 const thumbSize = ref(240);
@@ -117,6 +122,7 @@ const allTags = ref<string[]>([]);
 const detailVisible = ref(false);
 const current = ref<any>(null);
 const tagsDraft = ref('');
+const tagsInput = ref<string[]>([]);
 const savingTags = ref(false);
 const batchTagVisible = ref(false);
 
@@ -129,12 +135,12 @@ function copyMd(it:any){ copy(`![${it.filename}](${abs(it.url)})`); }
 function copyHtml(it:any){ copy(`<img src="${abs(it.url)}" alt="${it.filename}" />`); }
 
 async function fetchList(){
-	const res:any = await http('/assets', { method:'GET', query: { page: page.value, pageSize: pageSize.value, mimeType: mimeFilter.value || undefined, q: search.value || undefined, tag: tagFilter.value || undefined } });
+	const res:any = await http('/assets', { method:'GET', query: { page: page.value, pageSize: pageSize.value, mimeType: mimeFilter.value || undefined, q: search.value || undefined, tag: tagFilter.value || undefined, tags: tagFilters.value.length? tagFilters.value: undefined } });
 	items.value = Array.isArray(res?.items) ? res.items : [];
 	total.value = Number(res?.total||0);
 	const set = new Set<string>();
 	for(const it of items.value){ const tags = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson : []; for(const t of tags){ if (t && typeof t === 'string') set.add(t); } }
-	allTags.value = Array.from(set).sort();
+	allTags.value = Array.from(new Set([ ...allTags.value, ...Array.from(set) ])).sort();
 }
 function onPage(p:number){ page.value = p; fetchList(); }
 
@@ -154,11 +160,11 @@ function confirm(){
 	visible.value = false; selectedIds.value.clear();
 }
 
-function openDetail(it:any){ current.value = it; tagsDraft.value = ''; detailVisible.value = true; }
+function openDetail(it:any){ current.value = it; tagsDraft.value = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson.join(',') : ''; tagsInput.value = Array.isArray((it as any).tagsJson)? (it as any).tagsJson : []; detailVisible.value = true; refreshRefs(); }
 async function saveTags(isBatch = false){
 	try{
 		savingTags.value = true;
-		const tags = tagsDraft.value.split(',').map(s=>s.trim()).filter(Boolean);
+		const tags = (Array.isArray(tagsInput.value) ? tagsInput.value : String(tagsDraft.value||'').split(',')).map(s=>String(s||'').trim()).filter(Boolean);
 		if (isBatch) {
 			for(const id of selectedIds.value){ await http(`/assets/${id}`, { method:'PATCH', body: { tags } }); }
 			batchTagVisible.value = false;
@@ -169,16 +175,13 @@ async function saveTags(isBatch = false){
 		await fetchList();
 	} finally { savingTags.value = false; }
 }
-function openBatchTag(){ tagsDraft.value=''; batchTagVisible.value = true; }
+function openBatchTag(){ tagsDraft.value=''; tagsInput.value = []; batchTagVisible.value = true; }
 async function batchDelete(){ for(const id of selectedIds.value){ await http(`/assets/${id}`, { method:'DELETE' }); } selectedIds.value.clear(); await fetchList(); }
 
 // 引用列表
 const refs = ref<any[]>([]);
-watch(detailVisible, async (v)=>{
-	if (v && current.value) {
-		try { refs.value = await http(`/assets/${current.value.id}/references`, { method:'GET' }); } catch { refs.value = []; }
-	}
-});
+async function refreshRefs(){ if (current.value) { try { refs.value = await http(`/assets/${current.value.id}/references`, { method:'GET' }); } catch { refs.value = []; } } }
+watch(detailVisible, async (v)=>{ if (v && current.value) { await refreshRefs(); } });
 
 watch(()=>props.modelValue, (v)=>{ if(v){ page.value=1; fetchList(); } else { selectedIds.value.clear(); } });
 function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'grid'; }

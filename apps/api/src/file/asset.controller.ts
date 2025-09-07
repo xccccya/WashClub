@@ -12,8 +12,18 @@ export class AssetController {
 
 	@Get()
 	@ApiOperation({ summary: '文件资产分页查询' })
-	list(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('mimeType') mimeType?: string, @Query('q') q?: string, @Query('tag') tag?: string) {
-		return this.service.list({ page: Number(page), pageSize: Number(pageSize), mimeType, q, tag });
+	list(
+		@Query('page') page?: string,
+		@Query('pageSize') pageSize?: string,
+		@Query('mimeType') mimeType?: string,
+		@Query('q') q?: string,
+		@Query('tag') tag?: string,
+		@Query('tags') tags?: string | string[],
+	) {
+		let tagsArr: string[] | undefined = undefined;
+		if (Array.isArray(tags)) tagsArr = tags.filter((s) => !!s).map((s) => String(s));
+		else if (typeof tags === 'string') tagsArr = tags.includes(',') ? tags.split(',').map((s) => s.trim()).filter(Boolean) : [tags];
+		return this.service.list({ page: Number(page), pageSize: Number(pageSize), mimeType, q, tag, tags: tagsArr });
 	}
 
 	@Get(':id')
