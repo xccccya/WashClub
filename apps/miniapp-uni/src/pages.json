@@ -8,6 +8,11 @@
 		}
 	,
 		{
+			"path": "pages/membership/index",
+			"style": { "navigationBarTitleText": "会员中心" }
+		}
+		,
+		{
 			"path": "pages/me/index",
 			"style": {
 				"navigationBarTitleText": ""

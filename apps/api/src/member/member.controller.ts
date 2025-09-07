@@ -22,6 +22,22 @@ export class MemberController {
 		return this.service.getProfileByToken(token);
 	}
 
+	@Get('me/growth-logs')
+	@ApiOperation({ summary: '查询当前会员成长值日志（持久化）' })
+	getGrowthLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string, @Query('token') tokenParam?: string){
+		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const limit = limitStr ? Number(limitStr) : undefined;
+		return (this.service as any).getGrowthLogsByToken(token, limit);
+	}
+
+	@Get(':id/growth-logs')
+	@ApiOperation({ summary: '根据会员ID查询成长值日志（管理后台使用）' })
+	getGrowthLogsByMember(@Param('id') id: string, @Query('limit') limitStr?: string){
+		const limit = limitStr ? Number(limitStr) : undefined;
+		return (this.service as any).getGrowthLogsByMemberId(Number(id), limit);
+	}
+
 	@Post('me/active')
 	@ApiOperation({ summary: '心跳：设置会员在线活跃状态' })
 	setActive(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {

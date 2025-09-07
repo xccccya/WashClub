@@ -47,6 +47,9 @@ model Member {
   weixinOpenId         String?         @unique
   points               Int             @default(0)
   balance              Decimal         @default(0) @db.Decimal(12, 2)
+  // 新增：累计支付金额与成长值
+  totalPaidAmount      Decimal         @default(0) @db.Decimal(12, 2)
+  growthPoints         Int             @default(0)
   levelId              Int?
   level                MemberLevel?    @relation(fields: [levelId], references: [id])
   categoryId           Int?
@@ -75,12 +78,28 @@ model Member {
 
   // 反向关联：优惠券流水
   couponFlows CouponFlowLog[]
+
+  // 反向关联：签到日志
+  signInLogs MemberSignInLog[]
+  // 反向关联：成长值日志
+  growthLogs MemberGrowthLog[]
 }
 
 model MemberLevel {
   id        Int      @id @default(autoincrement())
   name      String
-  weight    Int      @default(0)
+  // 替换权重为“等级”：数字越大等级越高
+  level     Int      @default(1)
+  // 升级所需成长值（默认等级需为0）
+  requiredGrowth     Int      @default(0)
+  // 等级描述
+  description        String?
+  // 等级图标URL（文件库绑定）
+  iconUrl            String?
+  // 积分加速倍数（>=1 的正整数，1 表示不加倍）
+  pointsMultiplier   Int      @default(1)
+  // 支付折扣百分比（0 表示无折扣）
+  payDiscountPercent Int      @default(0)
   isDefault Boolean  @default(false)
   members   Member[]
 }
@@ -122,6 +141,9 @@ model SiteSetting {
   // 背景：bing 每日壁纸 或 自定义图片
   bgType      String   @default("bing") // bing | image
   bgImageUrl  String?
+
+  // 会员成长值：每消费 1 元兑换多少成长值（正整数）
+  growthPerYuan Int @default(1)
 }
 
 model Vehicle {
@@ -1045,4 +1067,43 @@ model FileBinding {
   file       FileAsset @relation(fields: [fileId], references: [id], onDelete: Restrict)
 
   @@index([tableName, rowId, fieldName])
+}
+
+// 会员签到日志：记录每日签到获取的成长值
+model MemberSignInLog {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+
+  memberId       Int
+  member         Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // YYYY-MM-DD 字符串，确保每日唯一
+  dateStr        String   @db.VarChar(10)
+  growthGranted  Int      @default(0)
+
+  @@unique([memberId, dateStr])
+  @@index([memberId])
+}
+
+// 会员成长值日志（持久化）：统一记录签到、支付、后台调整等来源的成长值变动
+enum GrowthLogSource {
+  SIGN
+  PAY
+  ADJUST
+  ADMIN
+}
+
+model MemberGrowthLog {
+  id        Int              @id @default(autoincrement())
+  createdAt DateTime         @default(now())
+
+  memberId  Int
+  member    Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  change    Int              // +增加/-减少成长值
+  desc      String?
+  source    GrowthLogSource  @default(ADJUST)
+
+  @@index([memberId, createdAt])
+  @@index([memberId])
 }

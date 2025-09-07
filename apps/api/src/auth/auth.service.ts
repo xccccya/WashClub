@@ -132,7 +132,7 @@ export class AuthService {
 		let createdNew = false;
 		if (!member) {
 			const uid = await this.generateUniqueMemberUid();
-			// 注册新会员时，必须分配“默认等级”
+			// 注册新会员时，必须分配“默认等级”（成长值要求应为0）
 			const defaultLevel = await this.prisma.memberLevel.findFirst({ where: { isDefault: true } as any });
 			if (!defaultLevel) {
 				throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');

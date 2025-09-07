@@ -17,7 +17,6 @@
 					<view class="chips-row">
 						<template v-if="isLoggedIn">
 							<view class="nickname-text">{{ displayNickname }}</view>
-							<view class="vip-chip">{{ vipLevel }}</view>
 						</template>
 						<template v-else>
 							<view class="login-cta">点击登录账号</view>
@@ -27,6 +26,25 @@
 				</view>
 			</view>
 			<view class="setting-btn" v-if="isLoggedIn" @tap.stop="onTapSetting">设置</view>
+		</view>
+
+		<!-- 等级信息卡片（展示等级名称、图标、以及升级进度） -->
+		<view v-if="isLoggedIn" class="card level-card" @tap="goMembership">
+			<view class="level-head">
+				<view class="level-row">
+					<view class="level-name">{{ levelInfo?.name || '会员' }}</view>
+				</view>
+				<view v-if="isMaxLevel" class="level-tip-max">已达最大等级</view>
+			</view>
+			<image v-if="levelInfo?.iconUrl" class="level-icon-float" :src="toAbs(levelInfo?.iconUrl as any)" mode="aspectFill" />
+			<view class="progress">
+				<view class="progress-inner" :style="{ width: Math.round(levelProgress*100) + '%' }"></view>
+			</view>
+			<view class="level-sub">
+				<text class="level-remaining" v-if="!isMaxLevel">距下一等级还差{{ remainingGrowth }}成长值</text>
+				<text class="level-remaining" v-else>已达最大等级</text>
+				<text class="level-progress-num">{{ growthPoints }} / {{ displayTotal }}</text>
+			</view>
 		</view>
 
 		<!-- 计次卡 -->
@@ -117,7 +135,6 @@ const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
 async function ensureSiteSetting(){ if (siteSetting.value) return; try { const httpS = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') }); siteSetting.value = await httpS('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 // 基址由 utils/auth 统一提供
 const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
-const vipLevel = ref('会员等级');
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const isLoggedIn = computed(() => !!token.value);
 
@@ -132,15 +149,50 @@ const displayNickname = computed(() => {
 
 function toAbs(u?: string){ if (!u) return ''; if (/^https?:\/\//i.test(u)) return u; if (u.startsWith('/')) return API_BASE + u; return API_BASE + '/' + u; }
 
+// 等级数据与进度
+const levelInfo = ref<{ name?: string; iconUrl?: string|null; level?: number; requiredGrowth?: number }|null>(null);
+const growthPoints = ref<number>(0);
+const currentRequired = ref<number>(0);
+const levelProgress = computed(()=>{
+    if (isMaxLevel.value) return 1;
+    const next = Math.max(0, Number(nextRequired.value||0));
+    const base = Math.max(0, Number(currentRequired.value||0));
+    const gp = Math.max(0, Number(growthPoints.value||0));
+    const span = Math.max(1, next - base);
+    const progressed = Math.max(0, gp - base);
+    return Math.max(0, Math.min(1, progressed / span));
+});
+const isMaxLevel = ref<boolean>(false);
+const nextRequired = ref<number>(0);
+const remainingGrowth = computed(()=>{
+    const need = Math.max(0, Number(nextRequired.value||0));
+    const gp = Math.max(0, Number(growthPoints.value||0));
+    return need > gp ? (need - gp) : 0;
+});
+const segmentCurrent = computed(()=>{
+    if (isMaxLevel.value) return Math.max(0, Number(growthPoints.value||0));
+    const base = Math.max(0, Number(currentRequired.value||0));
+    const gp = Math.max(0, Number(growthPoints.value||0));
+    return Math.max(0, gp - base);
+});
+const displayTotal = computed(()=>{
+    // 我的页总是展示：下一等级需要的总成长值（若无下一等级则展示当前累计值）
+    const next = Math.max(0, Number(nextRequired.value||0));
+    if (!next || isMaxLevel.value) return Math.max(0, Number(growthPoints.value||0));
+    return next;
+});
+
 function loadAuthFromStorage() {
 	try {
 		token.value = uni.getStorageSync('token') || null;
 		const user = uni.getStorageSync('user');
 		if (user && typeof user === 'object') {
 			nickname.value = user.name || '会员用户';
-			vipLevel.value = user?.level?.name || user?.levelName || '普通会员';
 			uid.value = user?.uid || null;
             avatarUrl.value = toAbs(user?.avatarUrl) || '';
+			// level 展示数据
+			growthPoints.value = Number(user?.growthPoints||0);
+			levelInfo.value = { name: user?.level?.name || '会员', iconUrl: user?.level?.iconUrl || null, level: user?.level?.level || undefined, requiredGrowth: user?.level?.requiredGrowth || 0 };
 		}
 	} catch {}
 }
@@ -154,7 +206,13 @@ function handleAuthChanged(){ loadAuthFromStorage();
                 if (profile) {
                     uni.setStorageSync('user', profile);
                     nickname.value = profile?.name || nickname.value;
-                    vipLevel.value = profile?.level?.name || vipLevel.value;
+                    uid.value = profile?.uid || uid.value;
+                    avatarUrl.value = toAbs(profile?.avatarUrl) || avatarUrl.value;
+					growthPoints.value = Number(profile?.growthPoints||0);
+					levelInfo.value = { name: profile?.level?.name || '会员', iconUrl: profile?.level?.iconUrl || null, level: profile?.level?.level || undefined, requiredGrowth: profile?.level?.requiredGrowth || 0 };
+					isMaxLevel.value = !!profile?.isMaxLevel;
+					nextRequired.value = Number(profile?.nextRequiredGrowth || levelInfo.value?.requiredGrowth || 0);
+					currentRequired.value = Number(profile?.currentRequiredGrowth || 0);
                 }
             }).catch(()=>{});
         }
@@ -172,9 +230,13 @@ onMounted(() => {
 				if (profile) {
 					uni.setStorageSync('user', profile);
 					nickname.value = profile?.name || nickname.value;
-					vipLevel.value = profile?.level?.name || vipLevel.value;
 					uid.value = profile?.uid || uid.value;
 					avatarUrl.value = toAbs(profile?.avatarUrl) || avatarUrl.value;
+					growthPoints.value = Number(profile?.growthPoints||0);
+					levelInfo.value = { name: profile?.level?.name || '会员', iconUrl: profile?.level?.iconUrl || null, level: profile?.level?.level || undefined, requiredGrowth: profile?.level?.requiredGrowth || 0 };
+					isMaxLevel.value = !!profile?.isMaxLevel;
+					nextRequired.value = Number(profile?.nextRequiredGrowth || levelInfo.value?.requiredGrowth || 0);
+					currentRequired.value = Number(profile?.currentRequiredGrowth || 0);
 				}
 			}).catch(()=>{});
 			try { http('/member/me/active', { method: 'POST' }).catch(()=>{}); } catch {}
@@ -285,9 +347,11 @@ function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/
 
 // 已切换为系统 tabBar
 
-function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {} token.value = null; nickname.value = '点击登录账号'; vipLevel.value = '点击登录账号'; uni.showToast({ title: '已退出', icon: 'none' }); }
+function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {} token.value = null; nickname.value = '点击登录账号'; uni.showToast({ title: '已退出', icon: 'none' }); }
 
 function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/washcard/index'); }
+
+function goMembership(){ try { uni.navigateTo({ url: '/pages/membership/index' }); } catch {} }
 
 // 其它功能入口
 function onTapAddress(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/address/index'); }
@@ -354,11 +418,22 @@ async function loadOrderBadges(){
 .meta { display:flex; flex-direction: column; gap: 10rpx; flex: 1; min-width: 0; }
 .chips-row { display:flex; align-items:center; gap: 16rpx; min-width: 0; }
 .nickname-text { font-size: 36rpx; font-weight: 800; color: #0b1220; letter-spacing: 1rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
-.vip-chip { padding: 10rpx 18rpx; border-radius: 999rpx; background: #ffffff; border: 2rpx solid #fbbf24; font-size: 22rpx; color: #92400e; font-weight: 600; }
 .setting-btn { padding: 12rpx 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); font-size: 24rpx; color: #1f2937; }
 .uid-line { font-size: 22rpx; color: #374151; padding: 6rpx 10rpx; background: rgba(255,255,255,.8); border: 2rpx dashed #e5e7eb; border-radius: 999rpx; align-self: flex-start; letter-spacing: 1rpx; }
 /* 未登录 CTA */
 .login-cta { padding: 12rpx 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); color: #0b1220; font-size: 26rpx; font-weight: 700; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.06); }
+
+/* 等级卡片 */
+.level-card { position: relative; background: linear-gradient(180deg, #fff8f0 0%, #f3f9ff 100%); overflow: visible; }
+.level-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 14rpx; }
+.level-row { display:flex; align-items:center; gap: 12rpx; }
+.level-name { font-size: 30rpx; font-weight: 700; color:#1f2937; }
+.level-tip-max { font-size: 22rpx; color:#16a34a; background:#ecfdf5; padding: 6rpx 12rpx; border-radius: 999rpx; }
+.level-sub { font-size: 24rpx; color:#6b7280; display:flex; align-items:center; justify-content: space-between; }
+.level-progress-num { color:#374151; font-weight: 700; }
+.level-icon-float { position: absolute; right: -12rpx; top: -12rpx; width: 72rpx; height: 72rpx; border: none; border-radius: 0; box-shadow: none; background: transparent; }
+.progress { width:100%; height:14rpx; border-radius:999rpx; background:#eef2ff; overflow:hidden; margin: 8rpx 0 10rpx 0; }
+.progress-inner { height:100%; background: linear-gradient(90deg, #a8d8ff, #ffc9de); }
 
 /* 计次卡 */
 .me-wash-card { margin-bottom: 24rpx; }

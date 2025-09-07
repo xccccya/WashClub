@@ -43,20 +43,21 @@ export class SystemSettingController {
     @ApiOperation({ summary: '获取站点基础设置' })
     async getSetting() {
         const ss = await this.prisma.siteSetting.findFirst().catch(() => null);
-        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null } as any;
+        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null, growthPerYuan: 1 } as any;
     }
 
     @Post('site-setting')
     @UseGuards(AdminGuard)
     @RequirePerm('system-basic')
     @ApiOperation({ summary: '保存站点基础设置' })
-    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null }) {
+    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null; growthPerYuan?: number }) {
         const payload: any = {
             title: (body.title || 'WashClub 管理后台').slice(0, 60),
             logoUrl: body.logoUrl ?? null,
             bgType: body.bgType === 'image' ? 'image' : 'bing',
             bgImageUrl: body.bgImageUrl ?? null,
             defaultMemberAvatarUrl: body.defaultMemberAvatarUrl ?? null,
+            growthPerYuan: Math.max(1, Math.floor(Number(body?.growthPerYuan ?? 1))),
         };
         const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
         let saved: any;

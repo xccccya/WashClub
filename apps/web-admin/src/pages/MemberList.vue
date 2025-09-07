@@ -13,27 +13,34 @@
 					<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
 				</template>
 			</el-table-column>
-			<el-table-column prop="name" label="昵称" />
-			<el-table-column prop="phone" label="手机号" />
+			<el-table-column prop="name" label="昵称" width="140" />
+			<el-table-column prop="phone" label="手机号" width="150" />
 			<el-table-column prop="level.name" label="等级" width="120">
 				<template #default="{ row }">{{ row.level?.name || '-' }}</template>
 			</el-table-column>
 			<el-table-column prop="category.name" label="分类" width="120">
 				<template #default="{ row }">{{ row.category?.name || '-' }}</template>
 			</el-table-column>
+			<el-table-column prop="growthPoints" label="成长值" width="120">
+				<template #default="{ row }">{{ (row as any).growthPoints ?? 0 }}</template>
+			</el-table-column>
+			<el-table-column prop="totalPaidAmount" label="累计支付(￥)" width="140">
+				<template #default="{ row }">{{ Number((row as any).totalPaidAmount||0).toFixed(2) }}</template>
+			</el-table-column>
+			<el-table-column prop="points" label="积分" width="100" />
+			<el-table-column prop="balance" label="余额" width="120" />
 			<el-table-column prop="createdAt" label="注册时间" width="180">
 				<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
 			</el-table-column>
 			<el-table-column prop="lastActiveAt" label="活跃时间" width="180">
 				<template #default="{ row }">{{ formatTime(row.lastActiveAt) }}</template>
 			</el-table-column>
-			<el-table-column prop="points" label="积分" width="100" />
-			<el-table-column prop="balance" label="余额" width="120" />
-			<el-table-column label="操作" width="240">
+			<el-table-column label="操作" width="420">
 				<template #default="{ row }">
 					<div class="op-btns">
 						<el-button size="small" link @click="openEdit(row)">查看资料</el-button>
 						<el-button size="small" link type="warning" @click="openResetPwd(row)">修改密码</el-button>
+						<el-button size="small" link type="primary" @click="openGrowthLogs(row)">成长日志</el-button>
 						<el-button size="small" link type="danger" @click="openDeleteDialog(row)">删除</el-button>
 					</div>
 				</template>
@@ -71,7 +78,7 @@
 				</el-form-item>
 				<el-form-item label="会员分类" prop="categoryId">
 					<el-select v-model="form.categoryId" placeholder="请选择分类" style="width:100%">
- 						<el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
+						<el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
 					</el-select>
 				</el-form-item>
 				<el-form-item label="会员标签">
@@ -126,6 +133,20 @@
 			</template>
 		</el-dialog>
 
+		<el-dialog v-model="growthDialog" title="成长值日志" width="560px">
+			<div class="growth-logs">
+				<div v-if="growthLoading" class="loading">加载中...</div>
+				<div v-else-if="growthLogs.length===0" class="empty">暂无成长值日志</div>
+				<div v-else class="list">
+					<div class="row" v-for="(g,i) in growthLogs" :key="i">
+						<div class="desc">{{ g.desc }}</div>
+						<div class="change" :class="{ plus: g.change>0, minus: g.change<0 }">{{ g.change>0?`+${g.change}`:g.change }}</div>
+						<div class="time">{{ formatTime(g.createdAt) }}</div>
+					</div>
+				</div>
+			</div>
+		</el-dialog>
+
 		<FilePickerDialog v-model="pickVisible" title="选择头像" @picked="onPickedAvatar" />
 	</BasePage>
 </template>
@@ -153,7 +174,7 @@ const categories = ref<Category[]>([]);
 type Tag = { id: number; name: string; isSystem?: boolean };
 const tagOptions = ref<Tag[]>([]);
 
-type Member = { id: number; uid: number; name: string; phone: string; points: number; balance: number; createdAt: string; lastActiveAt?: string | null; avatarUrl?: string | null; level?: Level; category?: Category; tags?: Tag[] };
+type Member = { id: number; uid: number; name: string; phone: string; points: number; balance: number; createdAt: string; lastActiveAt?: string | null; avatarUrl?: string | null; level?: Level; category?: Category; tags?: Tag[]; growthPoints?: number; totalPaidAmount?: number };
 const list = ref<Member[]>([]);
 const keyword = ref('');
 const loading = ref(false);
@@ -189,6 +210,25 @@ const delDialog = ref(false);
 const delTarget = ref<Member | null>(null);
 const delCountdown = ref(0);
 let delTimer: any = null;
+
+// 成长值日志弹窗
+const growthDialog = ref(false);
+const growthLoading = ref(false);
+const growthLogs = ref<Array<{ createdAt: string; desc: string; change: number }>>([]);
+let growthMemberId: number | null = null;
+
+async function openGrowthLogs(m: Member){
+    growthDialog.value = true;
+    growthLoading.value = true;
+    growthLogs.value = [];
+    growthMemberId = m.id;
+    try{
+        const list = await http<any[]>(`/member/${m.id}/growth-logs`, { method: 'GET', query: { limit: 100 } });
+        growthLogs.value = Array.isArray(list) ? list : [];
+    } finally {
+        growthLoading.value = false;
+    }
+}
 
 function formatTime(v?: string | null) {
 	if (!v) return '-';
@@ -326,5 +366,14 @@ function onPickedAvatar(list:any[]){ const first = Array.isArray(list) ? list[0]
 
 <style scoped>
 .op-btns { display: inline-flex; gap: 6px; align-items: center; }
+.growth-logs { max-height: 60vh; overflow: auto; }
+.growth-logs .list { display: flex; flex-direction: column; gap: 10px; }
+.growth-logs .row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 2px 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #eef2f7; background: #fff; }
+.growth-logs .desc { grid-column: 1 / 2; font-weight: 600; color: #111827; }
+.growth-logs .change { grid-column: 2 / 3; justify-self: end; font-weight: 700; }
+.growth-logs .change.plus { color: #16a34a; }
+.growth-logs .change.minus { color: #ef4444; }
+.growth-logs .time { grid-column: 1 / 3; color: #6b7280; font-size: 12px; }
+.loading, .empty { color: #6b7280; text-align: center; padding: 24px 0; }
 </style>
 

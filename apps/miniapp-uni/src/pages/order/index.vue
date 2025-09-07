@@ -23,9 +23,11 @@
 					<text class="tag" v-if="o.type==='SERVICE'">服务订单</text>
 					<text class="tag" v-else-if="o.type==='SP'">商品订单</text>
 					<text class="tag" v-else>付款订单</text>
-					<text class="tag" v-if="o.no">{{ o.no }}</text>
 				</view>
-				<text class="status-badge">{{ displayStatus(o) }}</text>
+				<view class="status-wrap">
+					<text v-if="o.payStatus==='UNPAID' && displayRemaining(o)" class="remain">支付倒计时 {{ displayRemaining(o) }}</text>
+					<text class="status-badge">{{ displayStatus(o) }}</text>
+				</view>
 			</view>
 
 			<!-- 商品/服务列表（逐行展示） -->
@@ -103,10 +105,11 @@ function setFilter(name: string){
 }
 
 type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number; quantity: number; specsText?: string|null; specsJson?: any };
-type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE'; createdAt: string; items: OrderItem[]; payAmount?: number|string };
+type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE'; createdAt: string; paymentExpireAt?: string|null; items: OrderItem[]; payAmount?: number|string };
 
 const orders = ref<Order[]>([]);
 const loading = ref(false);
+let tickTimer: any = null;
 
 function navigate(url: string){
 	// #ifdef H5
@@ -156,6 +159,21 @@ function displayStatus(o: Order){
 	return '处理中';
 }
 
+// 待支付剩余时间展示（mm:ss），过期则不显示
+function displayRemaining(o: Order){
+    try{
+        const exp = (o as any)?.paymentExpireAt;
+        if (!exp) return '';
+        const end = new Date(exp).getTime();
+        const now = Date.now();
+        const diff = Math.max(0, end - now);
+        if (diff <= 0) return '';
+        const mm = String(Math.floor(diff / 60000)).padStart(2,'0');
+        const ss = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+        return `${mm}:${ss}`;
+    }catch{ return ''; }
+}
+
 
 function buildQuery(){
 	const q: any = {};
@@ -182,6 +200,10 @@ async function fetchOrders(){
 		if (memberId) q.memberId = memberId;
 		const list = await http<Order[]>('/orders', { method:'GET', query: q });
 		orders.value = Array.isArray(list) ? list : [];
+		// 重置倒计时计时器（每秒触发一次视图刷新）
+		try { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } } catch {}
+		const hasUnpaid = orders.value.some((o:any)=> o?.payStatus==='UNPAID' && (o as any)?.paymentExpireAt);
+		if (hasUnpaid){ tickTimer = setInterval(()=>{ try{ orders.value = [...orders.value]; }catch{} }, 1000); }
 	} finally { loading.value = false; }
 }
 
@@ -415,6 +437,8 @@ onShow(async()=>{
 /* 新增：卡片头部与状态徽标 */
 .header-row { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
 .status-badge { font-size: 24rpx; color:#0f766e; background:#ecfeff; border: 2rpx solid #99f6e4; padding: 6rpx 12rpx; border-radius: 999rpx; }
+.status-wrap { display:flex; align-items:center; gap: 10rpx; }
+.remain { font-size: 22rpx; color:#ef4444; background:#fee2e2; border: 2rpx solid #fecaca; padding: 4rpx 10rpx; border-radius: 999rpx; }
 
 /* 新增：订单项列表 */
 .items { display:flex; flex-direction: column; gap: 12rpx; }

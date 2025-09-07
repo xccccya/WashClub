@@ -21,6 +21,8 @@ import { CartService } from './cart.service.js';
 import { FavoriteController } from './favorite.controller.js';
 import { FavoriteService } from './favorite.service.js';
 import { AssetService } from '../file/asset.service.js';
+import { MemberSignInController } from './signin.controller.js';
+import { MemberSignInService } from './signin.service.js';
 
 @Module({
 	imports: [
@@ -28,8 +30,8 @@ import { AssetService } from '../file/asset.service.js';
 			secret: process.env.JWT_SECRET || 'dev_secret',
 		}),
 	],
-	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController],
-	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, FileService, AssetService, WashCardService, AddressService, CartService, FavoriteService],
+	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController, MemberSignInController],
+	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, FileService, AssetService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService],
 })
 export class MemberModule {}
 

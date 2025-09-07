@@ -18,7 +18,7 @@ export class MemberService {
 				skip: (page - 1) * pageSize,
 				take: pageSize,
 				where,
-				orderBy: { id: 'desc' },
+				orderBy: [{ level: { level: 'desc' } } as any, { id: 'desc' }],
 				include: { vehicles: true, level: true, category: true, tags: true },
 			}),
 			this.prisma.member.count({ where }),
@@ -26,6 +26,8 @@ export class MemberService {
 		const items = itemsRaw.map((m) => ({
 			...m,
 			balance: Number(m.balance),
+			totalPaidAmount: Number((m as any).totalPaidAmount || 0),
+			growthPoints: Number((m as any).growthPoints || 0),
 		}));
 		return { items, total, page, pageSize };
 	}
@@ -47,9 +49,24 @@ export class MemberService {
 				const issuedAtMs = iatSec * 1000;
 				if (Date.now() - issuedAtMs > maxAgeMs) throw new UnauthorizedException('Token已过期');
 			}
-			const member = await this.findById(id);
+			const member: any = await this.findById(id);
 			if (!member) throw new UnauthorizedException('Token无效');
-			return member;
+			// 补充：是否最大等级与下一等级的成长值要求
+			try {
+				const growth = Number(member?.growthPoints || 0);
+				const levels: any[] = await this.prisma.memberLevel.findMany({ orderBy: { /* @ts-ignore */ level: 'asc' } as any });
+				let currentRequired = 0;
+				let nextRequired: number | null = null;
+				for (const lv of levels) {
+					const req = Number(lv.requiredGrowth || 0);
+					if (req <= growth) currentRequired = Math.max(currentRequired, req);
+					if (nextRequired == null && req > growth) nextRequired = req;
+				}
+				const isMaxLevel = nextRequired == null;
+				return { ...member, isMaxLevel, nextRequiredGrowth: nextRequired, currentRequiredGrowth: currentRequired };
+			} catch {
+				return member;
+			}
 		} catch {
 			throw new UnauthorizedException('Token无效');
 		}
@@ -136,6 +153,30 @@ export class MemberService {
 		return this.prisma.member.update({ where: { id }, data: { password: hashed } });
 	}
 
+	// 成长值日志（持久化）：直接读取 MemberGrowthLog
+	async getGrowthLogsByToken(token?: string, limit?: number){
+		if (!token) throw new UnauthorizedException('缺少Token');
+		let id: number | undefined;
+		try {
+			const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
+			if (decoded?.type !== 'member') throw 0;
+			id = Number(decoded?.sub);
+		} catch {
+			throw new UnauthorizedException('Token无效');
+		}
+		if (!id) throw new UnauthorizedException('Token无效');
+		const max = Math.max(1, Math.min(200, Number(limit || 50)));
+		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max });
+		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source), change: Number(r.change||0), source: r.source }));
+	}
+
+	async getGrowthLogsByMemberId(memberId: number, limit?: number){
+		const id = Number(memberId); if (!id) throw new BadRequestException('memberId无效');
+		const max = Math.max(1, Math.min(200, Number(limit || 50)));
+		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max });
+		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source), change: Number(r.change||0), source: r.source }));
+	}
+
 	async remove(id: number) {
 		// 统一使用事务，确保相关资源清理
 		return this.prisma.$transaction(async (tx) => {
@@ -169,6 +210,13 @@ export class MemberService {
 
 
 // ========== 文件绑定辅助 ==========
+function mapGrowthSourceToDesc(src?: string){
+    const s = String(src||'').toUpperCase();
+    if (s === 'SIGN') return '签到';
+    if (s === 'PAY') return '支付订单';
+    if (s === 'ADMIN') return '后台调整';
+    return '成长值变动';
+}
 async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{
     const set = new Set<string>();
     for (const u of urls){ if(!u) continue; const s=String(u).trim(); if(!s) continue; set.add(s); try{ if(/^https?:\/\//i.test(s)){ const rel=new URL(s).pathname; if(rel) set.add(rel); } }catch{} }

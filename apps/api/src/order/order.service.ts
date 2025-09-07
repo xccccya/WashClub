@@ -651,6 +651,27 @@ export class OrderService {
         const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt, wechatTransactionId: params.wechatTransactionId ?? undefined } });
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
+        // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级
+        try {
+            const amountYuan = Number(order.payAmount || 0);
+            if (amountYuan > 0) {
+                const ss: any = await this.prisma.siteSetting.findFirst().catch(()=>null);
+                const growthPerYuan = Math.max(1, Math.floor(Number(ss?.growthPerYuan ?? 1)));
+                const growthInc = Math.max(0, Math.floor(amountYuan * growthPerYuan));
+                await this.prisma.member.update({ where: { id: order.memberId }, data: { totalPaidAmount: { increment: amountYuan as any }, growthPoints: { increment: growthInc } } as any });
+                // 成长值日志
+                if (growthInc > 0) {
+                    await (this.prisma as any).memberGrowthLog.create({ data: { memberId: order.memberId, change: growthInc, source: 'PAY', desc: `支付订单 ${order.no}` } });
+                }
+                // 计算应有等级：找出 growthPoints 达标的最高 level
+                const m: any = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { id: true, /* @ts-ignore */ growthPoints: true, levelId: true } as any });
+                const levels: any[] = await this.prisma.memberLevel.findMany({ orderBy: { /* @ts-ignore */ level: 'desc' } as any });
+                const target = levels.find(l => Number(m?.growthPoints ?? 0) >= Number((l as any)?.requiredGrowth ?? 0));
+                if (target && target.id !== (m?.levelId || null)) {
+                    await this.prisma.member.update({ where: { id: order.memberId }, data: { levelId: target.id } });
+                }
+            }
+        } catch {}
         // 支付成功后，若订单包含绑定洗车计次卡的商品，则为会员发放洗车卡，并记录购买日志（含订单号）
         const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
         for (const it of items) {
