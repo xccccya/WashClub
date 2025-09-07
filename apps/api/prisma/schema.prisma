@@ -46,7 +46,7 @@ model Member {
   password             String?
   weixinOpenId         String?         @unique
   points               Int             @default(0)
-  balance              Decimal         @default(0)
+  balance              Decimal         @default(0) @db.Decimal(12, 2)
   levelId              Int?
   level                MemberLevel?    @relation(fields: [levelId], references: [id])
   categoryId           Int?
@@ -453,8 +453,8 @@ model Coupon {
   allowStackWithMemberDiscount Boolean     @default(true)
 
   // 优惠券专用
-  faceValue      Decimal?
-  minOrderAmount Decimal?
+  faceValue      Decimal?         @db.Decimal(12, 2)
+  minOrderAmount Decimal?         @db.Decimal(12, 2)
   issueTotal     Int?
   applyScope     CouponApplyScope @default(ALL)
 
@@ -547,8 +547,8 @@ model Product {
   memberDiscount      Boolean          @default(false)
   specType            ProductSpecType  @default(SINGLE)
   // 单规格商品字段（当 specType=SINGLE 生效）
-  price               Decimal?         @default(0)
-  listPrice           Decimal?         @default(0)
+  price               Decimal?         @default(0) @db.Decimal(12, 2)
+  listPrice           Decimal?         @default(0) @db.Decimal(12, 2)
   stockQuantity       Int?             @default(0)
   // 销量与卖点
   initialSales        Int              @default(0)
@@ -580,8 +580,8 @@ model ProductSku {
   skuCode       String   @unique
   barcode       String?
   imageUrl      String?
-  price         Decimal  @default(0)
-  listPrice     Decimal  @default(0)
+  price         Decimal  @default(0) @db.Decimal(12, 2)
+  listPrice     Decimal  @default(0) @db.Decimal(12, 2)
   stockQuantity Int      @default(0)
   enabled       Boolean  @default(true)
 
@@ -629,11 +629,11 @@ model Order {
   reviewStatus            ReviewStatus      @default(NONE)
   deletedAt               DateTime?
   // 金额相关
-  totalAmount             Decimal           @default(0)
-  discountAmount          Decimal           @default(0)
-  payAmount               Decimal           @default(0)
-  refundedAmount          Decimal           @default(0)
-  shippingFee             Decimal           @default(0)
+  totalAmount             Decimal           @default(0) @db.Decimal(12, 2)
+  discountAmount          Decimal           @default(0) @db.Decimal(12, 2)
+  payAmount               Decimal           @default(0) @db.Decimal(12, 2)
+  refundedAmount          Decimal           @default(0) @db.Decimal(12, 2)
+  shippingFee             Decimal           @default(0) @db.Decimal(12, 2)
   // 支付相关
   payStatus               PayStatus         @default(UNPAID)
   payMethod               PayMethod?
@@ -644,7 +644,7 @@ model Order {
   wechatTransactionId     String?
   // 权益/积分/卡券
   usedPoints              Int               @default(0)
-  pointsAmount            Decimal           @default(0)
+  pointsAmount            Decimal           @default(0) @db.Decimal(12, 2)
   couponInfo              Json?
   // 收货地址（可选）：保存下单时快照，便于后续发货
   shippingAddressId       Int?
@@ -699,6 +699,8 @@ model Order {
   @@index([fulfillmentStatus])
   @@index([shippingAddressId])
   @@index([userRemark])
+  @@index([payStatus, deletedAt, paidAt])
+  @@index([memberId, createdAt])
 }
 
 model OrderItem {
@@ -713,8 +715,8 @@ model OrderItem {
   imageUrl  String?
   specsText String?
   barcode   String?
-  price     Decimal  @default(0)
-  discount  Decimal  @default(0)
+  price     Decimal  @default(0) @db.Decimal(12, 2)
+  discount  Decimal  @default(0) @db.Decimal(12, 2)
   quantity  Int      @default(1)
 
   @@index([orderId])
@@ -760,7 +762,7 @@ model AfterSalesRequest {
   status AfterSalesStatus @default(PENDING)
 
   // 申请的退款金额（元），为空表示全额退款
-  requestedAmount Decimal?
+  requestedAmount Decimal? @db.Decimal(12, 2)
 
   // 申请内容
   reasonCode  String? // 预设原因代码
@@ -796,7 +798,7 @@ model RefundRecord {
   member   Member @relation("MemberToRefundRecords", fields: [memberId], references: [id])
 
   // 金额（单位：元）
-  amount Decimal @default(0)
+  amount Decimal @default(0) @db.Decimal(12, 2)
 
   // 支付/退款渠道
   method PayMethod?
