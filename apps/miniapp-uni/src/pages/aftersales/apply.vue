@@ -163,7 +163,7 @@ async function chooseImages(){
 				const base = API_BASE || '';
 				const token = getToken() || '';
 				uni.uploadFile({
-					url: base + '/file/upload',
+					url: base + '/assets/upload',
 					filePath,
 					name: 'file',
 					formData: { dir: 'miniapp' },

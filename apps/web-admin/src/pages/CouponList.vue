@@ -57,13 +57,7 @@
 				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
 				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="1" :step="1" :precision="0" /></el-form-item>
 				<el-form-item label="图片">
-					<div style="display:flex;gap:8px;align-items:center;width:100%">
-						<el-input v-model="form.imageUrl" placeholder="图片URL或上传" />
-						<input type="file" @change="onSelectImage" />
-						<div v-if="form.imageUrl" style="width:80px;height:60px;border:1px solid #eee;display:flex;align-items:center;justify-content:center;overflow:hidden">
-							<img :src="form.imageUrl" style="max-width:100%;max-height:100%" />
-						</div>
-					</div>
+					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" />
 				</el-form-item>
 				<el-form-item label="描述"><el-input type="textarea" :rows="2" v-model="form.description" /></el-form-item>
 				<el-form-item label="后台备注"><el-input type="textarea" :rows="2" v-model="form.adminRemark" /></el-form-item>
@@ -177,6 +171,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
+import FileInput from './_components/FileInput.vue';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import MemberSelector from './_components/MemberSelector.vue';
@@ -226,7 +221,7 @@ async function save(){ if (!form.value.name) { ElMessage.error('请输入名称'
 
 async function remove(id:number){ try { await http(`/coupons/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
-async function onSelectImage(ev: Event){ const input = ev.target as HTMLInputElement; if (!input?.files || input.files.length === 0) return; const f = input.files[0]; const fd = new FormData(); fd.append('file', f); fd.append('dir', 'admin'); const token = localStorage.getItem('token') || ''; const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: fd }); if (!res.ok) { ElMessage.error('上传失败'); return; } const j = await res.json(); form.value.imageUrl = j?.url || ''; }
+// 已用统一 FileInput 替代原生 input 上传
 
 onMounted(async ()=>{ await Promise.all([fetchGroups(), fetchList(), fetchProducts()]); });
 

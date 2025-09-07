@@ -69,7 +69,10 @@
 									</div>
 								</div>
 								<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-									<input type="file" multiple @change="onImagesChange" />
+									<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+										<input type="file" multiple @change="onImagesChange" />
+										<el-button size="small" @click="pickerVisible=true">从文件库选择</el-button>
+									</div>
 									<small>可添加多张图片，首张作为主图保存</small>
 								</div>
 							</div>
@@ -130,7 +133,7 @@
 										<template #default="{ row }">
 											<div style="display:flex;align-items:center;gap:8px;">
 												<img v-if="row.imageUrl" :src="abs(row.imageUrl)" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" />
-												<input type="file" @change="e=>onSkuImageChange(row,e)" />
+												<el-upload :http-request="(o:any)=>onSkuUpload(row,o)" :show-file-list="false"><el-button size="small">上传</el-button></el-upload>
 											</div>
 										</template>
 									</el-table-column>
@@ -156,7 +159,10 @@
 					</el-form>
 				</el-tab-pane>
 				<el-tab-pane label="商品介绍" name="desc">
-					<div style="margin-bottom:8px; color:#666;">支持图片粘贴上传、基础排版与列表。</div>
+					<div style="margin-bottom:8px; color:#666; display:flex; justify-content:space-between; align-items:center;">
+						<span>支持图片粘贴上传、基础排版与列表。</span>
+						<el-button size="small" @click="openInsertFromLib">从文件库插入图片</el-button>
+					</div>
 					<div ref="quillRef" style="height:360px;background:#fff;"></div>
 				</el-tab-pane>
 			</el-tabs>
@@ -174,6 +180,8 @@
 				<el-button type="primary" v-if="uploadUrl" @click="applyImage">应用到商品</el-button>
 			</template>
 		</el-dialog>
+
+		<FilePickerDialog v-model="pickerVisible" multiple title="选择商品图片" @picked="onPicked" />
 	</div>
 </template>
 
@@ -184,6 +192,7 @@ import 'quill/dist/quill.snow.css';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
+import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
 import { Grid, CirclePlus, Promotion, Ticket } from '@element-plus/icons-vue';
 
@@ -213,6 +222,8 @@ const formImages = ref<string[]>([]);
 // 多规格：规格项定义与输入草稿
 const specItems = ref<Array<{ name: string; values: string[] }>>([]);
 const specValueDraft = ref('');
+const pickerVisible = ref(false);
+const pickerForDesc = ref(false);
 
 function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0 }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
 const couponOptions = ref<any[]>([]);
@@ -336,6 +347,15 @@ async function onImagesChange(e:any){
 	try { e.target.value = ''; } catch {}
 }
 function removeImage(i:number){ formImages.value.splice(i,1); }
+function onPicked(list:any[]){
+	const urls = (list||[]).map(x=>x?.url).filter(Boolean);
+	if (pickerForDesc.value && urls.length && quillInstance) {
+		try { const range = quillInstance.getSelection(true); for(const u of urls){ quillInstance.insertEmbed(range ? range.index : 0, 'image', abs(u), 'user'); } } catch {}
+	} else {
+		for(const u of urls){ if(!formImages.value.includes(u)) formImages.value.push(u); }
+	}
+}
+function openInsertFromLib(){ pickerForDesc.value = true; pickerVisible.value = true; }
 
 // 多规格：规格项编辑与组合生成
 function addSpecItem(){ specItems.value.push({ name: '', values: [] }); }
@@ -381,10 +401,10 @@ function generateSkuMatrix(){
 }
 
 // SKU 图片上传（单元格内）
-async function onSkuImageChange(row:any, e:any){
-	const file = e?.target?.files?.[0]; if (!file) return;
+async function onSkuUpload(row:any, options:any){
+	const file = options?.file as File; if (!file) return;
 	const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-	const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+	const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); if (j?.url) row.imageUrl = j.url;
 }
 

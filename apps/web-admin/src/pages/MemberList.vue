@@ -57,17 +57,8 @@
 				<el-form-item label="头像">
 					<div style="display:flex;align-items:center;gap:12px;">
 						<img :src="formatAvatar(form.avatarUrl)" alt="avatar" style="width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid #eee;" />
-						<el-upload
-							:action="`${API_BASE}/file/upload`"
-							:name="'file'"
-							:show-file-list="false"
-							:headers="authHeaders"
-							:data="{ dir: 'public' }"
-							:accept="'image/*'"
-							:on-success="onAvatarUploaded"
-						>
-							<el-button>上传头像</el-button>
-						</el-upload>
+						<el-upload :http-request="uploadAvatar" :show-file-list="false" accept="image/*"><el-button>上传头像</el-button></el-upload>
+						<el-button @click="openPickAvatar">从文件库选择</el-button>
 						<el-button link type="danger" @click="onAvatarClear">恢复默认</el-button>
 					</div>
 				</el-form-item>
@@ -134,6 +125,8 @@
 				</el-button>
 			</template>
 		</el-dialog>
+
+		<FilePickerDialog v-model="pickVisible" title="选择头像" @picked="onPickedAvatar" />
 	</BasePage>
 </template>
 
@@ -143,6 +136,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
+import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
 
 const http = createHttpClient({
@@ -315,14 +309,19 @@ async function onDeleteConfirm(){
 	delDialog.value = false; delTarget.value = null; fetchList();
 }
 
-onMounted(()=>{ fetchLevels(); fetchCategories(); fetchTags(); fetchList(); });
+onMounted(()=>{ ensureSiteSetting(); fetchLevels(); fetchCategories(); fetchTags(); fetchList(); });
 
-const defaultAvatar = `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`;
-function toAbsUrl(path?: string | null) { if (!path) return defaultAvatar; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
-function formatAvatar(url?: string | null){ return toAbsUrl(url); }
+// 读取站点默认头像，避免写死默认图
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
+async function ensureSiteSetting(){ if (siteSetting.value) return; try { siteSetting.value = await http('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
+function toAbsUrl(path?: string | null) { if (!path) return ''; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
+function formatAvatar(url?: string | null){ const candidate = url || siteSetting.value?.defaultMemberAvatarUrl || ''; const u = toAbsUrl(candidate); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); }
 const authHeaders = computed(()=>({ Authorization: `Bearer ${localStorage.getItem('token')||''}` }));
-function onAvatarUploaded(res: any){ form.value.avatarUrl = res?.url || null; ElMessage.success('头像已上传'); }
+async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); form.value.avatarUrl = j?.url || null; ElMessage.success('头像已上传'); }
 function onAvatarClear(){ form.value.avatarUrl = null; ElMessage.success('已恢复默认头像'); }
+const pickVisible = ref(false);
+function openPickAvatar(){ pickVisible.value = true; }
+function onPickedAvatar(list:any[]){ const first = Array.isArray(list) ? list[0] : null; if (first?.url) form.value.avatarUrl = first.url; }
 </script>
 
 <style scoped>

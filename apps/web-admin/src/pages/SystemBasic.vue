@@ -6,10 +6,17 @@
 			</el-form-item>
 			<el-form-item label="LOGO">
 				<div class="logo-row">
-					<el-avatar v-if="form.logoUrl" :src="absUrl(form.logoUrl)" :size="64" />
-					<el-upload :http-request="uploadLogo" accept="image/*" :show-file-list="false">
-						<el-button><el-icon style="margin-right:4px;"><Upload /></el-icon>上传图片</el-button>
-					</el-upload>
+					<div v-if="form.logoUrl" class="square" title="点击放大">
+						<el-image
+							:src="absUrl(form.logoUrl)"
+							fit="cover"
+							style="width:100%;height:100%;cursor:zoom-in;"
+							:preview-src-list="[absUrl(form.logoUrl)]"
+							:initial-index="0"
+							preview-teleported
+						/>
+					</div>
+					<FileInput v-model="(form.logoUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
 					<el-button v-if="form.logoUrl" text type="danger" @click="form.logoUrl=null">移除</el-button>
 				</div>
 			</el-form-item>
@@ -21,11 +28,33 @@
 			</el-form-item>
 			<el-form-item v-if="form.bgType==='image'" label="背景图片">
 				<div class="logo-row">
-					<img v-if="form.bgImageUrl" :src="absUrl(form.bgImageUrl)" style="width:160px;height:90px;object-fit:cover;border-radius:6px;border:1px solid var(--el-border-color);" />
-					<el-upload :http-request="uploadBg" accept="image/*" :show-file-list="false">
-						<el-button><el-icon style="margin-right:4px;"><Upload /></el-icon>上传图片</el-button>
-					</el-upload>
+					<el-image
+						v-if="form.bgImageUrl"
+						:src="absUrl(form.bgImageUrl)"
+						fit="contain"
+						style="max-width:240px;border:1px solid var(--el-border-color);border-radius:6px;background:#fff;cursor:zoom-in;"
+						:preview-src-list="[absUrl(form.bgImageUrl)]"
+						:initial-index="0"
+						preview-teleported
+					/>
+					<FileInput v-model="(form.bgImageUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
 					<el-button v-if="form.bgImageUrl" text type="danger" @click="form.bgImageUrl=null">移除</el-button>
+				</div>
+			</el-form-item>
+			<el-form-item label="默认会员头像">
+				<div class="logo-row">
+					<div v-if="form.defaultMemberAvatarUrl" class="square" title="点击放大">
+						<el-image
+							:src="absUrl(form.defaultMemberAvatarUrl)"
+							fit="cover"
+							style="width:100%;height:100%;cursor:zoom-in;"
+							:preview-src-list="[absUrl(form.defaultMemberAvatarUrl)]"
+							:initial-index="0"
+							preview-teleported
+						/>
+					</div>
+					<FileInput v-model="(form.defaultMemberAvatarUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
+					<el-button v-if="form.defaultMemberAvatarUrl" text type="danger" @click="form.defaultMemberAvatarUrl=null">移除</el-button>
 				</div>
 			</el-form-item>
 			<el-form-item>
@@ -42,13 +71,17 @@ import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl as abs } from '../utils/http';
+import FileInput from './_components/FileInput.vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
-const form = ref<{ title: string; logoUrl: string|null; bgType: 'bing'|'image'; bgImageUrl: string|null }>({ title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null });
+const form = ref<{ title: string; logoUrl: string|null; bgType: 'bing'|'image'; bgImageUrl: string|null; defaultMemberAvatarUrl: string|null }>({ title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null });
 
 function absUrl(u?: string | null){ return abs(u); }
 
 async function fetchSetting(){ form.value = await http('/system/site-setting', { method: 'GET' }); }
+
+const showLogoViewer = ref(false);
+const showAvatarViewer = ref(false);
 
 async function save(){
   await http('/system/site-setting', { method:'POST', body: form.value });
@@ -56,27 +89,20 @@ async function save(){
   ElMessage.success('已保存');
 }
 
-async function uploadLogo(p: any){
-  const fd = new FormData(); fd.append('file', p.file); fd.append('dir', 'public');
-  const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('上传失败');
-  const data: any = await res.json();
-  form.value.logoUrl = data?.url || '';
-}
-
-async function uploadBg(p: any){
-  const fd = new FormData(); fd.append('file', p.file); fd.append('dir', 'public');
-  const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('上传失败');
-  const data: any = await res.json();
-  form.value.bgImageUrl = data?.url || '';
-}
+// 统一由 FileInput 处理上传或选择，保留回退逻辑可移除
 
 onMounted(fetchSetting);
 </script>
 
 <style scoped>
 .logo-row{ display:flex; align-items:center; gap:12px; }
+/* 固定方形预览容器，确保始终是正方形外框 */
+.square{ width:64px; height:64px; flex: none; border-radius:0; border:1px solid var(--el-border-color); background:#fff; overflow:hidden; display:flex; align-items:center; justify-content:center; position:relative; line-height:0; }
+.square :deep(.el-image){ width:100% !important; height:100% !important; display:block; border-radius:0 !important; }
+.square :deep(.el-image__inner){ width:100% !important; height:100% !important; object-fit:cover !important; border-radius:0 !important; }
+.square :deep(img){ width:100% !important; height:100% !important; object-fit:cover !important; border-radius:0 !important; display:block !important; }
+.avatar-square{ width:64px; height:64px; border-radius:6px; border:1px solid var(--el-border-color); overflow:hidden; display:flex; align-items:center; justify-content:center; cursor:zoom-in; }
+.avatar-square :deep(.el-avatar){ width:64px; height:64px; }
 </style>
 
 

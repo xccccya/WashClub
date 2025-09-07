@@ -41,12 +41,7 @@
 			<el-form :model="form" label-width="120px">
 				<el-form-item label="标题"><el-input v-model="form.title" placeholder="可选" /></el-form-item>
 				<el-form-item label="图片">
-					<div style="display:flex;align-items:center;gap:12px;">
-						<img v-if="form.imageUrl" :src="abs(form.imageUrl)" style="width:240px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee;" />
-						<el-upload :http-request="uploadImage" :show-file-list="false" accept="image/*">
-							<el-button type="primary">上传图片</el-button>
-						</el-upload>
-					</div>
+					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" />
 				</el-form-item>
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="跳转设置">
@@ -69,6 +64,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
+import FileInput from './_components/FileInput.vue';
 import { ElMessage } from 'element-plus';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
@@ -118,17 +114,7 @@ async function remove(row: Banner){
     catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); }
 }
 
-async function uploadImage(options: any){
-    const file = options?.file as File;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('dir', 'public');
-    const res = await fetch(`${API_BASE}/file/upload`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` }, body: fd });
-    const data = await res.json();
-    if (!res.ok) { throw new Error(data?.message || '上传失败'); }
-    form.value.imageUrl = data?.url || '';
-    ElMessage.success('上传成功');
-}
+// 替换为统一 FileInput 组件后，不再需要 uploadImage
 
 function abs(u?: string){ return absUrl(u || ''); }
 

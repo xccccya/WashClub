@@ -59,6 +59,9 @@ export class MemberService {
 		if (!nameTrim) throw new BadRequestException('昵称不能为空');
 		if (Array.from(nameTrim).length > 10) throw new BadRequestException('昵称长度不可超过10个字符');
 		return this.prisma.$transaction(async (tx) => {
+			// 从站点设置读取默认头像（用于创建时未提供头像或显式为 null 时）
+			const siteSetting = await tx.siteSetting.findFirst().catch(() => null);
+			const defaultAvatarFromSetting = siteSetting?.defaultMemberAvatarUrl || null;
 			let uid: number;
 			// 生成唯一8位数字UID
 			while (true) {
@@ -77,7 +80,10 @@ export class MemberService {
 			const sysTag1 = await tx.memberTag.findUnique({ where: { id: 1 }, select: { id: true } });
 			const autoTagIds = sysTag1 ? [1] : [];
 			const connectTags = [...new Set([...autoTagIds, ...inputTagIds])].map((id) => ({ id }));
-			return tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: data.avatarUrl || null, tags: { connect: connectTags } } });
+			// 创建时：若未提供或显式为 null/空串，则使用站点默认头像
+			const provided = typeof data.avatarUrl === 'string' ? data.avatarUrl.trim() : (data.avatarUrl ?? undefined);
+			const finalAvatar = provided ? String(provided) : defaultAvatarFromSetting;
+			return tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: finalAvatar ?? null, tags: { connect: connectTags } } });
 		});
 	}
 

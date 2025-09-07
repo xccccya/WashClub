@@ -14,7 +14,8 @@
     "prisma:push": "prisma db push",
     "openapi": "node ./scripts/generate-openapi.mjs",
     "db:init": "node ./scripts/init-db.mjs",
-    "db:seed": "node ./scripts/seed.mjs"
+    "db:seed": "node ./scripts/seed.mjs",
+    "assets:backfill": "node ./scripts/backfill-assets.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.10",
@@ -23,7 +24,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/platform-express": "^10.3.10",
     "@nestjs/swagger": "^7.4.2",
-    "@prisma/client": "^5.16.1",
+    "@prisma/client": "^6.15.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",
@@ -31,6 +32,7 @@
     "mysql2": "^3.14.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.34.3",
     "swagger-ui-express": "^5.0.1",
     "tencentcloud-sdk-nodejs": "^4.1.103"
   },
@@ -41,7 +43,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.9",
-    "prisma": "^5.16.1",
+    "prisma": "^6.15.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.4.5"

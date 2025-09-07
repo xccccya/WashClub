@@ -14,7 +14,7 @@ export class SystemSettingController {
     @ApiOperation({ summary: '公共-获取站点基础设置' })
     async getPublicSetting() {
         const ss = await this.prisma.siteSetting.findFirst().catch(() => null);
-        return ss || { title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null };
+        return ss || { title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null } as any;
     }
 
     // 公共：获取必应每日壁纸直链（由服务端代理获取 JSON，避免浏览器 CORS）
@@ -42,19 +42,20 @@ export class SystemSettingController {
     @ApiOperation({ summary: '获取站点基础设置' })
     async getSetting() {
         const ss = await this.prisma.siteSetting.findFirst().catch(() => null);
-        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null } as any;
+        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null } as any;
     }
 
     @Post('site-setting')
     @UseGuards(AdminGuard)
     @RequirePerm('system-basic')
     @ApiOperation({ summary: '保存站点基础设置' })
-    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null }) {
+    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null }) {
         const payload: any = {
             title: (body.title || 'WashClub 管理后台').slice(0, 60),
             logoUrl: body.logoUrl ?? null,
             bgType: body.bgType === 'image' ? 'image' : 'bing',
             bgImageUrl: body.bgImageUrl ?? null,
+            defaultMemberAvatarUrl: body.defaultMemberAvatarUrl ?? null,
         };
         const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
         if (exists) {

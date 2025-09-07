@@ -116,6 +116,8 @@ model SiteSetting {
   // 基本信息
   title       String   @default("WashClub 管理后台")
   logoUrl     String?
+  // 默认会员头像（用于会员未设置头像时展示）
+  defaultMemberAvatarUrl String?
 
   // 背景：bing 每日壁纸 或 自定义图片
   bgType      String   @default("bing") // bing | image
@@ -991,4 +993,56 @@ model MemberFavoriteProduct {
 
   @@unique([memberId, productId])
   @@index([memberId])
+}
+
+// =====================
+// 文件资产 与 业务绑定
+// =====================
+
+model FileAsset {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  filename       String
+  extension      String?
+  mimeType       String
+  size           Int
+  width          Int?
+  height         Int?
+  durationMs     Int?
+  checksumSha256 String   @unique @db.VarChar(64)
+
+  storage   String   // local|cos|oss|minio...
+  bucket    String?
+  objectKey String   @db.VarChar(512) // 统一 key/path
+  url       String   @db.VarChar(1024) // 可为 CDN 地址
+  isPublic  Boolean  @default(true)
+
+  // MySQL 不支持字符串数组，使用 JSON 数组
+  tagsJson  Json?
+
+  variants  Json?
+  extra     Json?
+
+  refCount  Int      @default(0)
+
+  bindings  FileBinding[]
+
+  @@index([mimeType, createdAt])
+  @@index([deletedAt])
+}
+
+model FileBinding {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+
+  fileId     String
+  tableName  String
+  rowId      String
+  fieldName  String
+
+  file       FileAsset @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([tableName, rowId, fieldName])
 }

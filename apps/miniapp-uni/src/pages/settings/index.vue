@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
@@ -100,7 +100,10 @@ const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorag
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const bottomInsetPx = ref(0);
 
-const defaultAvatar = `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`;
+// 动态读取站点默认头像
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
+async function ensureSiteSetting(){ if (siteSetting.value) return; try{ siteSetting.value = await http('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
+const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
 const user = ref<any>({});
 const avatarPreview = ref<string>('');
 const nickname = ref<string>('');
@@ -119,6 +122,7 @@ const sendingCode = ref(false);
 function toAbs(u?: string){ if (!u) return ''; if (/^https?:\/\//i.test(u)) return u; if (u.startsWith('/')) return API_BASE + u; return API_BASE + '/' + u; }
 
 onMounted(() => {
+    ensureSiteSetting();
 	try {
 		const u = uni.getStorageSync('user') || {};
 		user.value = u;
@@ -178,7 +182,7 @@ function onChooseWeixinAvatar(e: any) {
 	if (!tempUrl) return;
 	// 将临时文件上传到后端
 	uni.uploadFile({
-		url: `${API_BASE}/file/upload`,
+		url: `${API_BASE}/assets/upload`,
 		filePath: tempUrl,
 		name: 'file',
 		formData: { dir: 'miniapp' },
@@ -211,7 +215,7 @@ function takePhoto(){
 function onChooseLocalImage(r: any){
 	const path = r?.tempFilePaths?.[0]; if (!path) return;
 	uni.uploadFile({
-		url: `${API_BASE}/file/upload`,
+		url: `${API_BASE}/assets/upload`,
 		filePath: path,
 		name: 'file',
 		formData: { dir: 'miniapp' },

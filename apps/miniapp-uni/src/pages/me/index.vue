@@ -112,8 +112,11 @@ const token = ref<string | null>(null);
 const nickname = ref('昵称');
 const uid = ref<number | null>(null);
 const avatarUrl = ref<string>('');
+// 站点默认头像（动态读取）
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
+async function ensureSiteSetting(){ if (siteSetting.value) return; try { const httpS = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') }); siteSetting.value = await httpS('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 // 基址由 utils/auth 统一提供
-const defaultAvatar = `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`;
+const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
 const vipLevel = ref('会员等级');
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const isLoggedIn = computed(() => !!token.value);
@@ -159,6 +162,7 @@ function handleAuthChanged(){ loadAuthFromStorage();
 }
 
 onMounted(() => {
+    ensureSiteSetting();
 	loadAuthFromStorage();
 	try {
 		const t = uni.getStorageSync('token');
@@ -192,7 +196,7 @@ function onChooseWeixinAvatar(e: any) {
     const tempUrl = e?.detail?.avatarUrl as string | undefined;
     if (!tempUrl) return;
     uni.uploadFile({
-        url: `${API_BASE}/file/upload`,
+        url: `${API_BASE}/assets/upload`,
         filePath: tempUrl,
         name: 'file',
         formData: { dir: 'miniapp' },
@@ -220,8 +224,9 @@ function onTapAvatar(){
 		itemList: ['查看头像', '从相册中选择'],
 		success: (res)=>{
 			if (res.tapIndex === 0) {
-				const src = avatarUrl.value || defaultAvatar;
-				uni.previewImage({ urls: [src] });
+				const fallback:any = (defaultAvatar as any)?.value !== undefined ? (defaultAvatar as any).value : (defaultAvatar as any);
+				const src = avatarUrl.value || fallback;
+				uni.previewImage({ urls: [String(src)] });
 			} else if (res.tapIndex === 1) {
 				uni.chooseImage({
 					count: 1,
@@ -231,7 +236,7 @@ function onTapAvatar(){
 						const path = r.tempFilePaths?.[0];
 						if (!path) return;
 						uni.uploadFile({
-							url: `${API_BASE}/file/upload`,
+							url: `${API_BASE}/assets/upload`,
 							filePath: path,
 							name: 'file',
 							formData: { dir: 'miniapp' },

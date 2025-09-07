@@ -137,7 +137,10 @@ export class AuthService {
 			if (!defaultLevel) {
 				throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
 			}
-			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id }, include: { tags: true } });
+			// 读取站点默认头像
+			const ss = await this.prisma.siteSetting.findFirst().catch(()=>null);
+			const defaultAvatar = ss?.defaultMemberAvatarUrl || null;
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: defaultAvatar }, include: { tags: true } });
 			createdNew = true;
 		}
 		if (!member) throw new BadRequestException('登录失败，请重试');
@@ -249,7 +252,9 @@ export class AuthService {
 			const uid = await this.generateUniqueMemberUid();
 			const defaultLevel = await this.prisma.memberLevel.findFirst({ where: { isDefault: true } as any });
 			if (!defaultLevel) throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
-			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id }, include: { tags: true } });
+			const ss = await this.prisma.siteSetting.findFirst().catch(()=>null);
+			const defaultAvatar = ss?.defaultMemberAvatarUrl || null;
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: defaultAvatar }, include: { tags: true } });
 			createdNew = true;
 		}
 		if (!member) throw new BadRequestException('登录失败，请重试');

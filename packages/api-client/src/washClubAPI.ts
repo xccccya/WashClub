@@ -10,7 +10,7 @@ import type {
   PostContentNoticesBody,
   PutContentNoticesIdBody
 } from './model'
-import { createHttpClient } from '@wash/shared-utils';
+import { createHttpClient } from '../../shared-utils/src/http';
 
 /**
  * @summary Health check
@@ -27,7 +27,7 @@ export const getGetHealthUrl = () => {
 }
 
 export const getHealth = async ( options?: RequestInit): Promise<getHealthResponse> => {
-return createHttpClient<getHealthResponse>(getGetHealthUrl(),
+return createHttpClient<Promise<getHealthResponse>>(getGetHealthUrl(),
   {      
     ...options,
     method: 'GET'
@@ -60,7 +60,7 @@ export const getGetContentNoticesUrl = (params?: GetContentNoticesParams,) => {
 }
 
 export const getContentNotices = async (params?: GetContentNoticesParams, options?: RequestInit): Promise<getContentNoticesResponse> => {
-return createHttpClient<getContentNoticesResponse>(getGetContentNoticesUrl(params),
+return createHttpClient<Promise<getContentNoticesResponse>>(getGetContentNoticesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -84,7 +84,7 @@ export const getPostContentNoticesUrl = () => {
 }
 
 export const postContentNotices = async (postContentNoticesBody: PostContentNoticesBody, options?: RequestInit): Promise<postContentNoticesResponse> => {
-return createHttpClient<postContentNoticesResponse>(getPostContentNoticesUrl(),
+return createHttpClient<Promise<postContentNoticesResponse>>(getPostContentNoticesUrl(),
   {      
     ...options,
     method: 'POST',
@@ -110,7 +110,7 @@ export const getPutContentNoticesIdUrl = (id: number,) => {
 
 export const putContentNoticesId = async (id: number,
     putContentNoticesIdBody: PutContentNoticesIdBody, options?: RequestInit): Promise<putContentNoticesIdResponse> => {
-return createHttpClient<putContentNoticesIdResponse>(getPutContentNoticesIdUrl(id),
+return createHttpClient<Promise<putContentNoticesIdResponse>>(getPutContentNoticesIdUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -135,7 +135,7 @@ export const getDeleteContentNoticesIdUrl = (id: number,) => {
 }
 
 export const deleteContentNoticesId = async (id: number, options?: RequestInit): Promise<deleteContentNoticesIdResponse> => {
-return createHttpClient<deleteContentNoticesIdResponse>(getDeleteContentNoticesIdUrl(id),
+return createHttpClient<Promise<deleteContentNoticesIdResponse>>(getDeleteContentNoticesIdUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -159,7 +159,7 @@ export const getPostContentNoticesIdEnableUrl = (id: number,) => {
 }
 
 export const postContentNoticesIdEnable = async (id: number, options?: RequestInit): Promise<postContentNoticesIdEnableResponse> => {
-return createHttpClient<postContentNoticesIdEnableResponse>(getPostContentNoticesIdEnableUrl(id),
+return createHttpClient<Promise<postContentNoticesIdEnableResponse>>(getPostContentNoticesIdEnableUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -192,7 +192,7 @@ export const getGetContentNoticesActiveUrl = (params: GetContentNoticesActivePar
 }
 
 export const getContentNoticesActive = async (params: GetContentNoticesActiveParams, options?: RequestInit): Promise<getContentNoticesActiveResponse> => {
-return createHttpClient<getContentNoticesActiveResponse>(getGetContentNoticesActiveUrl(params),
+return createHttpClient<Promise<getContentNoticesActiveResponse>>(getGetContentNoticesActiveUrl(params),
   {      
     ...options,
     method: 'GET'
