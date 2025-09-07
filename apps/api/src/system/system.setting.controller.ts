@@ -3,11 +3,12 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { AssetService } from '../file/asset.service.js';
 
 @ApiTags('system')
 @Controller('system')
 export class SystemSettingController {
-    constructor(private prisma: PrismaService) {}
+    constructor(private prisma: PrismaService, private assets: AssetService) {}
 
     // 公共获取：无需登录，供登录页读取站点展示
     @Get('public/site-setting')
@@ -58,12 +59,51 @@ export class SystemSettingController {
             defaultMemberAvatarUrl: body.defaultMemberAvatarUrl ?? null,
         };
         const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
+        let saved: any;
         if (exists) {
-            const updated = await this.prisma.siteSetting.update({ where: { id: exists.id }, data: payload });
-            return updated;
+            saved = await this.prisma.siteSetting.update({ where: { id: exists.id }, data: payload });
+        } else {
+            saved = await this.prisma.siteSetting.create({ data: payload });
         }
-        const created = await this.prisma.siteSetting.create({ data: payload });
-        return created;
+        // 同步文件引用绑定
+        try {
+            const id = '1'; // SiteSetting 逻辑唯一
+            await this.syncBindings('SiteSetting', id, 'logoUrl', saved.logoUrl ? [saved.logoUrl] : []);
+            await this.syncBindings('SiteSetting', id, 'bgImageUrl', saved.bgImageUrl ? [saved.bgImageUrl] : []);
+            await this.syncBindings('SiteSetting', id, 'defaultMemberAvatarUrl', saved.defaultMemberAvatarUrl ? [saved.defaultMemberAvatarUrl] : []);
+        } catch {}
+        return saved;
+    }
+
+    private async getAssetIdsFromUrls(urls: string[]): Promise<string[]> {
+        const set = new Set<string>();
+        for (const u of urls) {
+            if (!u || typeof u !== 'string') continue;
+            const s = String(u).trim();
+            if (!s) continue;
+            set.add(s);
+            try { if (/^https?:\/\//i.test(s)) { const rel = new URL(s).pathname; if (rel) set.add(rel); } } catch {}
+        }
+        const arr = Array.from(set);
+        if (arr.length === 0) return [];
+        const rows = await (this.prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true } });
+        return Array.isArray(rows) ? rows.map((r: any) => String(r.id)) : [];
+    }
+
+    private async syncBindings(tableName: string, rowId: string, fieldName: string, urls: string[]) {
+        try {
+            const desired = new Set<string>(await this.getAssetIdsFromUrls(urls));
+            const existing: any[] = await (this.prisma as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+            for (const b of existing) {
+                if (!desired.has(String(b.fileId))) {
+                    try { await this.assets.unbindReference(String(b.fileId), String(b.id)); } catch {}
+                }
+            }
+            for (const fid of desired) {
+                const ok = existing.find((b: any) => String(b.fileId) === fid);
+                if (!ok) { try { await this.assets.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); } catch {} }
+            }
+        } catch {}
     }
 }
 

@@ -134,6 +134,7 @@
 											<div style="display:flex;align-items:center;gap:8px;">
 												<img v-if="row.imageUrl" :src="abs(row.imageUrl)" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" />
 												<el-upload :http-request="(o:any)=>onSkuUpload(row,o)" :show-file-list="false"><el-button size="small">上传</el-button></el-upload>
+												<el-button size="small" @click="openSkuPicker(row)">从文件库选择</el-button>
 											</div>
 										</template>
 									</el-table-column>
@@ -224,6 +225,7 @@ const specItems = ref<Array<{ name: string; values: string[] }>>([]);
 const specValueDraft = ref('');
 const pickerVisible = ref(false);
 const pickerForDesc = ref(false);
+const skuPickerRow = ref<any|null>(null);
 
 function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0 }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
 const couponOptions = ref<any[]>([]);
@@ -351,11 +353,15 @@ function onPicked(list:any[]){
 	const urls = (list||[]).map(x=>x?.url).filter(Boolean);
 	if (pickerForDesc.value && urls.length && quillInstance) {
 		try { const range = quillInstance.getSelection(true); for(const u of urls){ quillInstance.insertEmbed(range ? range.index : 0, 'image', abs(u), 'user'); } } catch {}
+	} else if (skuPickerRow.value && urls.length) {
+		skuPickerRow.value.imageUrl = urls[0];
+		skuPickerRow.value = null;
 	} else {
 		for(const u of urls){ if(!formImages.value.includes(u)) formImages.value.push(u); }
 	}
 }
 function openInsertFromLib(){ pickerForDesc.value = true; pickerVisible.value = true; }
+function openSkuPicker(row:any){ skuPickerRow.value = row; pickerForDesc.value = false; pickerVisible.value = true; }
 
 // 多规格：规格项编辑与组合生成
 function addSpecItem(){ specItems.value.push({ name: '', values: [] }); }

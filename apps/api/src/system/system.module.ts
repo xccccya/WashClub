@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { SystemSettingController } from './system.setting.controller.js';
 import { AdminGuard } from '../auth/admin.guard.js';
+import { AssetService } from '../file/asset.service.js';
+import { FileService } from '../file/file.service.js';
 
 @Module({
     imports: [
@@ -11,7 +13,7 @@ import { AdminGuard } from '../auth/admin.guard.js';
         }),
     ],
     controllers: [SystemSettingController],
-    providers: [PrismaService, AdminGuard],
+    providers: [PrismaService, AdminGuard, AssetService, FileService],
 })
 export class SystemModule {}
 

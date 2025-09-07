@@ -20,6 +20,7 @@ import { CartController } from './cart.controller.js';
 import { CartService } from './cart.service.js';
 import { FavoriteController } from './favorite.controller.js';
 import { FavoriteService } from './favorite.service.js';
+import { AssetService } from '../file/asset.service.js';
 
 @Module({
 	imports: [
@@ -28,7 +29,7 @@ import { FavoriteService } from './favorite.service.js';
 		}),
 	],
 	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController],
-	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, FileService, WashCardService, AddressService, CartService, FavoriteService],
+	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, FileService, AssetService, WashCardService, AddressService, CartService, FavoriteService],
 })
 export class MemberModule {}
 

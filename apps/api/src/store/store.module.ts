@@ -6,6 +6,7 @@ import { StoreCategoryController } from './category.controller.js';
 import { StoreProductController } from './product.controller.js';
 import { StoreInventoryController } from './inventory.controller.js';
 import { FileService } from '../file/file.service.js';
+import { AssetService } from '../file/asset.service.js';
 
 @Module({
     imports: [
@@ -14,7 +15,7 @@ import { FileService } from '../file/file.service.js';
         }),
     ],
     controllers: [StoreCategoryController, StoreProductController, StoreInventoryController],
-    providers: [PrismaService, StoreService, FileService],
+    providers: [PrismaService, StoreService, FileService, AssetService],
 })
 export class StoreModule {}
 

@@ -9,6 +9,8 @@ import { WxpayService } from './wxpay.service.js';
 import { OrderTimeoutService } from './timeout.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
+import { AssetService } from '../file/asset.service.js';
+import { FileService } from '../file/file.service.js';
 
 @Module({
     imports: [
@@ -18,7 +20,7 @@ import { CouponService } from '../coupon/coupon.service.js';
         })
     ],
     controllers: [OrderController],
-    providers: [PrismaService, CouponService, OrderService, TanshuService, WxpayService, OrderTimeoutService, WechatShippingService],
+    providers: [PrismaService, CouponService, OrderService, TanshuService, WxpayService, OrderTimeoutService, WechatShippingService, AssetService, FileService],
 })
 export class OrderModule {}
 

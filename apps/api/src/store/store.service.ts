@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
+import { AssetService } from '../file/asset.service.js';
 
 @Injectable()
 export class StoreService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(private readonly prisma: PrismaService, private readonly assets: AssetService) {}
 
     // 分类（可按商品类型过滤）
     listCategories(query?: { type?: string | null }) {
@@ -13,11 +14,15 @@ export class StoreService {
         }
         return this.prisma.productCategory.findMany({ where, orderBy: [{ weight: 'desc' }, { id: 'desc' }] });
     }
-    createCategory(data: { name: string; imageUrl?: string | null; enabled?: boolean; weight?: number }) {
-        return this.prisma.productCategory.create({ data: { name: data.name, imageUrl: data.imageUrl ?? null, enabled: data.enabled ?? true, weight: data.weight ?? 0 } });
+    async createCategory(data: { name: string; imageUrl?: string | null; enabled?: boolean; weight?: number }) {
+        const created = await this.prisma.productCategory.create({ data: { name: data.name, imageUrl: data.imageUrl ?? null, enabled: data.enabled ?? true, weight: data.weight ?? 0 } });
+        await this.syncBindings('ProductCategory', String(created.id), 'imageUrl', created.imageUrl ? [created.imageUrl] : []);
+        return created;
     }
-    updateCategory(id: number, data: { name?: string; imageUrl?: string | null; enabled?: boolean; weight?: number }) {
-        return this.prisma.productCategory.update({ where: { id }, data });
+    async updateCategory(id: number, data: { name?: string; imageUrl?: string | null; enabled?: boolean; weight?: number }) {
+        const updated = await this.prisma.productCategory.update({ where: { id }, data });
+        await this.syncBindings('ProductCategory', String(updated.id), 'imageUrl', updated.imageUrl ? [updated.imageUrl] : []);
+        return updated;
     }
     deleteCategory(id: number) {
         return this.prisma.productCategory.delete({ where: { id } });
@@ -88,13 +93,28 @@ export class StoreService {
             dataToCreate.coupon = couponIdVal === null ? { disconnect: true } : { connect: { id: Number(couponIdVal) } };
         }
         return this.prisma.$transaction(async (tx) => {
-            const created = await tx.product.create({ data: dataToCreate, select: { id: true } });
+            const created = await tx.product.create({ data: dataToCreate, select: { id: true, imageUrl: true } });
             if (payload.specType === 'MULTI') {
                 const now = Date.now();
                 const rows = (skus as any[]).map((s, idx) => this.normalizeSkuForCreate(created.id, s, `${now}-${idx}`));
                 await tx.productSku.createMany({ data: rows });
             }
-            return tx.product.findUnique({ where: { id: created.id }, include: { skus: true, category: true } });
+            const full = await tx.product.findUnique({ where: { id: Number((created as any).id) }, include: { skus: true, category: true } });
+            // 事务内不做绑定，等事务成功后在外层继续
+            return full as any;
+        }).then(async (prod: any) => {
+            try {
+                await this.syncBindings('Product', String(prod.id), 'imageUrl', prod.imageUrl ? [prod.imageUrl] : []);
+                const imgs = Array.isArray(prod?.imagesJson) ? prod.imagesJson.filter((u: any) => typeof u === 'string') : [];
+                await this.syncBindings('Product', String(prod.id), 'imagesJson', imgs);
+                if (Array.isArray(prod?.skus)) {
+                    for (const s of prod.skus) {
+                        const url = typeof s?.imageUrl === 'string' ? s.imageUrl : null;
+                        await this.syncBindings('ProductSku', String(s.id), 'imageUrl', url ? [url] : []);
+                    }
+                }
+            } catch {}
+            return this.prisma.product.findUnique({ where: { id: prod.id }, include: { skus: true, category: true } });
         });
     }
     updateProduct(id: number, data: any) {
@@ -146,7 +166,21 @@ export class StoreService {
                 const toDisable = existing.filter(e => !keepIds.includes(e.id)).map(e => e.id);
                 if (toDisable.length) await tx.productSku.updateMany({ where: { id: { in: toDisable } }, data: { enabled: false } });
             }
-            return tx.product.findUnique({ where: { id }, include: { skus: true, category: true } });
+            const full = await tx.product.findUnique({ where: { id }, include: { skus: true, category: true } });
+            return full as any;
+        }).then(async (prod: any) => {
+            try {
+                await this.syncBindings('Product', String(prod.id), 'imageUrl', prod.imageUrl ? [prod.imageUrl] : []);
+                const imgs = Array.isArray(prod?.imagesJson) ? prod.imagesJson.filter((u: any) => typeof u === 'string') : [];
+                await this.syncBindings('Product', String(prod.id), 'imagesJson', imgs);
+                if (Array.isArray(prod?.skus)) {
+                    for (const s of prod.skus) {
+                        const url = typeof s?.imageUrl === 'string' ? s.imageUrl : null;
+                        await this.syncBindings('ProductSku', String(s.id), 'imageUrl', url ? [url] : []);
+                    }
+                }
+            } catch {}
+            return this.prisma.product.findUnique({ where: { id: prod.id }, include: { skus: true, category: true } });
         });
     }
     async deleteProduct(id: number) {
@@ -301,6 +335,48 @@ export class StoreService {
     }
 
     private generateSkuCode(productId: number, seed: string): string { return `P${productId}-S${seed}`; }
+
+    // ========== 文件引用绑定辅助 ==========
+    private async getAssetIdsFromUrls(urls: string[]): Promise<string[]> {
+        const candidates = new Set<string>();
+        for (const u of urls) {
+            if (!u || typeof u !== 'string') continue;
+            const s = String(u).trim();
+            if (!s) continue;
+            candidates.add(s);
+            try {
+                if (/^https?:\/\//i.test(s)) {
+                    const rel = new URL(s).pathname;
+                    if (rel) candidates.add(rel);
+                }
+            } catch {}
+        }
+        const arr = Array.from(candidates);
+        if (arr.length === 0) return [];
+        const rows = await (this.prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true, url: true } });
+        return Array.isArray(rows) ? rows.map((r: any) => String(r.id)) : [];
+    }
+
+    private async syncBindings(tableName: string, rowId: string, fieldName: string, urls: string[]) {
+        try {
+            const desiredIds = new Set<string>(await this.getAssetIdsFromUrls(urls));
+            const existing: any[] = await (this.prisma as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+            // 删除多余绑定
+            for (const b of existing) {
+                const fid = String(b.fileId);
+                if (!desiredIds.has(fid)) {
+                    try { await this.assets.unbindReference(fid, String(b.id)); } catch {}
+                }
+            }
+            // 新增缺失绑定
+            for (const fid of desiredIds) {
+                const exists = existing.find((b: any) => String(b.fileId) === fid);
+                if (!exists) {
+                    try { await this.assets.bindReference(fid, { tableName, rowId: String(rowId), fieldName }); } catch {}
+                }
+            }
+        } catch {}
+    }
 }
 
 

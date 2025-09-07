@@ -2,10 +2,13 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { FileService } from '../file/file.service.js';
+import { AssetService } from '../file/asset.service.js';
 
 @Injectable()
 export class VehicleService {
-    constructor(private prisma: PrismaService, private jwt: JwtService, private fileService: FileService) {}
+    private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
+    private syncVehicleBindings!: (vehicleId: number) => Promise<void>;
+    constructor(private prisma: PrismaService, private jwt: JwtService, private fileService: FileService, private assetService: AssetService) {}
 
     async adminList(page = 1, pageSize = 20, keyword?: string) {
         const where: any = keyword
@@ -52,9 +55,11 @@ export class VehicleService {
             const ab = await resp.arrayBuffer();
             const buf = Buffer.from(ab);
             const urlObj = new URL(imageUrl);
-            const filename = urlObj.pathname.split('/').pop() || 'image.jpg';
-            const saved = this.fileService.saveFile(buf, filename, 'carimg');
-            return saved.url; // return server relative url
+            const filenameRaw = urlObj.pathname.split('/').pop() || 'image.jpg';
+            const contentType = resp.headers.get('content-type') || undefined;
+            // 通过资产服务入库，目录 carimg，便于在文件管理中展示
+            const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg');
+            return created?.url || null;
         } catch {
             return null;
         }
@@ -112,6 +117,10 @@ export class VehicleService {
             ]);
             if (brandSaved || seriesSaved) {
                 await this.prisma.vehicle.update({ where: { id: vehicleId }, data: { brandImage: brandSaved || undefined, seriesImage: seriesSaved || undefined } as any });
+                try {
+                    await this.syncBindings('Vehicle', String(vehicleId), 'brandImage', brandSaved ? [brandSaved] : []);
+                    await this.syncBindings('Vehicle', String(vehicleId), 'seriesImage', seriesSaved ? [seriesSaved] : []);
+                } catch {}
             }
         } catch {}
     }
@@ -147,6 +156,7 @@ export class VehicleService {
                 const bid = (input as any)?.brandId as number | undefined;
                 const sid = (input as any)?.seriesId as number | undefined;
                 if (bid || sid) await this.populateVehicleImages(created.id, bid, sid);
+                await this.syncVehicleBindings(created.id);
             } catch {}
             return created;
         } catch (e: any) {
@@ -218,6 +228,7 @@ export class VehicleService {
             const bid = (input as any)?.brandId as number | undefined;
             const sid = (input as any)?.seriesId as number | undefined;
             if (bid || sid) await this.populateVehicleImages(vehicleId, bid, sid);
+            await this.syncVehicleBindings(vehicleId);
         } catch {}
         return updated;
     }
@@ -276,4 +287,33 @@ export class VehicleService {
     }
 }
 
+
+// ========== 文件绑定辅助 ==========
+async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{
+    const set = new Set<string>();
+    for (const u of urls){ if(!u) continue; const s=String(u).trim(); if(!s) continue; set.add(s); try{ if(/^https?:\/\//i.test(s)){ const rel=new URL(s).pathname; if(rel) set.add(rel); } }catch{} }
+    const arr = Array.from(set); if(!arr.length) return [];
+    const rows = await (prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true } });
+    return Array.isArray(rows) ? rows.map((r:any)=>String(r.id)) : [];
+}
+
+VehicleService.prototype['syncBindings'] = async function(this: VehicleService, tableName: string, rowId: string, fieldName: string, urls: string[]){
+    try{
+        const desired = new Set<string>(await getAssetIdsFromUrls(this['prisma'], urls));
+        const existing:any[] = await (this['prisma'] as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+        for (const b of existing){ if(!desired.has(String(b.fileId))) { try{ await this['assetService']?.unbindReference(String(b.fileId), String(b.id)); }catch{} } }
+        for (const fid of desired){ const ok = existing.find((b:any)=> String(b.fileId)===fid); if(!ok){ try{ await this['assetService']?.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); }catch{} } }
+    }catch{}
+};
+
+VehicleService.prototype['syncVehicleBindings'] = async function(this: VehicleService, vehicleId: number){
+    try{
+        const v = await this['prisma'].vehicle.findUnique({ where: { id: vehicleId }, select: { brandImage: true, seriesImage: true } });
+        if (!v) return;
+        const brand = typeof v.brandImage === 'string' && v.brandImage ? [v.brandImage] : [];
+        const series = typeof v.seriesImage === 'string' && v.seriesImage ? [v.seriesImage] : [];
+        await this['syncBindings']('Vehicle', String(vehicleId), 'brandImage', brand);
+        await this['syncBindings']('Vehicle', String(vehicleId), 'seriesImage', series);
+    }catch{}
+};
 

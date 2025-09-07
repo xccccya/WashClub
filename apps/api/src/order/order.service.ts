@@ -4,11 +4,13 @@ import { PrismaService } from '../prisma.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 
 import { WechatShippingService } from './wechat-shipping.service.js';
+import { AssetService } from '../file/asset.service.js';
 import { WxpayService } from './wxpay.service.js';
 
 @Injectable()
 export class OrderService {
-    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService, private readonly wxpay: WxpayService, private readonly wxship?: WechatShippingService) {}
+    private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
+    constructor(private readonly prisma: PrismaService, private readonly coupons: CouponService, private readonly wxpay: WxpayService, private readonly wxship?: WechatShippingService, private readonly assets?: AssetService) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }){
         try{
@@ -431,6 +433,16 @@ export class OrderService {
             }catch{
                 return { id: order.id, no: order.no } as any;
             }
+        }).then(async (res: any) => {
+            try {
+                const itemsSaved: Array<{ id: number; imageUrl: string|null }> = await this.prisma.orderItem.findMany({ where: { orderId: res.id }, select: { id: true, imageUrl: true } });
+                for (const it of itemsSaved){
+                    if (it.imageUrl) {
+                        try { await this.syncBindings('OrderItem', String(it.id), 'imageUrl', [it.imageUrl]); } catch {}
+                    }
+                }
+            } catch {}
+            return res;
         });
     }
 
@@ -577,6 +589,7 @@ export class OrderService {
         if (exists) throw new Error('订单已评价');
         const rating = Math.max(1, Math.min(5, Number(params.rating || 5)));
         const created = await (this.prisma as any).orderReview.create({ data: { orderId: params.orderId, memberId: params.memberId, rating, content: params.content ?? null, imagesJson: params.images ?? undefined } });
+        try { await this.syncBindings('OrderReview', String(created.id), 'imagesJson', Array.isArray(params.images)? params.images: []); } catch {}
         await this.prisma.order.update({ where: { id: order.id }, data: { reviewStatus: 'REVIEWED' as any } });
         // 时间线：用户已评价（记录评分）
         await this.writeTimeline({ orderId: order.id, event: 'REVIEW', value: 'RATED', remark: `评分${rating}`, operatorUserId: null });
@@ -1052,6 +1065,7 @@ export class OrderService {
                 requestedAmount: params.requestedAmount != null ? new Prisma.Decimal(params.requestedAmount as any) : undefined,
             },
         });
+        try { await this.syncBindings('AfterSalesRequest', String(created.id), 'imagesJson', Array.isArray(params.imagesJson)? params.imagesJson: []); } catch {}
         try { await this.writeTimeline({ orderId: params.orderId, event: 'AFTERSALES', value: 'PENDING', remark: String(params.type||'') }); } catch {}
         return created;
     }
@@ -1306,5 +1320,23 @@ export class OrderService {
         return await this.prisma.order.findUnique({ where: { id: ord.id } });
     }
 }
+
+// ========== 文件绑定辅助 ==========
+async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{
+    const set = new Set<string>();
+    for (const u of urls){ if(!u) continue; const s=String(u).trim(); if(!s) continue; set.add(s); try{ if(/^https?:\/\//i.test(s)){ const rel=new URL(s).pathname; if(rel) set.add(rel); } }catch{} }
+    const arr = Array.from(set); if(!arr.length) return [];
+    const rows = await (prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true } });
+    return Array.isArray(rows) ? rows.map((r:any)=>String(r.id)) : [];
+}
+
+OrderService.prototype['syncBindings'] = async function(this: OrderService, tableName: string, rowId: string, fieldName: string, urls: string[]){
+    try{
+        const desired = new Set<string>(await getAssetIdsFromUrls(this['prisma'], urls));
+        const existing:any[] = await (this['prisma'] as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+        for (const b of existing){ if(!desired.has(String(b.fileId))) { try{ await this['assets']?.unbindReference(String(b.fileId), String(b.id)); }catch{} } }
+        for (const fid of desired){ const ok = existing.find((b:any)=> String(b.fileId)===fid); if(!ok){ try{ await this['assets']?.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); }catch{} } }
+    }catch{}
+};
 
 

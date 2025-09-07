@@ -2,10 +2,12 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'node:crypto';
 import { PrismaService } from '../prisma.service.js';
+import { AssetService } from '../file/asset.service.js';
 
 @Injectable()
 export class MemberService {
-	constructor(private prisma: PrismaService, private jwt: JwtService) {}
+	private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
+	constructor(private prisma: PrismaService, private jwt: JwtService, private assets?: AssetService) {}
 
 	async list(page = 1, pageSize = 20, keyword?: string) {
 		const where = keyword
@@ -83,7 +85,9 @@ export class MemberService {
 			// 创建时：若未提供或显式为 null/空串，则使用站点默认头像
 			const provided = typeof data.avatarUrl === 'string' ? data.avatarUrl.trim() : (data.avatarUrl ?? undefined);
 			const finalAvatar = provided ? String(provided) : defaultAvatarFromSetting;
-			return tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: finalAvatar ?? null, tags: { connect: connectTags } } });
+			const created = await tx.member.create({ data: { name: nameTrim, phone: data.phone, password, uid, points: data.points, balance: data.balance as any, levelId: data.levelId, categoryId: data.categoryId, avatarUrl: finalAvatar ?? null, tags: { connect: connectTags } } });
+			try { await this.syncBindings('Member', String(created.id), 'avatarUrl', created.avatarUrl ? [created.avatarUrl] : []); } catch {}
+			return created;
 		});
 	}
 
@@ -109,7 +113,9 @@ export class MemberService {
 			updateData.tags = { set: finalSetIds.map((tid) => ({ id: tid })) };
 			delete updateData.tagIds;
 		}
-		return this.prisma.member.update({ where: { id }, data: updateData });
+		const updated = await this.prisma.member.update({ where: { id }, data: updateData });
+		try { await this.syncBindings('Member', String(updated.id), 'avatarUrl', updated.avatarUrl ? [updated.avatarUrl] : []); } catch {}
+		return updated;
 	}
 
 	async setActiveByToken(token?: string) {
@@ -160,4 +166,23 @@ export class MemberService {
 	}
 }
 
+
+
+// ========== 文件绑定辅助 ==========
+async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{
+    const set = new Set<string>();
+    for (const u of urls){ if(!u) continue; const s=String(u).trim(); if(!s) continue; set.add(s); try{ if(/^https?:\/\//i.test(s)){ const rel=new URL(s).pathname; if(rel) set.add(rel); } }catch{} }
+    const arr = Array.from(set); if(!arr.length) return [];
+    const rows = await (prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true } });
+    return Array.isArray(rows) ? rows.map((r:any)=>String(r.id)) : [];
+}
+
+MemberService.prototype['syncBindings'] = async function(this: MemberService, tableName: string, rowId: string, fieldName: string, urls: string[]){
+    try{
+        const desired = new Set<string>(await getAssetIdsFromUrls(this['prisma'], urls));
+        const existing:any[] = await (this['prisma'] as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+        for (const b of existing){ if(!desired.has(String(b.fileId))) { try{ await this['assets']?.unbindReference(String(b.fileId), String(b.id)); }catch{} } }
+        for (const fid of desired){ const ok = existing.find((b:any)=> String(b.fileId)===fid); if(!ok){ try{ await this['assets']?.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); }catch{} } }
+    }catch{}
+};
 
