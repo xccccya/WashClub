@@ -32,6 +32,9 @@ model User {
 
   // 反向关联：操作的优惠券流水
   couponFlowsOperated CouponFlowLog[] @relation("UserOperatesCouponFlows")
+
+  // 反向关联：操作的成长值日志（后台调整）
+  growthLogsOperated  MemberGrowthLog[] @relation("UserOperatesGrowthLogs")
 }
 
 model Member {
@@ -704,6 +707,9 @@ model Order {
   couponFlows        CouponFlowLog[]
   // 订单时间线（状态流转记录）
   timelines          OrderTimeline[]
+
+  // 反向关联：成长值日志（支付入账/退款扣减）
+  growthLogs        MemberGrowthLog[]
 
   // 单订单单评价（可选）
   review             OrderReview?
