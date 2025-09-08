@@ -64,11 +64,14 @@
 				<view class="cal-head">
 					<text class="cal-title">{{ curYm }}</text>
 				</view>
+				<view class="cal-weekdays">
+					<view v-for="w in weekdays" :key="w" class="cal-week">{{ w }}</view>
+				</view>
 				<view class="cal-grid" :class="calAnim">
-					<view v-for="d in calDays" :key="d.key" class="cal-cell" :class="{ today: d.isToday, signed: d.isSigned }">
+					<view v-for="d in calCells" :key="d.key" class="cal-cell" :class="{ today: d.isToday, signed: d.isSigned, placeholder: d.isPlaceholder }">
 						<text class="cal-day">{{ d.day }}</text>
 						<view v-if="d.isToday" class="dot" />
-						<view v-if="d.isSigned" class="tick">✓</view>
+						<view v-if="d.isSigned" class="tick" />
 					</view>
 				</view>
 			</view>
@@ -194,7 +197,9 @@ async function doSignIn(){ if (status.value.todaySigned) return; try{ await http
 
 const curYm = ref('');
 const calDays = ref<Array<{ key:string; day:number; isToday:boolean; isSigned:boolean }>>([]);
+const calCells = ref<Array<{ key:string; day:number|string; isToday:boolean; isSigned:boolean; isPlaceholder:boolean }>>([]);
 const calAnim = ref('');
+const weekdays = ['日','一','二','三','四','五','六'];
 function buildMonthDays(ym:string, signedDays:number[]){
     const [y,m] = ym.split('-').map(n=>Number(n));
     const today = new Date();
@@ -203,6 +208,10 @@ function buildMonthDays(ym:string, signedDays:number[]){
     const days:number[] = Array.from({ length: total }, (_,i)=> i+1);
     const set = new Set(signedDays);
     calDays.value = days.map(d => ({ key: ym+'-'+String(d).padStart(2,'0'), day: d, isToday: isCur && d===today.getDate(), isSigned: set.has(d) }));
+    // 计算该月第一天是星期几，用占位对齐
+    const first = new Date(y, m-1, 1).getDay(); // 0-6
+    const placeholders = Array.from({ length: first }, (_,i)=> ({ key: ym+'-ph-'+i, day: '', isToday:false, isSigned:false, isPlaceholder:true }));
+    calCells.value = [...placeholders, ...calDays.value.map(d=>({ ...d, isPlaceholder:false }))];
 }
 async function fetchMonth(ym?: string){
     const now = new Date();
@@ -318,23 +327,32 @@ function openOrderFromLog(g:any){
 .cal-nav { font-size: 24rpx; color:#2563eb; }
 .cal-nav.disabled { color:#9ca3af; }
 .cal-title { font-size: 24rpx; font-weight: 700; color:#111827; }
+.cal-weekdays { display:grid; grid-template-columns: repeat(7, 1fr); gap: 10rpx; margin-bottom: 6rpx; }
+.cal-week { text-align:center; font-size: 22rpx; color:#6b7280; }
 .cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 10rpx; }
-.cal-grid.slide-left { animation: cal-slide-left 200ms ease-out; }
-.cal-grid.slide-right { animation: cal-slide-right 200ms ease-out; }
-@keyframes cal-slide-left {
-  from { transform: translateX(30rpx); opacity: .6; }
-  to { transform: translateX(0); opacity: 1; }
+.cal-grid.slide-left { animation: cal-fade-left 260ms cubic-bezier(.22,.61,.36,1); }
+.cal-grid.slide-right { animation: cal-fade-right 260ms cubic-bezier(.22,.61,.36,1); }
+@keyframes cal-fade-left {
+  0% { transform: translateX(24rpx) scale(.98); opacity: 0; }
+  60% { transform: translateX(8rpx) scale(1); opacity: .85; }
+  100% { transform: translateX(0); opacity: 1; }
 }
-@keyframes cal-slide-right {
-  from { transform: translateX(-30rpx); opacity: .6; }
-  to { transform: translateX(0); opacity: 1; }
+@keyframes cal-fade-right {
+  0% { transform: translateX(-24rpx) scale(.98); opacity: 0; }
+  60% { transform: translateX(-8rpx) scale(1); opacity: .85; }
+  100% { transform: translateX(0); opacity: 1; }
 }
+
+/* 统一对勾：用CSS绘制矢量勾，避免emoji差异 */
+.tick { position:absolute; left: 6rpx; top: 6rpx; width: 28rpx; height: 28rpx; }
+.tick::before { content:""; position:absolute; left: 2rpx; top: 4rpx; width: 10rpx; height: 18rpx; border-right: 6rpx solid #10b981; border-bottom: 6rpx solid #10b981; transform: rotate(45deg); border-radius: 3rpx; }
 .cal-cell { position: relative; height: 72rpx; border-radius: 12rpx; background:#f8fafc; display:flex; align-items:center; justify-content:center; }
+.cal-cell.placeholder { background: transparent; }
 .cal-cell.today { box-shadow: inset 0 0 0 2rpx #a7f3d0; }
 .cal-cell.signed { background: #ecfeff; }
 .cal-day { font-size: 26rpx; color:#111827; }
 .dot { position:absolute; bottom: 6rpx; width: 8rpx; height: 8rpx; border-radius: 50%; background:#10b981; }
-.tick { position:absolute; left: 6rpx; top: 6rpx; width: 22rpx; height: 22rpx; font-size: 20rpx; color:#10b981; }
+/* 删除旧的emoji样式，统一使用上面的矢量勾样式 */
 
 .logs-head { margin-top: 0; margin-bottom: 12rpx; }
 .logs-card { margin-top: 22rpx; }

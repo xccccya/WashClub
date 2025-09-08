@@ -79,6 +79,7 @@
 				<el-descriptions :column="2" border>
 					<el-descriptions-item label="最近一次签到时间">{{ formatLocal(detail.lastSignDate) }}</el-descriptions-item>
 					<el-descriptions-item label="今日是否已签">{{ detail.todaySigned ? '是' : '否' }}</el-descriptions-item>
+					<el-descriptions-item label="最大连续签到天数">{{ detail.maxStreak ?? '-' }}</el-descriptions-item>
 				</el-descriptions>
 				<div style="margin-top:12px;">
 					<el-table :data="detailLogs" stripe style="width:100%">

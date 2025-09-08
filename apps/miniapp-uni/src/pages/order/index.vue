@@ -14,6 +14,15 @@
 			<view class="filter-chip" v-for="f in currentFilters" :key="f" :class="{ active: f===activeFilter }" @tap="setFilter(f)">{{ f }}</view>
 		</scroll-view>
 
+		<!-- 未登录提示 -->
+		<view v-if="!authed" class="auth-tip card">
+			<view class="auth-tip__title">请登录后查看订单</view>
+			<view class="auth-tip__desc">登录后可查看您的全部订单和支付状态</view>
+			<view class="auth-tip__actions">
+				<view class="btn primary" @tap="goLogin">去登录</view>
+			</view>
+		</view>
+
 		<!-- 订单列表（已接入 API） -->
 		<view v-if="!loading && orders.length===0" class="empty">暂无订单</view>
 		<view v-for="o in orders" :key="o.id" class="card order-card">
@@ -80,6 +89,7 @@ import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 
 const { topSpacerHeight } = useSafeArea();
+const authed = ref<boolean>(false);
 
 type MainTab = 'all' | 'product' | 'service';
 const mainTab = ref<MainTab>('all');
@@ -192,7 +202,9 @@ function buildQuery(){
 async function fetchOrders(){
 	loading.value = true;
 	try {
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) { orders.value = []; return; }
+		const ok = await checkAuthAndRefresh({ redirectIfExpired: false });
+		authed.value = !!ok;
+		if (!ok) { orders.value = []; return; }
 		const http = createHttp();
 		let profile: any = null; try { profile = await http('/member/me/profile', { method:'GET' }); } catch {}
 		const memberId = profile?.id;
@@ -208,6 +220,14 @@ async function fetchOrders(){
 }
 
 function viewOrder(o: Order){ navigate(`/pages/order/detail?no=${encodeURIComponent(o.no)}`); }
+
+function goLogin(){
+	try{
+		// 将期望跳回的页面/筛选条件暂存
+		uni.setStorageSync('order:preset', { main: mainTab.value, filter: activeFilter.value });
+	}catch{}
+	navigate('/pages/login/index');
+}
 
 function goProduct(it: OrderItem){
     // 订单项没有保存 productId 时可以在后端补充；这里先尝试从 specsJson 中回退
@@ -420,6 +440,11 @@ onShow(async()=>{
 .filters { white-space: nowrap; margin: 16rpx 0 8rpx 0; }
 .filter-chip { display:inline-flex; align-items:center; padding: 12rpx 20rpx; margin-right: 16rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx dashed #e5e7eb; color:#374151; font-size: 24rpx; }
 .filter-chip.active { border-color: #77bfff; background:#f7fbff; }
+
+.auth-tip { text-align:center; }
+.auth-tip__title { font-size: 30rpx; font-weight: 800; color:#111827; margin-bottom: 8rpx; }
+.auth-tip__desc { font-size: 24rpx; color:#6b7280; margin-bottom: 16rpx; }
+.auth-tip__actions { display:flex; align-items:center; justify-content:center; }
 
 .section-time { margin: 12rpx 0; color:#6b7280; font-size: 22rpx; }
 

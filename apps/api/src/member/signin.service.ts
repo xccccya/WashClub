@@ -135,7 +135,27 @@ export class MemberSignInService {
     const nextIndex = todaySigned ? (streakDays + 1) : (streakDays + 1); // 明日或今日应得的index用于前端展示奖励刻度
     const todayIndex = streakUntilYesterday + 1;
     const todayReward = this.computeReward(cfg, todayIndex);
-    return { todaySigned, streakDays, totalDays, totalGrowth, lastSignDate: last?.dateStr || null, rewardConfig: cfg, todayReward } as any;
+    const maxStreak = await this.computeMaxStreak(memberId);
+    return { todaySigned, streakDays, maxStreak, totalDays, totalGrowth, lastSignDate: last?.dateStr || null, rewardConfig: cfg, todayReward } as any;
+  }
+
+  private async computeMaxStreak(memberId: number): Promise<number> {
+    const rows: Array<{ dateStr: string }> = await (this.prisma as any).memberSignInLog.findMany({ where: { memberId }, select: { dateStr: true }, orderBy: { dateStr: 'asc' } });
+    let max = 0; let cur = 0; let prev: string | null = null;
+    for (const r of rows){
+      const ds = String(r.dateStr);
+      if (!prev) { cur = 1; max = Math.max(max, cur); prev = ds; continue; }
+      // 判断是否相邻1天
+      const [py, pm, pd] = prev.split('-').map(n=>Number(n));
+      const [y, m, d] = ds.split('-').map(n=>Number(n));
+      const prevDate = new Date(py, pm-1, pd);
+      const thisDate = new Date(y, m-1, d);
+      const diff = Math.round((thisDate.getTime() - prevDate.getTime()) / (24*3600*1000));
+      if (diff === 1) { cur += 1; } else if (diff === 0) { /* 同日重复不会出现，因唯一约束 */ } else { cur = 1; }
+      if (cur > max) max = cur;
+      prev = ds;
+    }
+    return max;
   }
 
   // 会员：按月查询签到日历（YYYY-MM）
