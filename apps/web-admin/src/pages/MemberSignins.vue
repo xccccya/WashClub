@@ -15,9 +15,21 @@
 		<el-table :data="logs" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
 			<el-table-column prop="memberId" label="会员ID" width="100" />
-			<el-table-column prop="dateStr" label="日期" width="140" />
+			<el-table-column prop="dateStr" label="签到时间" width="180">
+				<template #default="{ row }">{{ formatLocal(row.dateStr) }}</template>
+			</el-table-column>
 			<el-table-column prop="growthGranted" label="成长值" width="100" />
-			<el-table-column prop="createdAt" label="创建时间" />
+			<el-table-column label="连续天数" width="120">
+				<template #default="{ row }">{{ streakMap.get(row.memberId)?.streakDays ?? '-' }}</template>
+			</el-table-column>
+			<el-table-column label="总天数" width="120">
+				<template #default="{ row }">{{ streakMap.get(row.memberId)?.totalDays ?? '-' }}</template>
+			</el-table-column>
+			<el-table-column label="操作" width="140" fixed="right">
+				<template #default="{ row }">
+					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">查看详情</el-button>
+				</template>
+			</el-table-column>
 		</el-table>
 
 		<el-dialog v-model="cfgVisible" title="签到奖励配置" width="520px">
@@ -36,6 +48,51 @@
 				<el-button type="primary" @click="saveConfig">保存</el-button>
 			</template>
 		</el-dialog>
+
+		<el-dialog v-model="detailVisible" title="签到详情" width="760px">
+			<div v-if="detail">
+				<el-card shadow="never" style="margin-bottom:12px;">
+					<div style="display:flex; align-items:center; justify-content: space-between; gap:12px;">
+						<div style="display:flex; flex-direction:column; gap:4px;">
+							<div><b>UID：</b>{{ detailMember?.uid || '-' }}</div>
+							<div><b>昵称：</b>{{ detailMember?.name || '-' }}</div>
+							<div><b>手机号：</b>{{ detailMember?.phone || '-' }}</div>
+						</div>
+						<div style="display:flex; gap:16px;">
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#111827;">{{ detail.totalDays }}</div>
+								<div style="font-size:12px; color:#6b7280;">累计天数</div>
+							</div>
+							<div style="width:1px; background:#eee;" />
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#2563eb;">{{ detail.streakDays }}</div>
+								<div style="font-size:12px; color:#6b7280;">连续天数</div>
+							</div>
+							<div style="width:1px; background:#eee;" />
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#16a34a;">{{ detail.totalGrowth }}</div>
+								<div style="font-size:12px; color:#6b7280;">总成长值</div>
+							</div>
+						</div>
+					</div>
+				</el-card>
+				<el-descriptions :column="2" border>
+					<el-descriptions-item label="最近一次签到时间">{{ formatLocal(detail.lastSignDate) }}</el-descriptions-item>
+					<el-descriptions-item label="今日是否已签">{{ detail.todaySigned ? '是' : '否' }}</el-descriptions-item>
+				</el-descriptions>
+				<div style="margin-top:12px;">
+					<el-table :data="detailLogs" stripe style="width:100%">
+						<el-table-column prop="dateStr" label="签到时间" width="180">
+							<template #default="{ row }">{{ formatLocal(row.dateStr) }}</template>
+						</el-table-column>
+						<el-table-column prop="growthGranted" label="成长值" width="120" />
+					</el-table>
+				</div>
+			</div>
+			<template #footer>
+				<el-button @click="detailVisible=false">关闭</el-button>
+			</template>
+		</el-dialog>
 	</BasePage>
 </template>
 
@@ -51,11 +108,22 @@ const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.
 const q = ref<{ memberId?: string; date?: string }>({});
 const loading = ref(false);
 const logs = ref<any[]>([]);
+const streakMap = ref<Map<number, { streakDays:number; totalDays:number }>>(new Map());
 
 async function fetchLogs(){
 	loading.value = true;
-	try{ logs.value = await http<any[]>('/member-signin/logs', { method:'GET', query: { memberId: q.value.memberId, date: q.value.date } }); }
-	finally{ loading.value = false; }
+	try{
+		const rows = await http<any[]>('/member-signin/logs', { method:'GET', query: { memberId: q.value.memberId, date: q.value.date } });
+		logs.value = rows;
+		// 并发获取每个会员的统计数据，去重 memberId
+		const ids = Array.from(new Set((rows||[]).map((r:any)=> Number(r.memberId||0)).filter((n:number)=>n>0)));
+		const pending = ids.map(async (id:number)=>{
+			try{ const s = await http('/member-signin/member-status', { method:'GET', query:{ memberId: id } });
+				streakMap.value.set(id, { streakDays: Number(s?.streakDays||0), totalDays: Number(s?.totalDays||0) });
+			}catch{ streakMap.value.set(id, { streakDays: 0, totalDays: 0 }); }
+		});
+		await Promise.all(pending);
+	} finally { loading.value = false; }
 }
 
 const cfgVisible = ref(false);
@@ -77,6 +145,32 @@ async function saveConfig(){
 }
 
 onMounted(()=>{ fetchLogs(); });
+
+function formatLocal(dateStr?: string){
+	if (!dateStr) return '-';
+	try{
+		// dateStr 为 YYYY-MM-DD；补充本地时区0点
+		const d = new Date(`${dateStr}T00:00:00`);
+		const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+		return `${y}-${m}-${dd}`;
+	}catch{ return String(dateStr); }
+}
+
+const detailVisible = ref(false);
+const detail = ref<any>(null);
+const detailLogs = ref<any[]>([]);
+const detailMember = ref<any>(null);
+async function openDetail(memberId: number){
+	try{
+		const [s, rows, m] = await Promise.all([
+			http('/member-signin/member-status', { method:'GET', query:{ memberId } }),
+			http<any[]>('/member-signin/logs', { method:'GET', query:{ memberId } }),
+			http(`/member/${memberId}`, { method:'GET' }),
+		]);
+		detail.value = s; detailLogs.value = rows; detailMember.value = m;
+		detailVisible.value = true;
+	}catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }
+}
 </script>
 
 <style>

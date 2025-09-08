@@ -44,26 +44,27 @@
 		</view>
 
 		<!-- 签到卡片：进度条 + 图标 + 数值 + 日历 -->
-		<view class="card sign-card">
+		<view class="card sign-card" style="margin-top: 28rpx;">
 			<view class="sign-head">
-				<text class="sign-title">签到</text>
-				<view class="sign-cta" @tap="doSignIn" :class="{ disabled: status.todaySigned }">{{ status.todaySigned ? '今日已签' : '点此签到' }}</view>
+				<text class="sign-title">签到日历</text>
+				<view class="sign-cta" @tap="doSignIn" :class="{ disabled: status.todaySigned }">{{ status.todaySigned ? ('已连续签到' + status.streakDays + '天') : '点此签到' }}</view>
 			</view>
-			<view class="sign-progress">
+			<view class="sign-progress" style="margin-top: 36rpx;">
 				<view class="sign-steps">
 					<view v-for="(r, i) in stepRewards" :key="i" class="sign-step">
 						<image class="sign-step-icon" :src="iconOf(i, reached(i))" mode="aspectFit" />
 						<text class="sign-step-num">+{{ r }}</text>
 					</view>
 				</view>
-			</view>
-			<view class="sign-calendar">
-				<view class="cal-head">
-					<view class="cal-nav" @tap="prevMonth">上个月</view>
-					<text class="cal-title">{{ curYm }}</text>
-					<view class="cal-nav disabled">下个月</view>
+				<view class="sign-hint">
+					<text class="sign-hint-text">第8天及以后固定 +{{ finalReward }}/天</text>
 				</view>
-				<view class="cal-grid">
+			</view>
+			<view class="sign-calendar" @touchstart="onTouchStart" @touchend="onTouchEnd" style="margin-top: 20rpx;">
+				<view class="cal-head">
+					<text class="cal-title">{{ curYm }}</text>
+				</view>
+				<view class="cal-grid" :class="calAnim">
 					<view v-for="d in calDays" :key="d.key" class="cal-cell" :class="{ today: d.isToday, signed: d.isSigned }">
 						<text class="cal-day">{{ d.day }}</text>
 						<view v-if="d.isToday" class="dot" />
@@ -71,6 +72,7 @@
 					</view>
 				</view>
 			</view>
+			<view class="sign-footnote">签到可获取奖励成长值</view>
 		</view>
 
 		<!-- 成长值日志 -->
@@ -175,6 +177,7 @@ const stepRewards = computed(()=>{
     const base = status.value.rewardConfig?.dayRewards || [1,1,1,1,1,1,1];
     return [...base, status.value.rewardConfig?.after7 || base[6] || 1];
 });
+const finalReward = computed(()=> status.value.rewardConfig?.after7 || stepRewards.value[7] || stepRewards.value[6] || 1);
 function reached(i:number){
     const s = Number(status.value.streakDays||0);
     if (i < 7) return s >= (i+1);
@@ -191,6 +194,7 @@ async function doSignIn(){ if (status.value.todaySigned) return; try{ await http
 
 const curYm = ref('');
 const calDays = ref<Array<{ key:string; day:number; isToday:boolean; isSigned:boolean }>>([]);
+const calAnim = ref('');
 function buildMonthDays(ym:string, signedDays:number[]){
     const [y,m] = ym.split('-').map(n=>Number(n));
     const today = new Date();
@@ -203,10 +207,39 @@ function buildMonthDays(ym:string, signedDays:number[]){
 async function fetchMonth(ym?: string){
     const now = new Date();
     const defaultYm = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const req = ym || defaultYm; curYm.value = req;
+    const req = ym || defaultYm;
+    // 限制：不可超过当前月
+    if (req > defaultYm) { curYm.value = defaultYm; ym = defaultYm; }
+    else { curYm.value = req; }
     try{ const res:any = await http('/member-signin/me/month', { method:'GET', query: { ym: req } }); const days:number[] = Array.isArray(res?.signedDays)?res.signedDays:[]; buildMonthDays(res?.ym||req, days); }catch{ buildMonthDays(req, []); }
 }
 function prevMonth(){ const [y,m]=curYm.value.split('-').map(n=>Number(n)); const d = new Date(y, m-2, 1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; fetchMonth(ym); }
+
+// 手势滑动切换月份：只允许向左滑查看更早月份，向右滑回到更近月份，直到当前月
+let touchStartX = 0; let touchStartTime = 0;
+function onTouchStart(e:any){ try{ touchStartX = Number(e?.changedTouches?.[0]?.clientX||0); touchStartTime = Date.now(); }catch{ touchStartX = 0; touchStartTime = Date.now(); } }
+function onTouchEnd(e:any){
+    try{
+        const endX = Number(e?.changedTouches?.[0]?.clientX||0);
+        const dx = endX - touchStartX;
+        const dt = Date.now() - touchStartTime;
+        if (dt > 500) return; // 仅响应快速滑动
+        const threshold = 40; // 滑动阈值
+        if (dx > threshold){ // 右滑：上一月（更早）
+            calAnim.value = 'slide-right';
+            setTimeout(()=>{ calAnim.value = ''; }, 220);
+            const [y,m]=curYm.value.split('-').map(n=>Number(n)); const d = new Date(y, m-2, 1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; fetchMonth(ym);
+        } else if (dx < -threshold){ // 左滑：下一月（更近），不得超过当前月
+            const now = new Date();
+            const defaultYm = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            // 计算下一月，若超出当前月则直接回到当前月
+            const [y,m]=curYm.value.split('-').map(n=>Number(n)); const d = new Date(y, m, 1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            calAnim.value = 'slide-left';
+            setTimeout(()=>{ calAnim.value = ''; }, 220);
+            fetchMonth(ym > defaultYm ? defaultYm : ym);
+        }
+    }catch{}
+}
 
 onMounted(async ()=>{
 	const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
@@ -276,6 +309,9 @@ function openOrderFromLog(g:any){
 .sign-step { display:flex; flex-direction: column; align-items:center; justify-content:center; flex:1; }
 .sign-step-icon { width: 44rpx; height: 44rpx; }
 .sign-step-num { font-size: 20rpx; color:#374151; margin-top: 4rpx; }
+.sign-hint { display:flex; align-items:center; justify-content: flex-end; margin-top: 8rpx; color:#6b7280; }
+.sign-hint-text { font-size: 22rpx; text-align:right; }
+.sign-footnote { margin-top: 10rpx; font-size: 22rpx; color:#6b7280; text-align: right; }
 
 .sign-calendar { margin-top: 6rpx; }
 .cal-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
@@ -283,6 +319,16 @@ function openOrderFromLog(g:any){
 .cal-nav.disabled { color:#9ca3af; }
 .cal-title { font-size: 24rpx; font-weight: 700; color:#111827; }
 .cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 10rpx; }
+.cal-grid.slide-left { animation: cal-slide-left 200ms ease-out; }
+.cal-grid.slide-right { animation: cal-slide-right 200ms ease-out; }
+@keyframes cal-slide-left {
+  from { transform: translateX(30rpx); opacity: .6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes cal-slide-right {
+  from { transform: translateX(-30rpx); opacity: .6; }
+  to { transform: translateX(0); opacity: 1; }
+}
 .cal-cell { position: relative; height: 72rpx; border-radius: 12rpx; background:#f8fafc; display:flex; align-items:center; justify-content:center; }
 .cal-cell.today { box-shadow: inset 0 0 0 2rpx #a7f3d0; }
 .cal-cell.signed { background: #ecfeff; }

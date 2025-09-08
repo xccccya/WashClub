@@ -69,6 +69,16 @@ export class MemberSignInController {
   @RequirePerm('member-signins')
   @ApiOperation({ summary: '保存签到奖励配置' })
   saveConfig(@Body() body: { dayRewards: number[]; after7: number }){ return this.service.saveConfigForAdmin(body); }
+
+  // 管理后台：查询指定会员的签到统计状态
+  @Get('member-status')
+  @UseGuards(AdminGuard)
+  @RequirePerm('member-signins')
+  @ApiOperation({ summary: '查询会员签到统计状态' })
+  getMemberStatus(@Query('memberId') memberId?: string){
+    const id = Number(memberId||0); if (!id) throw new UnauthorizedException('memberId无效');
+    return this.service.getStatusByMember(id);
+  }
 }
 
 
