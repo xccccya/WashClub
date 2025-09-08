@@ -183,7 +183,15 @@ export class MiniappCouponController {
             }catch{}
             if (!(calc > 0)) calc = Math.min(Number(c.faceValue||0), discountBase);
             if (calc <= 0) continue;
-            out.push({ id: mc.id, couponId: c.id, name: mc.name || c.name, allowCombine: !!c.allowCombine, discountApplied: Number(calc.toFixed(2)) });
+            out.push({
+                id: mc.id,
+                couponId: c.id,
+                name: mc.name || c.name,
+                allowCombine: !!c.allowCombine,
+                allowStackWithPoints: !!c.allowStackWithPoints,
+                allowStackWithMemberDiscount: !!c.allowStackWithMemberDiscount,
+                discountApplied: Number(calc.toFixed(2))
+            });
         }
         // 排序：折扣高优先
         out.sort((a,b)=> Number(b.discountApplied||0) - Number(a.discountApplied||0));

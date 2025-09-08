@@ -17,6 +17,7 @@
 			<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
 			<el-descriptions-item label="订单总额">{{ data?.totalAmount }}</el-descriptions-item>
 			<el-descriptions-item label="减免金额">{{ data?.discountAmount }}</el-descriptions-item>
+			<el-descriptions-item label="会员折扣减免" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>
 			<el-descriptions-item label="支付金额">{{ data?.payAmount }}</el-descriptions-item>
 			<el-descriptions-item label="下单时间">{{ formatDate(data?.createdAt) }}</el-descriptions-item>
@@ -183,6 +184,7 @@
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="使用积分">{{ data?.usedPoints }}</el-descriptions-item>
 			<el-descriptions-item label="积分抵扣金额">{{ data?.pointsAmount }}</el-descriptions-item>
+			<el-descriptions-item label="会员折扣金额" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="卡券信息">
 				<template v-if="Array.isArray(couponFlows) && couponFlows.length">
 					<div class="coupon-list">

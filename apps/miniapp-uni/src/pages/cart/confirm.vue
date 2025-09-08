@@ -47,10 +47,31 @@
 				<view v-for="c in applicableCoupons" :key="c.id" class="coupon-chip" :class="{ active: selectedCouponIds.has(c.id), disabled: disabledByCombine(c) }" @tap="() => toggleCoupon(c)">
 					<text class="c-name">{{ c.name }}</text>
 					<text class="c-discount">-¥{{ formatPrice(c.discountApplied) }}</text>
-					<text v-if="!c.allowCombine" class="c-tag">不可叠加</text>
+					<text v-if="c.allowCombine===false" class="c-tag">不可叠加其他券</text>
+					<text v-if="c.allowStackWithPoints===false" class="c-tag">不可叠加积分抵扣</text>
+					<text v-if="c.allowStackWithMemberDiscount===false" class="c-tag">不可叠加会员折扣</text>
 				</view>
 			</view>
 			<view class="tip" v-if="couponDiscount>0">预计优惠：¥{{ formatPrice(couponDiscount) }}，应付：¥{{ payAmountWithCouponText }}</view>
+
+			<!-- 积分抵扣 -->
+			<view class="block-title">积分抵扣</view>
+			<view v-if="pointsLoading" class="tip">加载中...</view>
+			<view v-else-if="!supportsPoints" class="tip">当前所选商品暂不支持积分抵扣</view>
+			<view v-else-if="!pointsAllowedByCoupons" class="tip">已选择的优惠券不可叠加积分抵扣</view>
+			<view v-else class="points-card">
+				<view class="meta-row">
+					<view class="meta-tag">当前剩余 {{ pointsAvailable }} 积分</view>
+					<view class="meta-tag success" v-if="pointsAmountYuan>0">预计抵扣 ¥{{ pointsAmountYuanText }}</view>
+				</view>
+				<view class="points-input">
+					<view class="step-btn" @tap="decPoints">-</view>
+					<input class="points-field" type="number" inputmode="numeric" v-model.lazy="usedPointsText" placeholder="输入使用积分" @blur="normalizeUsedPoints" />
+					<view class="step-btn" @tap="incPoints">+</view>
+					<view class="points-apply" @tap="applyMaxPoints">全部使用</view>
+				</view>
+				<view class="tip fine">{{ pointsNote }}</view>
+			</view>
 
 			<!-- 支付方式与备注 -->
 			<view class="block-title">支付方式</view>
@@ -69,12 +90,18 @@
 
 		<view class="bottom-bar" v-if="items.length>0">
 			<view class="summary">
-				<text class="label">合计：</text>
-				<text class="amount amount-lg">¥{{ payAmountWithCouponText }}</text>
-				<text class="coupon-save" v-if="couponDiscount>0">(含券减 ¥{{ Number(couponDiscount||0).toFixed(2) }})</text>
-				<text class="coupon-over" v-if="couponOver>0">券减溢出 ¥{{ Number(couponOver||0).toFixed(2) }}</text>
+				<view class="sum-line">
+					<text class="label">合计：</text>
+					<text class="amount amount-lg">¥{{ payAmountFinalText }}</text>
+				</view>
+				<view class="sum-meta">
+					<text class="meta-tag" v-if="couponDiscount>0">券减 ¥{{ Number(couponDiscount||0).toFixed(2) }}</text>
+					<text class="meta-tag" v-if="supportsMemberDiscount && memberPayDiscountPercent>0 && memberDiscountEstYuan>0">会员折扣 ¥{{ memberDiscountEstText }}</text>
+					<text class="meta-tag success" v-if="pointsAmountYuan>0">积分抵扣 ¥{{ pointsAmountYuanText }}</text>
+					<text class="meta-tag warn" v-if="couponOver>0">券减溢出 ¥{{ Number(couponOver||0).toFixed(2) }}</text>
+				</view>
 			</view>
-			<view class="checkout" @tap="submit">立即支付¥{{ payAmountWithCouponText }}</view>
+			<view class="checkout" @tap="submit">立即支付¥{{ payAmountFinalText }}</view>
 		</view>
 	</view>
 </template>
@@ -103,7 +130,7 @@ const payMethod = ref<'WECHAT'|'OFFLINE'|undefined>(undefined);
 payMethod.value = 'WECHAT';
 // #endif
 const couponLoading = ref<boolean>(false);
-const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
+const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; allowStackWithPoints?: boolean; allowStackWithMemberDiscount?: boolean; discountApplied:number }>>([]);
 const selectedCouponIds = ref<Set<number>>(new Set());
 type Address = { id: number; province: string; city: string; district: string; street: string; detail: string; phone: string };
 const addresses = ref<Address[]>([]);
@@ -151,6 +178,87 @@ const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce(
 const payAmountNet = computed(()=> Math.max(0, Number(totalAmount.value) - couponDiscount.value));
 const payAmountDisplay = computed(()=> payAmountNet.value < 0.01 ? 0.01 : payAmountNet.value);
 const payAmountWithCouponText = computed(()=> payAmountDisplay.value.toFixed(2));
+// ===== 积分抵扣 =====
+const pointsLoading = ref<boolean>(false);
+const pointsAvailable = ref<number>(0);
+const usedPoints = ref<number>(0);
+const usedPointsText = ref<string>('');
+const fenPerPoint = ref<number>(0);
+const maxFenPerOrder = ref<number>(0);
+const supportsPoints = computed(()=> items.value.some(it => !!(it?.snapshot?.pointsDeductible)));
+const supportsMemberDiscount = computed(()=> items.value.some(it => !!(it?.snapshot?.memberDiscount)));
+const pointsAmountYuan = computed(()=>{
+  const pts = Math.max(0, Math.floor(Number(usedPoints.value||0)));
+  const fen = pts * Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
+  return fen/100;
+});
+const pointsAmountYuanText = computed(()=> pointsAmountYuan.value.toFixed(2));
+const payAmountFinal = computed(()=>{
+  const memberDeduct = Number(memberDiscountAllowedByCoupons.value ? (memberDiscountEstYuan.value||0) : 0);
+  const pointsDeduct = Number(pointsAllowedByCoupons.value ? (pointsAmountYuan.value||0) : 0);
+  const baseAfterDiscounts = Math.max(0, Number(totalAmount.value)
+    - Number(couponDiscount.value||0)
+    - memberDeduct);
+  const after = Math.max(0, baseAfterDiscounts - pointsDeduct);
+  return after < 0.01 && baseAfterDiscounts > 0 ? 0.01 : after;
+});
+const payAmountFinalText = computed(()=> payAmountFinal.value.toFixed(2));
+const maxUsablePoints = computed(()=>{
+  try{
+    const fenEach = Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
+    if (!fenEach) return 0;
+    if (!supportsPoints.value) return 0;
+    const baseYuan = Math.max(0, Number(totalAmount.value) - Number(couponDiscount.value));
+    const baseFen = Math.floor(baseYuan * 100);
+    const orderCapFen = Math.max(0, Math.floor(Number(maxFenPerOrder.value||0)));
+    const capFen = orderCapFen>0 ? Math.min(baseFen, orderCapFen) : baseFen;
+    const byFen = Math.floor(capFen / fenEach);
+    return Math.max(0, Math.min(pointsAvailable.value, byFen));
+  }catch{ return 0; }
+});
+const pointsNote = computed(()=>{
+  const fen = Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
+  if (!fen) return '暂未开启积分抵扣';
+  const per = (fen/100).toFixed(2);
+  const max = Math.max(0, Number(maxFenPerOrder.value||0));
+  const maxYuan = max>0 ? `¥${(max/100).toFixed(2)}` : '不限';
+  return `1积分可抵扣¥${per}，单笔订单最大抵扣金额${maxYuan}`;
+});
+// 含积分提示仅在允许叠加时展示
+async function loadPointsMeta(){
+  pointsLoading.value = true;
+  try{
+    const profile = await createHttp()<any>('/member/me/profile', { method:'GET' });
+    pointsAvailable.value = Math.max(0, Number(profile?.points||0));
+    const ss = await createHttp()<any>('/system/public/site-setting', { method:'GET' });
+    fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
+    maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
+  }catch{
+    pointsAvailable.value = 0; fenPerPoint.value = 0; maxFenPerOrder.value = 0;
+  }finally{ pointsLoading.value = false; }
+}
+function normalizeUsedPoints(){
+  const raw = String(usedPointsText.value||'').trim();
+  let pts = Math.max(0, Math.floor(Number(raw||0)));
+  pts = Math.min(pts, maxUsablePoints.value);
+  usedPoints.value = pts;
+  usedPointsText.value = String(pts);
+}
+function applyMaxPoints(){ usedPoints.value = maxUsablePoints.value; usedPointsText.value = String(usedPoints.value); }
+function incPoints(){
+  try{
+    const cur = Math.max(0, Math.floor(Number(usedPoints.value||0)));
+    const next = Math.min(maxUsablePoints.value, cur + 1);
+    usedPoints.value = next; usedPointsText.value = String(next);
+  }catch{}
+}
+function decPoints(){
+  try{
+    const cur = Math.max(0, Math.floor(Number(usedPoints.value||0)));
+    const next = Math.max(0, cur - 1);
+    usedPoints.value = next; usedPointsText.value = String(next);
+  }catch{}
+}
 const couponOver = computed(()=> {
   const base = Number(totalAmount.value) || 0;
   const disc = Number(couponDiscount.value) || 0;
@@ -163,7 +271,19 @@ function selectAddress(id?: number){ selectedAddressId.value = id; }
 function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
 function buildApplicableItems(){ return items.value.map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) })); }
 function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
-function toggleCoupon(c:any){ if (!c) return; if (disabledByCombine(c)) return; const set=new Set(selectedCouponIds.value); if (set.has(c.id)) set.delete(c.id); else set.add(c.id); selectedCouponIds.value=set; }
+function toggleCoupon(c:any){
+  if (!c) return;
+  if (disabledByCombine(c)) return;
+  const set=new Set(selectedCouponIds.value);
+  if (set.has(c.id)) set.delete(c.id); else set.add(c.id);
+  selectedCouponIds.value=set;
+  // 切换到不允许积分叠加的券后，清空积分输入
+  try{
+    const picked = applicableCoupons.value.filter(x => selectedCouponIds.value.has(x.id));
+    const pointsAllowed = picked.every(x => x.allowStackWithPoints !== false);
+    if (!pointsAllowed) { usedPoints.value = 0; usedPointsText.value = '0'; }
+  }catch{}
+}
 async function loadApplicableCoupons(){
     couponLoading.value = true;
     try{
@@ -174,6 +294,36 @@ async function loadApplicableCoupons(){
         selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
     }catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
     finally{ couponLoading.value = false; }
+}
+
+// 会员折扣预计（基于选中商品中启用 memberDiscount 的小计）
+const memberPayDiscountPercent = ref<number>(0);
+const memberDiscountEligibleYuan = computed(()=>{
+  if (!supportsMemberDiscount.value) return 0;
+  try{
+    return items.value.reduce((sum:number, it:any)=> sum + (it?.snapshot?.memberDiscount ? Number(it?.snapshot?.price||0) * Number(it?.quantity||0) : 0), 0);
+  }catch{ return 0; }
+});
+const memberDiscountEstYuan = computed(()=>{
+  const pct = Math.max(0, Number(memberPayDiscountPercent.value||0));
+  if (!pct) return 0;
+  return (memberDiscountEligibleYuan.value * pct) / 100;
+});
+const memberDiscountEstText = computed(()=> Number(memberDiscountEstYuan.value||0).toFixed(2));
+const pointsAllowedByCoupons = computed(()=>{
+  const picked = applicableCoupons.value.filter(c => selectedCouponIds.value.has(c.id));
+  return picked.every(c => c.allowStackWithPoints !== false);
+});
+const memberDiscountAllowedByCoupons = computed(()=>{
+  const picked = applicableCoupons.value.filter(c => selectedCouponIds.value.has(c.id));
+  return picked.every(c => c.allowStackWithMemberDiscount !== false);
+});
+async function loadMemberMeta(){
+  try{
+    const profile = await createHttp()<any>('/member/me/profile', { method:'GET' });
+    const pct = Number((profile as any)?.level?.payDiscountPercent || 0);
+    memberPayDiscountPercent.value = Math.max(0, pct);
+  }catch{ memberPayDiscountPercent.value = 0; }
 }
 
 async function submit(){
@@ -201,7 +351,7 @@ async function submit(){
 	}
 	// 允许券减溢出：不再前端拦截 < 0.01，展示层已按 0.01 显示，后端将按 0.01 入单
 	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
-	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value) };
+	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value), usedPoints: pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0, disableMemberDiscount: !memberDiscountAllowedByCoupons.value };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
 		// 清理后端已勾选条目
@@ -246,6 +396,7 @@ async function submit(){
 	if (!authed) { items.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 	await loadSelected();
 	await loadApplicableCoupons();
+	try { await loadPointsMeta(); await loadMemberMeta(); } catch {}
 })();
 </script>
 
@@ -272,6 +423,7 @@ async function submit(){
 .pay-chip { display:inline-flex; padding: 12rpx 18rpx; border-radius: 999rpx; background:#e5e7eb; color:#111827; font-size: 24rpx; }
 .pay-chip.active { background:#111827; color:#fff; }
 .tip { margin-top: 6rpx; color:#6b7280; font-size: 22rpx; }
+.tip.fine { font-size: 20rpx; opacity: .9; }
 .coupon-list { display:flex; flex-wrap: wrap; gap: 10rpx; margin-top: 8rpx; }
 .coupon-chip { display:inline-flex; align-items:center; gap: 8rpx; padding: 10rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; color:#111827; }
 .coupon-chip.active { background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-color: transparent; }
@@ -282,11 +434,15 @@ async function submit(){
 .remark { width: 100%; min-height: 120rpx; background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; box-sizing: border-box; }
 
 .bottom-bar { position: fixed; left:0; right:0; bottom:0; background:#ffffff; border-top: 2rpx solid #e5e7eb; padding: 12rpx 16rpx; display:flex; align-items:center; justify-content: space-between; gap: 12rpx; box-sizing: border-box; }
-.summary { display:flex; align-items: baseline; gap: 6rpx; }
+.summary { display:flex; flex-direction: column; align-items: flex-start; gap: 4rpx; }
 .label { font-size: 24rpx; color:#6b7280; }
 .amount { font-size: 30rpx; color:#ef4444; font-weight: 800; }
 .amount-lg { font-size: 36rpx; }
-.coupon-save { font-size: 22rpx; color:#67C23A; margin-left: 8rpx; }
+.sum-line { display:flex; align-items: baseline; gap: 6rpx; }
+.sum-meta { display:flex; flex-wrap: wrap; gap: 8rpx; margin-top: 6rpx; }
+.meta-tag { display:inline-flex; align-items:center; gap: 6rpx; padding: 4rpx 10rpx; background:#f3f4f6; border: 2rpx solid #e5e7eb; border-radius: 999rpx; font-size: 22rpx; color:#374151; }
+.meta-tag.success { background: linear-gradient(135deg, #10b981, #34d399); color:#fff; border-color: transparent; }
+.meta-tag.warn { background: #fff7ed; color: #b45309; border-color: #fed7aa; }
 .coupon-over { font-size: 22rpx; color:#f59e0b; margin-left: 8rpx; }
 .checkout { padding: 18rpx 22rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; border-radius: 16rpx; font-size: 26rpx; }
 
@@ -305,5 +461,21 @@ async function submit(){
 .addr-card.active .addr-line1, .addr-card.active .addr-line2, .addr-card.active .addr-line3 { color:#fff; }
 .addr-manage { margin-top: 8rpx; padding: 8rpx 12rpx; display:inline-flex; align-items:center; gap: 6rpx; background:#f1f5ff; color:#1d4ed8; border-radius: 999rpx; font-size: 22rpx; }
 .addr-manage:after { content:'›'; font-size: 22rpx; line-height: 1; }
+
+/* 积分卡片化样式（与弹层一致） */
+.points-card { background:#f9fafb; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 12rpx; display:flex; flex-direction: column; gap: 10rpx; }
+.meta-row { display:flex; flex-wrap: wrap; gap: 8rpx; }
+.points-input { display:flex; align-items:center; gap: 8rpx; background: transparent; border: 0; padding: 0; }
+.points-field { width: 120rpx; height: 40rpx; font-size: 24rpx; text-align:center; background:#fff; border: 2rpx solid #e5e7eb; border-radius: 10rpx; padding: 0 8rpx; }
+.points-apply { padding: 6rpx 10rpx; background: transparent; color:#1d4ed8; border-radius: 999rpx; font-size: 22rpx; border: 2rpx solid #dbeafe; }
+.step-btn { width: 40rpx; height: 40rpx; text-align:center; line-height: 40rpx; border-radius: 999rpx; background:#f3f4f6; color:#111827; font-size: 24rpx; }
+
+/* 积分样式 */
+.points-row { display:flex; align-items:center; gap: 10rpx; flex-wrap: wrap; margin-top: 6rpx; }
+.points-label { font-size: 22rpx; color:#374151; }
+.points-input { display:flex; align-items:center; gap: 8rpx; background:#fff; border: 2rpx solid #e5e7eb; border-radius: 12rpx; padding: 6rpx 8rpx; }
+.points-field { width: 180rpx; height: 44rpx; font-size: 24rpx; }
+.points-apply { padding: 4rpx 10rpx; background:#111827; color:#fff; border-radius: 999rpx; font-size: 22rpx; }
+.points-amount { font-size: 22rpx; color:#10b981; }
 
 </style>

@@ -237,8 +237,8 @@ export class OrderService {
         return `${type}_${ts}_${rand}`;
     }
 
-    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; userRemark?: string | null; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; memberCouponIds?: number[] | null; }): Promise<{ id: number; no: string }>{
-        const { type, memberId, vehicleId, shippingAddressId, items, userRemark, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId, memberCouponIds } = params;
+    async createOrder(params: { type: OrderType; memberId: number; vehicleId?: number | null; shippingAddressId?: number | null; items: Array<{ productId?: number | null; skuId?: number | null; name: string; imageUrl?: string | null; specsText?: string | null; barcode?: string | null; price: Prisma.Decimal | number; discount?: Prisma.Decimal | number; quantity: number }>; userRemark?: string | null; remark?: string | null; shippingFee?: Prisma.Decimal | number; usedPoints?: number; pointsAmount?: Prisma.Decimal | number; couponInfo?: Prisma.InputJsonValue | null; memberCouponId?: number | null; memberCouponIds?: number[] | null; disableMemberDiscount?: boolean | null; }): Promise<{ id: number; no: string }>{
+        const { type, memberId, vehicleId, shippingAddressId, items, userRemark, remark, shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo, memberCouponId, memberCouponIds, disableMemberDiscount } = params;
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
         return this.prisma.$transaction(async (tx) => {
@@ -312,7 +312,7 @@ export class OrderService {
                 if (memberCoupon.coupon?.type !== 'COUPON') throw new Error('优惠券类型不支持');
                 // 叠加策略：与积分/会员折扣
                 if (!memberCoupon.coupon?.allowStackWithPoints && (Number(usedPoints||0) > 0 || Number(pointsAmount||0) > 0)) throw new Error('该券不可与积分同用');
-                if (!memberCoupon.coupon?.allowStackWithMemberDiscount) {
+                if (!memberCoupon.coupon?.allowStackWithMemberDiscount && !disableMemberDiscount) {
                     // 这里以商品的 memberDiscount 作为判别（如有任一商品启用会员折扣则不允许叠加）
                     const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
                     if (productIds.length) {
@@ -391,7 +391,7 @@ export class OrderService {
                 if (records.some((mc:any)=> mc?.coupon && mc.coupon.allowStackWithPoints === false)) {
                     if (Number(usedPoints||0) > 0 || Number(pointsAmount||0) > 0) throw new Error('所选优惠券不可与积分同用');
                 }
-                if (records.some((mc:any)=> mc?.coupon && mc.coupon.allowStackWithMemberDiscount === false)) {
+                if (records.some((mc:any)=> mc?.coupon && mc.coupon.allowStackWithMemberDiscount === false) && !disableMemberDiscount) {
                     const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
                     if (productIds.length) {
                         const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id:true, memberDiscount:true } });
@@ -446,6 +446,60 @@ export class OrderService {
                 if (discountTotal.greaterThan(total)) discountTotal = total;
                 // 记录：多券不写入 couponInfo 结构（前端可从订单金额与日志侧查明细）
             }
+            // 会员折扣（按会员等级的 payDiscountPercent，作用于商品维度开启了 memberDiscount 的小计）
+            let memberDiscountAmount = new Prisma.Decimal(0);
+            try{
+                if (disableMemberDiscount) { throw new Error('DISABLED_BY_REQUEST'); }
+                const productIdsAll = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
+                const productFlags = productIdsAll.length ? await tx.product.findMany({ where: { id: { in: productIdsAll } }, select: { id:true, memberDiscount:true, pointsDeductible:true } }) : [];
+                const flagMap = new Map<number, { id:number; memberDiscount:boolean; pointsDeductible:boolean }>(productFlags.map(p => [p.id, { id:p.id, memberDiscount: !!(p as any).memberDiscount, pointsDeductible: !!(p as any).pointsDeductible }]));
+                // 会员折扣资格与比例
+                let payDiscountPercent = 0;
+                try{
+                    const m:any = await tx.member.findUnique({ where: { id: memberId }, select: { level: { select: { payDiscountPercent:true } } } });
+                    payDiscountPercent = Math.max(0, Math.min(100, Math.floor(Number(m?.level?.payDiscountPercent || 0))));
+                }catch{ payDiscountPercent = 0; }
+                if (payDiscountPercent > 0) {
+                    let eligible = new Prisma.Decimal(0);
+                    for (const it of items) {
+                        const pid = it.productId as any as number | undefined;
+                        const f = (pid && flagMap.get(pid)) || undefined;
+                        if (f && f.memberDiscount) {
+                            const price = new Prisma.Decimal(it.price as any);
+                            eligible = eligible.plus(price.mul(it.quantity));
+                        }
+                    }
+                    if (eligible.greaterThan(0)) {
+                        const pct = new Prisma.Decimal(payDiscountPercent as any).div(100);
+                        memberDiscountAmount = eligible.mul(pct);
+                        // 折扣不应超过当前可折扣基数
+                        const maxAllow = total.minus(discountTotal);
+                        if (memberDiscountAmount.greaterThan(maxAllow)) memberDiscountAmount = maxAllow as any;
+                        discountTotal = discountTotal.plus(memberDiscountAmount);
+                    }
+                }
+                // 将积分抵扣基数限定于支持 pointsDeductible 的商品比例
+                // 下面积分计算会使用该比例
+                (this as any)._pointsEligibleRatio = (() => {
+                    try{
+                        let eligible = new Prisma.Decimal(0);
+                        for (const it of items) {
+                            const pid = it.productId as any as number | undefined;
+                            const f = (pid && flagMap.get(pid)) || undefined;
+                            if (f && f.pointsDeductible) {
+                                const price = new Prisma.Decimal(it.price as any);
+                                eligible = eligible.plus(price.mul(it.quantity));
+                            }
+                        }
+                        if (total.lte(0)) return 0;
+                        const ratio = Number(eligible.div(total));
+                        if (!Number.isFinite(ratio) || ratio <= 0) return 0;
+                        return Math.min(1, Math.max(0, ratio));
+                    }catch{ return 0; }
+                })();
+            }catch{
+                // 忽略会员折扣/可抵扣比例异常
+            }
             // 按配置与会员积分余额，核算积分可抵扣金额与实际可用积分
             let usedPointsCalc = Math.max(0, Math.floor(Number(usedPoints || 0)));
             let pointsAmountCalcFen = 0; // 单位：分
@@ -457,7 +511,9 @@ export class OrderService {
                     const m = await tx.member.findUnique({ where: { id: memberId }, select: { points: true } });
                     const balancePts = Math.max(0, Number(m?.points || 0));
                     // 可用积分上限（受余额与单单封顶约束）
-                    const payBeforePointsFen = Number(total.minus(discountTotal).plus(new Prisma.Decimal(shippingFee as any)).mul(100).toFixed(0));
+                    const grossFen = Number(total.minus(discountTotal).plus(new Prisma.Decimal(shippingFee as any)).mul(100).toFixed(0));
+                    const ratio = Number((this as any)._pointsEligibleRatio || 0);
+                    const payBeforePointsFen = Math.max(0, Math.floor(grossFen * (Number.isFinite(ratio) ? ratio : 1)));
                     let capFen = balancePts * fenPerPoint;
                     if (maxFenPerOrder > 0) capFen = Math.min(capFen, maxFenPerOrder);
                     // 至少保留 1 分以避免 0 元订单（后续仍有 0.01 的兜底）
@@ -518,6 +574,7 @@ export class OrderService {
                     fulfillmentStatus: (type === 'FK' ? 'NONE' : 'PENDING') as FulfillmentStatus,
                     totalAmount: total,
                     discountAmount: discountTotal,
+                    memberDiscountAmount: memberDiscountAmount,
                     payAmount: payAmountAdjusted,
                     shippingFee: shipping,
                     payStatus: 'UNPAID',

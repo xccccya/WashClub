@@ -104,7 +104,9 @@ export class CartService {
         const name = product?.name || '';
         const skuName = sku?.name || (Array.isArray(sku?.specsJson) ? sku.specsJson.map((x: any) => x?.value).filter(Boolean).join('/') : undefined);
         const type = product?.type || undefined;
-        return { id: product?.id, name, imageUrl, price, skuName, type };
+        const pointsDeductible = !!product?.pointsDeductible;
+        const memberDiscount = !!product?.memberDiscount;
+        return { id: product?.id, name, imageUrl, price, skuName, type, pointsDeductible, memberDiscount };
     }
 }
 

@@ -89,17 +89,20 @@ export class MemberService {
 		const now = new Date();
 		const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
 		const end = new Date(now.getFullYear(), now.getMonth()+1, 1, 0, 0, 0, 0);
-		// 本月使用：仅统计下单抵扣（USE）的负数
+		// 本月使用：仅统计下单抵扣（USE）的负数，并扣除本月“退款返还”的正向REFUND（如取消订单返还的积分），避免把已退回的也计入“使用”
 		// 本月获得：统计正向（PAY/ADMIN）并扣除当月退款扣减（REFUND<0），避免把已被扣回的积分计入“获得”
 		const logs:any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { memberId: id, createdAt: { gte: start, lt: end } }, select: { change:true, source:true } });
-		let monthUsed = 0, monthGained = 0;
+		let monthUsed = 0, monthGained = 0, refundReturnedPos = 0;
 		for (const r of logs){
 			const ch = Number(r?.change||0);
 			const src = String(r?.source||'');
 			if (src === 'USE' && ch < 0) monthUsed += Math.abs(ch);
+			if (src === 'REFUND' && ch > 0) refundReturnedPos += ch; // 退款返还（含取消返还）
 			if ((src === 'PAY' || src === 'ADMIN') && ch > 0) monthGained += ch;
 			if (src === 'REFUND' && ch < 0) monthGained += ch; // 负数：从本月获得中扣除
 		}
+		// 从“本月使用”中扣除已返还积分
+		monthUsed = Math.max(0, monthUsed - refundReturnedPos);
 		if (monthGained < 0) monthGained = 0;
 		return { currentPoints, monthUsed, monthGained } as any;
 	}

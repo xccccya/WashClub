@@ -67,7 +67,9 @@
 							<view v-for="c in applicableCoupons" :key="c.id" class="coupon-chip" :class="{ active: selectedCouponIds.has(c.id), disabled: disabledByCombine(c) }" @tap="() => toggleCoupon(c)">
 								<text class="c-name">{{ c.name }}</text>
 								<text class="c-discount">-¥{{ formatPrice(c.discountApplied) }}</text>
-								<text v-if="!c.allowCombine" class="c-tag">不可叠加</text>
+								<text v-if="c.allowCombine===false" class="c-tag">不可叠加其他券</text>
+								<text v-if="c.allowStackWithPoints===false" class="c-tag">不可叠加积分抵扣</text>
+								<text v-if="c.allowStackWithMemberDiscount===false" class="c-tag">不可叠加会员折扣</text>
 							</view>
 						</view>
 						<view class="coupon-card__summary">
@@ -76,6 +78,23 @@
 							<text class="sum-split">·</text>
 							<text class="sum-label">券后预计</text>
 							<text class="sum-pay">¥{{ expectedPayAmountText }}</text>
+						</view>
+					</view>
+				</view>
+
+				<!-- 积分与会员折扣说明卡片 -->
+				<view class="coupon-card" v-if="checkedCount>0">
+					<view class="coupon-card__header">
+						<text class="coupon-card__title">会员与积分</text>
+						<text class="coupon-card__subtitle">基于当前勾选商品预计</text>
+					</view>
+					<view>
+						<view class="coupon-card__tags">
+							<text class="meta-tag" v-if="supportsMemberDiscount && memberPayDiscountPercent>0 && memberDiscountAllowedByCoupons && memberDiscountEstYuan>0">会员折扣 -¥{{ memberDiscountEstText }}</text>
+							<text class="meta-tag" v-else>会员折扣 无</text>
+							<text class="meta-tag" v-if="supportsPoints && fenPerPoint>0 && pointsAllowedByCoupons">积分：1分=¥{{ (fenPerPoint/100).toFixed(2) }}，单笔上限¥{{ maxDeductYuanText }}</text>
+							<text class="meta-tag" v-else-if="supportsPoints && fenPerPoint>0 && !pointsAllowedByCoupons">积分：与所选优惠券不可叠加</text>
+							<text class="meta-tag" v-else>积分抵扣 未开启</text>
 						</view>
 					</view>
 				</view>
@@ -162,11 +181,47 @@ const totalAmountText = computed(()=> totalAmount.value.toFixed(2));
 
 // 可用优惠券（购物车页直接展示与选择）
 const couponLoading = ref<boolean>(false);
-const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; discountApplied:number }>>([]);
+const applicableCoupons = ref<Array<{ id:number; couponId:number; name:string; allowCombine:boolean; allowStackWithPoints?: boolean; allowStackWithMemberDiscount?: boolean; discountApplied:number }>>([]);
 const selectedCouponIds = ref<Set<number>>(new Set());
 const couponDiscount = computed(()=> Array.from(selectedCouponIds.value).reduce((s, id)=>{ const c = applicableCoupons.value.find(x=>x.id===id); return s + (c ? Number(c.discountApplied||0) : 0); }, 0));
-const expectedPayAmount = computed(()=> Math.max(0, Number(totalAmount.value) - Number(couponDiscount.value||0)));
+const expectedPayAmount = computed(()=>{
+  const memberDeduct = Number(memberDiscountAllowedByCoupons.value ? (memberDiscountEstYuan.value||0) : 0);
+  return Math.max(0, Number(totalAmount.value)
+    - Number(couponDiscount.value||0)
+    - memberDeduct);
+});
 const expectedPayAmountText = computed(()=> expectedPayAmount.value.toFixed(2));
+const checkedCount = computed(()=> items.value.filter(it=>it.checked).length);
+// 会员折扣与积分说明元数据
+const fenPerPoint = ref<number>(0);
+const maxFenPerOrder = ref<number>(0);
+const maxDeductYuanText = computed(()=>{
+    const v = Math.max(0, Number(maxFenPerOrder.value||0));
+    return (v>0 ? (v/100).toFixed(2) : '不限');
+});
+const supportsPoints = computed(()=> items.value.filter(it=>it.checked).some(it => !!(it?.snapshot?.pointsDeductible)));
+const supportsMemberDiscount = computed(()=> items.value.filter(it=>it.checked).some(it => !!(it?.snapshot?.memberDiscount)));
+const memberPayDiscountPercent = ref<number>(0);
+const memberDiscountEligibleYuan = computed(()=>{
+    if (!supportsMemberDiscount.value) return 0;
+    try{
+        return items.value.filter(it=>it.checked).reduce((sum:number, it:any)=> sum + (it?.snapshot?.memberDiscount ? Number(it?.snapshot?.price||0) * Number(it?.quantity||0) : 0), 0);
+    }catch{ return 0; }
+});
+const memberDiscountEstYuan = computed(()=>{
+    const pct = Math.max(0, Number(memberPayDiscountPercent.value||0));
+    if (!pct) return 0;
+    return (memberDiscountEligibleYuan.value * pct) / 100;
+});
+const memberDiscountEstText = computed(()=> Number(memberDiscountEstYuan.value||0).toFixed(2));
+const pointsAllowedByCoupons = computed(()=>{
+    const picked = applicableCoupons.value.filter(c => selectedCouponIds.value.has(c.id));
+    return picked.every(c => c.allowStackWithPoints !== false);
+});
+const memberDiscountAllowedByCoupons = computed(()=>{
+    const picked = applicableCoupons.value.filter(c => selectedCouponIds.value.has(c.id));
+    return picked.every(c => c.allowStackWithMemberDiscount !== false);
+});
 function buildApplicableItems(){ return items.value.filter(it=>it.checked).map(it=>({ productId: it.productId, price: Number(it?.snapshot?.price||0), quantity: Number(it.quantity||0) })); }
 async function loadApplicableCoupons(){
 	couponLoading.value = true;
@@ -181,8 +236,27 @@ async function loadApplicableCoupons(){
 	}catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
 	finally{ couponLoading.value=false; }
 }
+
+// 会员/积分元数据加载
+(async ()=>{
+    try{
+        const http = createHttp();
+        const ss:any = await http('/system/public/site-setting', { method:'GET' });
+        fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
+        maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
+        const prof:any = await http('/member/me/profile', { method:'GET' });
+        memberPayDiscountPercent.value = Math.max(0, Number((prof as any)?.level?.payDiscountPercent||0));
+    }catch{}
+})();
 function disabledByCombine(c:any){ if (!c) return false; if (selectedCouponIds.value.has(c.id)) return false; if (!c.allowCombine && selectedCouponIds.value.size>0) return true; return false; }
 function toggleCoupon(c:any){ if (!c) return; if (disabledByCombine(c)) return; const set=new Set(selectedCouponIds.value); if (set.has(c.id)) set.delete(c.id); else set.add(c.id); selectedCouponIds.value=set; }
+watch(selectedCouponIds, ()=>{
+    try{
+        const picked = applicableCoupons.value.filter(x => selectedCouponIds.value.has(x.id));
+        const pointsAllowed = picked.every(x => x.allowStackWithPoints !== false);
+        if (!pointsAllowed) { usedPointsText.value = '0'; usedPoints.value = 0; }
+    }catch{}
+});
 
 async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); await loadApplicableCoupons(); } catch {} }
 async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; await loadApplicableCoupons(); } catch {} }
@@ -419,6 +493,10 @@ loadCart().then(()=>{ loadApplicableCoupons(); });
 .coupon-card__summary .sum-discount { font-size: 26rpx; color:#ef4444; font-weight: 700; }
 .coupon-card__summary .sum-split { color:#d1d5db; }
 .coupon-card__summary .sum-pay { font-size: 28rpx; color:#111827; font-weight: 800; }
+
+/* 会员与积分：标签化，自动换行避免错位 */
+.coupon-card__tags { display:flex; flex-wrap: wrap; gap: 8rpx; margin-top: 10rpx; padding-top: 10rpx; border-top: 2rpx dashed #e5e7eb; }
+.meta-tag { display:inline-flex; align-items:center; gap: 6rpx; padding: 4rpx 10rpx; background:#f3f4f6; border: 2rpx solid #e5e7eb; border-radius: 999rpx; font-size: 22rpx; color:#374151; }
 
 /* 可用券 Chips（与确认页风格一致） */
 .coupon-chip { display:inline-flex; align-items:center; gap: 8rpx; padding: 10rpx 14rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fff; color:#111827; }

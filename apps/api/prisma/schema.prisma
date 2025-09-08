@@ -672,6 +672,8 @@ model Order {
   // 金额相关
   totalAmount             Decimal           @default(0) @db.Decimal(12, 2)
   discountAmount          Decimal           @default(0) @db.Decimal(12, 2)
+  // 会员折扣减免金额（由会员等级的 payDiscountPercent 对支持会员折扣的商品小计按比例减免）
+  memberDiscountAmount    Decimal           @default(0) @db.Decimal(12, 2)
   payAmount               Decimal           @default(0) @db.Decimal(12, 2)
   refundedAmount          Decimal           @default(0) @db.Decimal(12, 2)
   shippingFee             Decimal           @default(0) @db.Decimal(12, 2)

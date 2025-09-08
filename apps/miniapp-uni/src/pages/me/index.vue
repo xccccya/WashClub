@@ -34,7 +34,6 @@
 				<view class="level-row">
 					<view class="level-name">{{ levelInfo?.name || '会员' }}</view>
 				</view>
-				<view v-if="isMaxLevel" class="level-tip-max">已达最大等级</view>
 			</view>
 			<image v-if="levelInfo?.iconUrl" class="level-icon-float" :src="toAbs(levelInfo?.iconUrl as any)" mode="aspectFill" />
 			<view class="progress">
@@ -211,10 +210,12 @@ const segmentCurrent = computed(()=>{
     return Math.max(0, gp - base);
 });
 const displayTotal = computed(()=>{
-    // 我的页总是展示：下一等级需要的总成长值（若无下一等级则展示当前累计值）
+    // 分母展示：
+    // - 非最大等级：下一等级所需总成长值 nextRequired
+    // - 已达最大等级：当前等级的升级需求成长值（即该最大等级的 requiredGrowth）
     const next = Math.max(0, Number(nextRequired.value||0));
-    if (!next || isMaxLevel.value) return Math.max(0, Number(growthPoints.value||0));
-    return next;
+    if (isMaxLevel.value) return Math.max(0, Number(levelInfo.value?.requiredGrowth||0));
+    return next > 0 ? next : Math.max(0, Number(levelInfo.value?.requiredGrowth||0));
 });
 
 function loadAuthFromStorage() {

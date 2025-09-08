@@ -42,7 +42,7 @@
 			<!-- 商品/服务列表（逐行展示） -->
 			<view class="items">
 				<view class="item" v-for="it in o.items" :key="it.id" @tap="goProduct(it)">
-					<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/warning.png'" mode="aspectFill" />
+					<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/placeholder.png'" mode="aspectFill" />
 					<view class="ibody">
 						<view class="row-1">
 							<view class="name">{{ it.name }}</view>

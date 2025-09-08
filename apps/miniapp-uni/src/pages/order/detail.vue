@@ -39,7 +39,7 @@
 		<view class="card" v-if="order">
 			<view class="sub-title">商品/服务</view>
 			<view class="item" v-for="it in order.items" :key="it.id" @tap="goProductInDetail(it)">
-				<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/warning.png'" />
+				<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/placeholder.png'" />
 				<view class="ibody">
 					<view class="name">{{ it.name }}</view>
 					<view class="specs" v-if="displaySpecs(it)">{{ displaySpecs(it) }}</view>
@@ -98,6 +98,8 @@
 			<view class="sub-title">金额汇总</view>
 			<view class="kv"><text class="k">商品总额</text><text class="v">¥{{ formatPrice(order.totalAmount) }}</text></view>
 			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
+			<view class="kv kv--sub" v-if="(order as any).memberDiscountAmount && Number((order as any).memberDiscountAmount)>0"><text class="k">会员折扣</text><text class="v">-¥{{ formatPrice((order as any).memberDiscountAmount) }}</text></view>
+			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
 			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
 			<view class="kv" v-if="order.type!=='SERVICE'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
 			<view class="kv" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>

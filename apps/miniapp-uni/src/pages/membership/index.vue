@@ -135,7 +135,14 @@ function totalOf(idx: number){
 	// 例：105 / 120；上一等级：105 / 0；当前等级：105 / nextRequired；下一等级：105 / 该等级需求
 	const lv = levels.value[idx]; if (!lv) return 0;
 	if (idx < userLevelIndex.value) return Math.max(0, Number(lv.requiredGrowth||0));
-	if (idx === userLevelIndex.value){ const t = Math.max(0, Number(nextRequired.value||0)); return t>0 ? t : Math.max(0, Number(growthPoints.value||0)); }
+	if (idx === userLevelIndex.value){
+		// 当前等级卡片右下角分母：
+		// - 非最大等级：nextRequired
+		// - 已达最大等级：当前等级升级需求（即最大等级的 requiredGrowth）
+		const t = Math.max(0, Number(nextRequired.value||0));
+		if (t > 0) return t;
+		return Math.max(0, Number(lv.requiredGrowth||0));
+	}
 	return Math.max(0, Number(lv.requiredGrowth||0));
 }
 
