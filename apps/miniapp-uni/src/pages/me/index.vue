@@ -47,11 +47,6 @@
 			</view>
 		</view>
 
-		<!-- 计次卡 -->
-		<view class="me-wash-card">
-			<WashCard :card="card" :loggedIn="isLoggedIn" @tap="onTapWashCard" />
-		</view>
-
 		<!-- 我的订单区块 -->
 		<view class="card orders-card">
 			<view class="orders-head">
@@ -73,6 +68,35 @@
 					<view v-if="pendingServiceCount>0" class="order-badge">{{ pendingServiceCountText }}</view>
 					<image class="order-icon-img" src="/static/icons/service_wait.png" mode="aspectFit" />
 					<text class="order-icon-text">待服务</text>
+				</view>
+			</view>
+		</view>
+
+		<!-- 计次卡 -->
+		<view class="me-wash-card">
+			<WashCard :card="card" :loggedIn="isLoggedIn" @tap="onTapWashCard" />
+		</view>
+
+		<!-- 积分卡片（未登录不展示） -->
+		<view v-if="isLoggedIn" class="card points-card">
+			<view class="points-head">
+				<view class="card-title">我的积分</view>
+				<view class="link" @tap="goPointsCenter">点击查看积分明细</view>
+			</view>
+			<view class="points-body" @tap="goPointsCenter">
+				<view class="metric">
+					<view class="metric-val primary">{{ pointsStats.currentPoints }}</view>
+					<view class="metric-label">当前积分</view>
+				</view>
+				<view class="divider" />
+				<view class="metric">
+					<view class="metric-val">{{ pointsStats.monthUsed }}</view>
+					<view class="metric-label">本月使用</view>
+				</view>
+				<view class="divider" />
+				<view class="metric">
+					<view class="metric-val">{{ pointsStats.monthGained }}</view>
+					<view class="metric-label">本月获得</view>
 				</view>
 			</view>
 		</view>
@@ -137,6 +161,17 @@ async function ensureSiteSetting(){ if (siteSetting.value) return; try { const h
 const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const isLoggedIn = computed(() => !!token.value);
+
+// 积分统计
+const pointsStats = ref<{ currentPoints:number; monthUsed:number; monthGained:number }>({ currentPoints: 0, monthUsed: 0, monthGained: 0 });
+async function loadPoints(){
+    try{
+        const t = uni.getStorageSync('token'); if (!t) { pointsStats.value = { currentPoints: 0, monthUsed: 0, monthGained: 0 }; return; }
+        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
+        const s:any = await http('/member/me/points-stats', { method:'GET' });
+        pointsStats.value = { currentPoints: Number(s?.currentPoints||0), monthUsed: Number(s?.monthUsed||0), monthGained: Number(s?.monthGained||0) };
+    }catch{ pointsStats.value = { currentPoints: 0, monthUsed: 0, monthGained: 0 }; }
+}
 
 // 展示昵称兜底：超出长度进行省略，避免挤压右侧元素
 const MAX_NICK_LEN = 10;
@@ -248,6 +283,8 @@ onMounted(() => {
 // #ifdef MP-WEIXIN || H5
 import { onShow } from '@dcloudio/uni-app';
 onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); await loadOrderBadges(); }});
+// 加载积分
+onShow(async ()=>{ try{ await loadPoints(); }catch{} });
 // #endif
 onBeforeUnmount(() => { try { uni.$off?.('auth:changed', handleAuthChanged); } catch {} });
 
@@ -352,6 +389,8 @@ function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync(
 function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/washcard/index'); }
 
 function goMembership(){ try { uni.navigateTo({ url: '/pages/membership/index' }); } catch {} }
+
+function goPointsCenter(){ try { uni.navigateTo({ url: '/pages/points/index' }); } catch {} }
 
 // 其它功能入口
 function onTapAddress(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/address/index'); }
@@ -467,6 +506,17 @@ async function loadOrderBadges(){
 /* 底部 */
 .logout-wrap { padding: 0 24rpx; margin-top: 12rpx; }
 .logout-btn { text-align: center; padding: 22rpx 0; border-radius: 999rpx; background: #fff; border: 2rpx solid #ffd6e7; color: #e11d48; }
+
+/* 积分卡片 */
+.points-card { background: linear-gradient(180deg, #ecfeff 0%, #fff7fb 100%); position: relative; overflow: hidden; }
+.points-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12rpx; }
+.points-head .sub { font-size: 22rpx; color:#6b7280; }
+.points-body { display:flex; align-items:stretch; justify-content: space-between; gap: 16rpx; }
+.metric { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 12rpx 0; }
+.metric-val { font-size: 34rpx; font-weight: 800; color:#0b1220; }
+.metric-val.primary { background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.metric-label { font-size: 22rpx; color:#6b7280; margin-top: 6rpx; }
+.divider { width: 2rpx; background: linear-gradient(180deg, rgba(148,163,184,0.2), rgba(148,163,184,0.06)); border-radius: 999rpx; }
 </style>
 
 

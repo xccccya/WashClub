@@ -72,6 +72,38 @@ export class MemberService {
 		}
 	}
 
+	// 小程序：积分统计（当前积分/本月使用/本月获得）
+	async getPointsStatsByToken(token?: string){
+		if (!token) throw new UnauthorizedException('缺少Token');
+		let id: number | undefined;
+		try{
+			const decoded:any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
+			if (decoded?.type !== 'member') throw 0;
+			id = Number(decoded?.sub);
+		}catch{ throw new UnauthorizedException('Token无效'); }
+		if (!id) throw new UnauthorizedException('Token无效');
+		// 当前积分
+		const m = await this.prisma.member.findUnique({ where: { id }, select: { points: true } });
+		const currentPoints = Math.max(0, Number(m?.points || 0));
+		// 本月范围
+		const now = new Date();
+		const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+		const end = new Date(now.getFullYear(), now.getMonth()+1, 1, 0, 0, 0, 0);
+		// 本月使用：仅统计下单抵扣（USE）的负数
+		// 本月获得：统计正向（PAY/ADMIN）并扣除当月退款扣减（REFUND<0），避免把已被扣回的积分计入“获得”
+		const logs:any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { memberId: id, createdAt: { gte: start, lt: end } }, select: { change:true, source:true } });
+		let monthUsed = 0, monthGained = 0;
+		for (const r of logs){
+			const ch = Number(r?.change||0);
+			const src = String(r?.source||'');
+			if (src === 'USE' && ch < 0) monthUsed += Math.abs(ch);
+			if ((src === 'PAY' || src === 'ADMIN') && ch > 0) monthGained += ch;
+			if (src === 'REFUND' && ch < 0) monthGained += ch; // 负数：从本月获得中扣除
+		}
+		if (monthGained < 0) monthGained = 0;
+		return { currentPoints, monthUsed, monthGained } as any;
+	}
+
 	create(data: { name: string; phone: string; password?: string; points?: number; balance?: number; levelId?: number; categoryId?: number; tagIds?: number[]; avatarUrl?: string | null }) {
 		// 防守式校验：昵称非空且≤10字符
 		const nameTrim = String(data?.name || '').trim();
@@ -170,6 +202,21 @@ export class MemberService {
 		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source, r?.order?.no), change: Number(r.change||0), source: r.source, orderId: r?.order?.id || null, orderNo: r?.order?.no || null }));
 	}
 
+	// 积分日志（持久化）：读取 MemberPointsLog（仅当前会员）
+	async getPointsLogsByToken(token?: string, limit?: number){
+		if (!token) throw new UnauthorizedException('缺少Token');
+		let id: number | undefined;
+		try{
+			const decoded:any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
+			if (decoded?.type !== 'member') throw 0;
+			id = Number(decoded?.sub);
+		}catch{ throw new UnauthorizedException('Token无效'); }
+		if (!id) throw new UnauthorizedException('Token无效');
+		const max = Math.max(1, Math.min(200, Number(limit || 50)));
+		const rows:any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max, include: { order: { select: { id:true, no:true } } } });
+		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapPointsSourceToDesc(r.source, r?.order?.no), change: Number(r.change||0), source: r.source, orderId: r?.order?.id || null, orderNo: r?.order?.no || null }));
+	}
+
 	async getGrowthLogsByMemberId(memberId: number, limit?: number){
 		const id = Number(memberId); if (!id) throw new BadRequestException('memberId无效');
 		const max = Math.max(1, Math.min(200, Number(limit || 50)));
@@ -243,6 +290,14 @@ function mapGrowthSourceToDesc(src?: string, orderNo?: string|null){
     if (s === 'ADMIN') return '后台调整';
     if (s === 'REFUND') return orderNo ? `退款扣减 ${orderNo}` : '退款扣减';
     return '成长值变动';
+}
+function mapPointsSourceToDesc(src?: string, orderNo?: string|null){
+    const s = String(src||'').toUpperCase();
+    if (s === 'PAY') return orderNo ? `支付订单 ${orderNo}` : '支付订单';
+    if (s === 'USE') return orderNo ? `订单抵扣 ${orderNo}` : '订单抵扣';
+    if (s === 'ADMIN') return '后台调整';
+    if (s === 'REFUND') return orderNo ? `退款积分调整 ${orderNo}` : '退款积分调整';
+    return '积分变动';
 }
 async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{
     const set = new Set<string>();

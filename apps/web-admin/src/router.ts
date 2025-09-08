@@ -29,6 +29,7 @@ import MemberCoupons from './pages/MemberCoupons.vue';
 import CouponLogs from './pages/CouponLogs.vue';
 import MemberAddresses from './pages/MemberAddresses.vue';
 import MemberSignins from './pages/MemberSignins.vue';
+import MemberPoints from './pages/MemberPoints.vue';
 
 const router = createRouter({
 	history: createWebHistory('/admin'),
@@ -43,6 +44,7 @@ const router = createRouter({
 				{ path: '/dashboard', component: Dashboard, meta: { perm: '*', title: '系统首页' } },
 				{ path: '/members', component: MemberList, meta: { perm: 'members', title: '会员列表' } },
 				{ path: '/member-signins', component: MemberSignins, meta: { perm: 'member-signins', title: '签到管理' } },
+				{ path: '/member-points', component: MemberPoints, meta: { perm: 'member-points', title: '积分管理' } },
 				{ path: '/member-levels', component: MemberLevels, meta: { perm: 'member-levels', title: '会员等级' } },
 				{ path: '/member-categories', component: MemberCategories, meta: { perm: 'member-categories', title: '会员分类' } },
 				{ path: '/member-tags', component: MemberTags, meta: { perm: 'member-tags', title: '会员标签' } },

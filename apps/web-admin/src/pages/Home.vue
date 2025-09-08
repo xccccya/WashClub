@@ -11,6 +11,7 @@
 					<template #title><el-icon style="margin-right:6px;"><User /></el-icon>会员管理</template>
 					<el-menu-item v-if="can('members')" index="/members"><el-icon style="margin-right:6px;"><User /></el-icon>会员列表</el-menu-item>
 					<el-menu-item v-if="can('member-signins')" index="/member-signins"><el-icon style="margin-right:6px;"><Document /></el-icon>签到管理</el-menu-item>
+					<el-menu-item v-if="can('member-points')" index="/member-points"><el-icon style="margin-right:6px;"><Coin /></el-icon>积分管理</el-menu-item>
 					<el-menu-item v-if="can('member-levels')" index="/member-levels"><el-icon style="margin-right:6px;"><Medal /></el-icon>会员等级</el-menu-item>
 					<el-menu-item v-if="can('member-categories')" index="/member-categories"><el-icon style="margin-right:6px;"><Collection /></el-icon>会员分类</el-menu-item>
 					<el-menu-item v-if="can('member-tags')" index="/member-tags"><el-icon style="margin-right:6px;"><PriceTag /></el-icon>会员标签</el-menu-item>
@@ -200,6 +201,7 @@ function addTabByRoute(){
 		'/dashboard':'系统首页',
 		'/members':'会员列表',
 		'/member-signins':'签到管理',
+		'/member-points':'积分管理',
 		'/member-levels':'会员等级',
 		'/member-categories':'会员分类',
 		'/member-tags':'会员标签',
@@ -232,6 +234,7 @@ function addTabByRoute(){
 	const crumbs: string[] = [];
 	if (path.startsWith('/dashboard')) crumbs.push('首页');
 	if (path.startsWith('/members') || path.startsWith('/member-')) crumbs.push('会员管理');
+	if (path.startsWith('/member-points')) crumbs.push('积分管理');
 	if (path.startsWith('/member-levels')) crumbs.push('会员等级');
 	if (path.startsWith('/member-categories')) crumbs.push('会员分类');
 	if (path.startsWith('/member-tags')) crumbs.push('会员标签');

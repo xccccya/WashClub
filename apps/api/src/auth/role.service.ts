@@ -10,6 +10,7 @@ export type AdminMenuKey =
 	| 'member-vehicles'
 	| 'member-washcards'
 	| 'member-signins'
+	| 'member-points'
 	| 'service-queue'
 	| 'system-roles'
 	| 'system-admins'
@@ -94,6 +95,7 @@ export class AdminRoleService {
 			{ key: 'system-basic', name: '基础设置', path: '/system/basic' },
 			{ key: 'members', name: '会员列表', path: '/members' },
 			{ key: 'member-signins', name: '签到管理', path: '/member-signins' },
+			{ key: 'member-points', name: '积分管理', path: '/member-points' },
 			{ key: 'member-levels', name: '会员等级', path: '/member-levels' },
 			{ key: 'member-categories', name: '会员分类', path: '/member-categories' },
 			{ key: 'member-addresses', name: '收货地址', path: '/member-addresses' },

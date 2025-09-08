@@ -13,6 +13,11 @@
 		}
 		,
 		{
+			"path": "pages/points/index",
+			"style": { "navigationBarTitleText": "积分中心" }
+		}
+		,
+		{
 			"path": "pages/me/index",
 			"style": {
 				"navigationBarTitleText": ""

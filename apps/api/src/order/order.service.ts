@@ -80,6 +80,51 @@ export class OrderService {
         });
     }
 
+    // 积分扣减：按订单累计退款比例，对支付入账积分进行等比例扣减（累计口径，避免取整误差）
+    private async deductPointsForRefund(orderId: number, operatorUserId?: number | null, opts?: { finalizeAll?: boolean }){
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) return;
+        const paidYuan = Number(order.payAmount || 0);
+        if (paidYuan <= 0) return;
+        // 该订单实际入账积分上限：累加 PAY 日志，避免配置/倍数漂移
+        let totalPointsForOrder = 0;
+        try{
+            const payLogs:any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'PAY' }, select: { change: true } });
+            totalPointsForOrder = Math.max(0, (payLogs||[]).reduce((s,r)=> s + Math.max(0, Number(r.change||0)), 0));
+        }catch{ totalPointsForOrder = 0; }
+        if (totalPointsForOrder <= 0) return;
+        // 已扣累计：只累计负数（扣减）记录；正向（返还下单使用积分）不计入已扣统计
+        const refundPointLogs: any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'REFUND' }, select: { change: true } });
+        const alreadyDeducted = (refundPointLogs || [])
+            .filter(r => Number(r?.change || 0) < 0)
+            .reduce((s, r) => s + Math.abs(Number(r.change || 0)), 0);
+        const remaining = Math.max(0, totalPointsForOrder - alreadyDeducted);
+        if (remaining <= 0) return;
+        // 本次应扣：finalizeAll=true 直接按 remaining；否则按累计退款占比计算应扣总量与已扣差值
+        let willDeduct = 0;
+        if (opts?.finalizeAll){
+            willDeduct = remaining;
+        } else {
+            const fresh = await this.prisma.order.findUnique({ where: { id: orderId } });
+            const refundedSoFar = Math.max(0, Number(fresh?.refundedAmount || 0));
+            const ratio = Math.max(0, Math.min(1, paidYuan > 0 ? (refundedSoFar / paidYuan) : 0));
+            const targetTotal = Math.max(0, Math.floor(totalPointsForOrder * ratio));
+            willDeduct = Math.max(0, Math.min(remaining, targetTotal - alreadyDeducted));
+        }
+        if (willDeduct <= 0) return;
+        await this.prisma.$transaction(async (tx)=>{
+            const m0 = await tx.member.findUnique({ where: { id: order.memberId }, select: { id: true, points: true } });
+            const currentPoints = Math.max(0, Number(m0?.points || 0));
+            const safeDeduct = Math.min(willDeduct, currentPoints);
+            if (safeDeduct <= 0) return;
+            // 幂等：1分钟内相同扣减去重（简单防抖）
+            const recent:any[] = await (tx as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'REFUND', change: -safeDeduct }, orderBy: { id: 'desc' }, take: 1 });
+            if (recent && recent.length) return;
+            await tx.member.update({ where: { id: order.memberId }, data: { points: { decrement: safeDeduct } } });
+            await (tx as any).memberPointsLog.create({ data: { memberId: order.memberId, change: -safeDeduct, source: 'REFUND', desc: `订单退款扣减 ${order.no}`, orderId: order.id, operatorUserId: operatorUserId ?? null } });
+        });
+    }
+
     private async verifyWashCardRefundable(orderId: number){
         // 若该订单购买过洗车卡，则校验可回收次数是否充足
         const addLogs = await this.prisma.washCardLog.findMany({ where: { purchaseOrderId: orderId, reason: 'PURCHASE_ADD' as any } });
@@ -121,6 +166,7 @@ export class OrderService {
         if (points > 0){
             await this.prisma.member.update({ where: { id: order.memberId }, data: { points: { increment: points } } });
             await this.writeTimeline({ orderId, event: 'BENEFITS', value: 'POINTS_ROLLBACK', remark: `返还积分 ${points}`, operatorUserId: operatorUserId ?? null });
+            try{ await (this.prisma as any).memberPointsLog.create({ data: { memberId: order.memberId, change: points, source: 'REFUND', desc: `退款返还积分（订单${order.no}）`, orderId: order.id, operatorUserId: operatorUserId ?? null } }); }catch{}
         }
         // 恢复所有与该订单绑定且已使用的优惠券
         try{
@@ -155,6 +201,7 @@ export class OrderService {
             const updated = await this.refundOrder(orderId, '渠道退款成功', operatorUserId ?? null);
             await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null, { outRefundNo: params.outRefundNo ?? null, wechatRefundId: params.wechatRefundId ?? null });
             await this.rollbackPointsForRefund(orderId, operatorUserId ?? null);
+            try { await this.deductPointsForRefund(orderId, operatorUserId ?? null, { finalizeAll: true }); } catch {}
             // 先将累计退款额置为全额，再进行成长值累计扣减计算
             await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: order.payAmount } });
             // 成长值扣减（累计口径，避免多次部分退款的取整误差）：finalizeAll=true 按剩余一次扣完
@@ -166,6 +213,7 @@ export class OrderService {
         await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
         // 成长值扣减（部分退款）
         try { await this.deductGrowthForRefund(orderId, Number(amountYuan || 0), operatorUserId ?? null); } catch {}
+        try { await this.deductPointsForRefund(orderId, operatorUserId ?? null); } catch {}
         return order;
     }
 
@@ -174,6 +222,8 @@ export class OrderService {
         const updated = await this.refundOrder(orderId, reason, operatorUserId ?? null);
         try { await this.rollbackWashCardForRefund(orderId, operatorUserId ?? null); } catch {}
         try { await this.rollbackPointsForRefund(orderId, operatorUserId ?? null); } catch {}
+        // 扣减因支付发放的积分：内部退款同样需要按该订单入账的 PAY 积分进行等额/等比扣减
+        try { await this.deductPointsForRefund(orderId, operatorUserId ?? null, { finalizeAll: true }); } catch {}
         // 成长值扣减：内部全额退款
         try { await this.deductGrowthForRefund(orderId, Number((updated as any)?.payAmount || 0), operatorUserId ?? null); } catch {}
         return updated;
@@ -396,8 +446,29 @@ export class OrderService {
                 if (discountTotal.greaterThan(total)) discountTotal = total;
                 // 记录：多券不写入 couponInfo 结构（前端可从订单金额与日志侧查明细）
             }
+            // 按配置与会员积分余额，核算积分可抵扣金额与实际可用积分
+            let usedPointsCalc = Math.max(0, Math.floor(Number(usedPoints || 0)));
+            let pointsAmountCalcFen = 0; // 单位：分
+            try{
+                const ss:any = await tx.siteSetting.findFirst().catch(()=>null);
+                const fenPerPoint = Math.max(0, Math.floor(Number(ss?.pointsFenPerPoint || 0)));
+                const maxFenPerOrder = Math.max(0, Math.floor(Number(ss?.pointsMaxDeductFenPerOrder || 0)));
+                if (fenPerPoint > 0 && usedPointsCalc > 0){
+                    const m = await tx.member.findUnique({ where: { id: memberId }, select: { points: true } });
+                    const balancePts = Math.max(0, Number(m?.points || 0));
+                    // 可用积分上限（受余额与单单封顶约束）
+                    const payBeforePointsFen = Number(total.minus(discountTotal).plus(new Prisma.Decimal(shippingFee as any)).mul(100).toFixed(0));
+                    let capFen = balancePts * fenPerPoint;
+                    if (maxFenPerOrder > 0) capFen = Math.min(capFen, maxFenPerOrder);
+                    // 至少保留 1 分以避免 0 元订单（后续仍有 0.01 的兜底）
+                    capFen = Math.max(0, Math.min(capFen, Math.max(0, payBeforePointsFen - 1)));
+                    const reqFen = usedPointsCalc * fenPerPoint;
+                    pointsAmountCalcFen = Math.min(reqFen, capFen);
+                    usedPointsCalc = Math.floor(pointsAmountCalcFen / fenPerPoint);
+                }
+            }catch{}
             const shipping = new Prisma.Decimal(shippingFee as any);
-            const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal(pointsAmount as any));
+            const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal((pointsAmountCalcFen/100) as any));
             // 最低应付策略：若小于 0.01，按 0.01 计入订单（允许券减溢出）
             const minPay = new Prisma.Decimal(0.01 as any);
             const payAmountAdjusted = payAmount.lessThan(minPay) ? minPay : payAmount;
@@ -455,8 +526,8 @@ export class OrderService {
                     paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
                     // 用户备注写入 userRemark；系统备注 remark 留作系统流程使用
                     userRemark: (userRemark ?? remark) ?? null,
-                    usedPoints: usedPoints || 0,
-                    pointsAmount: new Prisma.Decimal(pointsAmount as any),
+                    usedPoints: usedPointsCalc,
+                    pointsAmount: new Prisma.Decimal((pointsAmountCalcFen/100) as any),
                     couponInfo: memberCoupon ? ({ id: memberCoupon.id, couponId: memberCoupon.couponId, faceValue: memberCoupon.coupon?.faceValue ?? null, name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null, discountApplied: Number(singleCouponDiscountApplied || 0) } as any) : (couponInfo ?? undefined),
                     shippingAddressId: addressIdToSave,
                     shippingAddressSnapshot: addressSnapshot,
@@ -480,6 +551,11 @@ export class OrderService {
                         quantity: it.quantity,
                     },
                 });
+            }
+            // 扣减积分余额并记账
+            if (usedPointsCalc > 0){
+                await tx.member.update({ where: { id: memberId }, data: { points: { decrement: usedPointsCalc } } });
+                await (tx as any).memberPointsLog.create({ data: { memberId, change: -usedPointsCalc, source: 'USE', desc: `订单抵扣 ${order.no}`, orderId: order.id } });
             }
             // 标记用券
             if (memberCoupon) {
@@ -716,7 +792,16 @@ export class OrderService {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id: params.orderId } });
         if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可标记支付');
         const paidAt = params.paidAt ?? new Date();
-        const updated = await this.prisma.order.update({ where: { id: order.id }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt, wechatTransactionId: params.wechatTransactionId ?? undefined } });
+        // 防并发：仅当仍为 UNPAID 时才更新为 PAID，避免多通道/多回调重复入账
+        const upd = await this.prisma.order.updateMany({ where: { id: order.id, payStatus: 'UNPAID' }, data: { payStatus: 'PAID', status: 'PAID', payMethod: params.method, paidAt, wechatTransactionId: params.wechatTransactionId ?? undefined } });
+        if (!upd || (upd as any).count === 0) {
+            // 已有其他并发流程完成了标记支付，这里不再重复入账；仅补写交易单号（若需要）
+            try{
+                if (params.wechatTransactionId) { await this.saveWechatTransactionId(order.id, params.wechatTransactionId); }
+            }catch{}
+            return await this.prisma.order.findUnique({ where: { id: order.id } });
+        }
+        const updated = await this.prisma.order.findUnique({ where: { id: order.id } });
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级
@@ -731,6 +816,25 @@ export class OrderService {
                 if (growthInc > 0) {
                     await (this.prisma as any).memberGrowthLog.create({ data: { memberId: order.memberId, change: growthInc, source: 'PAY', desc: `支付订单 ${order.no}`, orderId: order.id } });
                 }
+                // 积分入账（含等级倍数）
+                try{
+                    // 幂等保护：若该订单已产生过 PAY 类型的积分入账，则不重复入账
+                    const exists:any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'PAY' }, take: 1 });
+                    if (!exists || exists.length === 0){
+                        const pointsPerYuan = Math.max(0, Math.floor(Number(ss?.pointsPerYuan ?? 1)));
+                        let basePoints = Math.max(0, Math.floor(amountYuan * pointsPerYuan));
+                        let multiplier = 1;
+                        try{
+                            const m:any = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { id:true, level: { select: { pointsMultiplier:true } } } });
+                            multiplier = Math.max(1, Math.floor(Number(m?.level?.pointsMultiplier ?? 1)));
+                        }catch{}
+                        const pointsInc = Math.max(0, Math.floor(basePoints * multiplier));
+                        if (pointsInc > 0){
+                            await this.prisma.member.update({ where: { id: order.memberId }, data: { points: { increment: pointsInc } } });
+                            await (this.prisma as any).memberPointsLog.create({ data: { memberId: order.memberId, change: pointsInc, source: 'PAY', desc: `支付订单 ${order.no}`, orderId: order.id } });
+                        }
+                    }
+                }catch{}
                 // 计算应有等级：找出 growthPoints 达标的最高 level
                 const m: any = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { id: true, /* @ts-ignore */ growthPoints: true, levelId: true } as any });
                 const levels: any[] = await this.prisma.memberLevel.findMany({ orderBy: { /* @ts-ignore */ level: 'desc' } as any });
@@ -985,7 +1089,16 @@ export class OrderService {
                 }
             }
         }
-        const updated = await this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined } });
+        // 返还下单时已扣的积分（仅限未支付取消场景）
+        const updated = await this.prisma.$transaction(async (tx)=>{
+            const updatedOrder = await tx.order.update({ where: { id }, data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined } });
+            const usedPts = Math.max(0, Number(order.usedPoints || 0));
+            if (usedPts > 0){
+                await tx.member.update({ where: { id: order.memberId }, data: { points: { increment: usedPts } } });
+                try{ await (tx as any).memberPointsLog.create({ data: { memberId: order.memberId, change: usedPts, source: 'REFUND', desc: `取消订单返还积分（订单${order.no}）`, orderId: order.id, operatorUserId: operatorUserId ?? null } }); }catch{}
+            }
+            return updatedOrder;
+        });
         const cancelRemark = opts?.userInitiated ? '用户主动取消' : undefined;
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
         await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });

@@ -359,10 +359,10 @@ function openOrderFromLog(g:any){
 .logs-title { font-size: 28rpx; font-weight: 700; color:#1f2937; letter-spacing: 0.5rpx; }
 .logs-list { display:flex; flex-direction: column; gap: 12rpx; }
 .log-item { display:grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4rpx 12rpx; padding: 12rpx; border-radius: 16rpx; background:#fff; border: 2rpx solid #eef2f7; }
-.desc-wrap { grid-column: 1 / 2; display:inline-flex; align-items:center; gap: 8rpx; }
-.log-desc { color:#111827; font-size: 26rpx; font-weight: 600; }
-.order-no { font-size: 20rpx; font-weight: 500; color:#6b7280; padding: 2rpx 8rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fafafa; }
-.order-no::after { content: '›'; display:inline-block; margin-left: 6rpx; color:#9ca3af; font-weight: 700; }
+.desc-wrap { grid-column: 1 / 2; display:flex; align-items:center; gap: 10rpx; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.log-desc { font-size: 24rpx; color:#1f2937; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.order-no { font-size: 22rpx; color:#374151; padding: 4rpx 12rpx; border: 2rpx dashed #e5e7eb; border-radius: 999rpx; background: rgba(255,255,255,.85); display: inline-flex; align-items: center; gap: 6rpx; white-space: nowrap; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04); }
+.order-no::after { content: '›'; display: inline-block; transform: translateY(-2rpx); color:#9ca3af; margin-left: 4rpx; }
 .log-change { grid-column: 2 / 3; color:#16a34a; font-size: 26rpx; font-weight: 700; justify-self: end; }
 .log-time { grid-column: 1 / 3; color:#6b7280; font-size: 22rpx; }
 .log-item .log-change.minus { color:#ef4444; }

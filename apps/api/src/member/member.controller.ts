@@ -34,6 +34,23 @@ export class MemberController {
 		return (this.service as any).getGrowthLogsByToken(token, limit);
 	}
 
+	@Get('me/points-logs')
+	@ApiOperation({ summary: '查询当前会员积分日志（持久化）' })
+	getPointsLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string, @Query('token') tokenParam?: string){
+		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const limit = limitStr ? Number(limitStr) : undefined;
+		return (this.service as any).getPointsLogsByToken(token, limit);
+	}
+
+	@Get('me/points-stats')
+	@ApiOperation({ summary: '查询当前会员积分统计（当前/本月使用/本月获得）' })
+	getPointsStats(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string){
+		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		return (this.service as any).getPointsStatsByToken(token);
+	}
+
 	@Get(':id/growth-logs')
 	@ApiOperation({ summary: '根据会员ID查询成长值日志（管理后台使用）' })
 	getGrowthLogsByMember(@Param('id') id: string, @Query('limit') limitStr?: string){
