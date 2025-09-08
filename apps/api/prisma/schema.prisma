@@ -1091,6 +1091,7 @@ enum GrowthLogSource {
   PAY
   ADJUST
   ADMIN
+  REFUND
 }
 
 model MemberGrowthLog {
@@ -1104,6 +1105,15 @@ model MemberGrowthLog {
   desc      String?
   source    GrowthLogSource  @default(ADJUST)
 
+  // 关联订单：支付入账/退款扣减可追溯
+  orderId   Int?
+  order     Order?           @relation(fields: [orderId], references: [id])
+
+  // 操作管理员：后台调整时留痕
+  operatorUserId Int?
+  operatorUser   User?        @relation("UserOperatesGrowthLogs", fields: [operatorUserId], references: [id])
+
   @@index([memberId, createdAt])
   @@index([memberId])
+  @@index([orderId])
 }

@@ -2,8 +2,14 @@
 	<BasePage title="会员列表">
 		<template #actions>
 			<el-input v-model="keyword" placeholder="搜索姓名/手机号" style="width:240px;margin-right:8px;" />
-			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">搜索</el-button>
-			<el-button type="primary" @click="openCreate">新建会员</el-button>
+			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">搜索</span>
+			</el-button>
+			<el-button type="primary" @click="openCreate">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
+				<span style="vertical-align: middle;">新建会员</span>
+			</el-button>
 		</template>
 		<el-table :data="list" stripe style="width: 100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -35,13 +41,25 @@
 			<el-table-column prop="lastActiveAt" label="活跃时间" width="180">
 				<template #default="{ row }">{{ formatTime(row.lastActiveAt) }}</template>
 			</el-table-column>
-			<el-table-column label="操作" width="420">
+			<el-table-column label="操作" width="420" fixed="right">
 				<template #default="{ row }">
 					<div class="op-btns">
-						<el-button size="small" link @click="openEdit(row)">查看资料</el-button>
-						<el-button size="small" link type="warning" @click="openResetPwd(row)">修改密码</el-button>
-						<el-button size="small" link type="primary" @click="openGrowthLogs(row)">成长日志</el-button>
-						<el-button size="small" link type="danger" @click="openDeleteDialog(row)">删除</el-button>
+						<el-button size="small" link @click="openEdit(row)">
+							<el-icon><User /></el-icon>
+							<span>查看资料</span>
+						</el-button>
+						<el-button size="small" link type="warning" @click="openResetPwd(row)">
+							<el-icon><Edit /></el-icon>
+							<span>修改密码</span>
+						</el-button>
+						<el-button size="small" link type="primary" @click="openGrowthLogs(row)">
+							<el-icon><List /></el-icon>
+							<span>成长日志</span>
+						</el-button>
+						<el-button size="small" link type="danger" @click="openDeleteDialog(row)">
+							<el-icon><Delete /></el-icon>
+							<span>删除</span>
+						</el-button>
 					</div>
 				</template>
 			</el-table-column>
@@ -139,12 +157,34 @@
 				<div v-else-if="growthLogs.length===0" class="empty">暂无成长值日志</div>
 				<div v-else class="list">
 					<div class="row" v-for="(g,i) in growthLogs" :key="i">
-						<div class="desc">{{ g.desc }}</div>
+						<div class="desc">
+							{{ g.desc }}
+							<el-tag size="small" v-if="g.orderNo" style="margin-left:8px;cursor:pointer;" @click="goOrderTag(g)">订单：{{ g.orderNo }}</el-tag>
+						</div>
 						<div class="change" :class="{ plus: g.change>0, minus: g.change<0 }">{{ g.change>0?`+${g.change}`:g.change }}</div>
 						<div class="time">{{ formatTime(g.createdAt) }}</div>
 					</div>
 				</div>
 			</div>
+			<template #footer>
+				<el-button @click="openAdjustDialog">调整成长值</el-button>
+				<el-button @click="growthDialog=false">关闭</el-button>
+			</template>
+		</el-dialog>
+
+		<el-dialog v-model="adjustDialog" title="调整成长值" width="420px">
+			<el-form :model="adjustForm" label-width="90px">
+				<el-form-item label="变更值">
+					<el-input-number v-model="adjustForm.delta" :step="1" :min="-999999" :max="999999" />
+				</el-form-item>
+				<el-form-item label="备注">
+					<el-input v-model="adjustForm.remark" placeholder="填写变更原因，必填" />
+				</el-form-item>
+			</el-form>
+			<template #footer>
+				<el-button @click="adjustDialog=false">取消</el-button>
+				<el-button type="primary" @click="saveAdjust">保存</el-button>
+			</template>
 		</el-dialog>
 
 		<FilePickerDialog v-model="pickVisible" title="选择头像" @picked="onPickedAvatar" />
@@ -159,6 +199,8 @@ import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
+import { ElIcon } from 'element-plus';
+import { Search, CirclePlus, User, Edit, List, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({
 	baseUrl: API_BASE,
@@ -214,7 +256,7 @@ let delTimer: any = null;
 // 成长值日志弹窗
 const growthDialog = ref(false);
 const growthLoading = ref(false);
-const growthLogs = ref<Array<{ createdAt: string; desc: string; change: number }>>([]);
+const growthLogs = ref<Array<{ createdAt: string; desc: string; change: number; orderId?: number|null; orderNo?: string|null }>>([]);
 let growthMemberId: number | null = null;
 
 async function openGrowthLogs(m: Member){
@@ -228,6 +270,26 @@ async function openGrowthLogs(m: Member){
     } finally {
         growthLoading.value = false;
     }
+}
+
+function goOrderTag(g: { orderId?: number|null; orderNo?: string|null }){
+    const id = Number(g?.orderId||0);
+    const no = String(g?.orderNo||'').trim();
+    if (id) { window.open(`/admin/orders/${id}`, '_blank'); return; }
+    if (no) { window.open(`/admin/orders/no/${encodeURIComponent(no)}`, '_blank'); return; }
+}
+
+const adjustDialog = ref(false);
+const adjustForm = ref<{ delta: number; remark: string }>({ delta: 0, remark: '' });
+function openAdjustDialog(){ if (!growthMemberId){ ElMessage.error('请先打开某位会员的成长日志'); return; } adjustForm.value = { delta: 0, remark: '' }; adjustDialog.value = true; }
+async function saveAdjust(){
+    if (!growthMemberId) { ElMessage.error('无效的会员'); return; }
+    const delta = Math.trunc(Number(adjustForm.value.delta||0));
+    if (!Number.isFinite(delta) || delta === 0){ ElMessage.error('变更值必须为非零整数'); return; }
+    const remark = String(adjustForm.value.remark||'').trim();
+    if (!remark){ ElMessage.error('请填写备注'); return; }
+    await http(`/member/${growthMemberId}/growth-adjust`, { method:'POST', body: { delta, remark } });
+    ElMessage.success('已调整'); adjustDialog.value = false; openGrowthLogs({ id: growthMemberId } as any); fetchList();
 }
 
 function formatTime(v?: string | null) {

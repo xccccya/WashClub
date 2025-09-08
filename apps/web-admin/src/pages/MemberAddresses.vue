@@ -2,7 +2,7 @@
 	<div>
 		<div class="toolbar">
 			<el-input v-model="keyword" placeholder="搜索 省/市/区/街道/手机号/会员名" style="width:320px;" @keyup.enter.native="refresh" />
-			<el-button type="primary" @click="refresh">搜索</el-button>
+			<el-button type="primary" @click="refresh"><el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon><span style="vertical-align: middle;">搜索</span></el-button>
 		</div>
 		<el-table :data="items" border stripe size="small">
 			<el-table-column prop="id" label="#" width="60" />
@@ -14,11 +14,11 @@
 			</el-table-column>
 			<el-table-column prop="phone" label="手机号" width="120" />
 			<el-table-column prop="label" label="标签" width="100" />
-			<el-table-column label="操作" width="120">
+			<el-table-column label="操作" width="140" fixed="right">
 				<template #default="{ row }">
 					<el-popconfirm title="确定删除该地址吗？" @confirm="remove(row)">
 						<template #reference>
-							<el-button type="danger" size="small">删除</el-button>
+							<el-button type="danger" size="small"><el-icon><Delete /></el-icon><span>删除</span></el-button>
 						</template>
 					</el-popconfirm>
 				</template>
@@ -35,6 +35,8 @@ import { ref, onMounted } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { ElIcon } from 'element-plus';
+import { Search, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

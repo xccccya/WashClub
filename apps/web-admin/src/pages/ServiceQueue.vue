@@ -4,12 +4,12 @@
 			<el-input v-model="searchPlate" placeholder="按车牌快速定位" style="width:220px;margin-right:8px;" />
 			<el-tag type="success" style="margin-right:8px;">新车预计等待：{{ etaForNewCar }} 分钟</el-tag>
 			<el-dropdown>
-				<el-button type="primary">添加车辆</el-button>
+				<el-button type="primary"><el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon><span style="vertical-align: middle;">添加车辆</span></el-button>
 				<template #dropdown>
 					<el-dropdown-menu>
-						<el-dropdown-item @click="openAdd('member')">根据会员选择车辆</el-dropdown-item>
-						<el-dropdown-item @click="openAdd('existing')">按车牌搜索现有车辆</el-dropdown-item>
-						<el-dropdown-item divided @click="openAdd('guest')">手动录入游客车辆</el-dropdown-item>
+						<el-dropdown-item @click="openAdd('member')"><el-icon style="margin-right:6px;"><User /></el-icon>根据会员选择车辆</el-dropdown-item>
+						<el-dropdown-item @click="openAdd('existing')"><el-icon style="margin-right:6px;"><Search /></el-icon>按车牌搜索现有车辆</el-dropdown-item>
+						<el-dropdown-item divided @click="openAdd('guest')"><el-icon style="margin-right:6px;"><UserFilled /></el-icon>手动录入游客车辆</el-dropdown-item>
 					</el-dropdown-menu>
 				</template>
 			</el-dropdown>
@@ -49,16 +49,16 @@
 					<div>本车剩余：≈ {{ combinedRemainingModel(row, $index) }} 分钟</div>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="360">
+			<el-table-column label="操作" width="420" fixed="right">
 				<template #default="{ row }">
-					<el-button v-if="row.currentTaskIndex < 0" size="small" type="primary" style="margin-right:8px;" @click="startFirst(row)">开始外表清洗 I</el-button>
+					<el-button v-if="row.currentTaskIndex < 0" size="small" type="primary" style="margin-right:8px;" @click="startFirst(row)"><el-icon><VideoPlay /></el-icon><span>开始外表清洗 I</span></el-button>
 					<el-select v-model="row.currentTaskIndex" placeholder="切换流程" style="width:160px;margin-right:8px;" :disabled="row.currentTaskIndex < 0" @change="(i:number)=>setCurrent(row, i)">
 						<el-option v-for="(t,i) in row.tasks" :key="t.id" :label="`${i+1}.${t.name}`" :value="i" />
 					</el-select>
-					<el-button size="small" type="success" :disabled="row.currentTaskIndex < 0" @click="finishTask(row)">完成当前</el-button>
+					<el-button size="small" type="success" :disabled="row.currentTaskIndex < 0" @click="finishTask(row)"><el-icon><SuccessFilled /></el-icon><span>完成当前</span></el-button>
 					<el-popconfirm title="确认结束服务并移出队列？" @confirm="confirmComplete(row)">
 						<template #reference>
-							<el-button size="small" type="danger" :disabled="row.currentTaskIndex < 0">结束</el-button>
+							<el-button size="small" type="danger" :disabled="row.currentTaskIndex < 0"><el-icon><SwitchButton /></el-icon><span>结束</span></el-button>
 						</template>
 					</el-popconfirm>
 				</template>
@@ -152,7 +152,8 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, ElIcon } from 'element-plus';
+import { CirclePlus, User, UserFilled, Search, VideoPlay, SuccessFilled, SwitchButton } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 function toAbs(u?: string | null){ return absUrl(u || ''); }

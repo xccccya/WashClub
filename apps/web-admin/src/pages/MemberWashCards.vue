@@ -2,8 +2,14 @@
 	<BasePage title="洗车计次卡">
 		<template #actions>
 			<el-input v-model="keyword" placeholder="搜索卡名/会员姓名/手机号" style="width:280px;margin-right:8px;" />
-			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">搜索</el-button>
-			<el-button type="primary" @click="openCreate">新增洗车卡</el-button>
+			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">搜索</span>
+			</el-button>
+			<el-button type="primary" @click="openCreate">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
+				<span style="vertical-align: middle;">新增洗车卡</span>
+			</el-button>
 		</template>
 		<div class="table-scroll"><el-table :data="list" stripe style="min-width: 980px; width: 100%;" highlight-current-row>
 			<el-table-column prop="id" label="ID" width="80" />
@@ -33,14 +39,14 @@
 					</span>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="560">
+			<el-table-column label="操作" width="620" fixed="right">
 				<template #default="{ row }">
-					<el-button size="small" link @click="openAdd(row)">加次</el-button>
-					<el-button size="small" link type="warning" @click="openDeduct(row)">划扣</el-button>
-					<el-button size="small" link @click="openShare(row)">共享</el-button>
-					<el-button size="small" link @click="openLogs(row)">日志</el-button>
-					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)">设为默认</el-button>
-					<el-button size="small" link type="danger" @click="openDelete(row)">删除</el-button>
+					<el-button size="small" link @click="openAdd(row)"><el-icon><CirclePlus /></el-icon><span>加次</span></el-button>
+					<el-button size="small" link type="warning" @click="openDeduct(row)"><el-icon><Remove /></el-icon><span>划扣</span></el-button>
+					<el-button size="small" link @click="openShare(row)"><el-icon><Share /></el-icon><span>共享</span></el-button>
+					<el-button size="small" link @click="openLogs(row)"><el-icon><List /></el-icon><span>日志</span></el-button>
+					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)"><el-icon><Star /></el-icon><span>设为默认</span></el-button>
+					<el-button size="small" link type="danger" @click="openDelete(row)"><el-icon><Delete /></el-icon><span>删除</span></el-button>
 				</template>
 			</el-table-column>
 		</el-table></div>
@@ -187,6 +193,8 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { ElIcon } from 'element-plus';
+import { Search, CirclePlus, Remove, Share, List, Star, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

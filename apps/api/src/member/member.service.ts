@@ -166,15 +166,41 @@ export class MemberService {
 		}
 		if (!id) throw new UnauthorizedException('Token无效');
 		const max = Math.max(1, Math.min(200, Number(limit || 50)));
-		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max });
-		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source), change: Number(r.change||0), source: r.source }));
+		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max, include: { order: { select: { id: true, no: true } } } });
+		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source, r?.order?.no), change: Number(r.change||0), source: r.source, orderId: r?.order?.id || null, orderNo: r?.order?.no || null }));
 	}
 
 	async getGrowthLogsByMemberId(memberId: number, limit?: number){
 		const id = Number(memberId); if (!id) throw new BadRequestException('memberId无效');
 		const max = Math.max(1, Math.min(200, Number(limit || 50)));
-		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max });
-		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source), change: Number(r.change||0), source: r.source }));
+		const rows: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { memberId: id }, orderBy: { createdAt: 'desc' }, take: max, include: { order: { select: { id: true, no: true } } } });
+		return (Array.isArray(rows) ? rows : []).map((r:any)=> ({ createdAt: r.createdAt, desc: r.desc || mapGrowthSourceToDesc(r.source, r?.order?.no), change: Number(r.change||0), source: r.source, orderId: r?.order?.id || null, orderNo: r?.order?.no || null }));
+	}
+
+	// 管理后台：手动调整成长值（正负均可），记录备注与操作人，并根据成长值重算等级
+	async adjustGrowthByAdmin(memberId: number, delta: number, remark?: string | null, operatorUserId?: number | null){
+		const id = Number(memberId); if (!id) throw new BadRequestException('memberId无效');
+		const change = Math.trunc(Number(delta||0));
+		if (!Number.isFinite(change) || change === 0) throw new BadRequestException('变更值必须为非零整数');
+		return this.prisma.$transaction(async (tx)=>{
+			const m = await tx.member.findUnique({ where: { id }, select: { id: true, /* @ts-ignore */ growthPoints: true, levelId: true } as any });
+			if (!m) throw new BadRequestException('会员不存在');
+			// 扣减时不得使成长值为负
+			const before = Number((m as any).growthPoints||0);
+			const next = before + change;
+			if (next < 0) throw new BadRequestException('扣减后成长值不可小于0');
+			await tx.member.update({ where: { id }, data: { growthPoints: { increment: change } } as any });
+			await (tx as any).memberGrowthLog.create({ data: { memberId: id, change, source: 'ADMIN', desc: remark || '后台调整', operatorUserId: operatorUserId ?? null } });
+			// 重新匹配等级
+			try{
+				const nowRow:any = await tx.member.findUnique({ where: { id }, select: { id: true, /* @ts-ignore */ growthPoints: true, levelId: true } as any });
+				const levels:any[] = await tx.memberLevel.findMany({ orderBy: { /* @ts-ignore */ level: 'desc' } as any });
+				const target = levels.find(l => Number(nowRow?.growthPoints ?? 0) >= Number((l as any)?.requiredGrowth ?? 0));
+				const nextLevelId = target ? target.id : null;
+				if ((nowRow?.levelId || null) !== nextLevelId){ await tx.member.update({ where: { id }, data: { levelId: nextLevelId } }); }
+			}catch{}
+			return { ok: true } as any;
+		});
 	}
 
 	async remove(id: number) {
@@ -210,11 +236,12 @@ export class MemberService {
 
 
 // ========== 文件绑定辅助 ==========
-function mapGrowthSourceToDesc(src?: string){
+function mapGrowthSourceToDesc(src?: string, orderNo?: string|null){
     const s = String(src||'').toUpperCase();
     if (s === 'SIGN') return '签到';
-    if (s === 'PAY') return '支付订单';
+    if (s === 'PAY') return orderNo ? `支付订单 ${orderNo}` : '支付订单';
     if (s === 'ADMIN') return '后台调整';
+    if (s === 'REFUND') return orderNo ? `退款扣减 ${orderNo}` : '退款扣减';
     return '成长值变动';
 }
 async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]>{

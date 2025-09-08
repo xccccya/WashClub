@@ -45,12 +45,12 @@
 
 		<!-- 成长值日志 -->
 		<view class="card logs-card">
-			<view class="logs-head"><text class="logs-title">成长值日志</text></view>
+			<view class="logs-head"><text class="logs-title">成长值记录</text></view>
 			<view v-if="logs.length===0" class="empty">暂无记录</view>
 			<view v-else class="logs-list">
-				<view class="log-item" v-for="(g, i) in logs" :key="i">
+				<view class="log-item" v-for="(g, i) in logs" :key="i" @tap="openOrderFromLog(g)">
 					<text class="log-desc">{{ g.desc }}</text>
-					<text class="log-change">+{{ g.change }}</text>
+					<text class="log-change" :class="{ minus: Number(g.change)<0 }">{{ Number(g.change)>=0?('+'+g.change):g.change }}</text>
 					<text class="log-time">{{ fmtTime(g.createdAt) }}</text>
 				</view>
 			</view>
@@ -63,6 +63,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
 import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+
+// 全局 uni 与小程序页面栈声明，避免 TS 报错（运行时由 uni-app 注入）
+declare const uni: any;
+declare function getCurrentPages(): any[];
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
@@ -116,7 +120,7 @@ const isNoDiscount = computed(()=> !discountZhe.value);
 const benefitPointsIcon = computed(()=> isNoPointsBoost.value ? '/static/icons/no-jifenjs.png' : '/static/icons/jifenjs.png');
 const benefitDiscountIcon = computed(()=> isNoDiscount.value ? '/static/icons/no-huiyuanoff.png' : '/static/icons/huiyuanoff.png');
 
-const logs = ref<Array<{ createdAt:string; desc:string; change:number }>>([]);
+const logs = ref<Array<{ createdAt:string; desc:string; change:number; orderId?: number|null; orderNo?: string|null }>>([]);
 function fmtTime(t:any){ try{ const d=new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{ return ''; } }
 
 function goBack(){ try{ const pages = getCurrentPages?.()||[]; if (pages.length>1){ uni.navigateBack(); return; } uni.reLaunch({ url: '/pages/me/index' }); }catch{ uni.reLaunch({ url: '/pages/me/index' }); } }
@@ -138,6 +142,15 @@ onMounted(async ()=>{
 	// 加载成长日志（持久化接口）
 	try{ const lg:any[] = await http('/member/me/growth-logs', { method:'GET', query:{ limit: 50 } }); logs.value = Array.isArray(lg)?lg:[]; }catch{ logs.value = []; }
 });
+
+function openOrderFromLog(g:any){
+    try{
+        const id = Number(g?.orderId||0);
+        const no = String(g?.orderNo||'').trim();
+        if (id) { uni.navigateTo({ url: `/pages/order/detail?id=${id}` }); return; }
+        if (no) { uni.navigateTo({ url: `/pages/order/detail?no=${encodeURIComponent(no)}` }); return; }
+    }catch{}
+}
 </script>
 
 <style>
@@ -176,4 +189,5 @@ onMounted(async ()=>{
 .log-desc { grid-column: 1 / 2; color:#111827; font-size: 26rpx; font-weight: 600; }
 .log-change { grid-column: 2 / 3; color:#16a34a; font-size: 26rpx; font-weight: 700; justify-self: end; }
 .log-time { grid-column: 1 / 3; color:#6b7280; font-size: 22rpx; }
+.log-item .log-change.minus { color:#ef4444; }
 </style>

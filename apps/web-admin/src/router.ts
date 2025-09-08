@@ -72,8 +72,25 @@ const router = createRouter({
 	],
 });
 
+function isValidAdminToken(token?: string): boolean {
+	if (!token) return false;
+	try {
+		const payloadRaw = (token.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/');
+		const payload = JSON.parse(atob(payloadRaw)||'{}');
+		const exp = Number(payload?.exp || 0);
+		const type = String(payload?.type||'');
+		if (type !== 'admin') return false;
+		if (exp && Date.now()/1000 > exp - 5) return false;
+		return true;
+	} catch { return false; }
+}
+
 router.beforeEach((to, _from, next) => {
 	const token = localStorage.getItem('token');
+	// 已登录状态下访问登录页，自动跳首页
+	if (to.path === '/login' && isValidAdminToken(token || undefined)) {
+		return next('/');
+	}
 	if (to.meta.requiresAuth) {
 		if (!token) return next('/login');
 		try {

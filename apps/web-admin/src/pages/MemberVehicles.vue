@@ -2,13 +2,16 @@
 	<BasePage title="会员车辆">
 		<template #actions>
 			<el-input v-model="keyword" placeholder="搜索车牌/品牌/会员" style="width:260px;margin-right:8px;" />
-			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">搜索</el-button>
+			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">搜索</span>
+			</el-button>
 			<el-dropdown>
-				<el-button type="primary">新增车辆</el-button>
+				<el-button type="primary"><el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon><span style="vertical-align: middle;">新增车辆</span></el-button>
 				<template #dropdown>
 					<el-dropdown-menu>
-						<el-dropdown-item @click="openCreate('member')">绑定到会员</el-dropdown-item>
-						<el-dropdown-item divided @click="openCreate('guest')">新增游客车辆</el-dropdown-item>
+						<el-dropdown-item @click="openCreate('member')"><el-icon style="margin-right:6px;"><User /></el-icon>绑定到会员</el-dropdown-item>
+						<el-dropdown-item divided @click="openCreate('guest')"><el-icon style="margin-right:6px;"><UserFilled /></el-icon>新增游客车辆</el-dropdown-item>
 					</el-dropdown-menu>
 				</template>
 			</el-dropdown>
@@ -34,12 +37,12 @@
 					<el-tag :type="row.isDefault? 'success' : 'info'">{{ row.isDefault ? '是' : '否' }}</el-tag>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="260">
+			<el-table-column label="操作" width="320" fixed="right">
 				<template #default="{ row }">
-					<el-button size="small" link @click="openEdit(row)">编辑</el-button>
-					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)">设为默认</el-button>
-					<el-button v-if="!row.memberId" size="small" link type="warning" @click="openBindMember(row)">绑定会员</el-button>
-					<el-button size="small" link type="danger" @click="openDelete(row)">删除</el-button>
+					<el-button size="small" link @click="openEdit(row)"><el-icon><Edit /></el-icon><span>编辑</span></el-button>
+					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)"><el-icon><Star /></el-icon><span>设为默认</span></el-button>
+					<el-button v-if="!row.memberId" size="small" link type="warning" @click="openBindMember(row)"><el-icon><User /></el-icon><span>绑定会员</span></el-button>
+					<el-button size="small" link type="danger" @click="openDelete(row)"><el-icon><Delete /></el-icon><span>删除</span></el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -184,6 +187,8 @@ import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
+import { ElIcon } from 'element-plus';
+import { Search, CirclePlus, User, UserFilled, Edit, Star, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

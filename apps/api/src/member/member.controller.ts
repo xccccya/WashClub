@@ -1,11 +1,14 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, BadRequestException, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberService } from './member.service.js';
+import { JwtService } from '@nestjs/jwt';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 
 @ApiTags('member')
 @Controller('member')
 export class MemberController {
-	constructor(private service: MemberService) {}
+	constructor(private service: MemberService, private jwt: JwtService) {}
 
 	@Get('list')
 	@ApiOperation({ summary: '会员列表（分页/关键词）' })
@@ -36,6 +39,22 @@ export class MemberController {
 	getGrowthLogsByMember(@Param('id') id: string, @Query('limit') limitStr?: string){
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getGrowthLogsByMemberId(Number(id), limit);
+	}
+
+	@Post(':id/growth-adjust')
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
+	@ApiOperation({ summary: '管理员手动调整成长值（正负均可），记录备注' })
+	adjustGrowth(
+		@Param('id') id: string,
+		@Body() body: { delta: number; remark?: string|null },
+		@Headers('authorization') authHeader?: string,
+	){
+		// 读取管理员ID（由守卫保证为管理员）
+		const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+		let operatorUserId: number | null = null;
+		try{ const decoded:any = this.jwt.verify(token); operatorUserId = Number(decoded?.sub)||null; }catch{}
+		return (this.service as any).adjustGrowthByAdmin(Number(id), Number(body?.delta||0), (body?.remark??null), operatorUserId ?? null);
 	}
 
 	@Post('me/active')

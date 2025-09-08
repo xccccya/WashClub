@@ -1,8 +1,14 @@
 <template>
 	<BasePage title="会员等级">
 		<template #actions>
-			<el-button type="primary" @click="openCreate">新增等级</el-button>
-			<el-button @click="openGrowthConfig" style="margin-left:8px;">成长值换算配置</el-button>
+			<el-button type="primary" @click="openCreate">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
+				<span style="vertical-align: middle;">新增等级</span>
+			</el-button>
+			<el-button @click="openGrowthConfig" style="margin-left:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><SetUp /></el-icon>
+				<span style="vertical-align: middle;">成长值换算配置</span>
+			</el-button>
 		</template>
 		<el-table :data="levels" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -31,10 +37,16 @@
 					<el-tag v-if="row.isDefault" type="success">默认</el-tag>
 				</template>
 			</el-table-column>
-			<el-table-column label="操作" width="180">
+			<el-table-column label="操作" width="200" fixed="right">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)">编辑</el-button>
-					<el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+					<el-button size="small" @click="openEdit(row)">
+						<el-icon><Edit /></el-icon>
+						<span>编辑</span>
+					</el-button>
+					<el-button size="small" type="danger" @click="remove(row)">
+						<el-icon><Delete /></el-icon>
+						<span>删除</span>
+					</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -84,6 +96,8 @@ import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import FileInput from './_components/FileInput.vue';
 import { absUrl as abs } from '../utils/http';
+import { ElIcon } from 'element-plus';
+import { CirclePlus, SetUp, Edit, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 function absUrl(u?: string | null){ return abs(u); }
