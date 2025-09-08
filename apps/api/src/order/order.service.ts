@@ -20,38 +20,60 @@ export class OrderService {
     }
 
     // 成长值扣减：按每元成长值比例，对退款金额进行等比例扣减，确保累计扣减与累计入账一致
-    private async deductGrowthForRefund(orderId: number, refundAmountYuan: number, operatorUserId?: number | null){
+    private async deductGrowthForRefund(orderId: number, refundAmountYuan: number, operatorUserId?: number | null, opts?: { finalizeAll?: boolean }){
         if (!refundAmountYuan || refundAmountYuan <= 0) return;
         const order = await this.prisma.order.findUnique({ where: { id: orderId } });
         if (!order) return;
         const paidYuan = Number(order.payAmount || 0);
         if (paidYuan <= 0) return;
-        // 配置：每元成长值（向下取整用于入账与扣减的单次变化）
-        const ss: any = await this.prisma.siteSetting.findFirst().catch(()=>null);
-        const growthPerYuan = Math.max(1, Math.floor(Number(ss?.growthPerYuan ?? 1)));
-        // 本次应扣成长值（四舍五入到整数，配合累计阈值保证不超扣/少扣）
-        const thisDeduct = Math.max(0, Math.floor(Number(refundAmountYuan) * growthPerYuan));
-        if (thisDeduct <= 0) return;
+        // 读取“该订单实际入账成长值上限”：优先取 PAY 日志累积（避免配置漂移），否则回退为 floor(payAmount * current growthPerYuan)
+        let totalGrowthForOrder = 0;
+        try {
+            const payLogs:any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { orderId: order.id, source: 'PAY' }, select: { change: true } });
+            const sumPay = (payLogs||[]).reduce((s,r)=> s + Math.max(0, Number(r.change||0)), 0);
+            totalGrowthForOrder = Math.max(0, Math.floor(sumPay));
+        } catch { totalGrowthForOrder = 0; }
+        if (totalGrowthForOrder <= 0){
+            const ss: any = await this.prisma.siteSetting.findFirst().catch(()=>null);
+            const growthPerYuan = Math.max(1, Math.floor(Number(ss?.growthPerYuan ?? 1)));
+            totalGrowthForOrder = Math.max(0, Math.floor(paidYuan * growthPerYuan));
+        }
 
-        // 计算订单支付入账的成长值总额（按比例，等于 floor(payAmount * growthPerYuan)）
-        const totalGrowthForOrder = Math.max(0, Math.floor(paidYuan * growthPerYuan));
-        // 已通过 REFUND 源扣减的累计值
+        // 已扣累计
         const refundedLogs: any[] = await (this.prisma as any).memberGrowthLog.findMany({ where: { orderId: order.id, source: 'REFUND' }, select: { change: true } });
         const alreadyDeducted = (refundedLogs || []).reduce((s, r) => s + Math.abs(Number(r.change || 0)), 0);
-        // 本次扣减后累计不得超过 totalGrowthForOrder
         const remaining = Math.max(0, totalGrowthForOrder - alreadyDeducted);
-        const willDeduct = Math.min(remaining, thisDeduct);
+        if (remaining <= 0) return;
+
+        // 本次应扣：普通部分退款按 floor(refund*yuan2growth)；若 finalizeAll=true，直接按 remaining 一次扣完
+        let willDeduct = 0;
+        if (opts?.finalizeAll){
+            willDeduct = remaining;
+        } else {
+            const ss: any = await this.prisma.siteSetting.findFirst().catch(()=>null);
+            const growthPerYuan = Math.max(1, Math.floor(Number(ss?.growthPerYuan ?? 1)));
+            const thisDeduct = Math.max(0, Math.floor(Number(refundAmountYuan) * growthPerYuan));
+            willDeduct = Math.min(remaining, thisDeduct);
+        }
         if (willDeduct <= 0) return;
 
-        // 扣减会员成长值，并写日志
+        // 幂等与负值保护：事务内检查当前成长值，若不足则按当前值扣
         await this.prisma.$transaction(async (tx)=>{
-            await tx.member.update({ where: { id: order.memberId }, data: { growthPoints: { decrement: willDeduct } } });
-            await (tx as any).memberGrowthLog.create({ data: { memberId: order.memberId, change: -willDeduct, source: 'REFUND', desc: `订单退款扣减 ${order.no}`, orderId: order.id, operatorUserId: operatorUserId ?? null } });
-            // 退款导致的成长值归零可能引发降级：按当前成长值重新匹配等级
+            const m0:any = await tx.member.findUnique({ where: { id: order.memberId }, select: { id: true, /* @ts-ignore */ growthPoints: true } as any });
+            const currentGrowth = Math.max(0, Number(m0?.growthPoints||0));
+            const safeDeduct = Math.min(willDeduct, currentGrowth);
+            if (safeDeduct <= 0) return;
+            // 幂等保护：短时间内相同 orderId 与相同扣减量是否已记账（简单去重）；如需更强可引入唯一键（orderId, source, change, createdAt分钟粒度）
+            const recent:any[] = await (tx as any).memberGrowthLog.findMany({ where: { orderId: order.id, source: 'REFUND', change: -safeDeduct }, orderBy: { id: 'desc' }, take: 1 });
+            if (recent && recent.length){ return; }
+            await tx.member.update({ where: { id: order.memberId }, data: { growthPoints: { decrement: safeDeduct } } });
+            await (tx as any).memberGrowthLog.create({ data: { memberId: order.memberId, change: -safeDeduct, source: 'REFUND', desc: `订单退款扣减 ${order.no}`, orderId: order.id, operatorUserId: operatorUserId ?? null } });
+            // 等级仅在阈值变更时重算：先查当前等级阈值与下一等级阈值，判断是否跨阈
             try{
                 const m: any = await tx.member.findUnique({ where: { id: order.memberId }, select: { id: true, /* @ts-ignore */ growthPoints: true, levelId: true } as any });
+                const gp = Number(m?.growthPoints||0);
                 const levels: any[] = await tx.memberLevel.findMany({ orderBy: { /* @ts-ignore */ level: 'desc' } as any });
-                const target = levels.find(l => Number(m?.growthPoints ?? 0) >= Number((l as any)?.requiredGrowth ?? 0));
+                const target = levels.find(l => gp >= Number((l as any)?.requiredGrowth ?? 0));
                 const nextLevelId = target ? target.id : null;
                 if ((m?.levelId || null) !== nextLevelId){ await tx.member.update({ where: { id: order.memberId }, data: { levelId: nextLevelId } }); }
             }catch{}
@@ -135,8 +157,8 @@ export class OrderService {
             await this.rollbackPointsForRefund(orderId, operatorUserId ?? null);
             // 先将累计退款额置为全额，再进行成长值累计扣减计算
             await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: order.payAmount } });
-            // 成长值扣减（累计口径，避免多次部分退款的四舍五入误差）
-            try { await this.deductGrowthForRefund(orderId, Number(amountYuan || 0), operatorUserId ?? null); } catch {}
+            // 成长值扣减（累计口径，避免多次部分退款的取整误差）：finalizeAll=true 按剩余一次扣完
+            try { await this.deductGrowthForRefund(orderId, Number(amountYuan || 0), operatorUserId ?? null, { finalizeAll: true }); } catch {}
             return updated;
         }
         // 非全额：部分退款累计并记录时间线

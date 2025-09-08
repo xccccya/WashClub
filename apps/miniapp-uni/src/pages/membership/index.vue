@@ -43,13 +43,46 @@
 			</view>
 		</view>
 
+		<!-- 签到卡片：进度条 + 图标 + 数值 + 日历 -->
+		<view class="card sign-card">
+			<view class="sign-head">
+				<text class="sign-title">签到</text>
+				<view class="sign-cta" @tap="doSignIn" :class="{ disabled: status.todaySigned }">{{ status.todaySigned ? '今日已签' : '点此签到' }}</view>
+			</view>
+			<view class="sign-progress">
+				<view class="sign-steps">
+					<view v-for="(r, i) in stepRewards" :key="i" class="sign-step">
+						<image class="sign-step-icon" :src="iconOf(i, reached(i))" mode="aspectFit" />
+						<text class="sign-step-num">+{{ r }}</text>
+					</view>
+				</view>
+			</view>
+			<view class="sign-calendar">
+				<view class="cal-head">
+					<view class="cal-nav" @tap="prevMonth">上个月</view>
+					<text class="cal-title">{{ curYm }}</text>
+					<view class="cal-nav disabled">下个月</view>
+				</view>
+				<view class="cal-grid">
+					<view v-for="d in calDays" :key="d.key" class="cal-cell" :class="{ today: d.isToday, signed: d.isSigned }">
+						<text class="cal-day">{{ d.day }}</text>
+						<view v-if="d.isToday" class="dot" />
+						<view v-if="d.isSigned" class="tick">✓</view>
+					</view>
+				</view>
+			</view>
+		</view>
+
 		<!-- 成长值日志 -->
 		<view class="card logs-card">
 			<view class="logs-head"><text class="logs-title">成长值记录</text></view>
 			<view v-if="logs.length===0" class="empty">暂无记录</view>
 			<view v-else class="logs-list">
 				<view class="log-item" v-for="(g, i) in logs" :key="i" @tap="openOrderFromLog(g)">
-					<text class="log-desc">{{ g.desc }}</text>
+					<view class="desc-wrap">
+						<text class="log-desc">{{ baseDesc(g) }}</text>
+						<text v-if="g.orderNo" class="order-no">{{ g.orderNo }}</text>
+					</view>
 					<text class="log-change" :class="{ minus: Number(g.change)<0 }">{{ Number(g.change)>=0?('+'+g.change):g.change }}</text>
 					<text class="log-time">{{ fmtTime(g.createdAt) }}</text>
 				</view>
@@ -122,9 +155,58 @@ const benefitDiscountIcon = computed(()=> isNoDiscount.value ? '/static/icons/no
 
 const logs = ref<Array<{ createdAt:string; desc:string; change:number; orderId?: number|null; orderNo?: string|null }>>([]);
 function fmtTime(t:any){ try{ const d=new Date(t); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{ return ''; } }
+function baseDesc(g:any){
+    try{
+        const d = String(g?.desc||'');
+        const no = String(g?.orderNo||'').trim();
+        if (!no) return d;
+        const re = new RegExp(no.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        const s = d.replace(re, '').replace(/\s{2,}/g,' ').trim();
+        return s || d;
+    }catch{ return String(g?.desc||''); }
+}
 
 function goBack(){ try{ const pages = getCurrentPages?.()||[]; if (pages.length>1){ uni.navigateBack(); return; } uni.reLaunch({ url: '/pages/me/index' }); }catch{ uni.reLaunch({ url: '/pages/me/index' }); } }
 function onSwiperChange(e:any){ try{ currentIndex.value = Number(e?.detail?.current||0); }catch{} }
+
+// ===== 签到：状态/进度/日历 =====
+const status = ref<{ todaySigned: boolean; streakDays: number; rewardConfig: { dayRewards:number[]; after7:number }; todayReward: number }>({ todaySigned: false, streakDays: 0, rewardConfig: { dayRewards:[1,1,1,1,1,1,1], after7:1 }, todayReward: 1 });
+const stepRewards = computed(()=>{
+    const base = status.value.rewardConfig?.dayRewards || [1,1,1,1,1,1,1];
+    return [...base, status.value.rewardConfig?.after7 || base[6] || 1];
+});
+function reached(i:number){
+    const s = Number(status.value.streakDays||0);
+    if (i < 7) return s >= (i+1);
+    return s >= 8;
+}
+function iconOf(i:number, ok:boolean){
+    if (i < 7) return ok ? '/static/icons/singre.png' : '/static/icons/prsingre.png';
+    return ok ? '/static/icons/singrefinal.png' : '/static/icons/prsingrefinal.png';
+}
+async function fetchSignStatus(){
+    try{ const res:any = await http('/member-signin/me/status', { method:'GET' }); status.value = res || status.value; }catch{}
+}
+async function doSignIn(){ if (status.value.todaySigned) return; try{ await http('/member-signin/me', { method:'POST' }); await fetchSignStatus(); await fetchMonth(curYm.value); uni.showToast({ title:'签到成功', icon:'success' }); }catch(e:any){ uni.showToast({ title: String(e?.message||e||'签到失败'), icon:'none' }); } }
+
+const curYm = ref('');
+const calDays = ref<Array<{ key:string; day:number; isToday:boolean; isSigned:boolean }>>([]);
+function buildMonthDays(ym:string, signedDays:number[]){
+    const [y,m] = ym.split('-').map(n=>Number(n));
+    const today = new Date();
+    const isCur = (today.getFullYear()===y) && (today.getMonth()+1===m);
+    const total = new Date(y, m, 0).getDate();
+    const days:number[] = Array.from({ length: total }, (_,i)=> i+1);
+    const set = new Set(signedDays);
+    calDays.value = days.map(d => ({ key: ym+'-'+String(d).padStart(2,'0'), day: d, isToday: isCur && d===today.getDate(), isSigned: set.has(d) }));
+}
+async function fetchMonth(ym?: string){
+    const now = new Date();
+    const defaultYm = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const req = ym || defaultYm; curYm.value = req;
+    try{ const res:any = await http('/member-signin/me/month', { method:'GET', query: { ym: req } }); const days:number[] = Array.isArray(res?.signedDays)?res.signedDays:[]; buildMonthDays(res?.ym||req, days); }catch{ buildMonthDays(req, []); }
+}
+function prevMonth(){ const [y,m]=curYm.value.split('-').map(n=>Number(n)); const d = new Date(y, m-2, 1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; fetchMonth(ym); }
 
 onMounted(async ()=>{
 	const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
@@ -141,6 +223,8 @@ onMounted(async ()=>{
 	currentIndex.value = userLevelIndex.value; // 初始展示定位到当前等级
 	// 加载成长日志（持久化接口）
 	try{ const lg:any[] = await http('/member/me/growth-logs', { method:'GET', query:{ limit: 50 } }); logs.value = Array.isArray(lg)?lg:[]; }catch{ logs.value = []; }
+	await fetchSignStatus();
+	await fetchMonth(curYm.value);
 });
 
 function openOrderFromLog(g:any){
@@ -181,13 +265,42 @@ function openOrderFromLog(g:any){
 .benefit-icon { width: 64rpx; height: 64rpx; margin-bottom: 8rpx; }
 .benefit-text { font-size: 24rpx; color:#1f2937; }
 
+/* 签到卡片 */
+.sign-card { margin-top: 22rpx; }
+.sign-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 10rpx; }
+.sign-title { font-size: 28rpx; font-weight: 800; color:#0b1220; letter-spacing: 0.5rpx; }
+.sign-cta { font-size: 24rpx; color: #2563eb; padding: 6rpx 12rpx; border-radius: 999rpx; background: #e0f2fe; }
+.sign-cta.disabled { color:#9ca3af; background:#f3f4f6; }
+.sign-progress { margin: 8rpx 0 12rpx 0; }
+.sign-steps { display:flex; align-items:center; justify-content: space-between; gap: 8rpx; }
+.sign-step { display:flex; flex-direction: column; align-items:center; justify-content:center; flex:1; }
+.sign-step-icon { width: 44rpx; height: 44rpx; }
+.sign-step-num { font-size: 20rpx; color:#374151; margin-top: 4rpx; }
+
+.sign-calendar { margin-top: 6rpx; }
+.cal-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
+.cal-nav { font-size: 24rpx; color:#2563eb; }
+.cal-nav.disabled { color:#9ca3af; }
+.cal-title { font-size: 24rpx; font-weight: 700; color:#111827; }
+.cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 10rpx; }
+.cal-cell { position: relative; height: 72rpx; border-radius: 12rpx; background:#f8fafc; display:flex; align-items:center; justify-content:center; }
+.cal-cell.today { box-shadow: inset 0 0 0 2rpx #a7f3d0; }
+.cal-cell.signed { background: #ecfeff; }
+.cal-day { font-size: 26rpx; color:#111827; }
+.dot { position:absolute; bottom: 6rpx; width: 8rpx; height: 8rpx; border-radius: 50%; background:#10b981; }
+.tick { position:absolute; left: 6rpx; top: 6rpx; width: 22rpx; height: 22rpx; font-size: 20rpx; color:#10b981; }
+
 .logs-head { margin-top: 0; margin-bottom: 12rpx; }
 .logs-card { margin-top: 22rpx; }
 .logs-title { font-size: 28rpx; font-weight: 700; color:#1f2937; letter-spacing: 0.5rpx; }
 .logs-list { display:flex; flex-direction: column; gap: 12rpx; }
 .log-item { display:grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4rpx 12rpx; padding: 12rpx; border-radius: 16rpx; background:#fff; border: 2rpx solid #eef2f7; }
-.log-desc { grid-column: 1 / 2; color:#111827; font-size: 26rpx; font-weight: 600; }
+.desc-wrap { grid-column: 1 / 2; display:inline-flex; align-items:center; gap: 8rpx; }
+.log-desc { color:#111827; font-size: 26rpx; font-weight: 600; }
+.order-no { font-size: 20rpx; font-weight: 500; color:#6b7280; padding: 2rpx 8rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#fafafa; }
+.order-no::after { content: '›'; display:inline-block; margin-left: 6rpx; color:#9ca3af; font-weight: 700; }
 .log-change { grid-column: 2 / 3; color:#16a34a; font-size: 26rpx; font-weight: 700; justify-self: end; }
 .log-time { grid-column: 1 / 3; color:#6b7280; font-size: 22rpx; }
 .log-item .log-change.minus { color:#ef4444; }
+.log-item.clickable { border-color:#e5e7eb; background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%); }
 </style>

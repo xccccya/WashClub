@@ -147,6 +147,9 @@ model SiteSetting {
 
   // 会员成长值：每消费 1 元兑换多少成长值（正整数）
   growthPerYuan Int @default(1)
+
+  // 连续签到奖励配置（JSON）：{ dayRewards: number[7], after7: number }
+  signInConfigJson Json?
 }
 
 model Vehicle {

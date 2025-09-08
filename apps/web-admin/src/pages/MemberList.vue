@@ -281,13 +281,16 @@ function goOrderTag(g: { orderId?: number|null; orderNo?: string|null }){
 
 const adjustDialog = ref(false);
 const adjustForm = ref<{ delta: number; remark: string }>({ delta: 0, remark: '' });
-function openAdjustDialog(){ if (!growthMemberId){ ElMessage.error('请先打开某位会员的成长日志'); return; } adjustForm.value = { delta: 0, remark: '' }; adjustDialog.value = true; }
+async function openAdjustDialog(){ if (!growthMemberId){ ElMessage.error('请先打开某位会员的成长日志'); return; } adjustForm.value = { delta: 0, remark: '' }; adjustDialog.value = true; }
 async function saveAdjust(){
     if (!growthMemberId) { ElMessage.error('无效的会员'); return; }
     const delta = Math.trunc(Number(adjustForm.value.delta||0));
     if (!Number.isFinite(delta) || delta === 0){ ElMessage.error('变更值必须为非零整数'); return; }
     const remark = String(adjustForm.value.remark||'').trim();
     if (!remark){ ElMessage.error('请填写备注'); return; }
+    // 二次确认
+    const ok = await new Promise<boolean>(resolve=>{ const h=(window as any).confirm || ((msg:string)=>window.confirm(msg)); try{ resolve(!!h(`确认${delta>0?'增加':'扣减'}成长值 ${Math.abs(delta)} ？`)); }catch{ resolve(true); } });
+    if (!ok) return;
     await http(`/member/${growthMemberId}/growth-adjust`, { method:'POST', body: { delta, remark } });
     ElMessage.success('已调整'); adjustDialog.value = false; openGrowthLogs({ id: growthMemberId } as any); fetchList();
 }
