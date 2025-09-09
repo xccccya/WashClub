@@ -44,49 +44,56 @@ export class AssetService {
 		if (!buffer?.length || !originalName) throw new BadRequestException('未接收到文件');
 		const checksum = await this.computeSha256(buffer);
 		const prisma = this.prisma as unknown as PrismaWithAssets;
-		const existed = await prisma.fileAsset.findUnique({ where: { checksumSha256: checksum } });
-		if (existed && !existed.deletedAt) {
-			return {
-				id: existed.id,
-				url: existed.url,
-				checksumSha256: existed.checksumSha256,
-				filename: existed.filename,
-				mimeType: existed.mimeType,
-				size: existed.size,
-				objectKey: existed.objectKey,
-				storage: existed.storage,
-			};
-		}
-
+		
+		// 先保存文件到磁盘（无论是否重复）
 		const saved = this.fileService.saveFile(buffer, originalName, dir || 'public');
 		const tags = Array.isArray(autoTags) && autoTags.length > 0 ? autoTags : null;
-		const created = await prisma.fileAsset.create({
-			data: {
+		
+		// 使用upsert模式处理重复文件
+		try {
+			const result = await prisma.fileAsset.upsert({
+				where: { checksumSha256: checksum },
+				update: {
+					// 如果文件已存在，只更新deletedAt为null（恢复软删除的文件）
+					deletedAt: null,
+					// 可选：合并标签
+					...(tags ? { tagsJson: tags } : {})
+				},
+				create: {
+					filename: originalName,
+					extension: extname(originalName || '').toLowerCase().replace(/^\./, ''),
+					mimeType: mimeType || 'application/octet-stream',
+					size: saved.size,
+					checksumSha256: checksum,
+					storage: 'local',
+					bucket: null,
+					objectKey: saved.path,
+					url: saved.url,
+					isPublic: true,
+					tagsJson: tags,
+					variants: null,
+					extra: null,
+				},
+			});
+			
+			return {
+				id: result.id,
+				url: result.url,
+				checksumSha256: result.checksumSha256,
+				filename: result.filename,
+				mimeType: result.mimeType,
+				size: result.size,
+				objectKey: result.objectKey,
+				storage: result.storage,
+			};
+		} catch (error: any) {
+			console.error('文件上传失败:', {
 				filename: originalName,
-				extension: extname(originalName || '').toLowerCase().replace(/^\./, ''),
-				mimeType: mimeType || 'application/octet-stream',
-				size: saved.size,
-				checksumSha256: checksum,
-				storage: 'local',
-				bucket: null,
-				objectKey: saved.path,
-				url: saved.url,
-				isPublic: true,
-				tagsJson: tags,
-				variants: null,
-				extra: null,
-			},
-		});
-		return {
-			id: created.id,
-			url: created.url,
-			checksumSha256: created.checksumSha256,
-			filename: created.filename,
-			mimeType: created.mimeType,
-			size: created.size,
-			objectKey: created.objectKey,
-			storage: created.storage,
-		};
+				checksum,
+				error: error.message || error
+			});
+			throw error;
+		}
 	}
 
 	async list(query: ListQuery) {
