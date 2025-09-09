@@ -51,47 +51,17 @@ export class VehicleService {
         if (!imageUrl) return null;
         try {
             const resp = await this.fetchWithTimeout(imageUrl, 8000);
-            if (!resp.ok) {
-                console.warn(`下载车辆图片失败 - HTTP ${resp.status}: ${imageUrl}`);
-                return null;
-            }
+            if (!resp.ok) return null;
             const ab = await resp.arrayBuffer();
-            if (!ab || ab.byteLength === 0) {
-                console.warn(`下载车辆图片为空: ${imageUrl}`);
-                return null;
-            }
+            if (!ab || ab.byteLength === 0) return null;
             const buf = Buffer.from(ab);
             const urlObj = new URL(imageUrl);
             const filenameRaw = urlObj.pathname.split('/').pop() || 'image.jpg';
             const contentType = resp.headers.get('content-type') || undefined;
             // 通过资产服务入库，目录 carimg，并自动添加车辆图片标签
-            try {
-                const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
-                console.log('车辆图片保存成功:', { url: created?.url, filename: filenameRaw });
-                return created?.url || null;
-            } catch (uploadError) {
-                console.error('车辆图片上传到AssetService失败:', {
-                    filename: filenameRaw,
-                    contentType,
-                    bufferSize: buf.length,
-                    error: uploadError instanceof Error ? uploadError.message : String(uploadError)
-                });
-                
-                // 回退到原始的文件保存方式
-                try {
-                    const saved = this.fileService.saveFile(buf, filenameRaw, 'carimg');
-                    console.log('车辆图片回退保存成功:', { url: saved.url });
-                    return saved.url;
-                } catch (fallbackError) {
-                    console.error('车辆图片回退保存也失败:', fallbackError);
-                    return null;
-                }
-            }
-        } catch (error) {
-            console.error('下载保存车辆图片失败:', {
-                url: imageUrl,
-                error: error instanceof Error ? error.message : String(error)
-            });
+            const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
+            return created?.url || null;
+        } catch {
             return null;
         }
     }
@@ -108,17 +78,11 @@ export class VehicleService {
 
     private async resolveBrandImageByBrandId(brandId?: number | null): Promise<string | null> {
         if (!brandId) return null;
-        if (!this.apiKey) {
-            console.warn('车辆API密钥未配置，跳过品牌图片获取');
-            return null;
-        }
+        if (!this.apiKey) return null;
         try {
             const url = `https://api.tanshuapi.com/api/car/v1/carBrand?key=${this.apiKey}`;
             const resp = await this.fetchWithTimeout(url, 8000);
-            if (!resp.ok) {
-                console.warn(`获取车辆品牌数据失败 - HTTP ${resp.status}: ${url}`);
-                return null;
-            }
+            if (!resp.ok) return null;
             const json: any = await resp.json().catch(() => ({}));
             const data: any[] = Array.isArray(json?.data) ? json.data : [];
             for (const mb of data) {
@@ -127,38 +91,23 @@ export class VehicleService {
                 if (found) return found?.img || mb?.img || null;
             }
             return null;
-        } catch (error) {
-            console.error('获取车辆品牌图片失败:', {
-                brandId,
-                error: error instanceof Error ? error.message : String(error)
-            });
+        } catch {
             return null;
         }
     }
 
     private async resolveSeriesImageByBrandAndSeries(brandId?: number | null, seriesId?: number | null): Promise<string | null> {
         if (!brandId || !seriesId) return null;
-        if (!this.apiKey) {
-            console.warn('车辆API密钥未配置，跳过车系图片获取');
-            return null;
-        }
+        if (!this.apiKey) return null;
         try {
             const url = `https://api.tanshuapi.com/api/car/v1/carSeries?brand_id=${Number(brandId)}&key=${this.apiKey}`;
             const resp = await this.fetchWithTimeout(url, 8000);
-            if (!resp.ok) {
-                console.warn(`获取车辆车系数据失败 - HTTP ${resp.status}: ${url}`);
-                return null;
-            }
+            if (!resp.ok) return null;
             const json: any = await resp.json().catch(() => ({}));
             const data: any[] = Array.isArray(json?.data) ? json.data : [];
             const item = data.find((s:any) => Number(s?.series_id) === Number(seriesId));
             return item?.img || null;
-        } catch (error) {
-            console.error('获取车辆车系图片失败:', {
-                brandId,
-                seriesId,
-                error: error instanceof Error ? error.message : String(error)
-            });
+        } catch {
             return null;
         }
     }
