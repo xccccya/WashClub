@@ -60,7 +60,8 @@ export class VehicleService {
             // 通过资产服务入库，目录 carimg，并自动添加车辆图片标签
             const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
             return created?.url || null;
-        } catch {
+        } catch (error) {
+            console.error('下载保存车辆图片失败:', error);
             return null;
         }
     }

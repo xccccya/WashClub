@@ -46,6 +46,17 @@ export class AssetService {
 		const prisma = this.prisma as unknown as PrismaWithAssets;
 		const existed = await prisma.fileAsset.findUnique({ where: { checksumSha256: checksum } });
 		if (existed && !existed.deletedAt) {
+			// 如果文件已存在但需要添加新标签，则合并标签
+			if (Array.isArray(autoTags) && autoTags.length > 0) {
+				const existingTags = Array.isArray(existed.tagsJson) ? existed.tagsJson : [];
+				const newTags = [...new Set([...existingTags, ...autoTags])]; // 去重合并标签
+				if (newTags.length > existingTags.length) {
+					await prisma.fileAsset.update({
+						where: { id: existed.id },
+						data: { tagsJson: newTags }
+					});
+				}
+			}
 			return {
 				id: existed.id,
 				url: existed.url,
