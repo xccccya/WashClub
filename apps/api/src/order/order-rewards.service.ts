@@ -203,8 +203,9 @@ export class OrderRewardsService {
             // 幂等保护：若该订单已产生过 PAY 类型的积分入账，则不重复入账
             const exists: any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'PAY' }, take: 1 });
             if (!exists || exists.length === 0) {
-                const pointsPerYuan = Math.max(0, Math.floor(Number(ss?.pointsPerYuan ?? 1)));
-                let basePoints = Math.max(0, Math.floor(amountYuan * pointsPerYuan));
+                const pointsPerFen = Math.max(0, Math.floor(Number(ss?.pointsPerFen ?? 1)));
+                const amountFen = Math.max(0, Math.floor(amountYuan * 100)); // 转换为分
+                let basePoints = Math.max(0, Math.floor(amountFen * pointsPerFen));
                 let multiplier = 1;
                 try {
                     const m: any = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { id: true, level: { select: { pointsMultiplier: true } } } });

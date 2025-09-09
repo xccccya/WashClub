@@ -19,7 +19,7 @@ export class MemberPointsController {
   @UseGuards(AdminGuard)
   @RequirePerm('member-points')
   @ApiOperation({ summary: '保存积分配置' })
-  save(@Body() body: { pointsPerYuan: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){ return this.service.saveConfig(body); }
+  save(@Body() body: { pointsPerFen: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){ return this.service.saveConfig(body); }
 
   @Get('logs')
   @UseGuards(AdminGuard)

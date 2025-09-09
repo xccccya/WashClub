@@ -8,15 +8,15 @@ export class MemberPointsService {
   async getConfig(){
     const ss:any = await this.prisma.siteSetting.findFirst().catch(()=>null);
     return {
-      pointsPerYuan: Math.max(0, Number(ss?.pointsPerYuan ?? 1)),
+      pointsPerFen: Math.max(0, Number(ss?.pointsPerFen ?? 1)),
       pointsFenPerPoint: Math.max(0, Number(ss?.pointsFenPerPoint ?? 0)),
       pointsMaxDeductFenPerOrder: Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder ?? 0)),
     };
   }
 
-  async saveConfig(body: { pointsPerYuan: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){
+  async saveConfig(body: { pointsPerFen: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){
     const payload = {
-      pointsPerYuan: Math.max(0, Math.floor(Number(body?.pointsPerYuan || 0))),
+      pointsPerFen: Math.max(0, Math.floor(Number(body?.pointsPerFen || 0))),
       pointsFenPerPoint: Math.max(0, Math.floor(Number(body?.pointsFenPerPoint || 0))),
       pointsMaxDeductFenPerOrder: Math.max(0, Math.floor(Number(body?.pointsMaxDeductFenPerOrder || 0))),
     } as const;
