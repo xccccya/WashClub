@@ -3,7 +3,10 @@
 		<div class="toolbar">
 			<el-input v-model="query.memberId" placeholder="会员ID" style="width:140px;margin-right:8px;" />
 			<el-input v-model="query.orderId" placeholder="订单ID" style="width:140px;margin-right:8px;" />
-			<el-button @click="fetchList" :loading="loading">查询</el-button>
+			<el-button @click="fetchList" :loading="loading">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">查询</span>
+			</el-button>
 		</div>
 		<el-table :data="list.items" border size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -69,6 +72,7 @@
 import { ref, onMounted } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
+import { Search } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const loading = ref(false);

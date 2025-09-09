@@ -22,35 +22,45 @@
 			</template>
 			<div class="metrics-grid">
 				<div class="metric-item">
-					<img class="icon-img" :src="iconOrderNum" alt="订单笔数" />
+					<div class="metric-icon">
+						<el-icon size="32" color="#409eff"><ShoppingBag /></el-icon>
+					</div>
 					<div class="meta">
 						<div class="label">订单笔数</div>
 						<div class="value">{{ data?.orderCount ?? '-' }}</div>
 					</div>
 				</div>
 				<div class="metric-item">
-					<img class="icon-img" :src="iconPayAmount" alt="支付金额" />
+					<div class="metric-icon">
+						<el-icon size="32" color="#67c23a"><Money /></el-icon>
+					</div>
 					<div class="meta">
 						<div class="label">支付金额</div>
 						<div class="value">{{ formatCurrency(data?.payAmount) }}</div>
 					</div>
 				</div>
 				<div class="metric-item">
-					<img class="icon-img" :src="iconWashcardDeduct" alt="洗车卡划扣" />
+					<div class="metric-icon">
+						<el-icon size="32" color="#e6a23c"><CreditCard /></el-icon>
+					</div>
 					<div class="meta">
 						<div class="label">洗车卡划扣</div>
 						<div class="value">{{ data?.washcardDeductTimes ?? '-' }}</div>
 					</div>
 				</div>
 				<div class="metric-item">
-					<img class="icon-img" :src="iconMemberActive" alt="活跃会员数" />
+					<div class="metric-icon">
+						<el-icon size="32" color="#f56c6c"><User /></el-icon>
+					</div>
 					<div class="meta">
 						<div class="label">活跃会员数</div>
 						<div class="value">{{ data?.activeMembers ?? '-' }}</div>
 					</div>
 				</div>
 				<div class="metric-item">
-					<img class="icon-img" :src="iconMemberAdded" alt="新增会员数" />
+					<div class="metric-icon">
+						<el-icon size="32" color="#909399"><UserFilled /></el-icon>
+					</div>
 					<div class="meta">
 						<div class="label">新增会员数</div>
 						<div class="value">{{ data?.newMembers ?? '-' }}</div>
@@ -66,11 +76,7 @@ import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
-import iconOrderNum from '../static/icons/orderaddnum.png';
-import iconPayAmount from '../static/icons/realrecive.png';
-import iconWashcardDeduct from '../static/icons/washcardconfirm.png';
-import iconMemberActive from '../static/icons/member_active.png';
-import iconMemberAdded from '../static/icons/member_added.png';
+import { ShoppingBag, Money, CreditCard, User, UserFilled } from '@element-plus/icons-vue';
 
 type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth';
 type OverviewResp = {
@@ -132,7 +138,7 @@ onMounted(() => { fetchData(); });
 
 .metrics-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap: var(--gap); }
 .metric-item { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid color-mix(in oklab, var(--el-color-primary), transparent 78%); border-radius:10px; background: color-mix(in oklab, var(--el-color-primary), transparent 90%); }
-.metric-item .icon-img { width:36px; height:36px; display:block; }
+.metric-item .metric-icon { width:36px; height:36px; display:flex; align-items:center; justify-content:center; }
 .metric-item .meta { display:flex; flex-direction:column; gap:6px; }
 .metric-item .label { font-size:12px; color: var(--el-text-color-secondary); }
 .metric-item .value { font-size:20px; font-weight:700; line-height:1; }

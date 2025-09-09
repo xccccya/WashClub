@@ -58,7 +58,10 @@
 				</div>
 			</el-form-item>
 			<el-form-item>
-				<el-button type="primary" @click="save">保存</el-button>
+				<el-button type="primary" @click="save">
+					<el-icon style="vertical-align: middle; margin-right:4px;"><Check /></el-icon>
+					<span style="vertical-align: middle;">保存</span>
+				</el-button>
 			</el-form-item>
 		</el-form>
 	</BasePage>
@@ -72,6 +75,7 @@ import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl as abs } from '../utils/http';
 import FileInput from './_components/FileInput.vue';
+import { Check } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const form = ref<{ title: string; logoUrl: string|null; bgType: 'bing'|'image'; bgImageUrl: string|null; defaultMemberAvatarUrl: string|null }>({ title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null });

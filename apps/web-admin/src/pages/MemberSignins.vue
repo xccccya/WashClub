@@ -1,7 +1,10 @@
 <template>
 	<BasePage title="签到管理">
 		<template #actions>
-			<el-button type="primary" @click="openConfig">配置签到奖励</el-button>
+			<el-button type="primary" @click="openConfig">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Setting /></el-icon>
+				<span style="vertical-align: middle;">配置签到奖励</span>
+			</el-button>
 		</template>
 		<el-form :inline="true" class="toolbar">
 			<el-form-item label="会员ID">
@@ -10,7 +13,10 @@
 			<el-form-item label="日期">
 				<el-date-picker v-model="q.date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" />
 			</el-form-item>
-			<el-button @click="fetchLogs" :loading="loading">查询</el-button>
+			<el-button @click="fetchLogs" :loading="loading">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">查询</span>
+			</el-button>
 		</el-form>
 		<el-table :data="logs" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -29,7 +35,10 @@
 			</el-table-column>
 			<el-table-column label="操作" width="140" fixed="right">
 				<template #default="{ row }">
-					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">查看详情</el-button>
+					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">
+						<el-icon><View /></el-icon>
+						<span>查看详情</span>
+					</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -105,6 +114,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { Setting, Search, View } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

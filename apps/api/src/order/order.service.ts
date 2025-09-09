@@ -390,24 +390,53 @@ export class OrderService {
                 if (fenPerPoint > 0 && usedPointsCalc > 0) {
                     const m = await tx.member.findUnique({ where: { id: memberId }, select: { points: true } });
                     const balancePts = Math.max(0, Number(m?.points || 0));
-                    // 可用积分上限（受余额与单单封顶约束）
-                    const grossFen = Number(total.minus(discountTotal).plus(new Prisma.Decimal(shippingFee as any)).mul(100).toFixed(0));
-                    const ratio = Number((this as any)._pointsEligibleRatio || 0);
-                    const payBeforePointsFen = Math.max(0, Math.floor(grossFen * (Number.isFinite(ratio) ? ratio : 1)));
-                    // 计算用户积分可抵扣的最大金额（分）
-                    let capFenByPoints = Math.floor(balancePts * fenPerPoint);
-                    // 计算用户请求积分可抵扣的金额（分）
-                    let reqFenByPoints = Math.floor(usedPointsCalc * fenPerPoint);
-                    // 应用订单上限
-                    if (maxFenPerOrder > 0) {
-                        capFenByPoints = Math.min(capFenByPoints, maxFenPerOrder);
-                        reqFenByPoints = Math.min(reqFenByPoints, maxFenPerOrder);
+                    
+                    // 计算最小积分单位（必须达到能抵扣1分的积分数）
+                    const minPointsUnit = Math.ceil(100 / fenPerPoint);
+                    
+                    // 检查用户积分是否达到最小使用单位
+                    if (balancePts < minPointsUnit) {
+                        usedPointsCalc = 0;
+                        pointsAmountCalcFen = 0;
+                    } else {
+                        // 用户请求的积分数必须按最小单位对齐
+                        usedPointsCalc = Math.floor(usedPointsCalc / minPointsUnit) * minPointsUnit;
+                        
+                        // 可用积分上限（受余额与单单封顶约束）
+                        const grossFen = Number(total.minus(discountTotal).plus(new Prisma.Decimal(shippingFee as any)).mul(100).toFixed(0));
+                        const ratio = Number((this as any)._pointsEligibleRatio || 0);
+                        const payBeforePointsFen = Math.max(0, Math.floor(grossFen * (Number.isFinite(ratio) ? ratio : 1)));
+                        
+                        // fenPerPoint实际存储的是100积分对应的分值，所以每积分的分值是fenPerPoint/100
+                        const actualFenPerPoint = fenPerPoint / 100;
+                        
+                        // 计算用户积分可抵扣的最大金额（分）
+                        const balanceAligned = Math.floor(balancePts / minPointsUnit) * minPointsUnit;
+                        let capFenByPoints = Math.floor(balanceAligned * actualFenPerPoint);
+                        
+                        // 计算用户请求积分可抵扣的金额（分）
+                        let reqFenByPoints = Math.floor(usedPointsCalc * actualFenPerPoint);
+                        
+                        // 应用订单上限
+                        if (maxFenPerOrder > 0) {
+                            capFenByPoints = Math.min(capFenByPoints, maxFenPerOrder);
+                            reqFenByPoints = Math.min(reqFenByPoints, maxFenPerOrder);
+                        }
+                        
+                        // 至少保留 1 分以避免 0 元订单（后续仍有 0.01 的兜底）
+                        const finalCapFen = Math.max(0, Math.min(capFenByPoints, Math.max(0, payBeforePointsFen - 1)));
+                        pointsAmountCalcFen = Math.min(reqFenByPoints, finalCapFen);
+                        
+                        // 根据实际抵扣金额反推实际使用的积分数（按最小单位对齐）
+                        if (actualFenPerPoint > 0) {
+                            const calculatedPoints = Math.floor(pointsAmountCalcFen / actualFenPerPoint);
+                            usedPointsCalc = Math.floor(calculatedPoints / minPointsUnit) * minPointsUnit;
+                            // 重新计算抵扣金额，确保与积分数匹配
+                            pointsAmountCalcFen = Math.floor(usedPointsCalc * actualFenPerPoint);
+                        } else {
+                            usedPointsCalc = 0;
+                        }
                     }
-                    // 至少保留 1 分以避免 0 元订单（后续仍有 0.01 的兜底）
-                    const finalCapFen = Math.max(0, Math.min(capFenByPoints, Math.max(0, payBeforePointsFen - 1)));
-                    pointsAmountCalcFen = Math.min(reqFenByPoints, finalCapFen);
-                    // 根据实际抵扣金额反推实际使用的积分数（向下取整确保金额为整分数）
-                    usedPointsCalc = fenPerPoint > 0 ? Math.floor(pointsAmountCalcFen / fenPerPoint) : 0;
                 }
             } catch { }
             

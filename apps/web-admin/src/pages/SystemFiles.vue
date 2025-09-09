@@ -2,7 +2,10 @@
 	<BasePage title="文件管理">
 		<template #actions>
 			<el-upload :http-request="upload" :show-file-list="false">
-				<el-button type="primary">上传文件</el-button>
+				<el-button type="primary">
+					<el-icon style="vertical-align: middle; margin-right:4px;"><UploadFilled /></el-icon>
+					<span style="vertical-align: middle;">上传文件</span>
+				</el-button>
 			</el-upload>
 			<el-input v-model="keyword" placeholder="搜索文件名" style="width:220px;margin-left:8px;" @keyup.enter="fetchList" />
 			<el-select v-model="mimeFilter" placeholder="类型" clearable style="width:160px;margin-left:8px;">
@@ -14,15 +17,26 @@
 			<el-select v-model="tagFilters" placeholder="标签(可多选)" clearable filterable multiple style="width:220px;margin-left:8px;" @change="onFilterChanged">
 				<el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
 			</el-select>
-			<el-button text @click="toggleView">{{ viewMode==='grid' ? '表格视图' : '网格视图' }}</el-button>
+			<el-button text @click="toggleView">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Grid /></el-icon>
+				<span style="vertical-align: middle;">{{ viewMode==='grid' ? '表格视图' : '网格视图' }}</span>
+			</el-button>
 			<el-select v-model="thumbSize" style="width:120px;">
 				<el-option :value="120" label="小(120)" />
 				<el-option :value="240" label="中(240)" />
 				<el-option :value="480" label="大(480)" />
 			</el-select>
-			<el-button :disabled="selected.size===0" @click="preheat">预热缩略图</el-button>
+			<el-button :disabled="selected.size===0" @click="preheat">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Refresh /></el-icon>
+				<span style="vertical-align: middle;">预热缩略图</span>
+			</el-button>
 			<el-popconfirm title="确认清理所选变体？" @confirm="cleanup">
-				<template #reference><el-button :disabled="selected.size===0" type="warning">清理变体</el-button></template>
+				<template #reference>
+					<el-button :disabled="selected.size===0" type="warning">
+						<el-icon style="vertical-align: middle; margin-right:4px;"><Delete /></el-icon>
+						<span style="vertical-align: middle;">清理变体</span>
+					</el-button>
+				</template>
 			</el-popconfirm>
 		</template>
 
@@ -145,6 +159,7 @@ import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
+import { UploadFilled, Grid, Refresh, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

@@ -6,7 +6,10 @@
 			<el-form-item label="订单号"><el-input v-model="orderNo" placeholder="可选" style="width:220px;" /></el-form-item>
 			<el-form-item label="评分"><el-input v-model.number="ratingMin" placeholder="最小" style="width:100px;" /> - <el-input v-model.number="ratingMax" placeholder="最大" style="width:100px;margin-left:6px;" /></el-form-item>
 			<el-form-item label="时间范围"><el-date-picker v-model="dateRange" type="datetimerange" start-placeholder="开始" end-placeholder="结束" style="width: 420px;" /></el-form-item>
-			<el-button type="primary" @click="fetchList">查询</el-button>
+			<el-button type="primary" @click="fetchList">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">查询</span>
+			</el-button>
 		</el-form>
 		<el-table :data="list" border size="small">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -62,6 +65,7 @@ import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Search } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const router = useRouter();

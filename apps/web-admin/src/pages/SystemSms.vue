@@ -13,7 +13,10 @@
 				<el-option label="未使用" value="0" />
 				<el-option label="已使用" value="1" />
 			</el-select>
-			<el-button type="primary" style="margin-left:8px;" @click="fetchList">查询</el-button>
+			<el-button type="primary" style="margin-left:8px;" @click="fetchList">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">查询</span>
+			</el-button>
 		</template>
 
 		<div style="margin:8px 0;">共 {{ total }} 条记录</div>
@@ -52,6 +55,7 @@ import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
+import { Search } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

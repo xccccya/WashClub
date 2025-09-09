@@ -1,7 +1,10 @@
 <template>
 	<BasePage title="后台管理员">
 		<template #actions>
-			<el-button type="primary" @click="openCreate">新增管理员</el-button>
+			<el-button type="primary" @click="openCreate">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><UserFilled /></el-icon>
+				<span style="vertical-align: middle;">新增管理员</span>
+			</el-button>
 		</template>
 		<el-table :data="admins" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -10,8 +13,14 @@
 			<el-table-column prop="roleRef.name" label="角色" />
 			<el-table-column label="操作" width="260">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)" :disabled="row.id===1">编辑</el-button>
-					<el-button size="small" type="danger" @click="remove(row)" :disabled="row.id===1">删除</el-button>
+					<el-button size="small" @click="openEdit(row)" :disabled="row.id===1">
+						<el-icon><Edit /></el-icon>
+						<span>编辑</span>
+					</el-button>
+					<el-button size="small" type="danger" @click="remove(row)" :disabled="row.id===1">
+						<el-icon><Delete /></el-icon>
+						<span>删除</span>
+					</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -42,6 +51,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

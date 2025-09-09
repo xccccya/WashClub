@@ -1,8 +1,14 @@
 <template>
 	<BasePage title="积分管理">
 		<template #actions>
-			<el-button type="primary" @click="openConfig">积分规则配置</el-button>
-			<el-button @click="openAdjust">手动增减积分</el-button>
+			<el-button type="primary" @click="openConfig">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Setting /></el-icon>
+				<span style="vertical-align: middle;">积分规则配置</span>
+			</el-button>
+			<el-button @click="openAdjust">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><EditPen /></el-icon>
+				<span style="vertical-align: middle;">手动增减积分</span>
+			</el-button>
 		</template>
 		<el-form :inline="true" class="toolbar">
 			<el-form-item label="会员ID">
@@ -17,7 +23,10 @@
 					<el-option label="订单使用" value="USE" />
 				</el-select>
 			</el-form-item>
-			<el-button @click="fetchLogs" :loading="loading">查询</el-button>
+			<el-button @click="fetchLogs" :loading="loading">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">查询</span>
+			</el-button>
 		</el-form>
 		<el-table :data="logs" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -42,7 +51,10 @@
 			<el-table-column prop="desc" label="备注" />
 			<el-table-column label="操作" width="120" fixed="right">
 				<template #default="{ row }">
-					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">查看详情</el-button>
+					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">
+						<el-icon><View /></el-icon>
+						<span>查看详情</span>
+					</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -152,6 +164,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { Setting, EditPen, Search, View } from '@element-plus/icons-vue';
 import router from '../router';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
@@ -184,7 +197,7 @@ async function openConfig(){
     cfg.value.pointsPerFen = Number(res?.pointsPerFen ?? 1);
     cfg.value.pointsFenPerPoint = fenPerPoint;
     cfg.value.pointsMaxDeductFenPerOrder = maxFen;
-    cfg.value.pointsFenPerPointYuan = +(fenPerPoint / 100 * 100).toFixed(2);
+    cfg.value.pointsFenPerPointYuan = +(fenPerPoint / 100).toFixed(2);
     cfg.value.pointsMaxDeductYuan = +(maxFen / 100).toFixed(2);
     cfgVisible.value = true;
   }catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }

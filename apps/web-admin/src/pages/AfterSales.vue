@@ -9,7 +9,10 @@
 				<el-option label="已拒绝" value="REJECTED" />
 				<el-option label="已完成" value="COMPLETED" />
 			</el-select>
-			<el-button type="primary" @click="fetchList" style="margin-left:8px;">刷新</el-button>
+			<el-button type="primary" @click="fetchList" style="margin-left:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Refresh /></el-icon>
+				<span style="vertical-align: middle;">刷新</span>
+			</el-button>
 		</template>
 		<el-table :data="rows" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
@@ -35,9 +38,18 @@
 			</el-table-column>
 			<el-table-column label="操作" width="260">
 				<template #default="{ row }">
-					<el-button size="small" @click="view(row)">详情</el-button>
-					<el-button v-if="row.status==='PENDING'" size="small" type="success" @click="openAudit(row, true)">通过</el-button>
-					<el-button v-if="row.status==='PENDING'" size="small" type="danger" @click="audit(row, false)">拒绝</el-button>
+					<el-button size="small" @click="view(row)">
+						<el-icon><View /></el-icon>
+						<span>详情</span>
+					</el-button>
+					<el-button v-if="row.status==='PENDING'" size="small" type="success" @click="openAudit(row, true)">
+						<el-icon><Check /></el-icon>
+						<span>通过</span>
+					</el-button>
+					<el-button v-if="row.status==='PENDING'" size="small" type="danger" @click="audit(row, false)">
+						<el-icon><Close /></el-icon>
+						<span>拒绝</span>
+					</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -122,6 +134,7 @@ import { BasePage } from '@wash/shared-ui';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { Refresh, View, Check, Close } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const router = useRouter();

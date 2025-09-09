@@ -189,8 +189,9 @@ const supportsPoints = computed(()=> items.value.some(it => !!(it?.snapshot?.poi
 const supportsMemberDiscount = computed(()=> items.value.some(it => !!(it?.snapshot?.memberDiscount)));
 const pointsAmountYuan = computed(()=>{
   const pts = Math.max(0, Math.floor(Number(usedPoints.value||0)));
-  const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
-  const totalFen = pts * fenPerPt;
+  const fenPer100Points = Math.max(0, Number(fenPerPoint.value||0));
+  // fenPerPoint实际存储的是100积分对应的分值，所以每积分的分值需要除以100
+  const totalFen = pts * (fenPer100Points / 100);
   // 向下取整到分，确保支付金额为整分数
   return Math.floor(totalFen) / 100;
 });
@@ -205,27 +206,49 @@ const payAmountFinal = computed(()=>{
   return after < 0.01 && baseAfterDiscounts > 0 ? 0.01 : after;
 });
 const payAmountFinalText = computed(()=> payAmountFinal.value.toFixed(2));
+// 计算最小积分单位（必须达到能抵扣1分的积分数）
+const minPointsUnit = computed(()=>{
+  const fenPer100Points = Math.max(0, Number(fenPerPoint.value||0));
+  if (!fenPer100Points) return 100; // 默认100积分为最小单位
+  // 计算抵扣1分需要的积分数：1分 / (每积分抵扣的分数) = 1 / (fenPer100Points/100) = 100/fenPer100Points
+  return Math.ceil(100 / fenPer100Points);
+});
+
 const maxUsablePoints = computed(()=>{
   try{
-    const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
-    if (!fenPerPt) return 0;
+    const fenPer100Points = Math.max(0, Number(fenPerPoint.value||0));
+    if (!fenPer100Points) return 0;
     if (!supportsPoints.value) return 0;
+    
+    // 检查用户积分是否达到最小使用单位
+    const minUnit = minPointsUnit.value;
+    if (pointsAvailable.value < minUnit) return 0;
+    
     const baseYuan = Math.max(0, Number(totalAmount.value) - Number(couponDiscount.value));
     const baseFen = Math.floor(baseYuan * 100);
     const orderCapFen = Math.max(0, Number(maxFenPerOrder.value||0));
     const capFen = orderCapFen>0 ? Math.min(baseFen, orderCapFen) : baseFen;
-    // 计算最多能用多少积分（向下取整确保抵扣金额为整分数）
-    const maxPointsByAmount = Math.floor(capFen / fenPerPt);
-    return Math.max(0, Math.min(pointsAvailable.value, maxPointsByAmount));
+    
+    // 计算最多能抵扣多少分，然后反推需要多少积分
+    const maxDeductFen = Math.min(capFen, baseFen);
+    const maxPointsByAmount = Math.floor(maxDeductFen * 100 / fenPer100Points);
+    
+    // 按最小单位对齐可用积分
+    const availablePointsAligned = Math.floor(pointsAvailable.value / minUnit) * minUnit;
+    const maxPointsAligned = Math.floor(maxPointsByAmount / minUnit) * minUnit;
+    
+    return Math.max(0, Math.min(availablePointsAligned, maxPointsAligned));
   }catch{ return 0; }
 });
 const pointsNote = computed(()=>{
   const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
   if (!fenPerPt) return '暂未开启积分抵扣';
-  const per = (fenPerPt/100).toFixed(2);
+  // fenPerPt 是100积分对应的分值，直接转换为元显示
+  const per = (fenPerPt / 100).toFixed(2);
   const max = Math.max(0, Number(maxFenPerOrder.value||0));
   const maxYuan = max>0 ? `¥${(max/100).toFixed(2)}` : '不限';
-  return `100积分可抵扣¥${per}，单笔订单最大抵扣金额${maxYuan}`;
+  const minUnit = minPointsUnit.value;
+  return `100积分可抵扣¥${per}，最少需要${minUnit}积分才能使用，单笔订单最大抵扣金额${maxYuan}`;
 });
 // 含积分提示仅在允许叠加时展示
 async function loadPointsMeta(){
@@ -243,7 +266,14 @@ async function loadPointsMeta(){
 function normalizeUsedPoints(){
   const raw = String(usedPointsText.value||'').trim();
   let pts = Math.max(0, Math.floor(Number(raw||0)));
+  
+  // 按最小积分单位对齐
+  const minUnit = minPointsUnit.value;
+  pts = Math.floor(pts / minUnit) * minUnit;
+  
+  // 不超过最大可用积分
   pts = Math.min(pts, maxUsablePoints.value);
+  
   usedPoints.value = pts;
   usedPointsText.value = String(pts);
 }
@@ -251,14 +281,16 @@ function applyMaxPoints(){ usedPoints.value = maxUsablePoints.value; usedPointsT
 function incPoints(){
   try{
     const cur = Math.max(0, Math.floor(Number(usedPoints.value||0)));
-    const next = Math.min(maxUsablePoints.value, cur + 1);
+    const minUnit = minPointsUnit.value;
+    const next = Math.min(maxUsablePoints.value, cur + minUnit);
     usedPoints.value = next; usedPointsText.value = String(next);
   }catch{}
 }
 function decPoints(){
   try{
     const cur = Math.max(0, Math.floor(Number(usedPoints.value||0)));
-    const next = Math.max(0, cur - 1);
+    const minUnit = minPointsUnit.value;
+    const next = Math.max(0, cur - minUnit);
     usedPoints.value = next; usedPointsText.value = String(next);
   }catch{}
 }

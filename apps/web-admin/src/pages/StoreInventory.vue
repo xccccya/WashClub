@@ -36,7 +36,10 @@
 					<el-option label="调整" value="ADJUSTMENT" />
 				</el-select>
 				<el-input v-model="remark" placeholder="备注" style="flex:1;" />
-				<el-button type="primary" @click="doAdjust">提交</el-button>
+				<el-button type="primary" @click="doAdjust">
+					<el-icon style="vertical-align: middle; margin-right:4px;"><Check /></el-icon>
+					<span style="vertical-align: middle;">提交</span>
+				</el-button>
 			</div>
 		</div>
 		<div class="card" v-if="selectedProduct && selectedProduct.type!=='SERVICE'">
@@ -98,6 +101,7 @@ import { ref, computed, onMounted } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { Check } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 

@@ -2,7 +2,10 @@
 	<div>
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<div style="margin:12px 0;">
-			<el-button type="primary" @click="openCreate">新增分类</el-button>
+			<el-button type="primary" @click="openCreate">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
+				<span style="vertical-align: middle;">新增分类</span>
+			</el-button>
 		</div>
 		<el-table :data="list" border size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="60" />
@@ -13,10 +16,16 @@
 			<el-table-column prop="weight" label="排序" width="100" />
 			<el-table-column label="操作" width="200">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)">编辑</el-button>
+					<el-button size="small" @click="openEdit(row)">
+						<el-icon><Edit /></el-icon>
+						<span>编辑</span>
+					</el-button>
 					<el-popconfirm title="确认删除？" @confirm="remove(row.id)">
 						<template #reference>
-							<el-button size="small" type="danger">删除</el-button>
+							<el-button size="small" type="danger">
+								<el-icon><Delete /></el-icon>
+								<span>删除</span>
+							</el-button>
 						</template>
 					</el-popconfirm>
 				</template>
@@ -42,6 +51,7 @@ import { ref, onMounted } from 'vue';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { CirclePlus, Edit, Delete } from '@element-plus/icons-vue';
 
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const list = ref<any[]>([]);
