@@ -102,8 +102,8 @@
 			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
 			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
 			<view class="kv" v-if="order.type!=='SERVICE'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
-			<view class="kv" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>
 			<view class="kv total"><text class="k">应付金额</text><text class="v">¥{{ formatPrice(order.payAmount) }}</text></view>
+			<view class="kv refunded" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>
 		</view>
 
 		<!-- 订单进度（折叠：默认仅展示最新一条） -->
@@ -845,6 +845,7 @@ function zhRemark(eventType?: string, remark?: string){
 .addr { display:flex; flex-direction: column; gap: 6rpx; }
 .addr-line { font-size: 24rpx; color:#1f2937; }
 .kv.total .v { color:#111827; font-weight: 800; }
+.kv.refunded .v { color:#ef4444; font-weight: 600; }
 
 /* 独立风格的服务车辆横幅 */
 .vehicle-banner { position: relative; margin: 0 0 24rpx 0; padding: 20rpx; border-radius: 20rpx; box-shadow: 0 8rpx 24rpx rgba(2, 6, 23, 0.18); }
