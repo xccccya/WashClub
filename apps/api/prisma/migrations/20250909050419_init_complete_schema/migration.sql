@@ -28,7 +28,9 @@ CREATE TABLE `Member` (
     `password` VARCHAR(191) NULL,
     `weixinOpenId` VARCHAR(191) NULL,
     `points` INTEGER NOT NULL DEFAULT 0,
-    `balance` DECIMAL(65, 30) NOT NULL DEFAULT 0,
+    `balance` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `totalPaidAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `growthPoints` INTEGER NOT NULL DEFAULT 0,
     `levelId` INTEGER NULL,
     `categoryId` INTEGER NULL,
 
@@ -42,7 +44,12 @@ CREATE TABLE `Member` (
 CREATE TABLE `MemberLevel` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
-    `weight` INTEGER NOT NULL DEFAULT 0,
+    `level` INTEGER NOT NULL DEFAULT 1,
+    `requiredGrowth` INTEGER NOT NULL DEFAULT 0,
+    `description` VARCHAR(191) NULL,
+    `iconUrl` VARCHAR(191) NULL,
+    `pointsMultiplier` INTEGER NOT NULL DEFAULT 1,
+    `payDiscountPercent` INTEGER NOT NULL DEFAULT 0,
     `isDefault` BOOLEAN NOT NULL DEFAULT false,
 
     PRIMARY KEY (`id`)
@@ -74,6 +81,24 @@ CREATE TABLE `AdminRole` (
     `enabled` BOOLEAN NOT NULL DEFAULT true,
     `isSystem` BOOLEAN NOT NULL DEFAULT false,
     `permissions` JSON NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `SiteSetting` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `updatedAt` DATETIME(3) NOT NULL,
+    `title` VARCHAR(191) NOT NULL DEFAULT 'WashClub 管理后台',
+    `logoUrl` VARCHAR(191) NULL,
+    `defaultMemberAvatarUrl` VARCHAR(191) NULL,
+    `bgType` VARCHAR(191) NOT NULL DEFAULT 'bing',
+    `bgImageUrl` VARCHAR(191) NULL,
+    `growthPerYuan` INTEGER NOT NULL DEFAULT 1,
+    `pointsPerFen` INTEGER NOT NULL DEFAULT 1,
+    `pointsFenPerPoint` INTEGER NOT NULL DEFAULT 1,
+    `pointsMaxDeductFenPerOrder` INTEGER NOT NULL DEFAULT 0,
+    `signInConfigJson` JSON NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -263,8 +288,8 @@ CREATE TABLE `Coupon` (
     `allowCombine` BOOLEAN NOT NULL DEFAULT false,
     `allowStackWithPoints` BOOLEAN NOT NULL DEFAULT true,
     `allowStackWithMemberDiscount` BOOLEAN NOT NULL DEFAULT true,
-    `faceValue` DECIMAL(65, 30) NULL,
-    `minOrderAmount` DECIMAL(65, 30) NULL,
+    `faceValue` DECIMAL(12, 2) NULL,
+    `minOrderAmount` DECIMAL(12, 2) NULL,
     `issueTotal` INTEGER NULL,
     `applyScope` ENUM('ALL', 'SPECIFIED') NOT NULL DEFAULT 'ALL',
 
@@ -333,8 +358,8 @@ CREATE TABLE `Product` (
     `pointsDeductible` BOOLEAN NOT NULL DEFAULT false,
     `memberDiscount` BOOLEAN NOT NULL DEFAULT false,
     `specType` ENUM('SINGLE', 'MULTI') NOT NULL DEFAULT 'SINGLE',
-    `price` DECIMAL(65, 30) NULL DEFAULT 0,
-    `listPrice` DECIMAL(65, 30) NULL DEFAULT 0,
+    `price` DECIMAL(12, 2) NULL DEFAULT 0,
+    `listPrice` DECIMAL(12, 2) NULL DEFAULT 0,
     `stockQuantity` INTEGER NULL DEFAULT 0,
     `initialSales` INTEGER NOT NULL DEFAULT 0,
     `sellPoint` VARCHAR(191) NULL,
@@ -355,10 +380,11 @@ CREATE TABLE `ProductSku` (
     `skuCode` VARCHAR(191) NOT NULL,
     `barcode` VARCHAR(191) NULL,
     `imageUrl` VARCHAR(191) NULL,
-    `price` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `listPrice` DECIMAL(65, 30) NOT NULL DEFAULT 0,
+    `price` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `listPrice` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `stockQuantity` INTEGER NOT NULL DEFAULT 0,
     `enabled` BOOLEAN NOT NULL DEFAULT true,
+    `couponId` INTEGER NULL,
 
     UNIQUE INDEX `ProductSku_skuCode_key`(`skuCode`),
     INDEX `ProductSku_productId_idx`(`productId`),
@@ -394,23 +420,26 @@ CREATE TABLE `Order` (
     `fulfillmentStatus` ENUM('NONE', 'PENDING', 'SHIPPED', 'RECEIVED', 'IN_SERVICE', 'DONE') NOT NULL DEFAULT 'PENDING',
     `reviewStatus` ENUM('NONE', 'PENDING', 'REVIEWED') NOT NULL DEFAULT 'NONE',
     `deletedAt` DATETIME(3) NULL,
-    `totalAmount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `discountAmount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `payAmount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `refundedAmount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `shippingFee` DECIMAL(65, 30) NOT NULL DEFAULT 0,
+    `totalAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `discountAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `memberDiscountAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `payAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `refundedAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `shippingFee` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `payStatus` ENUM('UNPAID', 'PAID', 'REFUNDED', 'CANCELLED') NOT NULL DEFAULT 'UNPAID',
-    `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI') NULL,
+    `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL,
     `paidAt` DATETIME(3) NULL,
+    `paymentExpireAt` DATETIME(3) NULL,
     `wechatTransactionId` VARCHAR(191) NULL,
     `usedPoints` INTEGER NOT NULL DEFAULT 0,
-    `pointsAmount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
+    `pointsAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `couponInfo` JSON NULL,
     `shippingAddressId` INTEGER NULL,
     `shippingAddressSnapshot` JSON NULL,
     `memberId` INTEGER NOT NULL,
     `vehicleId` INTEGER NULL,
     `remark` VARCHAR(191) NULL,
+    `userRemark` VARCHAR(191) NULL,
     `shippedAt` DATETIME(3) NULL,
     `shipNoExpress` BOOLEAN NOT NULL DEFAULT false,
     `shipExpressCompanyCode` VARCHAR(191) NULL,
@@ -424,9 +453,13 @@ CREATE TABLE `Order` (
     INDEX `Order_status_idx`(`status`),
     INDEX `Order_memberId_idx`(`memberId`),
     INDEX `Order_payStatus_idx`(`payStatus`),
+    INDEX `Order_paymentExpireAt_idx`(`paymentExpireAt`),
     INDEX `Order_createdAt_idx`(`createdAt`),
     INDEX `Order_fulfillmentStatus_idx`(`fulfillmentStatus`),
     INDEX `Order_shippingAddressId_idx`(`shippingAddressId`),
+    INDEX `Order_userRemark_idx`(`userRemark`),
+    INDEX `Order_payStatus_deletedAt_paidAt_idx`(`payStatus`, `deletedAt`, `paidAt`),
+    INDEX `Order_memberId_createdAt_idx`(`memberId`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -441,8 +474,8 @@ CREATE TABLE `OrderItem` (
     `imageUrl` VARCHAR(191) NULL,
     `specsText` VARCHAR(191) NULL,
     `barcode` VARCHAR(191) NULL,
-    `price` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `discount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
+    `price` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `discount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `quantity` INTEGER NOT NULL DEFAULT 1,
 
     INDEX `OrderItem_orderId_idx`(`orderId`),
@@ -458,7 +491,7 @@ CREATE TABLE `AfterSalesRequest` (
     `memberId` INTEGER NOT NULL,
     `type` ENUM('REFUND', 'EXCHANGE', 'RE_SERVICE') NOT NULL,
     `status` ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED') NOT NULL DEFAULT 'PENDING',
-    `requestedAmount` DECIMAL(65, 30) NULL,
+    `requestedAmount` DECIMAL(12, 2) NULL,
     `reasonCode` VARCHAR(191) NULL,
     `reasonText` VARCHAR(191) NULL,
     `description` VARCHAR(191) NULL,
@@ -482,8 +515,8 @@ CREATE TABLE `RefundRecord` (
     `updatedAt` DATETIME(3) NOT NULL,
     `orderId` INTEGER NOT NULL,
     `memberId` INTEGER NOT NULL,
-    `amount` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI') NULL,
+    `amount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL,
     `status` ENUM('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     `reasonCode` VARCHAR(191) NULL,
     `reasonText` VARCHAR(191) NULL,
@@ -615,6 +648,95 @@ CREATE TABLE `MemberFavoriteProduct` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `FileAsset` (
+    `id` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `deletedAt` DATETIME(3) NULL,
+    `filename` VARCHAR(191) NOT NULL,
+    `extension` VARCHAR(191) NULL,
+    `mimeType` VARCHAR(191) NOT NULL,
+    `size` INTEGER NOT NULL,
+    `width` INTEGER NULL,
+    `height` INTEGER NULL,
+    `durationMs` INTEGER NULL,
+    `checksumSha256` VARCHAR(64) NOT NULL,
+    `storage` VARCHAR(191) NOT NULL,
+    `bucket` VARCHAR(191) NULL,
+    `objectKey` VARCHAR(512) NOT NULL,
+    `url` VARCHAR(1024) NOT NULL,
+    `isPublic` BOOLEAN NOT NULL DEFAULT true,
+    `tagsJson` JSON NULL,
+    `variants` JSON NULL,
+    `extra` JSON NULL,
+    `refCount` INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE INDEX `FileAsset_checksumSha256_key`(`checksumSha256`),
+    INDEX `FileAsset_mimeType_createdAt_idx`(`mimeType`, `createdAt`),
+    INDEX `FileAsset_deletedAt_idx`(`deletedAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `FileBinding` (
+    `id` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `fileId` VARCHAR(191) NOT NULL,
+    `tableName` VARCHAR(191) NOT NULL,
+    `rowId` VARCHAR(191) NOT NULL,
+    `fieldName` VARCHAR(191) NOT NULL,
+
+    INDEX `FileBinding_tableName_rowId_fieldName_idx`(`tableName`, `rowId`, `fieldName`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `MemberSignInLog` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `memberId` INTEGER NOT NULL,
+    `dateStr` VARCHAR(10) NOT NULL,
+    `growthGranted` INTEGER NOT NULL DEFAULT 0,
+
+    INDEX `MemberSignInLog_memberId_idx`(`memberId`),
+    UNIQUE INDEX `MemberSignInLog_memberId_dateStr_key`(`memberId`, `dateStr`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `MemberGrowthLog` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `memberId` INTEGER NOT NULL,
+    `change` INTEGER NOT NULL,
+    `desc` VARCHAR(191) NULL,
+    `source` ENUM('SIGN', 'PAY', 'ADJUST', 'ADMIN', 'REFUND') NOT NULL DEFAULT 'ADJUST',
+    `orderId` INTEGER NULL,
+    `operatorUserId` INTEGER NULL,
+
+    INDEX `MemberGrowthLog_memberId_createdAt_idx`(`memberId`, `createdAt`),
+    INDEX `MemberGrowthLog_memberId_idx`(`memberId`),
+    INDEX `MemberGrowthLog_orderId_idx`(`orderId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `MemberPointsLog` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `memberId` INTEGER NOT NULL,
+    `change` INTEGER NOT NULL,
+    `desc` VARCHAR(191) NULL,
+    `source` ENUM('PAY', 'ADMIN', 'REFUND', 'USE') NOT NULL DEFAULT 'ADMIN',
+    `orderId` INTEGER NULL,
+    `operatorUserId` INTEGER NULL,
+
+    INDEX `MemberPointsLog_memberId_createdAt_idx`(`memberId`, `createdAt`),
+    INDEX `MemberPointsLog_memberId_idx`(`memberId`),
+    INDEX `MemberPointsLog_orderId_idx`(`orderId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `_MemberToMemberTag` (
     `A` INTEGER NOT NULL,
     `B` INTEGER NOT NULL,
@@ -688,6 +810,9 @@ ALTER TABLE `Product` ADD CONSTRAINT `Product_couponId_fkey` FOREIGN KEY (`coupo
 
 -- AddForeignKey
 ALTER TABLE `ProductSku` ADD CONSTRAINT `ProductSku_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProductSku` ADD CONSTRAINT `ProductSku_couponId_fkey` FOREIGN KEY (`couponId`) REFERENCES `Coupon`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `InventoryLog` ADD CONSTRAINT `InventoryLog_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -781,6 +906,30 @@ ALTER TABLE `MemberFavoriteProduct` ADD CONSTRAINT `MemberFavoriteProduct_member
 
 -- AddForeignKey
 ALTER TABLE `MemberFavoriteProduct` ADD CONSTRAINT `MemberFavoriteProduct_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `FileBinding` ADD CONSTRAINT `FileBinding_fileId_fkey` FOREIGN KEY (`fileId`) REFERENCES `FileAsset`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberSignInLog` ADD CONSTRAINT `MemberSignInLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberGrowthLog` ADD CONSTRAINT `MemberGrowthLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberGrowthLog` ADD CONSTRAINT `MemberGrowthLog_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberGrowthLog` ADD CONSTRAINT `MemberGrowthLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberPointsLog` ADD CONSTRAINT `MemberPointsLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberPointsLog` ADD CONSTRAINT `MemberPointsLog_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MemberPointsLog` ADD CONSTRAINT `MemberPointsLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `_MemberToMemberTag` ADD CONSTRAINT `_MemberToMemberTag_A_fkey` FOREIGN KEY (`A`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

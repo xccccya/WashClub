@@ -52,7 +52,7 @@
 				<el-form-item label="每1分获取积分（整数）">
 					<el-input-number v-model="cfg.pointsPerFen" :min="0" :step="1" :precision="0" style="width:180px;" />
 				</el-form-item>
-				<el-form-item label="1积分抵扣金额（元）">
+				<el-form-item label="100积分抵扣金额（元）">
 					<el-input-number v-model="cfg.pointsFenPerPointYuan" :min="0" :step="0.01" :precision="2" style="width:180px;" />
 				</el-form-item>
 				<el-form-item label="单笔订单最多抵扣（元，0不限）">
@@ -184,7 +184,7 @@ async function openConfig(){
     cfg.value.pointsPerFen = Number(res?.pointsPerFen ?? 1);
     cfg.value.pointsFenPerPoint = fenPerPoint;
     cfg.value.pointsMaxDeductFenPerOrder = maxFen;
-    cfg.value.pointsFenPerPointYuan = +(fenPerPoint / 100).toFixed(2);
+    cfg.value.pointsFenPerPointYuan = +(fenPerPoint / 100 * 100).toFixed(2);
     cfg.value.pointsMaxDeductYuan = +(maxFen / 100).toFixed(2);
     cfgVisible.value = true;
   }catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }
@@ -193,7 +193,7 @@ async function saveConfig(){
   try{
     const payload = {
       pointsPerFen: cfg.value.pointsPerFen,
-      pointsFenPerPoint: Math.round((cfg.value.pointsFenPerPointYuan || 0) * 100),
+      pointsFenPerPoint: Math.round((cfg.value.pointsFenPerPointYuan || 0) / 100 * 100),
       pointsMaxDeductFenPerOrder: Math.round((cfg.value.pointsMaxDeductYuan || 0) * 100),
     };
     await http('/member-points/config', { method:'POST', body: payload });

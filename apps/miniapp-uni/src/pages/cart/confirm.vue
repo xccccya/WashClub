@@ -219,10 +219,10 @@ const maxUsablePoints = computed(()=>{
 const pointsNote = computed(()=>{
   const fen = Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
   if (!fen) return '暂未开启积分抵扣';
-  const per = (fen/100).toFixed(2);
+  const per = (fen/100*100).toFixed(2);
   const max = Math.max(0, Number(maxFenPerOrder.value||0));
   const maxYuan = max>0 ? `¥${(max/100).toFixed(2)}` : '不限';
-  return `1积分可抵扣¥${per}，单笔订单最大抵扣金额${maxYuan}`;
+  return `100积分可抵扣¥${per}，单笔订单最大抵扣金额${maxYuan}`;
 });
 // 含积分提示仅在允许叠加时展示
 async function loadPointsMeta(){
