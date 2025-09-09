@@ -51,8 +51,15 @@ export class VehicleService {
         if (!imageUrl) return null;
         try {
             const resp = await this.fetchWithTimeout(imageUrl, 8000);
-            if (!resp.ok) return null;
+            if (!resp.ok) {
+                console.warn(`下载车辆图片失败 - HTTP ${resp.status}: ${imageUrl}`);
+                return null;
+            }
             const ab = await resp.arrayBuffer();
+            if (!ab || ab.byteLength === 0) {
+                console.warn(`下载车辆图片为空: ${imageUrl}`);
+                return null;
+            }
             const buf = Buffer.from(ab);
             const urlObj = new URL(imageUrl);
             const filenameRaw = urlObj.pathname.split('/').pop() || 'image.jpg';
@@ -61,7 +68,10 @@ export class VehicleService {
             const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
             return created?.url || null;
         } catch (error) {
-            console.error('下载保存车辆图片失败:', error);
+            console.error('下载保存车辆图片失败:', {
+                url: imageUrl,
+                error: error instanceof Error ? error.message : String(error)
+            });
             return null;
         }
     }
@@ -78,9 +88,18 @@ export class VehicleService {
 
     private async resolveBrandImageByBrandId(brandId?: number | null): Promise<string | null> {
         if (!brandId) return null;
+        if (!this.apiKey) {
+            console.warn('车辆API密钥未配置，跳过品牌图片获取');
+            return null;
+        }
         try {
             const url = `https://api.tanshuapi.com/api/car/v1/carBrand?key=${this.apiKey}`;
-            const json: any = await this.fetchWithTimeout(url, 8000).then(r => r.json()).catch(() => ({}));
+            const resp = await this.fetchWithTimeout(url, 8000);
+            if (!resp.ok) {
+                console.warn(`获取车辆品牌数据失败 - HTTP ${resp.status}: ${url}`);
+                return null;
+            }
+            const json: any = await resp.json().catch(() => ({}));
             const data: any[] = Array.isArray(json?.data) ? json.data : [];
             for (const mb of data) {
                 const list: any[] = Array.isArray(mb?.brand_list) ? mb.brand_list : [];
@@ -88,20 +107,38 @@ export class VehicleService {
                 if (found) return found?.img || mb?.img || null;
             }
             return null;
-        } catch {
+        } catch (error) {
+            console.error('获取车辆品牌图片失败:', {
+                brandId,
+                error: error instanceof Error ? error.message : String(error)
+            });
             return null;
         }
     }
 
     private async resolveSeriesImageByBrandAndSeries(brandId?: number | null, seriesId?: number | null): Promise<string | null> {
         if (!brandId || !seriesId) return null;
+        if (!this.apiKey) {
+            console.warn('车辆API密钥未配置，跳过车系图片获取');
+            return null;
+        }
         try {
             const url = `https://api.tanshuapi.com/api/car/v1/carSeries?brand_id=${Number(brandId)}&key=${this.apiKey}`;
-            const json: any = await this.fetchWithTimeout(url, 8000).then(r => r.json()).catch(() => ({}));
+            const resp = await this.fetchWithTimeout(url, 8000);
+            if (!resp.ok) {
+                console.warn(`获取车辆车系数据失败 - HTTP ${resp.status}: ${url}`);
+                return null;
+            }
+            const json: any = await resp.json().catch(() => ({}));
             const data: any[] = Array.isArray(json?.data) ? json.data : [];
             const item = data.find((s:any) => Number(s?.series_id) === Number(seriesId));
             return item?.img || null;
-        } catch {
+        } catch (error) {
+            console.error('获取车辆车系图片失败:', {
+                brandId,
+                seriesId,
+                error: error instanceof Error ? error.message : String(error)
+            });
             return null;
         }
     }

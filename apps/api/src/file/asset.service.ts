@@ -44,60 +44,117 @@ export class AssetService {
 		if (!buffer?.length || !originalName) throw new BadRequestException('未接收到文件');
 		const checksum = await this.computeSha256(buffer);
 		const prisma = this.prisma as unknown as PrismaWithAssets;
-		const existed = await prisma.fileAsset.findUnique({ where: { checksumSha256: checksum } });
-		if (existed && !existed.deletedAt) {
-			// 如果文件已存在但需要添加新标签，则合并标签
-			if (Array.isArray(autoTags) && autoTags.length > 0) {
-				const existingTags = Array.isArray(existed.tagsJson) ? existed.tagsJson : [];
-				const newTags = [...new Set([...existingTags, ...autoTags])]; // 去重合并标签
-				if (newTags.length > existingTags.length) {
-					await prisma.fileAsset.update({
-						where: { id: existed.id },
-						data: { tagsJson: newTags }
-					});
+		
+		// 使用事务处理并发问题
+		return await prisma.$transaction(async (tx) => {
+			const existed = await tx.fileAsset.findUnique({ where: { checksumSha256: checksum } });
+			if (existed && !existed.deletedAt) {
+				// 如果文件已存在但需要添加新标签，则合并标签
+				if (Array.isArray(autoTags) && autoTags.length > 0) {
+					const existingTags = Array.isArray(existed.tagsJson) ? existed.tagsJson : [];
+					const newTags = [...new Set([...existingTags, ...autoTags])]; // 去重合并标签
+					if (newTags.length > existingTags.length) {
+						const updated = await tx.fileAsset.update({
+							where: { id: existed.id },
+							data: { tagsJson: newTags }
+						});
+						return {
+							id: updated.id,
+							url: updated.url,
+							checksumSha256: updated.checksumSha256,
+							filename: updated.filename,
+							mimeType: updated.mimeType,
+							size: updated.size,
+							objectKey: updated.objectKey,
+							storage: updated.storage,
+						};
+					}
 				}
+				return {
+					id: existed.id,
+					url: existed.url,
+					checksumSha256: existed.checksumSha256,
+					filename: existed.filename,
+					mimeType: existed.mimeType,
+					size: existed.size,
+					objectKey: existed.objectKey,
+					storage: existed.storage,
+				};
 			}
-			return {
-				id: existed.id,
-				url: existed.url,
-				checksumSha256: existed.checksumSha256,
-				filename: existed.filename,
-				mimeType: existed.mimeType,
-				size: existed.size,
-				objectKey: existed.objectKey,
-				storage: existed.storage,
-			};
-		}
 
-		const saved = this.fileService.saveFile(buffer, originalName, dir || 'public');
-		const tags = Array.isArray(autoTags) && autoTags.length > 0 ? autoTags : null;
-		const created = await prisma.fileAsset.create({
-			data: {
-				filename: originalName,
-				extension: extname(originalName || '').toLowerCase().replace(/^\./, ''),
-				mimeType: mimeType || 'application/octet-stream',
-				size: saved.size,
-				checksumSha256: checksum,
-				storage: 'local',
-				bucket: null,
-				objectKey: saved.path,
-				url: saved.url,
-				isPublic: true,
-				tagsJson: tags,
-				variants: null,
-				extra: null,
-			},
+			// 先保存文件再创建数据库记录
+			const saved = this.fileService.saveFile(buffer, originalName, dir || 'public');
+			const tags = Array.isArray(autoTags) && autoTags.length > 0 ? autoTags : null;
+			
+			try {
+				const created = await tx.fileAsset.create({
+					data: {
+						filename: originalName,
+						extension: extname(originalName || '').toLowerCase().replace(/^\./, ''),
+						mimeType: mimeType || 'application/octet-stream',
+						size: saved.size,
+						checksumSha256: checksum,
+						storage: 'local',
+						bucket: null,
+						objectKey: saved.path,
+						url: saved.url,
+						isPublic: true,
+						tagsJson: tags,
+						variants: null,
+						extra: null,
+					},
+				});
+				return {
+					id: created.id,
+					url: created.url,
+					checksumSha256: created.checksumSha256,
+					filename: created.filename,
+					mimeType: created.mimeType,
+					size: created.size,
+					objectKey: created.objectKey,
+					storage: created.storage,
+				};
+			} catch (error: any) {
+				// 如果是唯一约束冲突，再次查询已存在的文件
+				if (error?.code === 'P2002' && error?.meta?.target === 'FileAsset_checksumSha256_key') {
+					const existedAgain = await tx.fileAsset.findUnique({ where: { checksumSha256: checksum } });
+					if (existedAgain && !existedAgain.deletedAt) {
+						// 合并标签
+						if (Array.isArray(autoTags) && autoTags.length > 0) {
+							const existingTags = Array.isArray(existedAgain.tagsJson) ? existedAgain.tagsJson : [];
+							const newTags = [...new Set([...existingTags, ...autoTags])];
+							if (newTags.length > existingTags.length) {
+								const updated = await tx.fileAsset.update({
+									where: { id: existedAgain.id },
+									data: { tagsJson: newTags }
+								});
+								return {
+									id: updated.id,
+									url: updated.url,
+									checksumSha256: updated.checksumSha256,
+									filename: updated.filename,
+									mimeType: updated.mimeType,
+									size: updated.size,
+									objectKey: updated.objectKey,
+									storage: updated.storage,
+								};
+							}
+						}
+						return {
+							id: existedAgain.id,
+							url: existedAgain.url,
+							checksumSha256: existedAgain.checksumSha256,
+							filename: existedAgain.filename,
+							mimeType: existedAgain.mimeType,
+							size: existedAgain.size,
+							objectKey: existedAgain.objectKey,
+							storage: existedAgain.storage,
+						};
+					}
+				}
+				throw error;
+			}
 		});
-		return {
-			id: created.id,
-			url: created.url,
-			checksumSha256: created.checksumSha256,
-			filename: created.filename,
-			mimeType: created.mimeType,
-			size: created.size,
-			objectKey: created.objectKey,
-			storage: created.storage,
-		};
 	}
 
 	async list(query: ListQuery) {
