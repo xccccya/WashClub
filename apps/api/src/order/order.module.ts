@@ -3,6 +3,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module.js';
 import { PrismaService } from '../prisma.service.js';
 import { OrderService } from './order.service.js';
+import { OrderPaymentService } from './order-payment.service.js';
+import { OrderRefundService } from './order-refund.service.js';
+import { OrderAfterSalesService } from './order-aftersales.service.js';
+import { OrderFulfillmentService } from './order-fulfillment.service.js';
+import { OrderReviewService } from './order-review.service.js';
+import { OrderRewardsService } from './order-rewards.service.js';
 import { TanshuService } from './tanshu.service.js';
 import { OrderController } from './order.controller.js';
 import { WxpayService } from './wxpay.service.js';
@@ -20,7 +26,23 @@ import { FileService } from '../file/file.service.js';
         })
     ],
     controllers: [OrderController],
-    providers: [PrismaService, CouponService, OrderService, TanshuService, WxpayService, OrderTimeoutService, WechatShippingService, AssetService, FileService],
+    providers: [
+        PrismaService, 
+        CouponService, 
+        OrderService, 
+        OrderPaymentService,
+        OrderRefundService,
+        OrderAfterSalesService,
+        OrderFulfillmentService,
+        OrderReviewService,
+        OrderRewardsService,
+        TanshuService, 
+        WxpayService, 
+        OrderTimeoutService, 
+        WechatShippingService, 
+        AssetService, 
+        FileService
+    ],
 })
 export class OrderModule {}
 

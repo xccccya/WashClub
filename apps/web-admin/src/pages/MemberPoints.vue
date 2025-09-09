@@ -21,7 +21,9 @@
 		</el-form>
 		<el-table :data="logs" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="memberId" label="会员ID" width="100" />
+			<el-table-column label="会员" width="200">
+				<template #default="{ row }">{{ formatMember(row.memberId) }}</template>
+			</el-table-column>
 			<el-table-column prop="createdAt" label="时间" width="180">
 				<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
 			</el-table-column>
@@ -38,6 +40,11 @@
 				</template>
 			</el-table-column>
 			<el-table-column prop="desc" label="备注" />
+			<el-table-column label="操作" width="120" fixed="right">
+				<template #default="{ row }">
+					<el-button link type="primary" size="small" @click="openDetail(row.memberId)">查看详情</el-button>
+				</template>
+			</el-table-column>
 		</el-table>
 
 		<el-dialog v-model="cfgVisible" title="积分规则配置" width="520px">
@@ -77,6 +84,65 @@
 				<el-button type="primary" @click="submitAdjust">提交</el-button>
 			</template>
 		</el-dialog>
+
+		<el-dialog v-model="detailVisible" title="积分详情" width="760px">
+			<div v-if="detailMember">
+				<el-card shadow="never" style="margin-bottom:12px;">
+					<div style="display:flex; align-items:center; justify-content: space-between; gap:12px;">
+						<div style="display:flex; flex-direction:column; gap:4px;">
+							<div><b>UID：</b>{{ detailMember?.uid || '-' }}</div>
+							<div><b>昵称：</b>{{ detailMember?.name || '-' }}</div>
+							<div><b>手机号：</b>{{ detailMember?.phone || '-' }}</div>
+						</div>
+						<div style="display:flex; gap:16px;">
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#111827;">{{ detailStats.currentPoints }}</div>
+								<div style="font-size:12px; color:#6b7280;">当前积分</div>
+							</div>
+							<div style="width:1px; background:#eee;" />
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#ef4444;">{{ detailStats.monthUsed }}</div>
+								<div style="font-size:12px; color:#6b7280;">本月使用</div>
+							</div>
+							<div style="width:1px; background:#eee;" />
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#16a34a;">{{ detailStats.monthGained }}</div>
+								<div style="font-size:12px; color:#6b7280;">本月获得</div>
+							</div>
+							<div style="width:1px; background:#eee;" />
+							<div style="text-align:center;">
+								<div style="font-size:22px; font-weight:800; color:#2563eb;">{{ detailStats.totalDeductYuan.toFixed(2) }}</div>
+								<div style="font-size:12px; color:#6b7280;">累计抵扣(元)</div>
+							</div>
+						</div>
+					</div>
+				</el-card>
+
+				<div>
+					<el-table :data="detailLogs" stripe style="width:100%">
+						<el-table-column prop="createdAt" label="时间" width="180">
+							<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+						</el-table-column>
+						<el-table-column prop="change" label="变动" width="120">
+							<template #default="{ row }"><span :style="{ color: row.change>0?'#16a34a':'#ef4444' }">{{ row.change>0? '+'+row.change : row.change }}</span></template>
+						</el-table-column>
+						<el-table-column prop="source" label="来源" width="120" />
+						<el-table-column label="关联订单" width="180">
+							<template #default="{ row }">
+								<template v-if="row.orderNo">
+									<el-link type="primary" :underline="false" @click="goOrder(row)">{{ row.orderNo }}</el-link>
+								</template>
+								<template v-else>-</template>
+							</template>
+						</el-table-column>
+						<el-table-column prop="desc" label="备注" />
+					</el-table>
+				</div>
+			</div>
+			<template #footer>
+				<el-button @click="detailVisible=false">关闭</el-button>
+			</template>
+		</el-dialog>
 	</BasePage>
 </template>
 
@@ -93,11 +159,16 @@ const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.
 const q = ref<{ memberId?: string; source?: string }>({});
 const loading = ref(false);
 const logs = ref<any[]>([]);
+const memberMap = ref<Map<number, { id:number; name?:string; phone?:string }>>(new Map());
 
 async function fetchLogs(){
   loading.value = true;
   try{
-    logs.value = await http<any[]>('/member-points/logs', { method:'GET', query: { memberId: q.value.memberId, source: q.value.source } });
+    const rows = await http<any[]>('/member-points/logs', { method:'GET', query: { memberId: q.value.memberId, source: q.value.source } });
+    logs.value = rows;
+    const ids = Array.from(new Set((rows||[]).map((r:any)=> Number(r.memberId||0)).filter((n:number)=>n>0)));
+    const pending = ids.map(async (id:number)=>{ try{ const m:any = await http(`/member/${id}`, { method:'GET' }); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{} });
+    await Promise.all(pending);
   } finally { loading.value = false; }
 }
 
@@ -160,6 +231,66 @@ function goOrder(row:any){
     if (id) { router.push('/orders/' + id); return; }
     if (no) { router.push('/orders/no/' + encodeURIComponent(no)); return; }
   }catch(e){}
+}
+
+function formatMember(memberId?: number){
+  const id = Number(memberId||0); if (!id) return '-';
+  const m = memberMap.value.get(id); if (!m) return `#${id}`;
+  const name = m?.name || '-'; const phone = m?.phone || '-';
+  return `${name}（${phone}）`;
+}
+
+const detailVisible = ref(false);
+const detailMember = ref<any>(null);
+const detailLogs = ref<any[]>([]);
+const detailStats = ref<{ currentPoints:number; monthUsed:number; monthGained:number; totalDeductFen:number; totalDeductYuan:number }>({ currentPoints:0, monthUsed:0, monthGained:0, totalDeductFen:0, totalDeductYuan:0 });
+async function openDetail(memberId: number){
+  try{
+    const [m, rows, cfg]: any = await Promise.all([
+      http(`/member/${memberId}`, { method:'GET' }),
+      http<any[]>('/member-points/logs', { method:'GET', query:{ memberId } }),
+      http('/member-points/config', { method:'GET' }),
+    ]);
+    const logsArr:any[] = Array.isArray(rows) ? rows : [];
+    detailMember.value = m || null;
+    detailLogs.value = logsArr;
+
+    const currentPoints = Math.max(0, Number(m?.points || 0));
+    const fenPerPoint = Math.max(0, Number(cfg?.pointsFenPerPoint || 0));
+
+    // 本月范围
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth()+1, 1, 0, 0, 0, 0);
+    let monthUsed = 0, monthGained = 0, refundReturnedPos = 0;
+    for (const r of logsArr){
+      const createdAt = new Date(r?.createdAt || 0);
+      if (!(createdAt >= start && createdAt < end)) continue;
+      const ch = Number(r?.change || 0);
+      const src = String(r?.source || '');
+      if (src === 'USE' && ch < 0) monthUsed += Math.abs(ch);
+      if (src === 'REFUND' && ch > 0) refundReturnedPos += ch; // 退款返还
+      if ((src === 'PAY' || src === 'ADMIN') && ch > 0) monthGained += ch;
+      if (src === 'REFUND' && ch < 0) monthGained += ch; // 扣除本月获得
+    }
+    monthUsed = Math.max(0, monthUsed - refundReturnedPos);
+    if (monthGained < 0) monthGained = 0;
+
+    // 累计抵扣金额（元）：净使用积分 * 单位面值
+    let totalUse = 0, totalRefundReturn = 0;
+    for (const r of logsArr){
+      const ch = Number(r?.change || 0);
+      const src = String(r?.source || '');
+      if (src === 'USE' && ch < 0) totalUse += Math.abs(ch);
+      if (src === 'REFUND' && ch > 0) totalRefundReturn += ch;
+    }
+    const netUsedPoints = Math.max(0, totalUse - totalRefundReturn);
+    const totalDeductFen = Math.max(0, Math.floor(netUsedPoints * fenPerPoint));
+    const totalDeductYuan = +(totalDeductFen / 100).toFixed(2);
+
+    detailStats.value = { currentPoints, monthUsed, monthGained, totalDeductFen, totalDeductYuan };
+    detailVisible.value = true;
+  }catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }
 }
 </script>
 

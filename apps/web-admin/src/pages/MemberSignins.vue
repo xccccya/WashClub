@@ -14,16 +14,18 @@
 		</el-form>
 		<el-table :data="logs" stripe style="width:100%">
 			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="memberId" label="会员ID" width="100" />
+			<el-table-column label="会员" width="200">
+				<template #default="{ row }">{{ formatMember(row.memberId) }}</template>
+			</el-table-column>
 			<el-table-column prop="dateStr" label="签到时间" width="180">
 				<template #default="{ row }">{{ formatLocal(row.dateStr) }}</template>
 			</el-table-column>
 			<el-table-column prop="growthGranted" label="成长值" width="100" />
 			<el-table-column label="连续天数" width="120">
-				<template #default="{ row }">{{ streakMap.get(row.memberId)?.streakDays ?? '-' }}</template>
+				<template #default="{ row }">{{ getStreak(row.memberId)?.streakDays ?? '-' }}</template>
 			</el-table-column>
 			<el-table-column label="总天数" width="120">
-				<template #default="{ row }">{{ streakMap.get(row.memberId)?.totalDays ?? '-' }}</template>
+				<template #default="{ row }">{{ getStreak(row.memberId)?.totalDays ?? '-' }}</template>
 			</el-table-column>
 			<el-table-column label="操作" width="140" fixed="right">
 				<template #default="{ row }">
@@ -109,7 +111,9 @@ const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.
 const q = ref<{ memberId?: string; date?: string }>({});
 const loading = ref(false);
 const logs = ref<any[]>([]);
-const streakMap = ref<Map<number, { streakDays:number; totalDays:number }>>(new Map());
+const memberMap = ref<Map<number, { id:number; name?:string; phone?:string }>>(new Map());
+type StreakInfo = { streakDays:number; totalDays:number };
+const streakMap = ref<Map<number, StreakInfo>>(new Map());
 
 async function fetchLogs(){
 	loading.value = true;
@@ -119,11 +123,14 @@ async function fetchLogs(){
 		// 并发获取每个会员的统计数据，去重 memberId
 		const ids = Array.from(new Set((rows||[]).map((r:any)=> Number(r.memberId||0)).filter((n:number)=>n>0)));
 		const pending = ids.map(async (id:number)=>{
-			try{ const s = await http('/member-signin/member-status', { method:'GET', query:{ memberId: id } });
+			try{ const s = await http<StreakInfo>('/member-signin/member-status', { method:'GET', query:{ memberId: id } });
 				streakMap.value.set(id, { streakDays: Number(s?.streakDays||0), totalDays: Number(s?.totalDays||0) });
 			}catch{ streakMap.value.set(id, { streakDays: 0, totalDays: 0 }); }
 		});
-		await Promise.all(pending);
+		const pendingMembers = ids.map(async (id:number)=>{
+			try{ const m:any = await http(`/member/${id}`, { method:'GET' }); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{}
+		});
+		await Promise.all([...pending, ...pendingMembers]);
 	} finally { loading.value = false; }
 }
 
@@ -171,6 +178,20 @@ async function openDetail(memberId: number){
 		detail.value = s; detailLogs.value = rows; detailMember.value = m;
 		detailVisible.value = true;
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }
+}
+
+function getStreak(memberId?: number): StreakInfo | undefined {
+  try{
+    const id = Number(memberId||0); if (!id) return undefined;
+    return streakMap.value.get(id);
+  }catch{ return undefined; }
+}
+
+function formatMember(memberId?: number){
+  const id = Number(memberId||0); if (!id) return '-';
+  const m = memberMap.value.get(id); if (!m) return `#${id}`;
+  const name = m?.name || '-'; const phone = m?.phone || '-';
+  return `${name}（${phone}）`;
 }
 </script>
 
