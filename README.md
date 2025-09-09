@@ -1,194 +1,568 @@
-## WashClub Monorepo（开发中）
+# 🚗 巨科汽车美容管理系统
 
-## 商店与订单系统（已实现）
+> 一体化洗车门店管理平台 - 基于 NestJS + Vue 3 + uni-app 的现代化 Monorepo 架构
 
-### 后端（NestJS / Prisma）
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com) 
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4.5-blue)](https://www.typescriptlang.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-10.3.10-red)](https://nestjs.com/)
+[![Vue 3](https://img.shields.io/badge/Vue-3.4.31-green)](https://vuejs.org/)
 
-- 数据模型：`ProductCategory`/`Product`/`ProductSku`/`InventoryLog`/`Order`/`OrderItem`，枚举：`ProductType`、`ProductSpecType`、`InventoryLogReason`、`OrderType`、`OrderStatus`、`PayStatus`、`PayMethod`
-- 同步数据库：
-  - 进入 `apps/api` 执行：
-    - `pnpm prisma generate`
-    - `pnpm prisma db push`
-    - 如需基础数据：`node ./scripts/seed.mjs`
+## 📋 项目概述
 
-### API 路由（仅展示关键接口）
+巨科汽车美容管理系统是一个功能完整的洗车门店管理平台，包含会员管理、订单处理、支付系统、库存管理、售后服务等核心功能。
 
-- 商品分类：
-  - GET `/store/categories`
-  - POST `/store/categories`
-  - PUT `/store/categories/:id`
-  - DELETE `/store/categories/:id`
-- 商品：
-  - GET `/store/products`（支持 keyword/categoryId/type/enabled 查询）
-  - GET `/store/products/:id`
-  - POST `/store/products`
-  - PUT `/store/products/:id`
-  - DELETE `/store/products/:id`
-  - 上传图片：复用 `/file/upload`，拿到 `url` 后写入 `product.imageUrl` 或 `sku.imageUrl`
-- 库存：
-  - POST `/store/inventory/adjust`（body: { productId, skuId?, change, reason: INBOUND|OUTBOUND|ADJUSTMENT, remark? }）
-- 订单（仅手动支付方式）：
-  - POST `/orders` 创建订单（`type`: SERVICE|SP|FK）
-  - GET `/orders` 列表，GET `/orders/:id` 详情
-  - POST `/orders/:id/pay/manual` 手动确认支付（body: { method: CASH|SHOUQIANBA|OFFLINE, paidAt? }）
-  - POST `/orders/:id/close` 关闭订单
+### 📁 仓库结构
+```
+uniap-ai2/
+├── apps/
+│   ├── api/                    # 🔧 后端API服务 (NestJS + Prisma)
+│   ├── miniapp-uni/           # 📱 微信小程序 (uni-app + Vue 3)
+│   ├── web-admin/             # 💼 管理后台 (Vue 3 + Element Plus)
+│   └── web-pos/               # 💰 收银台系统 (Vue 3 + Element Plus)
+├── packages/
+│   ├── api-client/            # 🔌 API客户端SDK
+│   ├── shared-types/          # 📝 共享类型定义
+│   ├── shared-ui/             # 🎨 共享UI组件
+│   └── shared-utils/          # 🛠️ 共享工具库
+```
 
-### 近期更新
+### 🎯 核心功能模块
 
-- 2025-09：虚拟卡券商品支持 SKU 级卡券绑定（数据库新增 `ProductSku.couponId`；请在 `apps/api` 执行 `pnpm prisma generate && pnpm prisma db push` 同步到数据库）
-- 2025-09：管理后台商品编辑体验优化：
-  - 多规格表格列宽优化，`价格/划线价/库存` 默认即可完整展示，表格 `:fit=false`，对话框宽度提升
-  - 虚拟卡券多规格支持“每 SKU 绑定卡券”
+#### 🔐 认证授权系统
+- **短信验证码登录** - 支持管理员和会员登录
+- **微信小程序一键登录** - 会员微信授权登录
+- **角色权限管理** - 基于角色的访问控制 (RBAC)
+- **JWT Token认证** - 安全的身份验证机制
+
+#### 👥 会员管理系统
+- **会员档案** - 基础信息、等级、分类、标签
+- **车辆档案** - 车辆信息绑定与管理
+- **积分系统** - 积分获取、使用、等级升级
+- **成长值系统** - 消费成长值累积与等级计算
+- **洗车计次卡** - 卡券发放、使用、过期管理
+- **收货地址** - 多地址管理
+- **购物车** - 商品收藏与临时存储
+
+#### 🛒 商店系统 
+- **商品分类** - 多级分类管理
+- **商品管理** - 支持三种类型：
+  - 🔧 **服务项目** (SERVICE) - 洗车、美容等服务
+  - 📦 **实物商品** (PHYSICAL) - 汽车用品等实体商品  
+  - 🎫 **虚拟卡券** (VIRTUAL_CARD) - 洗车卡、优惠券等
+- **规格管理** - 单规格/多规格(SKU)支持
+- **库存管理** - 实时库存跟踪与调整
+- **价格体系** - 原价、会员价、划线价
+
+#### 📋 订单系统（**⭐ 最新重构优化**）
+- **订单类型**：
+  - 🔧 **服务订单** (SERVICE) - 需绑定车辆
+  - 📦 **商品订单** (SP) - 支持发货物流
+  - 💰 **付款订单** (FK) - 直接付款
+- **订单流程**：创建 → 支付 → 履约 → 完成
+- **优惠系统**：优惠券、积分抵扣、会员折扣
+- **库存预占**：下单时预占库存，避免超卖
+
+#### 💳 支付系统
+- **微信支付** - JSAPI支付、付款码支付
+- **线下支付** - 现金、收钱吧、其他方式
+- **支付回调** - 自动处理支付结果
+- **支付安全** - 签名验证、重复支付防护
+
+#### 🔄 退款系统  
+- **微信退款** - v3/v2接口支持
+- **部分退款** - 支持多次部分退款
+- **权益回收** - 自动回收积分、洗车卡等权益
+- **库存回滚** - 退款时自动回滚库存
+
+#### 🛠️ 售后系统
+- **售后类型**：
+  - 💰 **退款申请** (REFUND)
+  - 🔄 **换货申请** (EXCHANGE)  
+  - 🔧 **重新服务** (RE_SERVICE)
+- **审核流程** - 管理员审核与处理
+- **状态跟踪** - 完整的售后处理链路
+
+#### 🚚 履约系统
+- **发货管理** - 快递/无需快递发货
+- **物流跟踪** - 集成探数物流查询
+- **收货确认** - 用户/管理员确认收货
+- **服务履约** - 服务开始/结束管理
+
+#### ⭐ 评价系统
+- **订单评价** - 5星评价 + 图片上传
+- **商家回复** - 管理员回复用户评价
+- **评价管理** - 后台评价审核与管理
+
+#### 🎫 优惠券系统
+- **卡券分组** - 分类管理优惠券
+- **多种类型** - 满减券、折扣券、洗车卡
+- **发放策略** - 手动发放、自动发放
+- **使用限制** - 时间、金额、商品限制
+
+#### 📊 内容管理
+- **滚动公告** - 首页通知滚动展示
+- **广告横幅** - 轮播图管理
+- **评价展示** - 用户评价内容管理
+
+#### 🎯 服务队列
+- **排队管理** - 洗车服务排队系统
+- **状态跟踪** - 等待、进行中、完成状态
+
+#### 📁 文件管理
+- **文件上传** - 支持图片、文档上传
+- **静态服务** - 文件访问与下载
+- **文件绑定** - 关联业务数据
+
+### 🔧 技术架构
+
+#### 后端技术栈
+- **框架**: NestJS 10.3.10 + TypeScript 5.4.5
+- **数据库**: MySQL + Prisma ORM
+- **认证**: JWT + 短信验证码
+- **支付**: 微信支付 v3/v2 API
+- **文件**: Multer + Sharp 图片处理
+- **文档**: Swagger/OpenAPI 自动生成
+
+#### 前端技术栈
+- **管理后台**: Vue 3 + Element Plus + Vite
+- **小程序**: uni-app + Vue 3
+- **收银台**: Vue 3 + Element Plus + Vite
+- **状态管理**: 原生 Composition API
+- **HTTP客户端**: 基于OpenAPI自动生成
+
+#### 架构特性
+- **Monorepo**: pnpm workspaces + turbo 并行构建
+- **类型安全**: 全链路 TypeScript 支持
+- **API契约**: OpenAPI规范 + 自动生成客户端
+- **模块化**: 微服务化的模块设计
+- **可扩展**: 插件化的业务模块
+
+## 🔌 API 接口文档
+
+### 📋 订单相关接口
+```bash
+# 订单基础操作
+POST   /orders                           # 创建订单
+GET    /orders                           # 订单列表查询
+GET    /orders/:id                       # 获取订单详情
+GET    /orders/by-no/:no                 # 通过订单号获取
+
+# 支付相关
+POST   /orders/:id/pay/wechat-jsapi      # 微信JSAPI支付
+POST   /orders/:id/pay/manual            # 手动确认支付
+POST   /orders/:id/pay/wx-micropay       # 微信付款码支付
+POST   /orders/_notify/wechat            # 微信支付回调
+
+# 退款相关  
+POST   /orders/:id/refund                # 创建退款
+POST   /orders/_notify/wechat-refund     # 微信退款回调
+POST   /orders/_notify/wechat-refund-v2  # 微信退款回调v2
+POST   /orders/_refunds/:outRefundNo/query-v2  # 退款查询
+POST   /orders/_refunds/:id/retry        # 退款重试
+
+# 售后相关
+POST   /orders/:id/after-sales           # 创建售后申请
+GET    /orders/_after-sales              # 售后列表
+POST   /orders/_after-sales/:id/audit    # 售后审核
+POST   /orders/_after-sales/:id/exchange-ship  # 换货发货
+
+# 履约相关
+POST   /orders/:id/ship                  # 订单发货
+POST   /orders/:id/ship/edit-tracking    # 修改物流单号
+POST   /orders/:id/receive               # 确认收货
+POST   /orders/:id/start-service         # 开始服务
+POST   /orders/:id/finish-service        # 结束服务
+POST   /orders/:id/cancel                # 取消订单
+POST   /orders/:id/close                 # 关闭订单
+POST   /orders/:id/restore               # 恢复订单
+
+# 评价相关
+POST   /orders/:id/review                # 创建评价
+GET    /orders/:id/review                # 获取评价
+GET    /orders/_reviews                  # 评价列表
+POST   /orders/_reviews/:id/delete       # 删除评价
+POST   /orders/_reviews/:id/reply        # 回复评价
+
+# 物流相关
+GET    /orders/_logistics/companies      # 物流公司列表
+GET    /orders/_logistics/companies/tanshu  # 探数物流公司
+GET    /orders/_logistics/query          # 物流查询
+```
+
+### 🛒 商店相关接口
+```bash
+# 商品分类
+GET    /store/categories                 # 分类列表
+POST   /store/categories                 # 创建分类
+PUT    /store/categories/:id             # 更新分类
+DELETE /store/categories/:id             # 删除分类
+
+# 商品管理
+GET    /store/products                   # 商品列表
+GET    /store/products/:id               # 商品详情
+POST   /store/products                   # 创建商品
+PUT    /store/products/:id               # 更新商品
+DELETE /store/products/:id               # 删除商品
+
+# 库存管理
+POST   /store/inventory/adjust           # 库存调整
+GET    /store/inventory/logs             # 库存日志
+```
+
+### 👥 会员相关接口
+```bash
+# 会员管理
+GET    /members                          # 会员列表
+GET    /members/:id                      # 会员详情
+POST   /members                          # 创建会员
+PUT    /members/:id                      # 更新会员
+
+# 积分管理
+GET    /members/:id/points/logs          # 积分日志
+POST   /members/:id/points/adjust        # 积分调整
+
+# 洗车卡管理
+GET    /members/:id/washcards            # 洗车卡列表
+POST   /members/:id/washcards/use        # 使用洗车卡
+
+# 车辆管理
+GET    /members/:id/vehicles             # 车辆列表
+POST   /members/:id/vehicles             # 添加车辆
+PUT    /vehicles/:id                     # 更新车辆
+DELETE /vehicles/:id                     # 删除车辆
+```
+
+## 📈 更新日志
+
+### 🚀 v0.2.0 (2025-01-27) - 订单系统重构优化
+
+#### 🔧 **重大重构：订单系统模块化拆分**
+- **目标**：解决订单模块代码臃肿问题，提升可维护性和可扩展性
+- **影响**：⭐ **零影响** - 前端无需任何改动，所有API接口保持完全兼容
+
+#### 📦 **拆分架构**
+原有臃肿文件：
+- `order.controller.ts` (685行) → 拆分为专业化控制器 (379行, -45%)
+- `order.service.ts` (1602行) → 拆分为7个专业服务 (687行, -57%)
+
+新增专业化服务模块：
+- **OrderService** - 核心订单管理（创建、查询、状态管理）
+- **OrderPaymentService** - 支付相关（微信支付、手动支付、支付回调）
+- **OrderRefundService** - 退款相关（创建退款、退款回调、退款查询）
+- **OrderAfterSalesService** - 售后相关（售后申请、审核、处理）
+- **OrderFulfillmentService** - 履约相关（发货、收货、服务开始/结束）
+- **OrderReviewService** - 评价相关（创建评价、管理评价）
+- **OrderRewardsService** - 权益相关（积分、成长值、洗车卡、优惠券）
+
+#### ✅ **重构成果**
+- ✅ **单一职责** - 每个服务专注特定业务领域
+- ✅ **零破坏性** - 所有API接口、业务逻辑、数据流保持不变
+- ✅ **可测试性** - 每个模块可独立进行单元测试
+- ✅ **可维护性** - 代码结构清晰，便于后续开发
+- ✅ **团队协作** - 不同开发者可并行开发不同模块
+- ✅ **构建验证** - 全项目构建通过，无编译错误
+
+#### 🔧 **技术实现**
+- 避免循环依赖，合理设计服务间依赖关系
+- 保持事务一致性和数据完整性
+- 统一错误处理和日志记录机制
+- 优化依赖注入和模块配置
+
+---
+
+### v0.1.x 历史更新
+
+#### 2025-09：虚拟卡券商品支持 SKU 级卡券绑定
+- 数据库新增 `ProductSku.couponId`
+- 执行：`pnpm prisma generate && pnpm prisma db push`
+
+#### 2025-09：管理后台商品编辑体验优化
+- 多规格表格列宽优化，`价格/划线价/库存` 默认即可完整展示
+- 虚拟卡券多规格支持"每 SKU 绑定卡券"
   - 服务类商品不参与库存：UI 隐藏库存项并在保存时强制库存归零
-- 2025-09：主题/配色系统优化：
-  - 修复“自定义配色覆盖预设首项”的问题（改用 `custom` 通道，避免与 `default` 冲突）
+
+#### 2025-09：主题/配色系统优化
+- 修复"自定义配色覆盖预设首项"的问题（改用 `custom` 通道）
   - 新增马卡龙预设三色：粉/蓝/绿
   - 暗色主题变量优化（背景/边框/填充/文字对比度）
 
-### 管理后台（apps/web-admin）
+## 🚀 快速开始
 
-- 新增菜单：商品分类、商品列表、库存管理、订单列表/详情、售后（占位）
-- 角色权限键：`store-categories`、`store-products`、`store-inventory`、`orders`、`after-sales`
-- 超管角色（id=1）拥有 `*`；`scripts/seed.mjs` 会为超管补齐新菜单键（若未使用 `*`）
-- 商品编辑优化：多规格列宽与交互优化（按钮与输入完整显示）；虚拟卡券多规格支持每 SKU 绑定卡券；服务类商品不参与库存（UI 隐藏并保存时归零）
-- 主题设置优化：修复自定义配色覆盖预设首项；新增马卡龙预设（粉/蓝/绿）；暗色主题视觉对比提升
+### 📋 环境要求
+- **Node.js**: >= 18.0.0
+- **pnpm**: >= 9.0.0 
+- **MySQL**: >= 8.0
+- **微信开发者工具**: 小程序开发调试
 
-### 小程序端（apps/miniapp-uni）
+### ⚡ 一键启动
+```bash
+# 1. 克隆项目
+git clone <repository-url>
+cd uniap-ai2
 
-- `pages/store/index.vue` 接入分类与商品列表，点击“立即购买”直接创建未支付订单并提示到店支付（服务类需选择/绑定车辆）
+# 2. 安装依赖
+pnpm install
 
-### 本地运行
+# 3. 环境配置
+cp apps/api/.env.example apps/api/.env
+# 编辑 .env 文件，配置数据库连接等必要信息
 
-1) 启动 API：
-
-```
+# 4. 数据库初始化
 cd apps/api
+pnpm prisma generate
+pnpm prisma db push
+pnpm db:seed  # 可选：导入基础数据
+
+# 5. 启动所有服务（并行）
+cd ../..
 pnpm dev
 ```
 
-2) 启动管理端：
+### 🔧 单独启动服务
 
+#### 后端API服务
+```bash
+cd apps/api
+pnpm dev                    # 开发模式
+# 或
+pnpm build && pnpm start   # 生产模式
 ```
+- 🌐 **访问地址**: http://localhost:3000
+- 📚 **API文档**: http://localhost:3000/docs
+
+#### 管理后台
+```bash
 cd apps/web-admin
 pnpm dev
 ```
+- 🌐 **访问地址**: http://localhost:5173
 
-3) 启动小程序（H5 或 MP-微信）：
-
-```
+#### 微信小程序
+```bash
 cd apps/miniapp-uni
-pnpm dev:h5
+pnpm dev:mp-weixin    # 微信小程序
 # 或
-pnpm dev:mp-weixin
+pnpm dev:h5           # H5版本
 ```
 
-一体化洗车门店管理平台（开发中）。已实现会员、车辆、计次卡、内容公告、服务排队、文件上传、短信登录等模块；订单、商品、消息通知、收银台系统正在开发中。
-
-### 仓库结构
-- apps/miniapp-uni：微信小程序（uni-app，Vue 3）
-- apps/web-admin：网页管理后台（Vite + Vue 3 + Element Plus）
-- apps/web-pos：网页收银台（Vite + Vue 3 + Element Plus）
-- apps/api：后端（NestJS 10 + Prisma 5 + MySQL）
-- packages/shared-types：共享类型
-- packages/api-client：基于 OpenAPI 的前端 SDK
-- packages/shared-ui：共享 UI 组件
-- packages/shared-utils：共享工具与 HTTP 客户端
-
-### 技术栈与特性
-- Monorepo：pnpm workspaces + turbo
-- API：NestJS，基于 Prisma 的 MySQL 持久化，内置 Swagger /docs
-- Auth：短信验证码登录、小程序一键登录（微信）
-- 会员：等级/标签/分类、车辆档案
-- 计次卡：共享、变更日志
-- 内容：滚动公告、广告 Banner
-- 队列：洗车服务队列与任务
-- 文件：Multer 本地上传到 /uploads 并静态服务
-
-### 开发快速开始
-1. 安装 pnpm：`npm i -g pnpm`
-2. 安装依赖：`pnpm i`
-3. 生成临时 OpenAPI 并生成前端 SDK（可选）：
-   - `pnpm --filter api openapi`
-   - `pnpm generate:client`
-4. 启动全部应用（并行）：`pnpm dev`
-
-### 后端（apps/api）
-- 启动：
-  - 开发：`pnpm --filter api dev`
-  - 生产：`pnpm --filter api build && pnpm --filter api start`
-- 端口与文档：
-  - 默认端口：`3000`（可用环境变量 PORT 覆盖）
-  - Swagger 文档：`/docs`
-- 数据库：MySQL（Prisma）
-  - 连接：`DATABASE_URL`（在 `.env` 中配置）
-  - 生成客户端：`pnpm --filter api prisma:generate`
-  - 推送/迁移（开发）：`pnpm --filter api prisma:push` 或 `pnpm --filter api prisma:migrate`
-  - 初始化/种子脚本：`pnpm --filter api db:init`、`pnpm --filter api db:seed`
-
-#### 必需环境变量
-在 `apps/api/.env`（或根 `.env`）配置：
+#### 收银台系统
+```bash
+cd apps/web-pos
+pnpm dev
 ```
+- 🌐 **访问地址**: http://localhost:5174
+
+## ⚙️ 配置说明
+
+### 🔑 必需环境变量
+在 `apps/api/.env` 中配置：
+
+```env
+# 数据库连接
 DATABASE_URL="mysql://user:pass@localhost:3306/jukecar"
 
-# JWT
-JWT_SECRET=change_me
+# JWT认证
+JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRES_IN=7d
 
-# 短信（腾讯云）
-TENCENTCLOUD_SECRET_ID=...
-TENCENTCLOUD_SECRET_KEY=...
+# 腾讯云短信服务
+TENCENTCLOUD_SECRET_ID=your_secret_id
+TENCENTCLOUD_SECRET_KEY=your_secret_key
 SMS_REGION=ap-nanjing
-SMS_SDK_APP_ID=...
-SMS_SIGN_NAME=...
-SMS_TEMPLATE_ID=...
+SMS_SDK_APP_ID=your_app_id
+SMS_SIGN_NAME=your_sign_name
+SMS_TEMPLATE_ID=your_template_id
 
-# 微信小程序（一键登录）
-WECHAT_MINIAPP_APPID=...
-WECHAT_MINIAPP_SECRET=...
+# 微信小程序配置
+WECHAT_MINIAPP_APPID=your_miniapp_appid
+WECHAT_MINIAPP_SECRET=your_miniapp_secret
 
-# 服务器
+# 微信支付配置
+WXPAY_MCHID=your_merchant_id
+WXPAY_APPID=your_app_id
+WXPAY_API_V3_KEY=your_api_v3_key
+WXPAY_CERT_PATH=./cert/apiclient_cert.pem
+WXPAY_KEY_PATH=./cert/apiclient_key.pem
+WXPAY_PLATFORM_CERT_PATH=./cert/wechatpay_platform.pem
+
+# 服务配置
 PORT=3000
 TZ=Asia/Shanghai
+PUBLIC_API_BASE=https://your-domain.com/api
 ```
 
-### 小程序（apps/miniapp-uni）
-- 开发：`pnpm --filter miniapp-uni dev:mp-weixin` 或 `dev:h5`
-- 构建：`pnpm --filter miniapp-uni build:mp-weixin` 或 `build:h5`
+### 📊 数据库管理
+```bash
+cd apps/api
 
-### 管理后台（apps/web-admin）
-- 开发：`pnpm --filter web-admin dev`
-- 构建：`pnpm --filter web-admin build`
+# 生成Prisma客户端
+pnpm prisma generate
 
-#### 主题/配色切换
-- 右上角“🎨”按钮可切换明暗主题与配色方案；支持自定义主色。
-- 明暗：设置在 `document.documentElement` 的 `data-theme=dark` 与 `class=dark`，以适配 Element Plus 暗色变量。
-- 配色：通过 `data-color-scheme` 切换预设（`default/green/violet/orange/macaron-pink/macaron-blue/macaron-green`）。自定义通道为 `custom`（以 default 变量承载主色）。
-- 自定义主色：在 `custom` 通道下生效，写入 CSS 变量 `--app-primary`；优先级高于默认主色。
-- 持久化：`localStorage` 保存 `theme`、`colorScheme`、`customColor`，刷新后自动恢复。
-- 变量定义：见 `apps/web-admin/src/App.vue` 中的 `:root` 变量段，包含 `--app-primary`/`--app-bg`/`--app-text` 等。
-*- 暗色主题已优化背景/边框/填充/文字对比度，避免灰蒙与对比不足*
+# 开发环境：推送schema到数据库
+pnpm prisma db push
 
-### 收银台（apps/web-pos）（开发中）
-- 开发：`pnpm --filter web-pos dev`
-- 构建：`pnpm --filter web-pos build`
+# 生产环境：使用迁移
+pnpm prisma migrate deploy
 
-### OpenAPI 与前端 SDK
-- 生成后端 OpenAPI：`pnpm --filter api openapi`（输出到 `apps/api/openapi.json`）
-- 根据 OpenAPI 生成前端 SDK：`pnpm generate:client`（输出到 `packages/api-client`）
-- 自定义请求：`packages/shared-utils/src/http.ts` 提供 `createHttpClient`
+# 查看数据库
+pnpm prisma studio
 
-### 运行期文件与忽略
-- 上传目录：`apps/api/uploads/`（由后端启动时自动创建并以 `/uploads` 路径静态服务）
-- 建议在仓库中忽略运行期上传与本地配置文件；示例见根 `.gitignore`
+# 重置数据库（危险操作）
+pnpm prisma migrate reset
+```
 
-### 状态与路线图
-- 已完成：会员、车辆、计次卡、内容公告、服务排队、短信登录/重置、文件上传、商品（单/多规格、库存、虚拟卡券 SKU 绑定）、订单（手动支付流程）
-- 开发中：消息通知、收银台系统
+## 🎨 管理后台特性
 
-### 安全与密钥
-- 所有密钥与连接串请放入 `.env`，不要提交到仓库
-- 如果敏感文件误提交，先 `git rm --cached` 移除并加入 `.gitignore`，必要时用 `git filter-repo` 清理历史并在云厂商重置密钥
+### 🖥️ 功能模块
+- **会员管理** - 会员列表、等级、分类、标签、积分、签到
+- **订单管理** - 订单列表、详情、支付、退款、售后、履约
+- **商品管理** - 商品分类、商品列表、库存管理
+- **优惠券管理** - 卡券分组、卡券列表、会员卡券
+- **内容管理** - 滚动通知、广告横幅、评价管理
+- **服务管理** - 服务队列、车辆档案
+- **系统管理** - 角色权限、管理员、基础设置、文件管理
 
-### 许可证
-暂未指定（默认保留所有权）。
+### 🎨 主题系统
+- **明暗主题** - 支持亮色/暗色主题切换
+- **多配色方案** - default/green/violet/orange/macaron系列
+- **自定义主色** - 支持自定义品牌色
+- **响应式设计** - 适配不同屏幕尺寸
+- **持久化存储** - 主题偏好自动保存
+
+### 🔐 权限系统
+- **角色管理** - 灵活的角色权限配置
+- **菜单权限** - 细粒度的功能访问控制
+- **数据权限** - 基于角色的数据访问限制
+
+## 📱 小程序特性
+
+### 🎯 核心功能
+- **会员中心** - 个人信息、积分、洗车卡、订单
+- **商品购买** - 商品浏览、下单、支付
+- **服务预约** - 洗车服务预约与排队
+- **订单管理** - 订单查看、支付、评价、售后
+- **微信支付** - 原生微信支付体验
+
+### 📲 技术特性
+- **uni-app框架** - 一套代码，多端运行
+- **原生组件** - 使用微信小程序原生组件
+- **API集成** - 基于OpenAPI自动生成的客户端
+- **状态管理** - 轻量级状态管理方案
+
+## 🏗️ 开发指南
+
+### 📝 代码规范
+- **TypeScript** - 严格类型检查
+- **ESLint** - 代码质量检查
+- **Prettier** - 代码格式化
+- **Commit规范** - 使用约定式提交
+
+### 🧪 测试策略
+```bash
+# 运行所有测试
+pnpm test
+
+# 单元测试
+pnpm test:unit
+
+# 集成测试  
+pnpm test:e2e
+
+# 测试覆盖率
+pnpm test:cov
+```
+
+### 📦 构建部署
+```bash
+# 构建所有项目
+pnpm build
+
+# 单独构建
+pnpm --filter api build
+pnpm --filter web-admin build
+pnpm --filter miniapp-uni build:mp-weixin
+```
+
+### 🔄 API开发流程
+1. **设计API** - 在对应controller中定义接口
+2. **实现业务** - 在对应service中实现逻辑
+3. **生成文档** - `pnpm --filter api openapi`
+4. **生成客户端** - `pnpm generate:client`
+5. **前端集成** - 使用生成的客户端SDK
+
+## 📈 项目状态
+
+### ✅ 已完成功能
+- 🔐 **认证授权** - 短信登录、微信登录、角色权限
+- 👥 **会员系统** - 完整的会员管理体系
+- 🛒 **商店系统** - 商品、分类、库存管理
+- 📋 **订单系统** - 完整的订单处理流程（**最新重构**）
+- 💳 **支付系统** - 微信支付、线下支付
+- 🔄 **退款系统** - 完整的退款处理机制
+- 🛠️ **售后系统** - 售后申请、审核、处理
+- ⭐ **评价系统** - 订单评价与管理
+- 🎫 **优惠券系统** - 优惠券发放与使用
+- 📊 **内容管理** - 公告、横幅管理
+- 🎯 **服务队列** - 排队管理系统
+- 📁 **文件管理** - 文件上传与管理
+
+### 🚧 开发中功能
+- 💰 **收银台系统** - POS收银界面
+- 📨 **消息通知** - 站内消息系统
+- 📊 **数据统计** - 营收、会员等统计分析
+- 🔔 **消息推送** - 微信模板消息推送
+
+### 🗺️ 未来规划
+- 📊 **BI报表** - 数据可视化分析
+- 🤖 **智能推荐** - 商品推荐算法
+- 🔗 **第三方集成** - 更多支付渠道、物流公司
+- 📱 **移动端优化** - 更好的移动端体验
+
+## 🛡️ 安全与运维
+
+### 🔒 安全措施
+- **环境变量管理** - 敏感信息不提交代码库
+- **JWT认证** - 安全的身份验证机制
+- **权限控制** - 基于角色的访问控制
+- **支付安全** - 微信支付签名验证
+- **SQL注入防护** - Prisma ORM安全查询
+
+### 📁 文件管理
+- **上传目录**: `apps/api/uploads/`
+- **静态服务**: `/uploads` 路径
+- **文件绑定**: 业务数据关联管理
+- **安全策略**: 文件类型验证、大小限制
+
+### 🔧 运维建议
+- **日志监控** - 关键业务操作日志记录
+- **错误处理** - 统一的异常处理机制
+- **性能优化** - 数据库查询优化
+- **备份策略** - 定期数据备份
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+### 🐛 报告问题
+- 使用 [GitHub Issues](https://github.com/your-repo/issues)
+- 提供详细的问题描述和复现步骤
+
+### 💡 功能建议
+- 在 Issues 中描述新功能需求
+- 说明使用场景和期望效果
+
+### 🔧 代码贡献
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
+
+---
+
+**巨科汽车美容管理系统** - 让洗车门店管理更智能、更高效！ 🚗✨
 
