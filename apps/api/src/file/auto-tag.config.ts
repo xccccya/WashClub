@@ -94,6 +94,12 @@ export const AUTO_TAG_RULES: AutoTagRule[] = [
 		tags: ['车辆图片'],
 		description: '车辆相关图片上传'
 	},
+	{
+		name: 'vehicle-auto',
+		dir: 'carimg',
+		tags: ['车辆图片'],
+		description: '车辆图片自动下载保存'
+	},
 	
 	// 系统相关
 	{

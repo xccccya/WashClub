@@ -65,8 +65,28 @@ export class VehicleService {
             const filenameRaw = urlObj.pathname.split('/').pop() || 'image.jpg';
             const contentType = resp.headers.get('content-type') || undefined;
             // 通过资产服务入库，目录 carimg，并自动添加车辆图片标签
-            const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
-            return created?.url || null;
+            try {
+                const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
+                console.log('车辆图片保存成功:', { url: created?.url, filename: filenameRaw });
+                return created?.url || null;
+            } catch (uploadError) {
+                console.error('车辆图片上传到AssetService失败:', {
+                    filename: filenameRaw,
+                    contentType,
+                    bufferSize: buf.length,
+                    error: uploadError instanceof Error ? uploadError.message : String(uploadError)
+                });
+                
+                // 回退到原始的文件保存方式
+                try {
+                    const saved = this.fileService.saveFile(buf, filenameRaw, 'carimg');
+                    console.log('车辆图片回退保存成功:', { url: saved.url });
+                    return saved.url;
+                } catch (fallbackError) {
+                    console.error('车辆图片回退保存也失败:', fallbackError);
+                    return null;
+                }
+            }
         } catch (error) {
             console.error('下载保存车辆图片失败:', {
                 url: imageUrl,
