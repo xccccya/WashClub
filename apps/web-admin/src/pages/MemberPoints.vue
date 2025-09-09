@@ -193,8 +193,8 @@ async function saveConfig(){
   try{
     const payload = {
       pointsPerFen: cfg.value.pointsPerFen,
-      pointsFenPerPoint: Math.round((cfg.value.pointsFenPerPointYuan || 0) / 100 * 100),
-      pointsMaxDeductFenPerOrder: Math.round((cfg.value.pointsMaxDeductYuan || 0) * 100),
+      pointsFenPerPoint: (cfg.value.pointsFenPerPointYuan || 0) * 100,
+      pointsMaxDeductFenPerOrder: (cfg.value.pointsMaxDeductYuan || 0) * 100,
     };
     await http('/member-points/config', { method:'POST', body: payload });
     ElMessage.success('已保存'); cfgVisible.value=false;

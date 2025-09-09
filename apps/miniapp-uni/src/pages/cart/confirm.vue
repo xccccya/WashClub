@@ -189,8 +189,10 @@ const supportsPoints = computed(()=> items.value.some(it => !!(it?.snapshot?.poi
 const supportsMemberDiscount = computed(()=> items.value.some(it => !!(it?.snapshot?.memberDiscount)));
 const pointsAmountYuan = computed(()=>{
   const pts = Math.max(0, Math.floor(Number(usedPoints.value||0)));
-  const fen = pts * Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
-  return fen/100;
+  const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
+  const totalFen = pts * fenPerPt;
+  // 向下取整到分，确保支付金额为整分数
+  return Math.floor(totalFen) / 100;
 });
 const pointsAmountYuanText = computed(()=> pointsAmountYuan.value.toFixed(2));
 const payAmountFinal = computed(()=>{
@@ -205,21 +207,22 @@ const payAmountFinal = computed(()=>{
 const payAmountFinalText = computed(()=> payAmountFinal.value.toFixed(2));
 const maxUsablePoints = computed(()=>{
   try{
-    const fenEach = Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
-    if (!fenEach) return 0;
+    const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
+    if (!fenPerPt) return 0;
     if (!supportsPoints.value) return 0;
     const baseYuan = Math.max(0, Number(totalAmount.value) - Number(couponDiscount.value));
     const baseFen = Math.floor(baseYuan * 100);
-    const orderCapFen = Math.max(0, Math.floor(Number(maxFenPerOrder.value||0)));
+    const orderCapFen = Math.max(0, Number(maxFenPerOrder.value||0));
     const capFen = orderCapFen>0 ? Math.min(baseFen, orderCapFen) : baseFen;
-    const byFen = Math.floor(capFen / fenEach);
-    return Math.max(0, Math.min(pointsAvailable.value, byFen));
+    // 计算最多能用多少积分（向下取整确保抵扣金额为整分数）
+    const maxPointsByAmount = Math.floor(capFen / fenPerPt);
+    return Math.max(0, Math.min(pointsAvailable.value, maxPointsByAmount));
   }catch{ return 0; }
 });
 const pointsNote = computed(()=>{
-  const fen = Math.max(0, Math.floor(Number(fenPerPoint.value||0)));
-  if (!fen) return '暂未开启积分抵扣';
-  const per = (fen/100*100).toFixed(2);
+  const fenPerPt = Math.max(0, Number(fenPerPoint.value||0));
+  if (!fenPerPt) return '暂未开启积分抵扣';
+  const per = (fenPerPt/100).toFixed(2);
   const max = Math.max(0, Number(maxFenPerOrder.value||0));
   const maxYuan = max>0 ? `¥${(max/100).toFixed(2)}` : '不限';
   return `100积分可抵扣¥${per}，单笔订单最大抵扣金额${maxYuan}`;

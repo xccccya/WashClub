@@ -17,8 +17,8 @@ export class MemberPointsService {
   async saveConfig(body: { pointsPerFen: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){
     const payload = {
       pointsPerFen: Math.max(0, Math.floor(Number(body?.pointsPerFen || 0))),
-      pointsFenPerPoint: Math.max(0, Math.floor(Number(body?.pointsFenPerPoint || 0))),
-      pointsMaxDeductFenPerOrder: Math.max(0, Math.floor(Number(body?.pointsMaxDeductFenPerOrder || 0))),
+      pointsFenPerPoint: Math.max(0, Number(body?.pointsFenPerPoint || 0)),
+      pointsMaxDeductFenPerOrder: Math.max(0, Number(body?.pointsMaxDeductFenPerOrder || 0)),
     } as const;
     const exists = await this.prisma.siteSetting.findFirst().catch(()=>null);
     if (exists) return this.prisma.siteSetting.update({ where: { id: exists.id }, data: payload });

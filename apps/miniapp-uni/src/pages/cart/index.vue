@@ -92,7 +92,7 @@
 						<view class="coupon-card__tags">
 							<text class="meta-tag" v-if="supportsMemberDiscount && memberPayDiscountPercent>0 && memberDiscountAllowedByCoupons && memberDiscountEstYuan>0">会员折扣 -¥{{ memberDiscountEstText }}</text>
 							<text class="meta-tag" v-else>会员折扣 无</text>
-							<text class="meta-tag" v-if="supportsPoints && fenPerPoint>0 && pointsAllowedByCoupons">积分：1分=¥{{ (fenPerPoint/100).toFixed(2) }}，单笔上限¥{{ maxDeductYuanText }}</text>
+							<text class="meta-tag" v-if="supportsPoints && fenPerPoint>0 && pointsAllowedByCoupons">积分：100分=¥{{ (fenPerPoint/100).toFixed(2) }}，单笔上限¥{{ maxDeductYuanText }}</text>
 							<text class="meta-tag" v-else-if="supportsPoints && fenPerPoint>0 && !pointsAllowedByCoupons">积分：与所选优惠券不可叠加</text>
 							<text class="meta-tag" v-else>积分抵扣 未开启</text>
 						</view>
@@ -195,6 +195,9 @@ const checkedCount = computed(()=> items.value.filter(it=>it.checked).length);
 // 会员折扣与积分说明元数据
 const fenPerPoint = ref<number>(0);
 const maxFenPerOrder = ref<number>(0);
+// 积分抵扣相关变量
+const usedPoints = ref<number>(0);
+const usedPointsText = ref<string>('0');
 const maxDeductYuanText = computed(()=>{
     const v = Math.max(0, Number(maxFenPerOrder.value||0));
     return (v>0 ? (v/100).toFixed(2) : '不限');
