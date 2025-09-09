@@ -15,6 +15,9 @@
     "openapi": "node ./scripts/generate-openapi.mjs",
     "db:init": "node ./scripts/init-db.mjs",
     "db:seed": "node ./scripts/seed.mjs",
+    "db:seed:demo": "node ./scripts/demo-seed.mjs",
+    "db:seed:production": "node ./scripts/production-seed.mjs",
+    "db:bootstrap": "node ./scripts/bootstrap-seed.mjs",
     "assets:backfill": "node ./scripts/backfill-assets.mjs"
   },
   "dependencies": {
