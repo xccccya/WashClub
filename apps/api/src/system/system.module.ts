@@ -3,17 +3,17 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { SystemSettingController } from './system.setting.controller.js';
 import { AdminGuard } from '../auth/admin.guard.js';
-import { AssetService } from '../file/asset.service.js';
-import { FileService } from '../file/file.service.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
     imports: [
         JwtModule.register({
             secret: process.env.JWT_SECRET || 'dev_secret',
         }),
+        FileModule,
     ],
     controllers: [SystemSettingController],
-    providers: [PrismaService, AdminGuard, AssetService, FileService],
+    providers: [PrismaService, AdminGuard],
 })
 export class SystemModule {}
 

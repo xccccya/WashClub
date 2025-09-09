@@ -16,7 +16,7 @@ import { API_BASE } from '../../config';
 import { absUrl } from '../../utils/http';
 import FilePickerDialog from './FilePickerDialog.vue';
 
-const props = defineProps<{ modelValue?: string; placeholder?: string; showPreview?: boolean }>();
+const props = defineProps<{ modelValue?: string; placeholder?: string; showPreview?: boolean; autoTags?: string[]; source?: string }>();
 const emit = defineEmits<{ (e:'update:modelValue', v:string):void }>();
 const innerUrl = ref(props.modelValue || '');
 watch(()=>props.modelValue, (v)=>{ innerUrl.value = v || ''; });
@@ -28,7 +28,17 @@ function abs(u?: string){ return absUrl(u || ''); }
 
 async function upload(options:any){
 	const file = options?.file as File; if (!file) return;
-	const fd = new FormData(); fd.append('file', file); fd.append('dir', 'admin');
+	const fd = new FormData(); 
+	fd.append('file', file); 
+	fd.append('dir', 'admin');
+	
+	// 添加来源标识或自动标签
+	if (props.source) {
+		fd.append('source', props.source);
+	} else if (props.autoTags && props.autoTags.length > 0) {
+		fd.append('tags', JSON.stringify(props.autoTags));
+	}
+	
 	const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` }, body: fd });
 	const j = await res.json(); if (res.ok && j?.url) innerUrl.value = j.url;
 }

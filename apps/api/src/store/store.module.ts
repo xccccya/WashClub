@@ -5,17 +5,17 @@ import { StoreService } from './store.service.js';
 import { StoreCategoryController } from './category.controller.js';
 import { StoreProductController } from './product.controller.js';
 import { StoreInventoryController } from './inventory.controller.js';
-import { FileService } from '../file/file.service.js';
-import { AssetService } from '../file/asset.service.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
     imports: [
         JwtModule.register({
             secret: process.env.JWT_SECRET || 'dev_secret',
         }),
+        FileModule,
     ],
     controllers: [StoreCategoryController, StoreProductController, StoreInventoryController],
-    providers: [PrismaService, StoreService, FileService, AssetService],
+    providers: [PrismaService, StoreService],
 })
 export class StoreModule {}
 

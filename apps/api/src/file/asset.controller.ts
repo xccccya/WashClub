@@ -3,6 +3,7 @@ import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import multer from 'multer';
 import { AssetService } from './asset.service.js';
+import { getAutoTags } from './auto-tag.config.js';
 import type { Response } from 'express';
 
 @ApiTags('assets')
@@ -43,11 +44,30 @@ export class AssetController {
 	@Post('upload')
 	@UseInterceptors(FileInterceptor('file', { storage: multer.memoryStorage() }))
 	@ApiConsumes('multipart/form-data')
-	@ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, dir: { type: 'string' } } } })
-	@ApiOperation({ summary: '上传文件（去重；返回资产）' })
-	upload(@UploadedFile() file: any, @Body('dir') dir?: string) {
+	@ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, dir: { type: 'string' }, tags: { type: 'string' }, source: { type: 'string' } } } })
+	@ApiOperation({ summary: '上传文件（去重；返回资产；支持自动标签）' })
+	upload(@UploadedFile() file: any, @Body('dir') dir?: string, @Body('tags') tagsStr?: string, @Body('source') source?: string) {
 		if (!file?.buffer || !file?.originalname) throw new BadRequestException('未接收到文件');
-		return this.service.upload(file.buffer, file.originalname, file.mimetype, dir || 'public');
+		
+		// 解析手动指定的标签
+		let manualTags: string[] = [];
+		if (tagsStr) {
+			try {
+				// 支持JSON数组格式或逗号分隔格式
+				manualTags = tagsStr.startsWith('[') ? JSON.parse(tagsStr) : tagsStr.split(',').map(s => s.trim()).filter(Boolean);
+			} catch {
+				// 如果解析失败，作为单个标签处理
+				manualTags = [tagsStr.trim()].filter(Boolean);
+			}
+		}
+		
+		// 获取自动标签
+		const autoTags = getAutoTags(dir, source);
+		
+		// 合并手动标签和自动标签，去重
+		const allTags = Array.from(new Set([...manualTags, ...autoTags]));
+		
+		return this.service.upload(file.buffer, file.originalname, file.mimetype, dir || 'public', allTags.length > 0 ? allTags : undefined);
 	}
 
 	@Get(':id/references')

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../prisma.service.js';
 import { Prisma } from '@prisma/client';
 import { FileService } from './file.service.js';
+import { FileBindingUtil } from './file-binding.util.js';
 import crypto from 'node:crypto';
 import { extname, join } from 'node:path';
 import sharp from 'sharp';
@@ -29,13 +30,17 @@ export type ListQuery = {
 
 @Injectable()
 export class AssetService {
-	constructor(private prisma: PrismaService, private fileService: FileService) {}
+	private fileBindingUtil: FileBindingUtil;
+
+	constructor(private prisma: PrismaService, private fileService: FileService) {
+		this.fileBindingUtil = new FileBindingUtil(prisma);
+	}
 
 	private async computeSha256(buffer: Buffer) {
 		return crypto.createHash('sha256').update(buffer).digest('hex');
 	}
 
-	async upload(buffer: Buffer, originalName: string, mimeType?: string, dir?: string): Promise<UploadResult> {
+	async upload(buffer: Buffer, originalName: string, mimeType?: string, dir?: string, autoTags?: string[]): Promise<UploadResult> {
 		if (!buffer?.length || !originalName) throw new BadRequestException('未接收到文件');
 		const checksum = await this.computeSha256(buffer);
 		const prisma = this.prisma as unknown as PrismaWithAssets;
@@ -54,6 +59,7 @@ export class AssetService {
 		}
 
 		const saved = this.fileService.saveFile(buffer, originalName, dir || 'public');
+		const tags = Array.isArray(autoTags) && autoTags.length > 0 ? autoTags : null;
 		const created = await prisma.fileAsset.create({
 			data: {
 				filename: originalName,
@@ -66,7 +72,7 @@ export class AssetService {
 				objectKey: saved.path,
 				url: saved.url,
 				isPublic: true,
-				tagsJson: null,
+				tagsJson: tags,
 				variants: null,
 				extra: null,
 			},
@@ -129,7 +135,11 @@ export class AssetService {
 		const prisma = this.prisma as unknown as PrismaWithAssets;
 		const file = await prisma.fileAsset.findFirst({ where: { id, deletedAt: null } });
 		if (!file) throw new NotFoundException('文件不存在');
-		if ((file.refCount ?? 0) > 0) throw new ForbiddenException('文件已被引用，无法删除');
+		
+		// 使用绑定工具检查是否可以删除
+		const canDelete = await this.fileBindingUtil.canDeleteFile(id);
+		if (!canDelete) throw new ForbiddenException('文件已被引用，无法删除');
+		
 		return prisma.fileAsset.update({ where: { id }, data: { deletedAt: new Date() } });
 	}
 
@@ -137,7 +147,7 @@ export class AssetService {
 		const prisma = this.prisma as unknown as PrismaWithAssets;
 		const file = await prisma.fileAsset.findFirst({ where: { id } });
 		if (!file) throw new NotFoundException('文件不存在');
-		return prisma.fileBinding.findMany({ where: { fileId: id }, orderBy: { createdAt: 'desc' } });
+		return this.fileBindingUtil.getFileReferences(id);
 	}
 
 	async bindReference(id: string, binding: { tableName: string; rowId: string; fieldName: string }) {
@@ -165,28 +175,69 @@ export class AssetService {
 		return { ok: true };
 	}
 
-	// 缩略图占位：当前直接返回原图 URL，后续可改为生成并返回 variants 中的地址
+	// 缩略图生成：支持图片缩略图生成，非图片返回原图
 	async getThumbnailUrl(id: string, size: number = 240) {
 		const prisma = this.prisma as unknown as PrismaWithAssets;
 		const file = await prisma.fileAsset.findFirst({ where: { id, deletedAt: null } });
 		if (!file) throw new NotFoundException('文件不存在');
+		
 		// 非图片直接返回原图
 		if (!/^image\//i.test(file.mimeType)) return { url: file.url };
-		// 若已存在变体则返回
-		try { const variants = (file as any).variants || null; const key = String(size); const url = variants?.[key]; if (url) return { url }; } catch {}
-		// 生成缩略图并更新 variants
+		
+		// 检查是否已存在缓存的变体
+		try { 
+			const variants = (file as any).variants || null; 
+			const key = String(size); 
+			const url = variants?.[key]; 
+			if (url) {
+				// 验证文件是否还存在
+				const uploadsRoot = join(process.cwd(), 'uploads');
+				const variantPath = join(uploadsRoot, url.replace(/^\/uploads\//, ''));
+				if (existsSync(variantPath)) {
+					return { url };
+				}
+			}
+		} catch {}
+		
+		// 生成新的缩略图
 		const uploadsRoot = join(process.cwd(), 'uploads');
 		const srcAbs = join(uploadsRoot, file.objectKey);
-		const ext = (file.extension || '').toLowerCase();
-		const targetKey = file.objectKey.replace(/\.(\w+)$/, (_m, g1)=>`_thumb_${size}.${g1||ext||'jpg'}`);
+		
+		// 检查源文件是否存在
+		if (!existsSync(srcAbs)) {
+			console.warn(`源文件不存在: ${srcAbs}`);
+			return { url: file.url };
+		}
+		
+		const ext = (file.extension || '').toLowerCase() || 'jpg';
+		// 修复路径处理，统一使用正斜杠
+		const targetKey = file.objectKey.replace(/\.(\w+)$/, (_m, g1) => `_thumb_${size}.${g1 || ext}`);
 		const targetAbs = join(uploadsRoot, targetKey);
+		
 		try {
-			await sharp(srcAbs).resize({ width: size, height: size, fit: 'inside', withoutEnlargement: true }).toFile(targetAbs);
-			const url = `/uploads/${targetKey.split('\\').join('/')}`;
+			// 确保目标目录存在
+			const targetDir = join(targetAbs, '..');
+			if (!existsSync(targetDir)) {
+				require('fs').mkdirSync(targetDir, { recursive: true });
+			}
+			
+			await sharp(srcAbs)
+				.resize({ 
+					width: size, 
+					height: size, 
+					fit: 'inside', 
+					withoutEnlargement: true 
+				})
+				.jpeg({ quality: 85 }) // 统一输出为JPEG格式
+				.toFile(targetAbs);
+			
+			// 统一使用正斜杠的URL
+			const url = `/uploads/${targetKey.replace(/\\/g, '/')}`;
 			const nextVariants = { ...((file as any).variants || {}), [String(size)]: url } as any;
 			await prisma.fileAsset.update({ where: { id }, data: { variants: nextVariants } });
 			return { url };
-		} catch {
+		} catch (error) {
+			console.error(`缩略图生成失败 (${id}, ${size}):`, error);
 			return { url: file.url };
 		}
 	}

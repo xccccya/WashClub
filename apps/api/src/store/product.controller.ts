@@ -30,8 +30,8 @@ export class StoreProductController {
     // 复用已有文件上传用于商品图片
     @Post(':id/upload-image')
     async uploadImage(){
-        // 控制器层仅占位，文件上传由全局 /file/upload 提供
-        return { message: '请使用 /file/upload 上传文件后，将返回的 url 保存到 product.imageUrl 或 sku.imageUrl' };
+        // 控制器层仅占位，文件上传由全局 /assets/upload 提供
+        return { message: '请使用 /assets/upload 上传文件后，将返回的 url 保存到 product.imageUrl 或 sku.imageUrl' };
     }
 }
 

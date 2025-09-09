@@ -251,7 +251,7 @@ async function save(){
 	if (form.value.specType==='MULTI'){
 		// 前置校验：skuCode 唯一与必填
 		const codes = (form.value.skus||[]).map((s:any)=>String(s.skuCode||'').trim());
-		if (codes.some(c=>!c)) { ElMessage.error('请填写每个 SKU 的编码'); return; }
+		if (codes.some((c: string)=>!c)) { ElMessage.error('请填写每个 SKU 的编码'); return; }
 		const dup = codes.find((c:string, i:number)=> codes.indexOf(c)!==i); if (dup){ ElMessage.error(`SKU 编码重复：${dup}`); return; }
 	}
 	// 主图保存为 imageUrl
@@ -282,8 +282,10 @@ const uploadUrl = ref('');
 function openUpload(row:any){ currentProductId.value = row.id; uploadUrl.value=''; showUpload.value = true; }
 async function onFileChange(e:any){
 	const file = e.target.files?.[0]; if (!file) return;
-	const fd = new FormData(); fd.append('file', file);
-	const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+	const fd = new FormData(); 
+	fd.append('file', file);
+	fd.append('source', 'product-main');  // 自动识别为商品主图
+	const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); uploadUrl.value = j?.url || '';
 }
 async function applyImage(){ if (!currentProductId.value || !uploadUrl.value) return; await http(`/store/products/${currentProductId.value}`, { method:'PUT', body: { imageUrl: uploadUrl.value } }); ElMessage.success('已更新图片'); showUpload.value = false; await fetchList(); }
@@ -304,8 +306,11 @@ async function initQuill(){
 							input.accept = 'image/*';
 							input.onchange = async () => {
 								const file = input.files && input.files[0]; if (!file) return;
-								const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-								const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+								const fd = new FormData(); 
+								fd.append('file', file); 
+								fd.append('dir', 'public');
+								fd.append('source', 'product-desc');  // 自动识别为商品详情图片
+								const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 								const j = await res.json(); const url = j?.url ? (j.url.startsWith('http')? j.url : absUrl(j.url)) : '';
 								if (url) {
 									const range = quillInstance.getSelection(true);
@@ -342,8 +347,11 @@ onBeforeUnmount(()=>{ quillInstance = null; });
 async function onImagesChange(e:any){
 	const files: File[] = Array.from(e.target.files || []);
 	for (const file of files){
-		const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
-		const res = await fetch(`${API_BASE}/file/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+		const fd = new FormData(); 
+		fd.append('file', file); 
+		fd.append('dir', 'public');
+		fd.append('source', 'product-gallery');  // 自动识别为商品多图
+		const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 		const j = await res.json(); if (j?.url) formImages.value.push(j.url);
 	}
 	try { e.target.value = ''; } catch {}
@@ -409,7 +417,10 @@ function generateSkuMatrix(){
 // SKU 图片上传（单元格内）
 async function onSkuUpload(row:any, options:any){
 	const file = options?.file as File; if (!file) return;
-	const fd = new FormData(); fd.append('file', file); fd.append('dir', 'public');
+	const fd = new FormData(); 
+	fd.append('file', file); 
+	fd.append('dir', 'public');
+	fd.append('source', 'product-sku');  // 自动识别为商品规格图片
 	const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); if (j?.url) row.imageUrl = j.url;
 }

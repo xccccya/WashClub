@@ -57,7 +57,7 @@
 				<el-form-item label="等级图标">
 					<div style="display:flex;align-items:center;gap:12px;">
 						<el-image v-if="form.iconUrl" :src="absUrl(form.iconUrl as any)" style="width:40px;height:40px;border-radius:6px;border:1px solid var(--el-border-color);" fit="cover" />
-						<FileInput v-model="(form.iconUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
+						<FileInput v-model="(form.iconUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" source="member-level" />
 						<el-button v-if="form.iconUrl" text type="danger" @click="form.iconUrl=null">移除</el-button>
 					</div>
 				</el-form-item>

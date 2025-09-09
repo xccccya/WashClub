@@ -41,7 +41,7 @@
 			<el-form :model="form" label-width="120px">
 				<el-form-item label="标题"><el-input v-model="form.title" placeholder="可选" /></el-form-item>
 				<el-form-item label="图片">
-					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" />
+					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" source="banner" />
 				</el-form-item>
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="跳转设置">

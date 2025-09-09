@@ -7,13 +7,12 @@ import { WeatherController } from './weather.controller.js';
 import { DistrictController } from './district.controller.js';
 import { AdBannerService } from './ad-banner.service.js';
 import { AdBannerController } from './ad-banner.controller.js';
-import { AssetService } from '../file/asset.service.js';
-import { FileService } from '../file/file.service.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
-    imports: [],
+    imports: [FileModule],
     controllers: [ScrollNoticeController, CarDataController, WeatherController, AdBannerController, DistrictController],
-    providers: [PrismaService, ScrollNoticeService, AdBannerService, AssetService, FileService],
+    providers: [PrismaService, ScrollNoticeService, AdBannerService],
 })
 export class ContentModule {}
 

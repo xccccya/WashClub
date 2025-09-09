@@ -57,8 +57,8 @@ export class VehicleService {
             const urlObj = new URL(imageUrl);
             const filenameRaw = urlObj.pathname.split('/').pop() || 'image.jpg';
             const contentType = resp.headers.get('content-type') || undefined;
-            // 通过资产服务入库，目录 carimg，便于在文件管理中展示
-            const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg');
+            // 通过资产服务入库，目录 carimg，并自动添加车辆图片标签
+            const created = await this.assetService.upload(buf, filenameRaw, contentType, 'carimg', ['车辆图片']);
             return created?.url || null;
         } catch {
             return null;

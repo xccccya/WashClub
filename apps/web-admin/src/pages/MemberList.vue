@@ -422,7 +422,16 @@ async function ensureSiteSetting(){ if (siteSetting.value) return; try { siteSet
 function toAbsUrl(path?: string | null) { if (!path) return ''; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
 function formatAvatar(url?: string | null){ const candidate = url || siteSetting.value?.defaultMemberAvatarUrl || ''; const u = toAbsUrl(candidate); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); }
 const authHeaders = computed(()=>({ Authorization: `Bearer ${localStorage.getItem('token')||''}` }));
-async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); form.value.avatarUrl = j?.url || null; ElMessage.success('头像已上传'); }
+async function uploadAvatar(o:any){ 
+	const fd=new FormData(); 
+	fd.append('file', o.file); 
+	fd.append('dir','public'); 
+	fd.append('source', 'avatar');  // 自动识别为头像上传
+	const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); 
+	const j=await res.json(); 
+	form.value.avatarUrl = j?.url || null; 
+	ElMessage.success('头像已上传'); 
+}
 function onAvatarClear(){ form.value.avatarUrl = null; ElMessage.success('已恢复默认头像'); }
 const pickVisible = ref(false);
 function openPickAvatar(){ pickVisible.value = true; }

@@ -16,7 +16,7 @@
 							preview-teleported
 						/>
 					</div>
-					<FileInput v-model="(form.logoUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
+					<FileInput v-model="(form.logoUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" source="system-logo" />
 					<el-button v-if="form.logoUrl" text type="danger" @click="form.logoUrl=null">移除</el-button>
 				</div>
 			</el-form-item>
@@ -37,7 +37,7 @@
 						:initial-index="0"
 						preview-teleported
 					/>
-					<FileInput v-model="(form.bgImageUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
+					<FileInput v-model="(form.bgImageUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" source="system-bg" />
 					<el-button v-if="form.bgImageUrl" text type="danger" @click="form.bgImageUrl=null">移除</el-button>
 				</div>
 			</el-form-item>
@@ -53,7 +53,7 @@
 							preview-teleported
 						/>
 					</div>
-					<FileInput v-model="(form.defaultMemberAvatarUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" />
+					<FileInput v-model="(form.defaultMemberAvatarUrl as any)" placeholder="输入URL或从文件库选择" :showPreview="false" source="system-default-avatar" />
 					<el-button v-if="form.defaultMemberAvatarUrl" text type="danger" @click="form.defaultMemberAvatarUrl=null">移除</el-button>
 				</div>
 			</el-form-item>

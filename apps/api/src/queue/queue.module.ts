@@ -4,11 +4,11 @@ import { QueueService } from './queue.service.js';
 import { QueueController } from './queue.controller.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { JwtService } from '@nestjs/jwt';
-import { FileService } from '../file/file.service.js';
-import { AssetService } from '../file/asset.service.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
-    providers: [PrismaService, QueueService, VehicleService, JwtService, FileService, AssetService],
+    imports: [FileModule],
+    providers: [PrismaService, QueueService, VehicleService, JwtService],
     controllers: [QueueController],
 })
 export class QueueModule {}

@@ -15,12 +15,12 @@ import { WxpayService } from './wxpay.service.js';
 import { OrderTimeoutService } from './timeout.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
-import { AssetService } from '../file/asset.service.js';
-import { FileService } from '../file/file.service.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
     imports: [
         AuthModule,
+        FileModule,
         JwtModule.register({
             secret: process.env.JWT_SECRET || 'dev_secret',
         })
@@ -39,9 +39,7 @@ import { FileService } from '../file/file.service.js';
         TanshuService, 
         WxpayService, 
         OrderTimeoutService, 
-        WechatShippingService, 
-        AssetService, 
-        FileService
+        WechatShippingService
     ],
 })
 export class OrderModule {}

@@ -166,7 +166,7 @@ async function chooseImages(){
 					url: base + '/assets/upload',
 					filePath,
 					name: 'file',
-					formData: { dir: 'miniapp' },
+					formData: { dir: 'miniapp', source: 'order-aftersales' },
 					header: { Authorization: token ? ('Bearer ' + token) : '' },
 					success: (res:any)=>{
 						try{

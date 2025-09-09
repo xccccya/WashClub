@@ -57,7 +57,7 @@
 				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
 				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="1" :step="1" :precision="0" /></el-form-item>
 				<el-form-item label="图片">
-					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" />
+					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" source="coupon" />
 				</el-form-item>
 				<el-form-item label="描述"><el-input type="textarea" :rows="2" v-model="form.description" /></el-form-item>
 				<el-form-item label="后台备注"><el-input type="textarea" :rows="2" v-model="form.adminRemark" /></el-form-item>

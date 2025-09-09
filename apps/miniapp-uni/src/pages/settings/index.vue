@@ -185,7 +185,7 @@ function onChooseWeixinAvatar(e: any) {
 		url: `${API_BASE}/assets/upload`,
 		filePath: tempUrl,
 		name: 'file',
-		formData: { dir: 'miniapp' },
+		formData: { dir: 'miniapp', source: 'avatar' },
 		header: { Authorization: `Bearer ${uni.getStorageSync('token')||''}` },
 		success: async (resUp: any) => {
 			try {
@@ -218,7 +218,7 @@ function onChooseLocalImage(r: any){
 		url: `${API_BASE}/assets/upload`,
 		filePath: path,
 		name: 'file',
-		formData: { dir: 'miniapp' },
+		formData: { dir: 'miniapp', source: 'avatar' },
 		header: { Authorization: `Bearer ${uni.getStorageSync('token')||''}` },
 		success: async (resUp:any)=>{
 			try {

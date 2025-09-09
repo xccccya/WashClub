@@ -1,0 +1,198 @@
+import { PrismaService } from '../prisma.service.js';
+
+/**
+ * 文件绑定工具类 - 自动管理文件引用关系
+ */
+export class FileBindingUtil {
+	constructor(private prisma: PrismaService) {}
+
+	/**
+	 * 从URL数组中提取文件资产ID
+	 */
+	async getAssetIdsFromUrls(urls: string[]): Promise<string[]> {
+		if (!Array.isArray(urls) || urls.length === 0) return [];
+		
+		try {
+			const prisma = this.prisma as any;
+			const results = await prisma.fileAsset.findMany({
+				where: {
+					url: { in: urls },
+					deletedAt: null
+				},
+				select: { id: true, url: true }
+			});
+			
+			return results.map((r: any) => r.id);
+		} catch (error) {
+			console.error('从URL获取资产ID失败:', error);
+			return [];
+		}
+	}
+
+	/**
+	 * 绑定文件引用关系
+	 */
+	async bindFileReferences(
+		fileUrls: string[], 
+		tableName: string, 
+		rowId: string, 
+		fieldName: string
+	): Promise<{ bindCount: number }> {
+		if (!Array.isArray(fileUrls) || fileUrls.length === 0) {
+			return { bindCount: 0 };
+		}
+
+		try {
+			const fileIds = await this.getAssetIdsFromUrls(fileUrls);
+			if (fileIds.length === 0) return { bindCount: 0 };
+
+			const prisma = this.prisma as any;
+			let bindCount = 0;
+
+			await prisma.$transaction(async (tx: any) => {
+				// 先删除该字段的旧绑定
+				await tx.fileBinding.deleteMany({
+					where: { tableName, rowId, fieldName }
+				});
+
+				// 创建新绑定
+				for (const fileId of fileIds) {
+					await tx.fileBinding.create({
+						data: { fileId, tableName, rowId, fieldName }
+					});
+					
+					// 更新引用计数
+					await tx.fileAsset.update({
+						where: { id: fileId },
+						data: { refCount: { increment: 1 } }
+					});
+					
+					bindCount++;
+				}
+			});
+
+			return { bindCount };
+		} catch (error) {
+			console.error('绑定文件引用失败:', error);
+			return { bindCount: 0 };
+		}
+	}
+
+	/**
+	 * 解绑文件引用关系
+	 */
+	async unbindFileReferences(
+		tableName: string, 
+		rowId: string, 
+		fieldName?: string
+	): Promise<{ unbindCount: number }> {
+		try {
+			const prisma = this.prisma as any;
+			let unbindCount = 0;
+
+			await prisma.$transaction(async (tx: any) => {
+				const where: any = { tableName, rowId };
+				if (fieldName) where.fieldName = fieldName;
+
+				// 获取要删除的绑定
+				const bindings = await tx.fileBinding.findMany({ where });
+				
+				// 删除绑定并更新引用计数
+				for (const binding of bindings) {
+					await tx.fileBinding.delete({ where: { id: binding.id } });
+					await tx.fileAsset.update({
+						where: { id: binding.fileId },
+						data: { refCount: { decrement: 1 } }
+					});
+					unbindCount++;
+				}
+			});
+
+			return { unbindCount };
+		} catch (error) {
+			console.error('解绑文件引用失败:', error);
+			return { unbindCount: 0 };
+		}
+	}
+
+	/**
+	 * 更新文件引用关系（先解绑旧的，再绑定新的）
+	 */
+	async updateFileReferences(
+		newFileUrls: string[],
+		tableName: string,
+		rowId: string,
+		fieldName: string
+	): Promise<{ bindCount: number; unbindCount: number }> {
+		// 先解绑旧的引用
+		const { unbindCount } = await this.unbindFileReferences(tableName, rowId, fieldName);
+		
+		// 再绑定新的引用
+		const { bindCount } = await this.bindFileReferences(newFileUrls, tableName, rowId, fieldName);
+
+		return { bindCount, unbindCount };
+	}
+
+	/**
+	 * 获取文件的引用列表
+	 */
+	async getFileReferences(fileId: string): Promise<any[]> {
+		try {
+			const prisma = this.prisma as any;
+			return await prisma.fileBinding.findMany({
+				where: { fileId },
+				orderBy: { createdAt: 'desc' }
+			});
+		} catch (error) {
+			console.error('获取文件引用失败:', error);
+			return [];
+		}
+	}
+
+	/**
+	 * 检查文件是否可以安全删除（没有引用）
+	 */
+	async canDeleteFile(fileId: string): Promise<boolean> {
+		try {
+			const prisma = this.prisma as any;
+			const file = await prisma.fileAsset.findFirst({
+				where: { id: fileId, deletedAt: null }
+			});
+			
+			return file && (file.refCount || 0) === 0;
+		} catch (error) {
+			console.error('检查文件删除权限失败:', error);
+			return false;
+		}
+	}
+}
+
+/**
+ * 全局文件绑定工具函数 - 供其他服务使用
+ */
+export async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]> {
+	const util = new FileBindingUtil(prisma);
+	return await util.getAssetIdsFromUrls(urls);
+}
+
+export async function bindFileReferences(
+	prisma: PrismaService,
+	fileUrls: string[], 
+	tableName: string, 
+	rowId: string, 
+	fieldName: string
+): Promise<{ bindCount: number }> {
+	const util = new FileBindingUtil(prisma);
+	return await util.bindFileReferences(fileUrls, tableName, rowId, fieldName);
+}
+
+export async function updateFileReferences(
+	prisma: PrismaService,
+	newFileUrls: string[],
+	tableName: string,
+	rowId: string,
+	fieldName: string
+): Promise<{ bindCount: number; unbindCount: number }> {
+	const util = new FileBindingUtil(prisma);
+	return await util.updateFileReferences(newFileUrls, tableName, rowId, fieldName);
+}
