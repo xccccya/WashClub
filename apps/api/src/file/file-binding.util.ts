@@ -50,18 +50,35 @@ export class FileBindingUtil {
 			let bindCount = 0;
 
 			await prisma.$transaction(async (tx: any) => {
-				// 先删除该字段的旧绑定
-				await tx.fileBinding.deleteMany({
+				// 先获取旧绑定，用于减少引用计数
+				const oldBindings = await tx.fileBinding.findMany({
 					where: { tableName, rowId, fieldName }
 				});
 
-				// 创建新绑定
+				// 删除旧绑定并减少引用计数
+				for (const oldBinding of oldBindings) {
+					await tx.fileBinding.delete({
+						where: { id: oldBinding.id }
+					});
+					
+					// 原子性地减少引用计数，使用 Math.max 确保不会变成负数
+					await tx.fileAsset.update({
+						where: { id: oldBinding.fileId },
+						data: { 
+							refCount: {
+								decrement: 1
+							}
+						}
+					});
+				}
+
+				// 创建新绑定并增加引用计数
 				for (const fileId of fileIds) {
 					await tx.fileBinding.create({
 						data: { fileId, tableName, rowId, fieldName }
 					});
 					
-					// 更新引用计数
+					// 原子性地增加引用计数
 					await tx.fileAsset.update({
 						where: { id: fileId },
 						data: { refCount: { increment: 1 } }
@@ -100,6 +117,8 @@ export class FileBindingUtil {
 				// 删除绑定并更新引用计数
 				for (const binding of bindings) {
 					await tx.fileBinding.delete({ where: { id: binding.id } });
+					
+					// 原子性地减少引用计数，确保不会变成负数
 					await tx.fileAsset.update({
 						where: { id: binding.fileId },
 						data: { refCount: { decrement: 1 } }

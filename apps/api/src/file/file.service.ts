@@ -13,8 +13,20 @@ export class FileService {
 	}
 
 	private safeJoin(root: string, targetRel: string) {
+		// 增强路径安全检查
+		if (!targetRel || typeof targetRel !== 'string') {
+			throw new BadRequestException('路径参数无效');
+		}
+		
+		// 检查危险字符和路径遍历
+		if (/[<>:"|?*\x00-\x1f]/.test(targetRel) || /\.\./.test(targetRel)) {
+			throw new BadRequestException('路径包含非法字符');
+		}
+		
 		const p = normalize(join(root, targetRel));
-		if (!p.startsWith(root)) throw new BadRequestException('非法路径');
+		if (!p.startsWith(root)) {
+			throw new BadRequestException('非法路径');
+		}
 		return p;
 	}
 
