@@ -128,6 +128,13 @@ export const AUTO_TAG_RULES: AutoTagRule[] = [
 		tags: ['文件管理'],
 		description: '后台文件管理页面上传'
 	},
+	// 集团图标（管理后台）
+	{
+		name: 'admin-group-icon',
+		source: 'admin-group',
+		tags: ['集团', '集团图标'],
+		description: '管理后台-集团图标上传'
+	},
 	
 	// 小程序通用
 	{

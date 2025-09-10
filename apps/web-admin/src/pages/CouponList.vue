@@ -8,6 +8,7 @@
 			<el-select v-model="query.type" placeholder="类型" clearable style="width:160px;margin-right:8px;">
 				<el-option label="优惠券" value="COUPON" />
 				<el-option label="洗车计次卡" value="WASH_CARD" />
+				<el-option label="集团洗车计次卡" value="GROUP_WASH_CARD" />
 			</el-select>
 			<el-button @click="fetchList">查询</el-button>
 			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Plus /></el-icon>新增卡券</el-button>
@@ -43,18 +44,18 @@
 
 		<el-dialog v-model="show" :title="form.id ? '编辑卡券' : '新增卡券'" width="840px">
 			<el-form label-width="100">
-				<el-form-item label="类型"><el-select v-model="form.type" :disabled="!!form.id"><el-option label="优惠券" value="COUPON" /><el-option label="洗车计次卡" value="WASH_CARD" /></el-select></el-form-item>
+				<el-form-item label="类型"><el-select v-model="form.type" :disabled="!!form.id"><el-option label="优惠券" value="COUPON" /><el-option label="洗车计次卡" value="WASH_CARD" /><el-option label="集团洗车计次卡" value="GROUP_WASH_CARD" /></el-select></el-form-item>
 				<el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
 				<el-form-item label="分组"><el-select v-model="form.groupId" placeholder="选择分组"><el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" /></el-select></el-form-item>
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="有效期类型">
 					<el-radio-group v-model="form.expiryType">
-						<el-radio v-if="form.type!=='WASH_CARD'" label="FIXED">固定时间</el-radio>
+						<el-radio v-if="form.type!=='WASH_CARD' && form.type!=='GROUP_WASH_CARD'" label="FIXED">固定时间</el-radio>
 						<el-radio label="AFTER_RECEIVE">领取后生效</el-radio>
 						<el-radio label="PERMANENT">永久有效</el-radio>
 					</el-radio-group>
 				</el-form-item>
-				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
+				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD' && form.type!=='GROUP_WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
 				<el-form-item v-if="form.expiryType==='AFTER_RECEIVE'" label="有效天数"><el-input-number v-model="form.validDays" :min="1" :step="1" :precision="0" /></el-form-item>
 				<el-form-item label="图片">
 					<FileInput v-model="form.imageUrl" placeholder="图片URL或从文件库选择" source="coupon" />
@@ -124,6 +125,7 @@
 				</template>
 				<template v-else>
 					<el-form-item label="总次数"><el-input-number v-model="form.totalTimes" :min="0" /></el-form-item>
+					<el-alert v-if="form.type==='GROUP_WASH_CARD'" type="warning" :closable="false" show-icon title="集团洗车卡：通过虚拟卡券商品绑定后，集团管理员在指定页面购买并自动发卡至集团账户。" />
 				</template>
 			</el-form>
 			<template #footer>
@@ -179,7 +181,7 @@ import MemberSelector from './_components/MemberSelector.vue';
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const groups = ref<any[]>([]);
 const list = ref<any[]>([]);
-const query = ref<{ groupId?: number; type?: 'COUPON'|'WASH_CARD' } >({});
+const query = ref<{ groupId?: number; type?: 'COUPON'|'WASH_CARD'|'GROUP_WASH_CARD' } >({});
 const productOptions = ref<any[]>([]);
 
 async function fetchGroups(){ groups.value = await http('/coupon/groups'); }
@@ -201,7 +203,7 @@ function openIssue(row:any){ issueCouponId.value = row.id; issueMemberIds.value 
 async function doIssue(){ if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; } issuing.value = true; try{ for (const mid of issueMemberIds.value){ await http(`/coupons/${issueCouponId.value}/issue`, { method:'POST', body: { memberId: mid, count: issueCount.value } }); } issueShow.value = false; ElMessage.success('已发放'); } catch(e:any){ ElMessage.error(String(e?.message||e||'发放失败')); } finally { issuing.value = false; } }
 
 function openCreate(){ form.value = { id: 0, type: 'COUPON', name: '', groupId: undefined, enabled: true, expiryType: 'PERMANENT', startAt: '', endAt: '', validDays: undefined, imageUrl: '', description: '', adminRemark: '', faceValue: undefined, issueTotal: undefined, perMemberLimit: undefined, minOrderAmount: undefined, applyScope: 'ALL', applicableProductIds: [], ruleKind: 'none', ruleAmount: undefined, rulePercent: undefined, ruleCap: undefined, ruleApplyBase: 'auto', ruleMinSubtotal: undefined, ruleJsonText: '', allowMiniappClaim: false, allowCombine: false, allowStackWithPoints: true, allowStackWithMemberDiscount: true, totalTimes: 0, }; range.value=''; show.value = true; }
-function openEdit(row:any){ form.value = { id: row.id, type: row.type, name: row.name, groupId: row.groupId, enabled: row.enabled, expiryType: row.type==='WASH_CARD' ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'), startAt: row.startAt, endAt: row.endAt, validDays: row.validDays, imageUrl: row.imageUrl || '', description: row.description || '', adminRemark: row.adminRemark || '', faceValue: row.faceValue, issueTotal: row.issueTotal, perMemberLimit: row.perMemberLimit, minOrderAmount: row.minOrderAmount, applyScope: row.applyScope || 'ALL', applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [], ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none', ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined, rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined, ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined, ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto', ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined, ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '', allowMiniappClaim: !!row.allowMiniappClaim, allowCombine: !!row.allowCombine, allowStackWithPoints: row.allowStackWithPoints !== false, allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false, totalTimes: row.totalTimes, }; if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any; show.value = true; }
+function openEdit(row:any){ form.value = { id: row.id, type: row.type, name: row.name, groupId: row.groupId, enabled: row.enabled, expiryType: (row.type==='WASH_CARD' || row.type==='GROUP_WASH_CARD') ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'), startAt: row.startAt, endAt: row.endAt, validDays: row.validDays, imageUrl: row.imageUrl || '', description: row.description || '', adminRemark: row.adminRemark || '', faceValue: row.faceValue, issueTotal: row.issueTotal, perMemberLimit: row.perMemberLimit, minOrderAmount: row.minOrderAmount, applyScope: row.applyScope || 'ALL', applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [], ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none', ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined, rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined, ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined, ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto', ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined, ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '', allowMiniappClaim: !!row.allowMiniappClaim, allowCombine: !!row.allowCombine, allowStackWithPoints: row.allowStackWithPoints !== false, allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false, totalTimes: row.totalTimes, }; if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any; show.value = true; }
 
 const viewShow = ref(false);
 const view = ref<any>(null);
@@ -225,7 +227,7 @@ async function remove(id:number){ try { await http(`/coupons/${id}`, { method:'D
 
 onMounted(async ()=>{ await Promise.all([fetchGroups(), fetchList(), fetchProducts()]); });
 
-function zhType(t?: string){ const v = String(t||''); if (v==='COUPON') return '优惠券'; if (v==='WASH_CARD') return '洗车计次卡'; return v || '-'; }
+function zhType(t?: string){ const v = String(t||''); if (v==='COUPON') return '优惠券'; if (v==='WASH_CARD') return '洗车计次卡'; if (v==='GROUP_WASH_CARD') return '集团洗车计次卡'; return v || '-'; }
 function zhExpiryType(t?: string){ const v = String(t||''); if (v==='FIXED') return '固定时间'; if (v==='AFTER_RECEIVE') return '领取后生效'; if (v==='PERMANENT') return '永久有效'; return v || '-'; }
 function formatLocal(d?: string){ try { if (!d) return '-'; const dt = new Date(d); if (isNaN(dt.getTime())) return '-'; const y=dt.getFullYear(); const m=String(dt.getMonth()+1).padStart(2,'0'); const dd=String(dt.getDate()).padStart(2,'0'); const hh=String(dt.getHours()).padStart(2,'0'); const mm=String(dt.getMinutes()).padStart(2,'0'); const ss=String(dt.getSeconds()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`; } catch { return '-'; } }
 </script>

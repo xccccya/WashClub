@@ -1,0 +1,116 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma.service.js';
+
+@Injectable()
+export class GroupCardService {
+  constructor(private prisma: PrismaService) {}
+
+  async list(groupId: number) {
+    return this.prisma.groupWashCard.findMany({ where: { groupId }, orderBy: { id: 'desc' } });
+  }
+
+  async create(groupId: number, input: { name?: string | null; totalTimes: number; expiryAt?: string | null; cardNo?: string | null }) {
+    const total = Number(input?.totalTimes || 0);
+    if (!Number.isInteger(total) || total <= 0) throw new BadRequestException('总次数必须为正整数');
+    return this.prisma.$transaction(async (tx) => {
+      const g = await tx.group.findUnique({ where: { id: groupId } });
+      if (!g) throw new BadRequestException('集团不存在');
+      const cardNo = await this.generateCardNo(tx);
+      const card = await tx.groupWashCard.create({ data: { groupId, name: input?.name || '集团洗车计次卡', totalTimes: total, remainingTimes: total, status: 'ACTIVE' as any, expiryAt: input?.expiryAt ? new Date(input.expiryAt) : null, cardNo: input?.cardNo || cardNo } });
+      await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change: total, beforeRemaining: 0, afterRemaining: total, remark: '购卡' } });
+      return card;
+    });
+  }
+
+  async addTimes(cardId: number, count: number, opts?: { remark?: string | null; operatorUserId?: number | null }) {
+    const qty = Number(count || 0);
+    if (!Number.isInteger(qty) || qty <= 0) throw new BadRequestException('增加次数必须为正整数');
+    return this.prisma.$transaction(async (tx) => {
+      const card = await tx.groupWashCard.findUnique({ where: { id: cardId } });
+      if (!card) throw new BadRequestException('卡不存在');
+      if (card.status !== 'ACTIVE') throw new BadRequestException('卡不可用');
+      const before = card.remainingTimes;
+      const after = before + qty;
+      const updated = await tx.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after, totalTimes: Math.max(card.totalTimes, after) } });
+      await tx.groupWashCardLog.create({
+        data: {
+          cardId: card.id,
+          action: 'ADD' as any,
+          reason: 'BACKEND_ADD' as any,
+          change: qty,
+          beforeRemaining: before,
+          afterRemaining: after,
+          remark: opts?.remark || null,
+          operatorUserId: opts?.operatorUserId ?? null,
+        }
+      });
+      return updated;
+    });
+  }
+
+  async consume(cardId: number, times: number, opts?: { vehicleId?: number | null; memberId?: number | null; remark?: string | null; operatorUserId?: number | null }) {
+    const qty = Number(times || 0);
+    if (!Number.isInteger(qty) || qty <= 0) throw new BadRequestException('扣减次数必须为正整数');
+    return this.prisma.$transaction(async (tx) => {
+      const card = await tx.groupWashCard.findUnique({ where: { id: cardId } });
+      if (!card) throw new BadRequestException('卡不存在');
+      if (card.status !== 'ACTIVE') throw new BadRequestException('卡不可用');
+      if (card.expiryAt && new Date(card.expiryAt).getTime() < Date.now()) throw new BadRequestException('卡已过期');
+      if (card.remainingTimes < qty) throw new BadRequestException('余次不足');
+      const before = card.remainingTimes;
+      const after = before - qty;
+      const updated = await tx.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+      await tx.groupWashCardLog.create({
+        data: {
+          cardId: card.id,
+          action: 'DEDUCT' as any,
+          reason: 'SERVICE_DEDUCT' as any,
+          change: -qty,
+          beforeRemaining: before,
+          afterRemaining: after,
+          remark: opts?.remark || null,
+          vehicleId: opts?.vehicleId ?? null,
+          memberId: opts?.memberId ?? null,
+          operatorUserId: opts?.operatorUserId ?? null,
+        }
+      });
+      return updated;
+    });
+  }
+
+  async remove(groupId: number, cardId: number) {
+    // 限制：仅允许删除本集团下的卡，且建议仅在未使用或归档时删除（此处不强校验使用次数，由业务方控制）
+    const card = await this.prisma.groupWashCard.findUnique({ where: { id: cardId } });
+    if (!card) throw new BadRequestException('卡不存在');
+    if (card.groupId !== groupId) throw new BadRequestException('无权删除其他集团的卡');
+    // 强校验：已使用过（剩余 < 总次数）不允许删除，避免账实不符
+    if (Number(card.remainingTimes) < Number(card.totalTimes)) {
+      throw new BadRequestException('该卡已使用，禁止删除。请改为停用/归档处理');
+    }
+    // 直接级联删除日志（模型上 onDelete: Cascade 已配置）
+    await this.prisma.groupWashCard.delete({ where: { id: cardId } });
+    return { ok: true } as const;
+  }
+
+  async listLogs(cardId: number, page = 1, pageSize = 10) {
+    const p = Math.max(1, Number(page || 1));
+    const ps = Math.max(1, Math.min(100, Number(pageSize || 10)));
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.groupWashCardLog.count({ where: { cardId } }),
+      this.prisma.groupWashCardLog.findMany({ where: { cardId }, orderBy: { id: 'desc' }, skip: (p - 1) * ps, take: ps, include: { member: { select: { id: true, name: true, phone: true } }, vehicle: { select: { id: true, plateNumber: true } } } as any })
+    ]);
+    return { total, page: p, pageSize: ps, items } as any;
+  }
+
+  private async generateCardNo(tx: PrismaClient | Prisma.TransactionClient) {
+    let seq = 1;
+    while (true) {
+      const no = String(Math.floor(10000000 + Math.random() * 90000000));
+      const exists = await tx.groupWashCard.findFirst({ where: { cardNo: no } });
+      if (!exists) return no;
+      seq++;
+      if (seq > 100000) throw new Error('卡号生成失败');
+    }
+  }
+}

@@ -150,6 +150,16 @@
 			"path": "pages/coupon/mine",
 			"style": { "navigationBarTitleText": "我的优惠券" }
 		}
+		,
+		{
+			"path": "pages/group/index",
+			"style": { "navigationBarTitleText": "集团客户" }
+		}
+		,
+		{
+			"path": "pages/group/recharge",
+			"style": { "navigationBarTitleText": "集团充值" }
+		}
 	],
 	"tabBar": {
 		"color": "#666666",

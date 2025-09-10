@@ -49,7 +49,7 @@ export class CouponService {
     deleteGroup(id: number){ return this.prisma.couponGroup.delete({ where: { id } }); }
 
     // 卡券
-    listCoupons(query: { groupId?: number | null; type?: 'COUPON'|'WASH_CARD' | null; enabled?: boolean | null }){
+    listCoupons(query: { groupId?: number | null; type?: 'COUPON'|'WASH_CARD'|'GROUP_WASH_CARD' | null; enabled?: boolean | null }){
         const where: any = {};
         if (query.groupId !== undefined) where.groupId = query.groupId;
         if (query.type) where.type = query.type;

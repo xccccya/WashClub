@@ -30,6 +30,10 @@ import CouponLogs from './pages/CouponLogs.vue';
 import MemberAddresses from './pages/MemberAddresses.vue';
 import MemberSignins from './pages/MemberSignins.vue';
 import MemberPoints from './pages/MemberPoints.vue';
+import GroupList from './pages/GroupList.vue';
+import GroupVehicles from './pages/GroupVehicles.vue';
+import GroupCards from './pages/GroupCards.vue';
+import GroupBalance from './pages/GroupBalance.vue';
 
 const router = createRouter({
 	history: createWebHistory('/admin'),
@@ -71,6 +75,11 @@ const router = createRouter({
 				{ path: '/system/basic', component: SystemBasic, meta: { perm: 'system-basic', title: '基础设置' } },
 				{ path: '/system/files', component: SystemFiles, meta: { perm: 'system-files', title: '文件管理' } },
 				{ path: '/system/sms', component: SystemSms, meta: { perm: 'system-sms', title: '短信管理' } },
+				// ====== 新增：集团客户 ======
+				{ path: '/groups', component: GroupList, meta: { perm: 'group', title: '集团客户' } },
+				{ path: '/groups/vehicles', component: GroupVehicles, meta: { perm: 'group-vehicles', title: '集团车辆' } },
+				{ path: '/groups/cards', component: GroupCards, meta: { perm: 'group-cards', title: '集团洗车卡' } },
+				{ path: '/groups/balance', component: GroupBalance, meta: { perm: 'group-balance', title: '集团余额' } },
 			],
 		},
 	],
@@ -129,7 +138,12 @@ router.beforeEach((to, _from, next) => {
 router.afterEach((to) => {
 	try{
 		const siteTitle = localStorage.getItem('siteTitle') || 'WashClub 管理后台';
-		const pageTitle = (to.meta as any)?.title || '页面';
+		let pageTitle = (to.meta as any)?.title || '页面';
+		// 优化订单详情页标题，附加订单号或ID
+		if (to.path.startsWith('/orders/')){
+			const idOrNo = String((to.params as any)?.no || (to.params as any)?.id || '').trim();
+			pageTitle = idOrNo ? `订单详情（${idOrNo}）` : '订单详情';
+		}
 		document.title = `${pageTitle} - ${siteTitle}`;
 	}catch{}
 });

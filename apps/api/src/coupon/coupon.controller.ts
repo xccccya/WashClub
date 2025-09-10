@@ -26,7 +26,7 @@ export class CouponController {
     @Get('')
     @ApiOperation({ summary: '卡券列表' })
     @RequirePerm('coupons')
-    list(@Query('groupId') groupIdStr?: string, @Query('type') type?: 'COUPON'|'WASH_CARD', @Query('enabled') enabledStr?: string){
+    list(@Query('groupId') groupIdStr?: string, @Query('type') type?: 'COUPON'|'WASH_CARD'|'GROUP_WASH_CARD', @Query('enabled') enabledStr?: string){
         const groupId = groupIdStr !== undefined ? Number(groupIdStr) : undefined;
         const enabled = enabledStr !== undefined ? enabledStr === 'true' : undefined;
         return this.svc.listCoupons({ groupId, type: type || null, enabled: enabled as any });

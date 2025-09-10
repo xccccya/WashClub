@@ -18,6 +18,14 @@
 					<el-menu-item v-if="can('member-washcards')" index="/member-washcards"><el-icon style="margin-right:6px;"><Ticket /></el-icon>洗车计次卡</el-menu-item>
 					<el-menu-item v-if="can('member-addresses')" index="/member-addresses"><el-icon style="margin-right:6px;"><Location /></el-icon>收货地址</el-menu-item>
 				</el-sub-menu>
+				<!-- 新增：集团管理 -->
+				<el-sub-menu index="/groups">
+					<template #title><el-icon style="margin-right:6px;"><UserFilled /></el-icon>集团管理</template>
+					<el-menu-item v-if="can('group')" index="/groups"><el-icon style="margin-right:6px;"><UserFilled /></el-icon>集团列表</el-menu-item>
+					<el-menu-item v-if="can('group-vehicles')" index="/groups/vehicles"><el-icon style="margin-right:6px;"><Van /></el-icon>集团车辆</el-menu-item>
+					<el-menu-item v-if="can('group-cards')" index="/groups/cards"><el-icon style="margin-right:6px;"><Ticket /></el-icon>集团洗车卡</el-menu-item>
+					<el-menu-item v-if="can('group-balance')" index="/groups/balance"><el-icon style="margin-right:6px;"><Coin /></el-icon>集团余额</el-menu-item>
+				</el-sub-menu>
 				<el-sub-menu index="/vehicles">
 					<template #title><el-icon style="margin-right:6px;"><Van /></el-icon>车辆管理</template>
 					<el-menu-item v-if="can('member-vehicles')" index="/member-vehicles"><el-icon style="margin-right:6px;"><Van /></el-icon>会员车辆</el-menu-item>
@@ -209,6 +217,11 @@ function addTabByRoute(){
 		'/member-washcards':'洗车计次卡',
 		'/member-addresses':'收货地址',
 		'/service-queue':'服务队列',
+		// 新增：集团管理
+		'/groups':'集团列表',
+		'/groups/vehicles':'集团车辆',
+		'/groups/cards':'集团洗车卡',
+		'/groups/balance':'集团余额',
 		'/store/categories':'商品分类',
 		'/store/products':'商品列表',
 		'/store/inventory':'库存管理',
@@ -227,8 +240,15 @@ function addTabByRoute(){
 		'/system/files':'文件管理',
 		'/system/sms':'短信管理'
 	};
-	const title = mapTitle[path] || '页面';
-	if (!tabs.value.find(t=>t.path===path)) tabs.value.push({ path, title });
+	const metaTitle = (r.meta as any)?.title as string | undefined;
+	let title = mapTitle[path] || metaTitle || '页面';
+	// 动态路由：订单详情，附加订单号或ID
+	if (path.startsWith('/orders/')){
+		const idOrNo = String((r.params as any)?.no || (r.params as any)?.id || '').trim();
+		title = idOrNo ? `订单详情（${idOrNo}）` : '订单详情';
+	}
+	const existed = tabs.value.find(t=>t.path===path);
+	if (existed) existed.title = title; else tabs.value.push({ path, title });
 	active.value = path;
 	// 生成面包屑
 	const crumbs: string[] = [];

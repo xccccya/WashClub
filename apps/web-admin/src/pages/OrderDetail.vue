@@ -391,7 +391,7 @@ function displayType(t?: string){
 	if (!v) return '-';
 	if (v==='SERVICE') return '服务订单';
 	if (v==='SP') return '商品订单';
-	if (v==='FK') return '福卡订单';
+	if (v==='FK') return '付款订单';
 	return '其它';
 }
 function displayPayStatus(s?: string){

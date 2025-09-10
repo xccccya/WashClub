@@ -239,7 +239,10 @@ export class OrderRewardsService {
             const prod = await this.prisma.product.findUnique({ where: { id: it.productId } });
             if (!prod || prod.type !== 'VIRTUAL_CARD' || !prod.couponId) continue;
             const coupon = await this.prisma.coupon.findUnique({ where: { id: prod.couponId } });
-            if (!coupon || coupon.type !== 'WASH_CARD') continue;
+            if (!coupon) continue;
+            const couponType = String((coupon as any).type);
+            // 会员洗车计次卡
+            if (couponType === 'WASH_CARD') {
             const times = coupon.totalTimes || 0;
             if (times <= 0) continue;
             const change = times * it.quantity;
@@ -262,6 +265,35 @@ export class OrderRewardsService {
                 const cardNo = await gen(this.prisma);
                 const created = await this.prisma.washCard.create({ data: { ownerMemberId: order.memberId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo, expiryAt } });
                 await this.prisma.washCardLog.create({ data: { cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark, purchaseOrderId: order.id } });
+            }
+            continue;
+            }
+            // 集团洗车计次卡
+            if (couponType === 'GROUP_WASH_CARD') {
+                if (!order.groupId) continue;
+                const times = coupon.totalTimes || 0;
+                if (times <= 0) continue;
+                const change = times * it.quantity;
+                const remark = `购买入账（订单号：${order.no}）`;
+                let expiryAt: Date | null = null;
+                if (coupon.expiryType === 'FIXED') { expiryAt = coupon.endAt ? new Date(coupon.endAt as any) : null; }
+                else if (coupon.expiryType === 'AFTER_RECEIVE') { const now2 = new Date(); expiryAt = (coupon.validDays && coupon.validDays > 0) ? new Date(now2.getTime() + Number(coupon.validDays) * 24 * 60 * 60 * 1000) : null; }
+                else { expiryAt = null; }
+                const existing = await this.prisma.groupWashCard.findFirst({ where: { groupId: order.groupId, name: coupon.name } });
+                if (existing) {
+                    const before = existing.remainingTimes;
+                    const afterRemaining = before + change;
+                    let nextExpiry: Date | null = existing.expiryAt ?? null;
+                    if (expiryAt) { if (!nextExpiry || new Date(expiryAt) > new Date(nextExpiry)) nextExpiry = expiryAt; }
+                    await this.prisma.groupWashCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + change, remainingTimes: afterRemaining, expiryAt: nextExpiry } });
+                    await this.prisma.groupWashCardLog.create({ data: { cardId: existing.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: before, afterRemaining: afterRemaining, remark } });
+                } else {
+                    async function gen2(tx: PrismaService) { for (let i = 0; i < 20; i++) { const n = Math.floor(Math.random() * 100000000); const candidate = String(n).padStart(8, '0'); const exists = await tx.groupWashCard.findFirst({ where: { cardNo: candidate } }).catch(() => null); if (!exists) return candidate; } return String(Date.now()).slice(-8); }
+                    const cardNo = await gen2(this.prisma);
+                    const created = await this.prisma.groupWashCard.create({ data: { groupId: order.groupId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo, expiryAt } });
+                    await this.prisma.groupWashCardLog.create({ data: { cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark } });
+                }
+                continue;
             }
         }
     }

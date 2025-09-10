@@ -11,6 +11,11 @@ export type AdminMenuKey =
 	| 'member-washcards'
 	| 'member-signins'
 	| 'member-points'
+	// 集团菜单
+	| 'group'
+	| 'group-vehicles'
+	| 'group-cards'
+	| 'group-balance'
 	| 'service-queue'
 	| 'system-roles'
 	| 'system-admins'
@@ -92,6 +97,11 @@ export class AdminRoleService {
 	// 菜单清单（供角色权限编辑选择）
 	listMenus() {
 		return [
+			// 集团客户
+			{ key: 'group', name: '集团列表', path: '/groups' },
+			{ key: 'group-vehicles', name: '集团车辆', path: '/groups/vehicles' },
+			{ key: 'group-cards', name: '集团洗车卡', path: '/groups/cards' },
+			{ key: 'group-balance', name: '集团余额', path: '/groups/balance' },
 			{ key: 'system-basic', name: '基础设置', path: '/system/basic' },
 			{ key: 'members', name: '会员列表', path: '/members' },
 			{ key: 'member-signins', name: '签到管理', path: '/member-signins' },

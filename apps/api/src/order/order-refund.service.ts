@@ -19,6 +19,52 @@ export class OrderRefundService {
         } catch {/* ignore timeline errors */ }
     }
 
+    // ============ 集团充值退款：扣减集团余额（幂等，部分退款可多次调用） ============
+    private async adjustGroupBalanceForRefund(params: { orderId: number; outRefundNo?: string | null; operatorUserId?: number | null }) {
+        const { orderId, outRefundNo, operatorUserId } = params;
+        const ord: any = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!ord || ord.type !== 'FK' || !ord.groupId) return; // 非集团充值订单跳过
+        await this.prisma.$transaction(async (tx) => {
+            const fresh = await tx.order.findUnique({ where: { id: orderId } });
+            if (!fresh || fresh.type !== 'FK' || !fresh.groupId) return;
+            const groupId = Number(fresh.groupId);
+            const refunded = Number(fresh.refundedAmount || 0);
+            if (!(refunded > 0)) return;
+            // 已记账的退款累计（负数存储，取绝对值求和）
+            const agg = await tx.groupBalanceLedger.aggregate({
+                where: { groupId, orderId: orderId, type: 'REFUND' as any },
+                _sum: { amount: true }
+            });
+            const appliedAbs = Math.abs(Number(agg?._sum?.amount || 0));
+            const delta = Math.max(0, refunded - appliedAbs);
+            if (delta <= 0) return; // 幂等：无差额则不处理
+
+            // 确保账户存在
+            const acc = await tx.groupBalanceAccount.findUnique({ where: { groupId } });
+            if (!acc) {
+                await tx.groupBalanceAccount.create({ data: { groupId, balance: 0 as any, version: 0 } });
+            }
+            const current = await tx.groupBalanceAccount.findUnique({ where: { groupId } });
+            const before = Number(current?.balance || 0);
+            const version = current?.version ?? 0;
+            const upd = await tx.groupBalanceAccount.updateMany({ where: { groupId, version }, data: { balance: (before - delta) as any, version: { increment: 1 } as any } as any });
+            if (!upd || (upd as any).count === 0) {
+                throw new Error('Group balance concurrent update failed (refund)');
+            }
+            await tx.groupBalanceLedger.create({
+                data: {
+                    groupId,
+                    type: 'REFUND' as any,
+                    amount: (-delta) as any,
+                    orderId: orderId,
+                    operatorUserId: operatorUserId ?? null,
+                    note: outRefundNo ? `渠道退款出账（${outRefundNo}）` : '退款出账'
+                }
+            });
+            try { await this.writeTimeline({ tx, orderId, event: 'NOTE', value: 'GROUP_RECHARGE_REFUND_DEBIT', remark: `金额：${delta.toFixed(2)}`, operatorUserId: operatorUserId ?? null }); } catch {}
+        });
+    }
+
     // 验证退款是否允许
     async verifyRefundAllowed(orderId: number, amountYuan?: number | null) {
         if (this.rewards) {
@@ -58,6 +104,9 @@ export class OrderRefundService {
             
             // 先将累计退款额置为全额，再进行成长值累计扣减计算
             await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: order.payAmount } });
+
+            // 集团充值退款：同步扣减集团余额（幂等）
+            try { await this.adjustGroupBalanceForRefund({ orderId, outRefundNo: params.outRefundNo || null, operatorUserId: operatorUserId ?? null }); } catch { }
             
             // 成长值扣减（累计口径，避免多次部分退款的取整误差）：finalizeAll=true 按剩余一次扣完
             if (this.rewards) {
@@ -69,6 +118,8 @@ export class OrderRefundService {
         
         // 非全额：部分退款累计并记录时间线
         await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: new Prisma.Decimal(nextRefundedYuan as any) } });
+        // 集团充值退款（部分）：按差额扣减集团余额（幂等）
+        try { await this.adjustGroupBalanceForRefund({ orderId, outRefundNo: params.outRefundNo || null, operatorUserId: operatorUserId ?? null }); } catch { }
         await this.writeTimeline({ orderId, event: 'PAY_STATUS', value: 'PARTIAL_REFUND', remark: `¥${amountYuan.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
         
         // 成长值扣减（部分退款）
@@ -93,6 +144,8 @@ export class OrderRefundService {
             try { await this.rewards.deductGrowthForRefund(orderId, Number((updated as any)?.payAmount || 0), operatorUserId ?? null); } catch { }
         }
         
+        // 内部退款：若为集团充值单，同步扣减集团余额（幂等）
+        try { await this.adjustGroupBalanceForRefund({ orderId, outRefundNo: null, operatorUserId: operatorUserId ?? null }); } catch { }
         return updated;
     }
 

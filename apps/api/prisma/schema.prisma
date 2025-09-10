@@ -20,6 +20,9 @@ model User {
   weixinOpenId          String?        @unique
   washCardLogsOperated  WashCardLog[]  @relation("UserOperatesWashCardLogs")
   inventoryLogsOperated InventoryLog[]
+  // 新增：集团域操作反向关联
+  groupBalanceLedgersOperated GroupBalanceLedger[] @relation("UserOperatesGroupBalanceLedgers")
+  groupWashCardLogsOperated   GroupWashCardLog[]   @relation("UserOperatesGroupWashCardLogs")
 
   // 反向关联：售后审核与退款操作
   afterSalesAudits      AfterSalesRequest[] @relation("UserAuditsAfterSales")
@@ -90,6 +93,12 @@ model Member {
   growthLogs MemberGrowthLog[]
   // 反向关联：积分日志
   pointsLogs MemberPointsLog[]
+
+  // 新增：集团成员关系（单会员仅一个集团）
+  groupMembership GroupMember?
+
+  // 新增：受影响的集团洗车卡流水（例如代客服务时）
+  groupWashCardLogsAffected GroupWashCardLog[] @relation("MemberAffectedGroupWashCardLogs")
 }
 
 model MemberLevel {
@@ -179,9 +188,15 @@ model Vehicle {
   seriesImage  String?
   memberId     Int?
   member       Member?            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  // 新增：允许车辆直接归属集团（与 memberId 业务上互斥）
+  groupId      Int?
+  group        Group?             @relation(fields: [groupId], references: [id], onDelete: SetNull)
   washCardLogs WashCardLog[]      @relation("VehicleToWashCardLogs")
+  groupWashCardLogs GroupWashCardLog[] @relation("VehicleToGroupWashCardLogs")
   queueItems   ServiceQueueItem[]
   orders       Order[]
+
+  @@index([groupId])
 }
 
 // 洗车计次卡相关
@@ -262,6 +277,155 @@ model WashCardLog {
 
   memberId Int? // 预留：关联受影响会员
   member   Member? @relation("MemberAffectedWashCardLogs", fields: [memberId], references: [id])
+}
+
+// =====================
+// 集团 客户域 模型
+// =====================
+
+// 集团主体
+model Group {
+  id         Int       @id @default(autoincrement())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  code       String    @unique               // 集团号，前缀 G
+  name       String
+  iconUrl    String?
+  remark     String?
+
+  members    GroupMember[]
+  washCards  GroupWashCard[]
+  balance    GroupBalanceAccount?
+  ledgers    GroupBalanceLedger[]
+
+  vehicles   Vehicle[]                      // 直绑集团的车辆（Vehicle.groupId）
+
+  // 反向关联：订单归属本集团
+  orders     Order[]
+
+  @@index([createdAt])
+  @@index([name])
+}
+
+// 集团成员（关闭成员多集团：memberId 全局唯一）
+enum GroupMemberRole {
+  ADMIN
+  USER
+}
+
+model GroupMember {
+  id        Int             @id @default(autoincrement())
+  createdAt DateTime        @default(now())
+
+  groupId   Int
+  group     Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  memberId  Int             @unique
+  member    Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  role      GroupMemberRole @default(USER)
+  joinedAt  DateTime        @default(now())
+
+  @@index([groupId])
+  @@index([role])
+}
+
+// 集团余额账户（单组唯一）
+model GroupBalanceAccount {
+  id        Int      @id @default(autoincrement())
+  updatedAt DateTime @updatedAt
+
+  groupId   Int      @unique
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  balance   Decimal  @default(0) @db.Decimal(12, 2)
+  version   Int      @default(0) // 乐观锁版本号
+
+  @@index([updatedAt])
+}
+
+// 集团余额流水
+enum GroupBalanceFlowType {
+  RECHARGE
+  DEDUCT
+  ADJUST
+  REFUND
+}
+
+model GroupBalanceLedger {
+  id             Int                  @id @default(autoincrement())
+  createdAt      DateTime             @default(now())
+
+  groupId        Int
+  group          Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  type           GroupBalanceFlowType
+  amount         Decimal              @db.Decimal(12, 2) // 正负金额
+
+  orderId        Int?
+  order          Order?               @relation("OrderToGroupBalanceLedgers", fields: [orderId], references: [id])
+
+  operatorUserId Int?
+  operatorUser   User?                @relation("UserOperatesGroupBalanceLedgers", fields: [operatorUserId], references: [id])
+
+  note           String?
+
+  @@index([groupId, createdAt])
+  @@index([orderId])
+  @@index([type])
+}
+
+// 集团洗车计次卡
+model GroupWashCard {
+  id             Int            @id @default(autoincrement())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  groupId        Int
+  group          Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name           String         @default("集团洗车计次卡")
+  totalTimes     Int            @default(0)
+  remainingTimes Int            @default(0)
+  status         WashCardStatus @default(ACTIVE)
+  expiryAt       DateTime?
+  cardNo         String         @unique
+
+  logs           GroupWashCardLog[]
+
+  @@index([groupId])
+  @@index([status])
+}
+
+// 集团洗车卡流水
+model GroupWashCardLog {
+  id              Int               @id @default(autoincrement())
+  createdAt       DateTime          @default(now())
+
+  cardId          Int
+  card            GroupWashCard     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  action          WashCardLogAction
+  reason          WashCardLogReason
+  change          Int               // +增加/-减少
+  beforeRemaining Int
+  afterRemaining  Int
+  remark          String?
+
+  operatorUserId  Int?
+  operatorUser    User?             @relation("UserOperatesGroupWashCardLogs", fields: [operatorUserId], references: [id])
+
+  vehicleId       Int?
+  vehicle         Vehicle?          @relation("VehicleToGroupWashCardLogs", fields: [vehicleId], references: [id])
+
+  memberId        Int?
+  member          Member?           @relation("MemberAffectedGroupWashCardLogs", fields: [memberId], references: [id])
+
+  @@index([cardId, createdAt])
+  @@index([vehicleId])
+  @@index([memberId])
 }
 
 model ScrollNotice {
@@ -433,7 +597,8 @@ enum ReviewStatus {
 // 卡券相关
 enum CouponType {
   COUPON // 优惠券（满减/直减等，后续扩展）
-  WASH_CARD // 洗车计次卡
+  WASH_CARD // 洗车计次卡（会员）
+  GROUP_WASH_CARD // 集团洗车计次卡
 }
 
 // 卡券适用范围
@@ -696,6 +861,9 @@ model Order {
   // 会员信息
   memberId                Int
   member                  Member            @relation(fields: [memberId], references: [id])
+  // 集团信息（集团充值/集团消费订单挂载）
+  groupId                 Int?
+  group                   Group?            @relation(fields: [groupId], references: [id])
   // 服务订单追加：车辆
   vehicleId               Int?
   vehicle                 Vehicle?          @relation(fields: [vehicleId], references: [id])
@@ -724,6 +892,9 @@ model Order {
   // 订单时间线（状态流转记录）
   timelines          OrderTimeline[]
 
+  // 新增：集团余额流水反向
+  groupBalanceLedgers GroupBalanceLedger[] @relation("OrderToGroupBalanceLedgers")
+
   // 反向关联：成长值日志（支付入账/退款扣减）
   growthLogs        MemberGrowthLog[]
 
@@ -750,6 +921,7 @@ model Order {
   @@index([userRemark])
   @@index([payStatus, deletedAt, paidAt])
   @@index([memberId, createdAt])
+  @@index([groupId])
 }
 
 model OrderItem {

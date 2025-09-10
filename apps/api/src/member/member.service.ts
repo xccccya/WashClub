@@ -50,6 +50,19 @@ export class MemberService {
 				if (Date.now() - issuedAtMs > maxAgeMs) throw new UnauthorizedException('Token已过期');
 			}
 			const member: any = await this.findById(id);
+			// 附加集团绑定信息（用于小程序“集团客户”入口判断）
+			try {
+				const gm: any = await (this.prisma as any).groupMember.findUnique({ where: { memberId: id }, include: { group: { select: { id: true, name: true, iconUrl: true, code: true } } } });
+				if (gm) {
+					member.groupId = gm.groupId;
+					member.groupRole = gm.role;
+					member.group = gm.group ? { id: gm.group.id, name: gm.group.name, iconUrl: gm.group.iconUrl, code: gm.group.code } : null;
+				} else {
+					member.groupId = null;
+					member.groupRole = null;
+					member.group = null;
+				}
+			} catch {}
 			if (!member) throw new UnauthorizedException('Token无效');
 			// 补充：是否最大等级与下一等级的成长值要求
 			try {

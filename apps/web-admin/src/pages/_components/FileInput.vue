@@ -32,10 +32,11 @@ async function upload(options:any){
 	fd.append('file', file); 
 	fd.append('dir', 'admin');
 	
-	// 添加来源标识或自动标签
+	// 同时支持 source 与 tags（不互斥）
 	if (props.source) {
 		fd.append('source', props.source);
-	} else if (props.autoTags && props.autoTags.length > 0) {
+	}
+	if (props.autoTags && props.autoTags.length > 0) {
 		fd.append('tags', JSON.stringify(props.autoTags));
 	}
 	

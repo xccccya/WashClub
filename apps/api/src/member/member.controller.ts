@@ -85,7 +85,9 @@ export class MemberController {
 	@Get(':id')
 	@ApiOperation({ summary: '获取会员详情' })
 	get(@Param('id') id: string) {
-		return this.service.findById(Number(id));
+		const n = Number(id);
+		if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('会员ID无效');
+		return this.service.findById(n);
 	}
 
 	@Post('create')

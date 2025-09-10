@@ -78,6 +78,38 @@ async function main() {
 	const group = await prisma.couponGroup.upsert({ where: { id: 1 }, update: { name: '默认分组', enabled: true, weight: 100 }, create: { id: 1, name: '默认分组', enabled: true, weight: 100 } });
 	const wc = await prisma.coupon.upsert({ where: { id: 1 }, update: { name: '洗车计次卡（10次）', type: 'WASH_CARD', groupId: group.id, totalTimes: 10, validDays: null, enabled: true }, create: { id: 1, name: '洗车计次卡（10次）', type: 'WASH_CARD', groupId: group.id, totalTimes: 10, validDays: null, enabled: true } });
 	await prisma.product.update({ where: { id: 3 }, data: { couponId: wc.id } });
+
+	// ============ 新增：集团演示数据 ============
+	// 创建一个演示会员作为集团管理员
+	const demoMemberPhone = '19900000001';
+	const demoMember = await prisma.member.upsert({
+		where: { phone: demoMemberPhone },
+		update: { name: '集团管理员演示' },
+		create: { uid: 10001, phone: demoMemberPhone, name: '集团管理员演示', balance: 0, points: 0 },
+	});
+
+	// 创建集团主体
+	const demoGroup = await prisma.group.upsert({
+		where: { code: 'G2025000001' },
+		update: { name: '演示集团A' },
+		create: { code: 'G2025000001', name: '演示集团A', iconUrl: null },
+	});
+
+	// 绑定集团管理员（单会员仅一个集团约束）
+	await prisma.groupMember.upsert({
+		where: { memberId: demoMember.id },
+		update: { groupId: demoGroup.id, role: 'ADMIN' },
+		create: { memberId: demoMember.id, groupId: demoGroup.id, role: 'ADMIN' },
+	});
+
+	// 创建集团余额账户（如不存在）
+	await prisma.groupBalanceAccount.upsert({
+		where: { groupId: demoGroup.id },
+		update: {},
+		create: { groupId: demoGroup.id, balance: 0, version: 0 },
+	});
+
+	console.log('Seeded demo group:', demoGroup.code, 'admin member:', demoMember.phone);
 }
 
 main().finally(async () => {

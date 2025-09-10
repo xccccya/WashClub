@@ -111,9 +111,10 @@
 					<image class="icon-img" src="/static/icons/coupon.png" mode="aspectFit" />
 					<text class="icon-text">领券中心</text>
 				</view>
-				<view class="icon-btn" @tap="onTapAbout">
-					<image class="icon-img" src="/static/icons/about.png" mode="aspectFit" />
-					<text class="icon-text">关于我们</text>
+				<!-- 将“关于我们”删除；仅当已绑定集团显示“集团客户”入口 -->
+				<view v-if="hasGroup" class="icon-btn" @tap="onTapGroup">
+					<image class="icon-img" src="/static/icons/jtuser.png" mode="aspectFit" />
+					<text class="icon-text">集团客户</text>
 				</view>
 				<view class="icon-btn" @tap="onTapAdmin">
 					<image class="icon-img" src="/static/icons/admin.png" mode="aspectFit" />
@@ -133,7 +134,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+import { API_BASE, checkAuthAndRefresh, createHttp } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import WashCard from '../../components/WashCard.vue';
 
@@ -157,7 +158,7 @@ const avatarUrl = ref<string>('');
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
 async function ensureSiteSetting(){ if (siteSetting.value) return; try { const httpS = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') }); siteSetting.value = await httpS('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 // 基址由 utils/auth 统一提供
-const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
+const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : '');
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const isLoggedIn = computed(() => !!token.value);
 
@@ -374,9 +375,9 @@ function goOrdersWith(main:'all'|'product'|'service', filter:'待支付'|'待收
 
 function onTapProfile() { if (!isLoggedIn.value) navigate('/pages/login/index'); }
 
-async function loadCard(){ try { const t = uni.getStorageSync('token'); if (!t) { card.value = null; return; } const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t }); const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' }); const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null; card.value = def || null; } catch { card.value = null; } }
+async function loadCard(){ try { const t = uni.getStorageSync('token'); if (!t) { card.value = null; return; } const http = createHttp(); const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' }); const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null; card.value = def || null; } catch { card.value = null; } }
 
-function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index' | '/pages/login/index' | '/pages/washcard/index' | '/pages/order/index' | '/pages/address/index' | '/pages/coupon/index') {
+function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index' | '/pages/login/index' | '/pages/washcard/index' | '/pages/order/index' | '/pages/address/index' | '/pages/coupon/index' | '/pages/group/index') {
 	const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/order/index' || url === '/pages/me/index';
 	if (isTab) { try { uni.switchTab({ url }); return; } catch {}
 	}
@@ -434,6 +435,23 @@ async function loadOrderBadges(){
         unpaidCount.value=0; pendingReceiptCount.value=0; pendingServiceCount.value=0;
     }
 }
+
+const hasGroup = ref(false);
+async function loadGroupFlag(){
+	try {
+		const t = uni.getStorageSync('token');
+		if (!t) { hasGroup.value = false; return; }
+		const http = createHttp();
+		const me: any = await http('/member/me/profile', { method: 'GET' });
+		// 后端已补充 groupId/group 字段
+		hasGroup.value = !!(me?.groupId || me?.group?.id);
+		try{ const u = uni.getStorageSync('user') || {}; u.groupId = me?.groupId || (me?.group?.id || null); u.group = me?.group || null; uni.setStorageSync('user', u); }catch{}
+	} catch { hasGroup.value = false; }
+}
+
+function onTapGroup(){ navigate('/pages/group/index'); }
+
+onMounted(()=>{ try { token.value = uni.getStorageSync('token'); } catch {}; loadGroupFlag(); });
 </script>
 
 <style>
@@ -515,7 +533,7 @@ async function loadOrderBadges(){
 .points-body { display:flex; align-items:stretch; justify-content: space-between; gap: 16rpx; }
 .metric { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 12rpx 0; }
 .metric-val { font-size: 34rpx; font-weight: 800; color:#0b1220; }
-.metric-val.primary { background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.metric-val.primary { background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 .metric-label { font-size: 22rpx; color:#6b7280; margin-top: 6rpx; }
 .divider { width: 2rpx; background: linear-gradient(180deg, rgba(148,163,184,0.2), rgba(148,163,184,0.06)); border-radius: 999rpx; }
 </style>

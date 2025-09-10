@@ -203,17 +203,31 @@ export class OrderPaymentService {
             return await this.prisma.order.findUnique({ where: { id: order.id } });
         }
         
-        const updated = await this.prisma.order.findUnique({ where: { id: order.id } });
+        const updated: any = await this.prisma.order.findUnique({ where: { id: order.id } });
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         
-        // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级
-        try {
-            if (this.rewards) {
-                await this.rewards.grantRewardsForPayment(order.id);
-                await this.rewards.grantWashCardsForPayment(order.id);
-            }
-        } catch { }
+        // 集团充值场景：FK + 挂载 groupId -> 入账集团余额并跳过个人奖励/卡发放
+        const isGroupRecharge = updated && updated.type === 'FK' && !!updated.groupId;
+        if (isGroupRecharge) {
+            try {
+                await this.creditGroupRechargeBalance({
+                    orderId: updated.id,
+                    groupId: Number(updated.groupId),
+                    amount: Number(updated.payAmount || 0),
+                    operatorUserId: params.operatorUserId ?? null,
+                });
+                await this.writeTimeline({ orderId: order.id, event: 'NOTE', value: 'GROUP_RECHARGE_CREDIT', remark: `金额：${updated.payAmount}`, operatorUserId: params.operatorUserId ?? null });
+            } catch { }
+        } else {
+            // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级
+            try {
+                if (this.rewards) {
+                    await this.rewards.grantRewardsForPayment(order.id);
+                    await this.rewards.grantWashCardsForPayment(order.id);
+                }
+            } catch { }
+        }
         
         // 注意：库存已在"下单"阶段预占，此处不再扣减库存，避免重复扣减
         // 若为商品订单（SP）且所有订单项均为虚拟卡券商品，则发放完成后直接将订单置为已完成，并记录时间线
@@ -249,5 +263,26 @@ export class OrderPaymentService {
     async saveWechatTransactionId(orderId: number, transactionId: string) {
         if (!transactionId) return;
         await this.prisma.order.update({ where: { id: orderId }, data: { wechatTransactionId: transactionId } });
+    }
+
+    // ============ 集团充值入账 ============
+    private async creditGroupRechargeBalance(params: { orderId: number; groupId: number; amount: number; operatorUserId?: number | null }) {
+        const { orderId, groupId, amount, operatorUserId } = params;
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        await this.prisma.$transaction(async (tx) => {
+            const acc = await tx.groupBalanceAccount.findUnique({ where: { groupId } });
+            if (!acc) {
+                await tx.groupBalanceAccount.create({ data: { groupId, balance: 0 as any, version: 0 } });
+            }
+            const current = await tx.groupBalanceAccount.findUnique({ where: { groupId } });
+            const before = Number(current?.balance || 0);
+            const version = current?.version ?? 0;
+            const upd = await tx.groupBalanceAccount.updateMany({ where: { groupId, version }, data: { balance: (before + amount) as any, version: { increment: 1 } as any } as any });
+            if (!upd || (upd as any).count === 0) {
+                // 乐观锁失败则抛错交由上层忽略（不影响支付成功），后续可通过对账修复
+                throw new Error('Group balance concurrent update failed');
+            }
+            await tx.groupBalanceLedger.create({ data: { groupId, type: 'RECHARGE' as any, amount: amount as any, orderId, operatorUserId: operatorUserId ?? null, note: '订单支付入账（集团充值）' } });
+        });
     }
 }

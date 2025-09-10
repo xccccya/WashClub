@@ -11,10 +11,11 @@ import { StoreModule } from './store/store.module.js';
 import { OrderModule } from './order/order.module.js';
 import { CouponModule } from './coupon/coupon.module.js';
 import { SystemModule } from './system/system.module.js';
+import { GroupModule } from './group/group.module.js';
 
 
 @Module({
-	imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }), AuthModule, MemberModule, FileModule, ContentModule, QueueModule, StoreModule, OrderModule, CouponModule, SystemModule],
+	imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }), AuthModule, MemberModule, FileModule, ContentModule, QueueModule, StoreModule, OrderModule, CouponModule, SystemModule, GroupModule],
 	controllers: [AppController],
 	providers: [PrismaService],
 })

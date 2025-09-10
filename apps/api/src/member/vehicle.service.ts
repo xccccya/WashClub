@@ -10,26 +10,29 @@ export class VehicleService {
     private syncVehicleBindings!: (vehicleId: number) => Promise<void>;
     constructor(private prisma: PrismaService, private jwt: JwtService, private fileService: FileService, private assetService: AssetService) {}
 
-    async adminList(page = 1, pageSize = 20, keyword?: string) {
-        const where: any = keyword
-            ? {
-                OR: [
-                    { plateNumber: { contains: keyword } },
-                    { brand: { contains: keyword } },
-                    { series: { contains: keyword } },
-                    { member: { OR: [{ name: { contains: keyword } }, { phone: { contains: keyword } }] } },
-                ],
-            }
-            : undefined;
+    async adminList(page = 1, pageSize = 20, keyword?: string, scope: 'member' | 'all' = 'member') {
+        const where: any = {};
+        if (keyword) {
+            where.OR = [
+                { plateNumber: { contains: keyword } },
+                { brand: { contains: keyword } },
+                { series: { contains: keyword } },
+                { member: { OR: [{ name: { contains: keyword } }, { phone: { contains: keyword } }] } },
+            ];
+        }
+        if (scope === 'member') {
+            // 默认：仅展示属于会员的车辆，过滤掉集团直绑车辆
+            where.AND = [...(where.AND || []), { groupId: null }];
+        }
         const [items, total] = await Promise.all([
             this.prisma.vehicle.findMany({
                 skip: (page - 1) * pageSize,
                 take: pageSize,
-                where,
+                where: Object.keys(where).length ? where : undefined,
                 orderBy: { id: 'desc' },
                 include: { member: true },
             }),
-            this.prisma.vehicle.count({ where }),
+            this.prisma.vehicle.count({ where: Object.keys(where).length ? where : undefined }),
         ]);
         return { items, total, page, pageSize };
     }
@@ -238,6 +241,16 @@ export class VehicleService {
             await this.syncVehicleBindings(vehicleId);
         } catch {}
         return updated;
+    }
+
+    // 对外公开：根据品牌/车系触发图片拉取并绑定到文件库
+    async populateImagesAndBindings(vehicleId: number, brandId?: number | null, seriesId?: number | null): Promise<void> {
+        try {
+            if (brandId || seriesId) {
+                await this.populateVehicleImages(vehicleId, brandId, seriesId);
+            }
+            await this.syncVehicleBindings(vehicleId);
+        } catch {}
     }
 
     async deleteVehicle(vehicleId: number) {

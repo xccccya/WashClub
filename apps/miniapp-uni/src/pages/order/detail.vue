@@ -19,8 +19,8 @@
 			<view class="kv"><text class="k">订单号</text><text class="v v--small">{{ order.no }}</text></view>
 			<view class="kv"><text class="k">下单时间</text><text class="v">{{ formatTime(order.createdAt) }}</text></view>
 			<view class="kv" v-if="isTimeoutUnpaid(order)"><text class="k">提示</text><text class="v" style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</text></view>
-			<view class="kv" v-if="(order as any).userRemark"><text class="k">用户备注</text><text class="v">{{ (order as any).userRemark }}</text></view>
 			<view class="kv" v-if="order.remark"><text class="k">系统备注</text><text class="v">{{ order.remark }}</text></view>
+			<view class="kv" v-if="(order as any).userRemark"><text class="k">用户备注</text><text class="v">{{ (order as any).userRemark }}</text></view>
 		</view>
 
 		<!-- 服务车辆横幅（独立风格，无标题） -->
@@ -35,8 +35,8 @@
 			</view>
 		</view>
 
-		<!-- 商品/服务 -->
-		<view class="card" v-if="order">
+		<!-- 商品/服务：付款订单(FK)不展示 -->
+		<view class="card" v-if="order && order.type!=='FK'">
 			<view class="sub-title">商品/服务</view>
 			<view class="item" v-for="it in order.items" :key="it.id" @tap="goProductInDetail(it)">
 				<image class="thumb" :src="resolveImageUrl(it.imageUrl) || '/static/icons/placeholder.png'" />
@@ -101,7 +101,7 @@
 			<view class="kv kv--sub" v-if="(order as any).memberDiscountAmount && Number((order as any).memberDiscountAmount)>0"><text class="k">会员折扣</text><text class="v">-¥{{ formatPrice((order as any).memberDiscountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
 			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
-			<view class="kv" v-if="order.type!=='SERVICE'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
+			<view class="kv" v-if="order.type!=='SERVICE' && order.type!=='FK'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
 			<view class="kv total"><text class="k">应付金额</text><text class="v">¥{{ formatPrice(order.payAmount) }}</text></view>
 			<view class="kv refunded" v-if="hasPartialRefund"><text class="k">已退金额</text><text class="v">¥{{ formatPrice(refundedAmountYuan) }}</text></view>
 		</view>
@@ -822,9 +822,9 @@ function zhRemark(eventType?: string, remark?: string){
 .title-bar { padding: 12rpx 8rpx; }
 .title { font-size: 32rpx; font-weight: 700; }
 .sub-title { font-size: 28rpx; font-weight: 600; margin-bottom: 12rpx; }
-.kv { display:flex; align-items:center; justify-content: space-between; padding: 10rpx 0; }
-.kv .k { color:#6b7280; }
-.kv .v { color:#111827; font-weight: 600; }
+.kv { display:flex; align-items:flex-start; gap: 12rpx; padding: 10rpx 0; }
+.kv .k { color:#6b7280; flex: none; min-width: 160rpx; white-space: nowrap; }
+.kv .v { color:#111827; font-weight: 600; flex: 1; text-align: right; word-break: break-word; white-space: normal; }
 .kv.kv--sub .k { font-size: 22rpx; color:#7c7f85; }
 .kv.kv--sub .v { font-size: 22rpx; font-weight: 500; color:#444; }
 .kv .v.v--small { font-size: 24rpx; font-weight: 500; color:#1f2937; }

@@ -42,7 +42,8 @@ export class SmsService {
 	/** 发送登录验证码 */
 	async sendLoginCode(phone: string, code: string, minutes: number): Promise<void> {
 		const e164Phone = this.toE164(phone);
-		const require = createRequire(import.meta.url);
+		// 兼容 CommonJS 编译：避免直接使用 import.meta
+		const require = createRequire(typeof __filename !== 'undefined' ? __filename : process.cwd() + '/index.js');
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const tencentcloud = require('tencentcloud-sdk-nodejs');
 		const SmsClient = tencentcloud.sms.v20210111.Client;

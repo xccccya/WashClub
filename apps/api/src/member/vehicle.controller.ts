@@ -10,8 +10,8 @@ export class VehicleController {
     // 管理端列表
     @Get('list')
     @ApiOperation({ summary: '车辆列表（管理员，分页/关键词）' })
-    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
-        return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword);
+    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('scope') scope?: 'member'|'all') {
+        return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword, (scope === 'all' ? 'all' : 'member'));
     }
 
     // 按会员查询
