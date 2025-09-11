@@ -35,7 +35,7 @@
       <el-button type="success" style="margin-left: 12px" @click="openCreate" :disabled="!groupId">新增车辆</el-button>
     </div>
 
-    <el-table :data="items" height="calc(100vh - 220px)">
+    <el-table :data="items" height="calc(100vh - 220px)" highlight-current-row @row-dblclick="onRowDblClick">
       <el-table-column label="车牌" width="200">
         <template #default="{ row }">
           <span :class="['plate-chip', plateClass(row.plateNumber)]">{{ row.plateNumber }}</span>
@@ -106,6 +106,49 @@
         <el-button type="primary" @click="doCreate">创建</el-button>
       </template>
     </el-dialog>
+    
+    <!-- 查看车辆信息（双击弹窗） -->
+    <el-dialog v-model="viewDialog" title="车辆信息" width="720px">
+      <div v-if="viewItem" class="view-wrap">
+        <el-descriptions :column="2" border class="desc">
+          <el-descriptions-item label="ID">{{ viewItem.id }}</el-descriptions-item>
+          <el-descriptions-item label="车牌号">
+            <span :class="['plate-chip', plateClass(viewItem.plateNumber)]">{{ viewItem.plateNumber }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="VIN">{{ viewItem.vin || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="品牌">
+            <div class="brand-cell">
+              <img v-if="viewItem.brandImage" :src="toAbs(viewItem.brandImage)" class="brand-inline-img" />
+              <span>{{ viewItem.brand || '-' }}</span>
+            </div>
+          </el-descriptions-item>
+          <el-descriptions-item label="车系">{{ viewItem.series || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ (viewItem.typeMain||'-') + (viewItem.typeSub?(' / '+viewItem.typeSub):'') }}</el-descriptions-item>
+          <el-descriptions-item label="颜色">
+            <el-tag :style="colorTagStyle(viewItem.color)">{{ viewItem.color || '-' }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="会员" :span="2">
+            <span v-if="viewItem.member">{{ `${viewItem.member.name}（${viewItem.member.phone}）` }}</span>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDateTime(viewItem.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="修改时间">{{ formatDateTime(viewItem.updatedAt) }}</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="imgs-row">
+          <div class="img-card">
+            <div class="img-title">车系图</div>
+            <div class="img-body">
+              <img v-if="viewItem.seriesImage" :src="toAbs(viewItem.seriesImage)" class="img series" />
+              <div v-else class="img img-empty">无</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="viewDialog=false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -113,7 +156,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { http } from '../utils/http';
+import { http, absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 
 const route = useRoute();
@@ -219,6 +262,49 @@ function plateClass(plate?: string){
   if (s.length >= 8) return 'plate-green';
   return 'plate-blue';
 }
+
+type Vehicle = { id: number; plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; brandImage?: string | null; seriesImage?: string | null; createdAt?: string | null; updatedAt?: string | null; member?: { id: number; name: string; phone: string } };
+const viewDialog = ref(false);
+const viewItem = ref<Vehicle | null>(null);
+function toAbs(u?: string | null){ return absUrl(u || ''); }
+function openView(v: Vehicle){ viewItem.value = v; viewDialog.value = true; }
+function onRowDblClick(row: Vehicle){ openView(row); }
+
+function formatDateTime(input?: string | null){
+  if (!input) return '-';
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return String(input);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${y}-${m}-${dd} ${hh}:${mm}:${ss}`;
+}
+
+function colorTagStyle(color?: string | null): any {
+  const c = (color||'').toString();
+  const map: Record<string, { bg: string; fg: string; bd?: string }> = {
+    '黑色': { bg: '#111827', fg: '#fff' },
+    '白色': { bg: '#ffffff', fg: '#111', bd: '#e5e7eb' },
+    '灰色': { bg: '#9ca3af', fg: '#111' },
+    '银色': { bg: '#e5e7eb', fg: '#111' },
+    '红色': { bg: '#ef4444', fg: '#fff' },
+    '金色（米/香槟）': { bg: '#f59e0b', fg: '#111' },
+    '蓝色': { bg: '#3b82f6', fg: '#fff' },
+    '棕色（褐/咖啡）': { bg: '#92400e', fg: '#fff' },
+    '紫色': { bg: '#8b5cf6', fg: '#fff' },
+    '绿色': { bg: '#10b981', fg: '#fff' },
+    '粉色': { bg: '#f472b6', fg: '#111' },
+    '黄色': { bg: '#fde047', fg: '#111' },
+    '橙色': { bg: '#fb923c', fg: '#111' },
+    '其他（彩绘/混合）': { bg: '#6b7280', fg: '#fff' },
+  };
+  const m = map[c];
+  if (!m) return {};
+  return { background: m.bg, color: m.fg, borderColor: m.bd || m.bg };
+}
 </script>
 
 <style scoped>
@@ -233,4 +319,16 @@ function plateClass(plate?: string){
 .brand-option { display:flex; align-items:center; gap:8px; }
 .brand-logo { width:18px; height:18px; object-fit:contain; border-radius:2px; }
 .brand-text { line-height:18px; }
+
+/* 详情美化 */
+.desc { margin-bottom: 12px; }
+.imgs-row { display:flex; gap: 12px; }
+.img-card { flex:1; background:#fff; border: 1px solid #ebeef5; border-radius: 8px; overflow: hidden; }
+.img-title { padding: 8px 10px; font-size: 13px; color:#606266; border-bottom:1px solid #ebeef5; background:#f9fafc; }
+.img-body { padding: 10px; display:flex; align-items:center; justify-content:center; min-height: 160px; }
+.img { max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 4px; }
+.img.series { max-height: 200px; }
+.img-empty { width:100%; height:160px; display:flex; align-items:center; justify-content:center; color:#909399; background:#fafafa; border:1px dashed #e4e7ed; }
+.brand-cell { display:flex; align-items:center; gap:8px; }
+.brand-inline-img { width:18px; height:18px; object-fit:contain; border-radius:2px; }
 </style>

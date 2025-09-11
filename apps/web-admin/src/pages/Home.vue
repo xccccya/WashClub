@@ -7,6 +7,11 @@
 			</div>
 			<el-menu :default-active="active" class="menu" @select="onSelect">
 				<el-menu-item index="/dashboard"><el-icon style="margin-right:6px;"><HomeFilled /></el-icon>系统首页</el-menu-item>
+				<el-sub-menu index="/orders">
+					<template #title><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单管理</template>
+					<el-menu-item v-if="can('orders')" index="/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单列表</el-menu-item>
+					<el-menu-item v-if="can('after-sales')" index="/after-sales"><el-icon style="margin-right:6px;"><Service /></el-icon>售后</el-menu-item>
+				</el-sub-menu>
 				<el-sub-menu index="/members">
 					<template #title><el-icon style="margin-right:6px;"><User /></el-icon>会员管理</template>
 					<el-menu-item v-if="can('members')" index="/members"><el-icon style="margin-right:6px;"><User /></el-icon>会员列表</el-menu-item>
@@ -42,11 +47,6 @@
 					<el-menu-item v-if="can('store-categories')" index="/store/categories"><el-icon style="margin-right:6px;"><CollectionTag /></el-icon>商品分类</el-menu-item>
 					<el-menu-item v-if="can('store-products')" index="/store/products"><el-icon style="margin-right:6px;"><ShoppingBag /></el-icon>商品列表</el-menu-item>
 					<el-menu-item v-if="can('store-inventory')" index="/store/inventory"><el-icon style="margin-right:6px;"><List /></el-icon>库存管理</el-menu-item>
-				</el-sub-menu>
-				<el-sub-menu index="/orders">
-					<template #title><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单管理</template>
-					<el-menu-item v-if="can('orders')" index="/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单列表</el-menu-item>
-					<el-menu-item v-if="can('after-sales')" index="/after-sales"><el-icon style="margin-right:6px;"><Service /></el-icon>售后</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/coupon">
 					<template #title><el-icon style="margin-right:6px;"><Ticket /></el-icon>卡券管理</template>

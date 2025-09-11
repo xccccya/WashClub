@@ -57,6 +57,12 @@
 			<view class="kv" v-if="hasPartialRefund"><text class="k">提示</text><text class="v" style="color:#92400e;">该订单已发生部分退款</text></view>
 		</view>
 
+		<!-- 付款说明（有值时展示） -->
+		<view class="card" v-if="order && (order as any).paymentNote">
+			<view class="sub-title">付款说明</view>
+			<view class="payment-note">{{ (order as any).paymentNote }}</view>
+		</view>
+
 		<!-- 物流信息：商品订单展示（纯虚拟卡券订单不展示） -->
 		<view class="logistics-card" v-if="order && order.type==='SP' && !isVirtualOnly(order)">
 			<view class="logistics-head">物流信息</view>
@@ -779,6 +785,8 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='RECEIVED') return '用户已确认收货';
 		if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
 		if (v==='WECHAT_MICROPAY') return '微信付款码支付';
+		if (v==='GROUP_RECHARGE_CREDIT') return '集团余额充值入账';
+		if (v==='GROUP_RECHARGE_REFUND_DEBIT') return '集团充值退款出账';
 	}
 	return value || '-';
 }
@@ -828,6 +836,7 @@ function zhRemark(eventType?: string, remark?: string){
 .kv.kv--sub .k { font-size: 22rpx; color:#7c7f85; }
 .kv.kv--sub .v { font-size: 22rpx; font-weight: 500; color:#444; }
 .kv .v.v--small { font-size: 24rpx; font-weight: 500; color:#1f2937; }
+.payment-note { white-space: pre-wrap; line-height: 1.6; color:#111827; font-weight:600; border: 2rpx dashed #e5e7eb; border-radius: 16rpx; padding: 16rpx; background: #fff; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03); }
 .item { display:flex; gap: 12rpx; padding: 12rpx 0; border-bottom: 2rpx dashed #eef2f7; }
 .thumb { width: 120rpx; height: 120rpx; border-radius: 16rpx; background:#f1f5f9; }
 .ibody { display:flex; flex-direction: column; gap: 6rpx; flex:1; min-width:0; }

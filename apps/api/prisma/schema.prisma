@@ -569,6 +569,13 @@ enum PayStatus {
   CANCELLED
 }
 
+// 结算类型：普通/NORMAL；使用个人洗车卡/WASH_CARD；使用集团洗车卡/GROUP_WASH_CARD
+enum OrderSettlement {
+  NORMAL
+  WASH_CARD
+  GROUP_WASH_CARD
+}
+
 // 支付方式（仅手动确认的三种）
 enum PayMethod {
   CASH
@@ -751,6 +758,8 @@ model Product {
   // 扩展项
   pointsDeductible    Boolean          @default(false)
   memberDiscount      Boolean          @default(false)
+  // 是否计入洗车服务销量
+  isCarWash           Boolean          @default(false)
   specType            ProductSpecType  @default(SINGLE)
   // 单规格商品字段（当 specType=SINGLE 生效）
   price               Decimal?         @default(0) @db.Decimal(12, 2)
@@ -846,6 +855,8 @@ model Order {
   payStatus               PayStatus         @default(UNPAID)
   payMethod               PayMethod?
   paidAt                  DateTime?
+  // 结算方式：用于区分是否由洗车卡结算，避免销量口径双计
+  settlement              OrderSettlement   @default(NORMAL)
   // 新增：支付超时时间（下单 +15 分钟），用于自动取消
   paymentExpireAt         DateTime?
   // 微信支付：交易单号（回调 resource 解密字段 transaction_id）
@@ -871,6 +882,8 @@ model Order {
   remark                  String?
   // 用户下单备注（与系统备注分离）
   userRemark              String?
+  // 付款说明（用于付款订单 FK 展示与上报发货说明）
+  paymentNote             String?
 
   // 物流/发货信息（商品订单 SP 使用）
   shippedAt              DateTime?

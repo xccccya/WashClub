@@ -125,7 +125,7 @@ export class GroupMiniappController {
     }
     const admin = await this.prisma.member.findUnique({ where: { id: payer }, select: { name: true } });
     const remarkText = `集团管理员${admin?.name || ''}提交集团余额充值`;
-    const order = await this.prisma.order.create({ data: {
+    const order = await this.prisma.order.create({ data: ({
       no,
       type: 'FK' as any,
       status: 'CREATED' as any,
@@ -139,8 +139,12 @@ export class GroupMiniappController {
       memberId: payer,
       groupId: gm.groupId,
       paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
-      remark: remarkText
-    }});
+      paymentNote: remarkText
+    } as any)});
+    // 时间线：创建/未支付/履约（NONE）
+    try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' } }); } catch {}
+    try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' } }); } catch {}
+    try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'FULFILLMENT', value: 'NONE' } }); } catch {}
     return { id: order.id, no: order.no } as any;
   }
 

@@ -24,6 +24,7 @@
 			<el-descriptions-item label="支付时间">{{ formatDate(data?.paidAt) }}</el-descriptions-item>
 			<el-descriptions-item label="会员">{{ data?.member?.name }}（UID: {{ data?.member?.uid }} / {{ data?.member?.phone }}）</el-descriptions-item>
 			<el-descriptions-item label="用户备注">{{ (data as any)?.userRemark || '-' }}</el-descriptions-item>
+			<el-descriptions-item label="付款说明">{{ (data as any)?.paymentNote || '-' }}</el-descriptions-item>
 			<el-descriptions-item label="系统备注">{{ data?.remark || '-' }}</el-descriptions-item>
 			<el-descriptions-item label="收货地址" v-if="data?.shippingAddressSnapshot">
 				{{ addrDisplay(data?.shippingAddressSnapshot) }}
@@ -501,6 +502,8 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
         if (v==='RECEIVED') return '用户已确认收货';
         if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
         if (v==='WECHAT_MICROPAY') return '微信付款码支付';
+        if (v==='GROUP_RECHARGE_CREDIT') return '集团余额充值入账';
+        if (v==='GROUP_RECHARGE_REFUND_DEBIT') return '集团充值退款出账';
     }
 	return value || '-';
 }

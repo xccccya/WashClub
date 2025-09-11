@@ -217,7 +217,19 @@ export class OrderPaymentService {
                     amount: Number(updated.payAmount || 0),
                     operatorUserId: params.operatorUserId ?? null,
                 });
+                // 记录集团充值入账成功
                 await this.writeTimeline({ orderId: order.id, event: 'NOTE', value: 'GROUP_RECHARGE_CREDIT', remark: `金额：${updated.payAmount}`, operatorUserId: params.operatorUserId ?? null });
+                // 付款订单：支付成功即视为完成
+                try {
+                    await this.prisma.order.update({ where: { id: updated.id }, data: { status: 'CLOSED' } });
+                    await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'CLOSED', operatorUserId: params.operatorUserId ?? null });
+                } catch { }
+                // JSAPI：按虚拟发货上报微信发货信息（logistics_type=3，item_desc 使用付款说明）
+                try {
+                    if ((params as any)?.method === 'WECHAT_JSAPI' && this.wxship) {
+                        await this.wxship.uploadShippingInfo({ orderId: order.id, logisticsType: 3 });
+                    }
+                } catch { }
             } catch { }
         } else {
             // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级

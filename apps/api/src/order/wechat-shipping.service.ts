@@ -58,6 +58,11 @@ export class WechatShippingService {
     }
 
     private async buildItemDesc(orderId: number): Promise<string> {
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        const note = String((order as any)?.paymentNote || '').trim();
+        if (order && order.type === ('FK' as any) && note) {
+            return note;
+        }
         const items = await this.prisma.orderItem.findMany({ where: { orderId } });
         if (items.length === 0) return '订单商品';
         if (items.length === 1){

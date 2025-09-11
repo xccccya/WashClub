@@ -59,15 +59,14 @@ export class GroupVehicleService {
     if (!input?.plateNumber) throw new BadRequestException('车牌号为必填');
     if (!input?.typeMain) throw new BadRequestException('车辆主类型为必填');
     const payload = this.normalizeVehicleInput(input);
-    return this.prisma.$transaction(async (tx) => {
+    // 先在事务内仅进行数据创建/更新，事务提交后再进行图片抓取与文件绑定，避免未提交导致的更新不到行
+    const bid = (input as any)?.brandId as number | undefined;
+    const sid = (input as any)?.seriesId as number | undefined;
+    const result = await this.prisma.$transaction(async (tx) => {
       const existsGroup = await tx.group.findUnique({ where: { id: groupId } });
       if (!existsGroup) throw new BadRequestException('集团不存在');
       try {
         const created = await tx.vehicle.create({ data: { plateNumber: String(payload.plateNumber), vin: payload.vin ?? null, brand: payload.brand, series: payload.series, typeMain: payload.typeMain, typeSub: payload.typeSub, color: payload.color, isDefault: false, groupId } });
-        // 异步图片拉取与文件绑定
-        const bid = (input as any)?.brandId as number | undefined;
-        const sid = (input as any)?.seriesId as number | undefined;
-        try { await this.vehicleService.populateImagesAndBindings(created.id, bid, sid); } catch {}
         return created;
       } catch (e: any) {
         if (e && (e.code === 'P2002' || /Unique constraint failed/i.test(String(e?.message || '')))) {
@@ -76,9 +75,6 @@ export class GroupVehicleService {
           if (existing.groupId === groupId) {
             // 同一集团重复创建：更新车辆信息
             const updated = await tx.vehicle.update({ where: { id: existing.id }, data: { vin: payload.vin ?? null, brand: payload.brand, series: payload.series, typeMain: payload.typeMain, typeSub: payload.typeSub, color: payload.color } });
-            const bid = (input as any)?.brandId as number | undefined;
-            const sid = (input as any)?.seriesId as number | undefined;
-            try { await this.vehicleService.populateImagesAndBindings(updated.id, bid, sid); } catch {}
             return updated;
           }
           throw new BadRequestException('该车牌已绑定到其他主体');
@@ -86,6 +82,9 @@ export class GroupVehicleService {
         throw e;
       }
     });
+    // 事务提交后再进行图片抓取与绑定（失败不影响主流程）
+    try { await this.vehicleService.populateImagesAndBindings(result.id, bid, sid); } catch {}
+    return result;
   }
 
   async remove(groupId: number, vehicleId: number) {

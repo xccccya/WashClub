@@ -830,6 +830,7 @@ export class OrderService {
                 { no: { contains: kw } },
                 { remark: { contains: kw } },
                 { userRemark: { contains: kw } },
+                { paymentNote: { contains: kw } as any },
                 { member: { phone: { contains: kw } } },
             ] as any;
         }

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `Coupon` MODIFY `type` ENUM('COUPON', 'WASH_CARD', 'GROUP_WASH_CARD') NOT NULL;
+
+-- AlterTable
+ALTER TABLE `Order` ADD COLUMN `paymentNote` VARCHAR(191) NULL;

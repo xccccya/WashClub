@@ -61,7 +61,7 @@ export class GroupBalanceService {
       const amountText = Number(amount).toFixed(2);
       const sysRemark = `管理代为${member?.name || ''}下单“${g.name}”集团余额账户充值¥${amountText}${remark ? `。${remark}` : ''}`;
       const order = await tx.order.create({
-        data: {
+        data: ({
           no: orderNo,
           type: 'FK' as any,
           status: 'CREATED' as any,
@@ -76,9 +76,19 @@ export class GroupBalanceService {
           groupId: groupId,
           paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
           userRemark: null,
-          remark: sysRemark,
-        }
+          paymentNote: sysRemark,
+        } as any)
       });
+      // 时间线：创建/待支付/履约状态
+      try {
+        await tx.orderTimeline.create({ data: { orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' } });
+      } catch {}
+      try {
+        await tx.orderTimeline.create({ data: { orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' } });
+      } catch {}
+      try {
+        await tx.orderTimeline.create({ data: { orderId: order.id, event: 'FULFILLMENT', value: 'NONE' } });
+      } catch {}
       return { id: order.id, no: order.no };
     });
   }
