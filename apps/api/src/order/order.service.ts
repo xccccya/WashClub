@@ -33,6 +33,7 @@ export class OrderService {
         type: OrderType;
         memberId: number;
         vehicleId?: number | null;
+        groupId?: number | null;
         shippingAddressId?: number | null;
         items: Array<{
             productId?: number | null;
@@ -54,11 +55,12 @@ export class OrderService {
         memberCouponId?: number | null;
         memberCouponIds?: number[] | null;
         disableMemberDiscount?: boolean | null;
+        payAfterService?: boolean | null;
     }): Promise<{ id: number; no: string }> {
         const {
-            type, memberId, vehicleId, shippingAddressId, items, userRemark, remark,
+            type, memberId, vehicleId, groupId, shippingAddressId, items, userRemark, remark,
             shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo,
-            memberCouponId, memberCouponIds, disableMemberDiscount
+            memberCouponId, memberCouponIds, disableMemberDiscount, payAfterService
         } = params;
         
         if (!items || items.length === 0) throw new Error('订单项不能为空');
@@ -535,7 +537,9 @@ export class OrderService {
                     payStatus: 'UNPAID',
                     memberId,
                     vehicleId: vehicleId ?? null,
-                    paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
+                    groupId: groupId ?? null,
+                    payAfterService: !!(payAfterService && type === 'SERVICE'),
+                    paymentExpireAt: (payAfterService && type === 'SERVICE') ? null : new Date(Date.now() + 15 * 60 * 1000),
                     // 用户备注写入 userRemark；系统备注 remark 留作系统流程使用
                     userRemark: (userRemark ?? remark) ?? null,
                     usedPoints: usedPointsCalc,

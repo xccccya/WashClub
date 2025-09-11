@@ -29,6 +29,8 @@ export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
             where: {
                 payStatus: 'UNPAID' as any,
                 deletedAt: null as any,
+                // 跳过：服务订单且先服务后付
+                NOT: { AND: [ { type: 'SERVICE' as any }, { payAfterService: true as any } ] } as any,
                 OR: [
                     { paymentExpireAt: { lte: now } as any },
                     // 兜底：兼容旧数据（未写入 paymentExpireAt），沿用 createdAt +15min

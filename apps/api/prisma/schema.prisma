@@ -488,6 +488,16 @@ model ServiceQueueItem {
 
   // 任务明细
   tasks ServiceTask[]
+
+  // 新增：队列类型与订单关联
+  queueTypeId Int?
+  queueType   ServiceQueueType? @relation(fields: [queueTypeId], references: [id])
+
+  orderId Int?
+  order   Order? @relation(fields: [orderId], references: [id])
+
+  @@index([queueTypeId])
+  @@index([orderId])
 }
 
 model ServiceTask {
@@ -507,6 +517,57 @@ model ServiceTask {
 
   @@index([queueItemId])
   @@index([orderIndex])
+}
+
+// =====================
+// 可配置的服务队列类型与步骤
+// =====================
+
+model ServiceQueueType {
+  id         Int       @id @default(autoincrement())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  name       String
+  enabled    Boolean   @default(true)
+  sortWeight Int       @default(0)
+  remark     String?
+
+  steps    ServiceQueueStep[]
+  products ServiceQueueTypeProduct[]
+  items    ServiceQueueItem[]
+
+  @@index([enabled])
+  @@index([sortWeight])
+  @@index([name])
+}
+
+model ServiceQueueStep {
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  queueTypeId Int
+  queueType   ServiceQueueType  @relation(fields: [queueTypeId], references: [id], onDelete: Cascade)
+
+  orderIndex  Int               @default(0)
+  name        String
+  durationMin Int               @default(0)
+
+  @@index([queueTypeId])
+  @@index([orderIndex])
+}
+
+model ServiceQueueTypeProduct {
+  id          Int              @id @default(autoincrement())
+  queueTypeId Int
+  productId   Int
+
+  queueType   ServiceQueueType @relation(fields: [queueTypeId], references: [id], onDelete: Cascade)
+  product     Product          @relation(fields: [productId], references: [id])
+
+  @@unique([queueTypeId, productId])
+  @@index([productId])
 }
 
 // 短信验证码记录
@@ -780,6 +841,9 @@ model Product {
   // 作为可用商品被卡券指定
   applicableInCoupons CouponApplicableProduct[]
 
+  // 反向关联：服务队列类型可用商品
+  serviceQueueTypeProducts ServiceQueueTypeProduct[]
+
   skus          ProductSku[]
   inventoryLogs InventoryLog[]
 
@@ -862,6 +926,8 @@ model Order {
   paidAt                  DateTime?
   // 结算方式：用于区分是否由洗车卡结算，避免销量口径双计
   settlement              OrderSettlement   @default(NORMAL)
+  // 新增：服务先于支付，不参与超时自动取消
+  payAfterService         Boolean           @default(false)
   // 新增：支付超时时间（下单 +15 分钟），用于自动取消
   paymentExpireAt         DateTime?
   // 微信支付：交易单号（回调 resource 解密字段 transaction_id）
@@ -924,6 +990,9 @@ model Order {
 
   // 反向关联：使用到本订单的会员优惠券
   memberCoupons MemberCoupon[]
+
+  // 反向关联：服务队列项（通常 0..1）
+  serviceQueueItems ServiceQueueItem[]
 
   // 评价（一个订单一条评价）
   // 注意：未建立强制外键关系到 OrderReview 以保持解耦

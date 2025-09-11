@@ -1,11 +1,13 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueueService } from './queue.service.js';
+import { PrismaService } from '../prisma.service.js';
+import { OrderService } from '../order/order.service.js';
 
 @ApiTags('queue')
 @Controller('queue')
 export class QueueController {
-    constructor(private service: QueueService) {}
+    constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService) {}
 
     @Get('list')
     @ApiOperation({ summary: '服务队列列表（进行中/待处理）' })
@@ -20,8 +22,9 @@ export class QueueController {
     add(@Body() body: any) {
         const mode = String(body?.mode || '').trim();
         if (!mode) throw new BadRequestException('缺少添加方式');
-        if (mode === 'vehicleId') return this.service.addToQueue({ mode: 'vehicleId', vehicleId: Number(body.vehicleId) });
-        if (mode === 'plateExisting') return this.service.addToQueue({ mode: 'plateExisting', plateNumber: String(body.plateNumber || '').trim() });
+        const queueTypeId = body?.queueTypeId ? Number(body.queueTypeId) : undefined;
+        if (mode === 'vehicleId') return this.service.addToQueue({ mode: 'vehicleId', vehicleId: Number(body.vehicleId), queueTypeId });
+        if (mode === 'plateExisting') return this.service.addToQueue({ mode: 'plateExisting', plateNumber: String(body.plateNumber || '').trim(), queueTypeId });
         if (mode === 'guest') {
             return this.service.addToQueue({
                 mode: 'guest',
@@ -34,9 +37,106 @@ export class QueueController {
                 series: body.series,
                 brandId: typeof body.brandId === 'number' ? body.brandId : (body.brandId ? Number(body.brandId) : undefined),
                 seriesId: typeof body.seriesId === 'number' ? body.seriesId : (body.seriesId ? Number(body.seriesId) : undefined),
+                queueTypeId,
             });
         }
         throw new BadRequestException('不支持的添加方式');
+    }
+
+    @Post('create-service-order-and-enqueue')
+    @ApiOperation({ summary: '创建服务订单并入队（先服务后付）' })
+    async createServiceOrderAndEnqueue(@Body() body: any) {
+        const queueTypeId = Number(body?.queueTypeId || 0);
+        const productIds = Array.isArray(body?.productIds) ? body.productIds.map((n: any)=>Number(n)).filter((n: any)=>Number.isFinite(n)) : [];
+        const plateNumber = String(body?.plateNumber || '').trim();
+        const vehicleId = body?.vehicleId ? Number(body.vehicleId) : null;
+        if (!queueTypeId) throw new BadRequestException('缺少队列类型');
+        if (!productIds.length) throw new BadRequestException('至少选择一个服务商品');
+        if (!vehicleId && !plateNumber) throw new BadRequestException('缺少车辆标识');
+
+        // 读取队列类型与允许商品
+        const qtype: any = await (this.prisma as any).serviceQueueType.findUnique({
+            where: { id: queueTypeId },
+            include: { steps: { orderBy: { orderIndex: 'asc' } }, products: true }
+        });
+        if (!qtype || !qtype.enabled) throw new BadRequestException('队列类型无效或未启用');
+        const allowed = new Set<number>((qtype.products||[]).map((p: any)=>p.productId));
+        if (productIds.some((pid)=>!allowed.has(pid))) throw new BadRequestException('所选商品不在该队列类型可用范围');
+
+        // 解析车辆/游客与归属
+        let v: any = null;
+        if (vehicleId) v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId }, include: { member: true, group: true } });
+        if (!v && plateNumber) v = await this.prisma.vehicle.findUnique({ where: { plateNumber }, include: { member: true, group: true } });
+
+        let resolvedVehicleId: number | null = v?.id ?? null;
+        let resolvedPlate = v?.plateNumber || plateNumber;
+        let guest = false;
+        let memberId: number | null = null;
+        let groupId: number | null = null;
+
+        if (v) {
+            guest = !v.memberId;
+            memberId = v.memberId ?? null;
+            groupId = v.groupId ?? null;
+        } else {
+            // 游客车辆创建（仅创建车辆，不入队）
+            const createdVehicle = await (this.prisma as any).vehicle.create({
+                data: {
+                    plateNumber: resolvedPlate,
+                    vin: body?.vin ?? null,
+                    brand: typeof body?.brand === 'string' ? body.brand : undefined,
+                    series: typeof body?.series === 'string' ? body.series : undefined,
+                    typeMain: typeof body?.typeMain === 'string' ? body.typeMain : undefined,
+                    typeSub: typeof body?.typeSub === 'string' ? body.typeSub : null,
+                    color: typeof body?.color === 'string' ? body.color : null,
+                }
+            });
+            resolvedVehicleId = createdVehicle?.id ?? null;
+            resolvedPlate = createdVehicle?.plateNumber || resolvedPlate;
+            guest = true;
+        }
+
+        // 订单会员归属：游客使用 GUEST_MEMBER_ID
+        if (!memberId) {
+            const gid = Number(process.env.GUEST_MEMBER_ID || 0);
+            if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
+            // 校验 member 是否存在
+            const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+            if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。请将 GUEST_MEMBER_ID 设置为一个有效的会员ID。');
+            memberId = gid;
+        }
+
+        // 读取商品快照
+        const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
+        const items = products.map((p)=>({ productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, specsText: null, barcode: p.barcode ?? null, price: p.price || 0, discount: 0, quantity: 1 }));
+
+        // 创建服务订单（先服务后付）
+        const ord = await this.orders.createOrder({ type: 'SERVICE' as any, memberId: Number(memberId), vehicleId: resolvedVehicleId, groupId: groupId ?? null, items, payAfterService: true, userRemark: body?.userRemark });
+
+        // 创建队列项（使用队列类型的步骤快照）
+        const created = await (this.prisma as any).$transaction(async (tx: any) => {
+            // 重复检测
+            const existed = await tx.serviceQueueItem.findFirst({ where: { status: { in: ['IN_QUEUE','SERVING'] }, OR: [ { plateNumber: resolvedPlate }, { vehicleId: resolvedVehicleId ?? undefined } ] } as any });
+            if (existed) throw new BadRequestException('该车辆已在服务队列中');
+            const orderSort = await tx.serviceQueueItem.count();
+            const currentTaskIndex = orderSort > 0 ? -1 : 0;
+            const item = await tx.serviceQueueItem.create({
+                data: {
+                    vehicleId: resolvedVehicleId ?? undefined,
+                    plateNumber: resolvedPlate,
+                    guest,
+                    orderSort,
+                    currentTaskIndex,
+                    queueTypeId: qtype.id,
+                    orderId: ord.id,
+                    tasks: { create: (qtype.steps||[]).map((s: any)=>({ name: s.name, durationMin: s.durationMin, orderIndex: s.orderIndex })) }
+                },
+                include: { tasks: true }
+            });
+            return item;
+        });
+
+        return { order: ord, queueItem: created };
     }
 
     @Post(':id/set-current')

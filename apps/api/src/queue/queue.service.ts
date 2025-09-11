@@ -3,9 +3,9 @@ import { PrismaService } from '../prisma.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 
 type CreateQueueInput =
-    | { mode: 'vehicleId'; vehicleId: number }
-    | { mode: 'plateExisting'; plateNumber: string }
-    | { mode: 'guest'; plateNumber: string; vin?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null; brand?: string | null; series?: string | null; brandId?: number | null; seriesId?: number | null };
+    | { mode: 'vehicleId'; vehicleId: number; queueTypeId?: number | undefined }
+    | { mode: 'plateExisting'; plateNumber: string; queueTypeId?: number | undefined }
+    | { mode: 'guest'; plateNumber: string; vin?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null; brand?: string | null; series?: string | null; brandId?: number | null; seriesId?: number | null; queueTypeId?: number | undefined };
 
 @Injectable()
 export class QueueService {
@@ -15,6 +15,7 @@ export class QueueService {
         let vehicleId: number | null = null;
         let plateNumber: string;
         let guest = false;
+        const desiredQueueTypeId = (input as any)?.queueTypeId ? Number((input as any).queueTypeId) : undefined;
 
         if (input.mode === 'vehicleId') {
             const v = await this.prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
@@ -55,6 +56,22 @@ export class QueueService {
         if (existed) throw new BadRequestException('该车辆已在服务队列中');
 
         const created = await this.prisma.$transaction(async (tx) => {
+            // 选取队列类型与步骤（若未显式指定，则选择启用的首个类型；若仍无则回退固定三步）
+            let qtype: any = null;
+            if (desiredQueueTypeId) {
+                qtype = await (tx as any).serviceQueueType.findUnique({
+                    where: { id: desiredQueueTypeId },
+                    include: { steps: { orderBy: { orderIndex: 'asc' } } }
+                });
+            }
+            if (!qtype) {
+                qtype = await (tx as any).serviceQueueType.findFirst({
+                    where: { enabled: true },
+                    orderBy: [{ sortWeight: 'desc' }, { id: 'asc' }],
+                    include: { steps: { orderBy: { orderIndex: 'asc' } } }
+                });
+            }
+
             const orderSort = await tx.serviceQueueItem.count();
             const currentTaskIndex = orderSort > 0 ? -1 : 0; // 若已有车辆，则新车未开始
             const item = await tx.serviceQueueItem.create({
@@ -64,12 +81,15 @@ export class QueueService {
                     guest,
                     orderSort,
                     currentTaskIndex,
+                    queueTypeId: qtype?.id || undefined,
                     tasks: {
-                        create: [
-                            { name: '外表清洗 I', durationMin: 5, orderIndex: 0 },
-                            { name: '外表清洗 II', durationMin: 5, orderIndex: 1 },
-                            { name: '内饰清洁', durationMin: 10, orderIndex: 2 },
-                        ],
+                        create: (Array.isArray(qtype?.steps) && qtype.steps.length > 0)
+                            ? qtype.steps.map((s: any) => ({ name: s.name, durationMin: s.durationMin, orderIndex: s.orderIndex }))
+                            : [
+                                { name: '外表清洗 I', durationMin: 5, orderIndex: 0 },
+                                { name: '外表清洗 II', durationMin: 5, orderIndex: 1 },
+                                { name: '内饰清洁', durationMin: 10, orderIndex: 2 },
+                            ],
                     },
                 },
                 include: { tasks: true, vehicle: true },
@@ -84,7 +104,7 @@ export class QueueService {
         const items = await this.prisma.serviceQueueItem.findMany({
             where: { status: { in: ['IN_QUEUE', 'SERVING'] as any } },
             orderBy: { orderSort: 'asc' },
-            include: { tasks: { orderBy: { orderIndex: 'asc' } }, vehicle: { include: { member: true } } },
+            include: { tasks: { orderBy: { orderIndex: 'asc' } }, vehicle: { include: { member: true, group: true } } },
         });
         return items.map((it, idx) => this.decorateComputed(it, idx, items));
     }
@@ -104,15 +124,22 @@ export class QueueService {
         if (taskIndex < 0 || taskIndex >= item.tasks.length) throw new BadRequestException('任务序号无效');
         const now = new Date();
         return this.prisma.$transaction(async (tx) => {
-            // 重置所有任务状态
-            await tx.serviceTask.updateMany({ where: { queueItemId }, data: { status: 'PENDING' as any, startedAt: null, finishedAt: null } });
-            // 已完成的标记 DONE
+            // 将小于目标索引的任务置为 DONE（仅补齐未完成的 finishedAt）
             for (let i = 0; i < taskIndex; i++) {
-                await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: i }, data: { status: 'DONE' as any, finishedAt: now } });
+                await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: i }, data: { status: 'DONE' as any } });
+                await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: i, finishedAt: null as any }, data: { finishedAt: now } });
             }
-            // 当前的标记 DOING
-            await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: taskIndex }, data: { status: 'DOING' as any, startedAt: now } });
+            // 目标任务置为 DOING（保留已存在 startedAt）
+            const current = item.tasks.find((t: any) => t.orderIndex === taskIndex);
+            await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: taskIndex }, data: { status: 'DOING' as any, startedAt: current?.startedAt || now } });
             const updated = await tx.serviceQueueItem.update({ where: { id: queueItemId }, data: { currentTaskIndex: taskIndex, status: 'SERVING' as any, startedAt: item.startedAt || now } });
+            // 联动订单履约状态
+            try {
+                if ((item as any).orderId) {
+                    await tx.order.update({ where: { id: (item as any).orderId }, data: { fulfillmentStatus: 'IN_SERVICE' as any } });
+                    try { await (tx as any).orderTimeline.create({ data: { orderId: (item as any).orderId, event: 'FULFILLMENT', value: 'IN_SERVICE' } }); } catch {}
+                }
+            } catch {}
             return updated;
         });
     }
@@ -137,11 +164,23 @@ export class QueueService {
     }
 
     async confirmComplete(queueItemId: number) {
-        const item = await this.prisma.serviceQueueItem.findUnique({ where: { id: queueItemId } });
+        const item = await this.prisma.serviceQueueItem.findUnique({ where: { id: queueItemId }, include: { tasks: true } });
         if (!item) throw new BadRequestException('队列项不存在');
         if ((item.currentTaskIndex as any) < 0) throw new BadRequestException('尚未开始，不能结束');
         const now = new Date();
-        return this.prisma.serviceQueueItem.update({ where: { id: queueItemId }, data: { status: 'COMPLETED' as any, finishedAt: now } });
+        const updated = await this.prisma.$transaction(async (tx)=>{
+            // 置所有任务为 DONE，补齐时间
+            await tx.serviceTask.updateMany({ where: { queueItemId }, data: { status: 'DONE' as any, finishedAt: now } });
+            return tx.serviceQueueItem.update({ where: { id: queueItemId }, data: { status: 'COMPLETED' as any, finishedAt: now } });
+        });
+        // 联动订单履约状态至 DONE（待支付）
+        try {
+            if ((item as any).orderId) {
+                await this.prisma.order.update({ where: { id: (item as any).orderId }, data: { fulfillmentStatus: 'DONE' as any } });
+                try { await (this.prisma as any).orderTimeline.create({ data: { orderId: (item as any).orderId, event: 'FULFILLMENT', value: 'DONE' } }); } catch {}
+            }
+        } catch {}
+        return updated;
     }
 
     async remove(queueItemId: number) {
@@ -158,7 +197,15 @@ export class QueueService {
         const now = new Date();
         return this.prisma.$transaction(async (tx) => {
             await tx.serviceTask.updateMany({ where: { queueItemId, orderIndex: 0 }, data: { status: 'DOING' as any, startedAt: now } });
-            return tx.serviceQueueItem.update({ where: { id: queueItemId }, data: { currentTaskIndex: 0, status: 'SERVING' as any, startedAt: now } });
+            const updated = await tx.serviceQueueItem.update({ where: { id: queueItemId }, data: { currentTaskIndex: 0, status: 'SERVING' as any, startedAt: now } });
+            // 联动订单履约状态
+            try {
+                if ((item as any).orderId) {
+                    await tx.order.update({ where: { id: (item as any).orderId }, data: { fulfillmentStatus: 'IN_SERVICE' as any } });
+                    try { await (tx as any).orderTimeline.create({ data: { orderId: (item as any).orderId, event: 'FULFILLMENT', value: 'IN_SERVICE' } }); } catch {}
+                }
+            } catch {}
+            return updated;
         });
     }
     private decorateComputed(item: any, index: number, all: any[]) {

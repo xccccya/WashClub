@@ -268,6 +268,18 @@ export class OrderPaymentService {
             }
         }
         
+        // 若为服务订单：支付成功后自动从队列移除
+        try {
+            if (updated && (updated as any).type === 'SERVICE') {
+                const it = await this.prisma.serviceQueueItem.findFirst({ where: { orderId: updated.id } } as any);
+                if (it) {
+                    await this.prisma.$transaction(async (tx) => {
+                        await tx.serviceTask.deleteMany({ where: { queueItemId: it.id } });
+                        await tx.serviceQueueItem.delete({ where: { id: it.id } });
+                    });
+                }
+            }
+        } catch { }
         return updated;
     }
 

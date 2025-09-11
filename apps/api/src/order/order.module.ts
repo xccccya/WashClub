@@ -41,6 +41,7 @@ import { FileModule } from '../file/file.module.js';
         OrderTimeoutService, 
         WechatShippingService
     ],
+    exports: [OrderService]
 })
 export class OrderModule {}
 
