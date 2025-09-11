@@ -71,13 +71,22 @@ export class WashCardService {
         return created;
     }
 
-    listAdmin(page = 1, pageSize = 20, keyword?: string) {
-        const where: any = keyword
-            ? { OR: [ { name: { contains: keyword } }, { owner: { OR: [ { name: { contains: keyword } }, { phone: { contains: keyword } } ] } } ] }
-            : undefined;
+    listAdmin(page = 1, pageSize = 20, keyword?: string, memberId?: number) {
+        const where: any = {};
+        if (keyword) {
+            where.OR = [
+                { name: { contains: keyword } },
+                { owner: { OR: [ { name: { contains: keyword } }, { phone: { contains: keyword } } ] } },
+            ];
+        }
+        if (memberId && Number.isFinite(memberId)) {
+            // 支持按会员筛选：持有人或被共享者
+            where.AND = where.AND || [];
+            where.AND.push({ OR: [ { ownerMemberId: memberId }, { shares: { some: { memberId } } } ] });
+        }
         return Promise.all([
-            this.prisma.washCard.findMany({ skip: (page - 1) * pageSize, take: pageSize, where, orderBy: [{ isDefault: 'desc' } as any, { id: 'desc' }], include: { owner: true, shares: { include: { member: true } } } }),
-            this.prisma.washCard.count({ where }),
+            this.prisma.washCard.findMany({ skip: (page - 1) * pageSize, take: pageSize, where: Object.keys(where).length ? where : undefined, orderBy: [{ isDefault: 'desc' } as any, { id: 'desc' }], include: { owner: true, shares: { include: { member: true } } } }),
+            this.prisma.washCard.count({ where: Object.keys(where).length ? where : undefined }),
         ]).then(([items, total]) => ({ items, total, page, pageSize }));
     }
 

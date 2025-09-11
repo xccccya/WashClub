@@ -417,6 +417,11 @@ model GroupWashCardLog {
   operatorUserId  Int?
   operatorUser    User?             @relation("UserOperatesGroupWashCardLogs", fields: [operatorUserId], references: [id])
 
+  // 订单/业务占位字段（用于购卡入账、服务划扣、退款等）
+  serviceOrderId  Int?
+  purchaseOrderId Int?
+  refundRecordId  Int?
+
   vehicleId       Int?
   vehicle         Vehicle?          @relation("VehicleToGroupWashCardLogs", fields: [vehicleId], references: [id])
 

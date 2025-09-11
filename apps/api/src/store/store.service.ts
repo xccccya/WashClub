@@ -59,7 +59,7 @@ export class StoreService {
         // data 包含 specType、imagesJson、specsDefinitionJson、以及（当 MULTI 时）skus
         const { skus, imagesJson, specsDefinitionJson, ...rest } = data;
         // 仅保留允许写入的字段，避免把 category/派生字段等传入 Prisma
-        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId'];
+        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash'];
         const payload: any = {};
         for (const k of allowedKeys) if (k in rest) (payload as any)[k] = (rest as any)[k];
         if ('id' in payload) delete payload.id;
@@ -119,7 +119,7 @@ export class StoreService {
     }
     updateProduct(id: number, data: any) {
         const { skus, imagesJson, specsDefinitionJson, ...rest } = data;
-        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId'];
+        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash'];
         const payload: any = {};
         for (const k of allowedKeys) if (k in rest) (payload as any)[k] = (rest as any)[k];
         if ('id' in payload) delete payload.id;

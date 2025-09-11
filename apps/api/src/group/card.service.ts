@@ -10,15 +10,18 @@ export class GroupCardService {
     return this.prisma.groupWashCard.findMany({ where: { groupId }, orderBy: { id: 'desc' } });
   }
 
-  async create(groupId: number, input: { name?: string | null; totalTimes: number; expiryAt?: string | null; cardNo?: string | null }) {
+  async create(groupId: number, input: { name?: string | null; totalTimes: number; remainingTimes?: number | null; expiryAt?: string | null; cardNo?: string | null }) {
     const total = Number(input?.totalTimes || 0);
+    const initialRemain = input?.remainingTimes == null ? total : Number(input.remainingTimes);
     if (!Number.isInteger(total) || total <= 0) throw new BadRequestException('总次数必须为正整数');
     return this.prisma.$transaction(async (tx) => {
       const g = await tx.group.findUnique({ where: { id: groupId } });
       if (!g) throw new BadRequestException('集团不存在');
       const cardNo = await this.generateCardNo(tx);
-      const card = await tx.groupWashCard.create({ data: { groupId, name: input?.name || '集团洗车计次卡', totalTimes: total, remainingTimes: total, status: 'ACTIVE' as any, expiryAt: input?.expiryAt ? new Date(input.expiryAt) : null, cardNo: input?.cardNo || cardNo } });
-      await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change: total, beforeRemaining: 0, afterRemaining: total, remark: '购卡' } });
+      const card = await tx.groupWashCard.create({ data: { groupId, name: input?.name || '集团洗车计次卡', totalTimes: total, remainingTimes: Math.max(0, initialRemain), status: 'ACTIVE' as any, expiryAt: input?.expiryAt ? new Date(input.expiryAt) : null, cardNo: input?.cardNo || cardNo } });
+      if (initialRemain > 0) {
+        await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change: initialRemain, beforeRemaining: 0, afterRemaining: Math.max(0, initialRemain), remark: '后台创建卡并设置初始次数' } });
+      }
       return card;
     });
   }
@@ -49,7 +52,7 @@ export class GroupCardService {
     });
   }
 
-  async consume(cardId: number, times: number, opts?: { vehicleId?: number | null; memberId?: number | null; remark?: string | null; operatorUserId?: number | null }) {
+  async consume(cardId: number, times: number, opts?: { reason?: 'SERVICE_DEDUCT'|'REFUND_DEDUCT'|'BACKEND_DEDUCT'; vehicleId?: number | null; memberId?: number | null; remark?: string | null; operatorUserId?: number | null; serviceOrderId?: number | null; refundRecordId?: number | null; purchaseOrderId?: number | null }) {
     const qty = Number(times || 0);
     if (!Number.isInteger(qty) || qty <= 0) throw new BadRequestException('扣减次数必须为正整数');
     return this.prisma.$transaction(async (tx) => {
@@ -65,7 +68,7 @@ export class GroupCardService {
         data: {
           cardId: card.id,
           action: 'DEDUCT' as any,
-          reason: 'SERVICE_DEDUCT' as any,
+          reason: (opts?.reason || 'SERVICE_DEDUCT') as any,
           change: -qty,
           beforeRemaining: before,
           afterRemaining: after,
@@ -73,7 +76,10 @@ export class GroupCardService {
           vehicleId: opts?.vehicleId ?? null,
           memberId: opts?.memberId ?? null,
           operatorUserId: opts?.operatorUserId ?? null,
-        }
+          serviceOrderId: opts?.serviceOrderId ?? null,
+          refundRecordId: opts?.refundRecordId ?? null,
+          purchaseOrderId: opts?.purchaseOrderId ?? null,
+        } as any
       });
       return updated;
     });

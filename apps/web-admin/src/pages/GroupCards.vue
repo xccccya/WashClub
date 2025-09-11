@@ -45,6 +45,7 @@
       <el-form label-width="120px">
         <el-form-item label="卡名称"><el-input v-model="form.name" placeholder="例如：标准洗车10次卡" /></el-form-item>
         <el-form-item label="初始总次数"><el-input-number v-model="form.totalTimes" :min="1" /></el-form-item>
+        <el-form-item label="初始剩余次数"><el-input-number v-model="form.remainingTimes" :min="0" /></el-form-item>
         <el-form-item label="有效期">
           <div style="display:flex;gap:8px;width:100%;align-items:center;">
             <el-switch v-model="createFormPermanent" active-text="永久" inactive-text="自定义" />
@@ -80,8 +81,33 @@
     <el-dialog v-model="consumeVisible" title="划扣次数" width="520px">
       <el-form label-width="90px">
         <el-form-item label="次数"><el-input-number v-model="consumeForm.times" :min="1"/></el-form-item>
-        <el-form-item label="车辆ID"><el-input v-model.number="consumeForm.vehicleId" placeholder="可选"/></el-form-item>
-        <el-form-item label="会员ID"><el-input v-model.number="consumeForm.memberId" placeholder="可选（后台/收银台代客）"/></el-form-item>
+        <el-form-item label="原因">
+          <el-select v-model="consumeForm.reason" style="width:100%">
+            <el-option label="服务划扣" value="SERVICE_DEDUCT" />
+            <el-option label="退款划扣" value="REFUND_DEDUCT" />
+            <el-option label="后台手动划扣" value="BACKEND_DEDUCT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="服务车辆">
+          <el-select
+            v-model="consumeForm.vehicleId"
+            filterable
+            remote
+            clearable
+            :remote-method="searchConsumeVehicles"
+            :loading="loadingConsumeVehicles"
+            placeholder="选择车辆（集团/集团会员车辆）"
+            style="width: 100%;"
+            @change="onConsumeVehicleChange"
+          >
+            <el-option
+              v-for="v in consumeVehicles"
+              :key="v.id"
+              :label="`${v.plateNumber}（${v.isMemberVehicle ? ('会员：'+(v.member?.name||v.member?.phone||v.memberId)) : '集团车辆'}）`"
+              :value="v.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="备注"><el-input v-model="consumeForm.remark"/></el-form-item>
       </el-form>
       <template #footer>
@@ -115,6 +141,13 @@
             <span v-else>—</span>
           </template>
         </el-table-column>
+        <el-table-column label="关联订单" width="140">
+          <template #default="{ row }">
+            <el-button v-if="(row.reason==='PURCHASE_ADD' && row.purchaseOrderId) || (row.reason==='REFUND_DEDUCT' && row.purchaseOrderId)" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
+            <el-button v-else-if="row.serviceOrderId" size="small" link type="primary" @click="gotoOrder(row.serviceOrderId)">服务订单</el-button>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
       </el-table>
       <div style="margin-top:12px;display:flex;justify-content:flex-end;">
@@ -139,10 +172,12 @@ const groupOptions = ref<any[]>([]);
 const loadingGroups = ref(false);
 const items = ref<any[]>([]);
 const createVisible = ref(false);
-const form = ref<any>({ name: '集团洗车计次卡', totalTimes: 0, expiryAt: '' });
+const form = ref<any>({ name: '集团洗车计次卡', totalTimes: 0, remainingTimes: 0, expiryAt: '' });
 const createFormPermanent = ref(true);
 const consumeVisible = ref(false);
-const consumeForm = ref<any>({ cardId: 0, times: 1, vehicleId: undefined, memberId: undefined, remark: '' });
+const consumeForm = ref<any>({ cardId: 0, times: 1, reason: 'SERVICE_DEDUCT', vehicleId: undefined, memberId: undefined, remark: '' });
+const consumeVehicles = ref<any[]>([]);
+const loadingConsumeVehicles = ref(false);
 const addVisible = ref(false);
 const addForm = ref<any>({ cardId: 0, count: 1, remark: '' });
 const logsVisible = ref(false);
@@ -178,6 +213,9 @@ async function doCreate(){
   const payload:any = { ...form.value };
   if (createFormPermanent.value) { payload.expiryAt = null; }
   if (!payload.totalTimes || payload.totalTimes < 1) { ElMessage.error('总次数必须为正整数'); return; }
+  if (payload.remainingTimes == null || payload.remainingTimes === '') { payload.remainingTimes = payload.totalTimes; }
+  if (payload.remainingTimes < 0) { ElMessage.error('初始剩余次数不能小于0'); return; }
+  if (payload.remainingTimes > payload.totalTimes) { ElMessage.error('初始剩余次数不能大于初始总次数'); return; }
   await http(`/group/${groupId.value}/cards`, { method: 'POST', body: payload });
   ElMessage.success('创建成功');
   createVisible.value=false;
@@ -187,13 +225,31 @@ async function doCreate(){
 function openAdd(row:any){ addForm.value = { cardId: row.id, count: 1, remark: '' }; addVisible.value = true; }
 async function doAdd(){ if(!groupId.value){ ElMessage.error('缺少集团ID'); return; } await http(`/group/${groupId.value}/cards/${addForm.value.cardId}/add`, { method: 'POST', body: { count: addForm.value.count, remark: addForm.value.remark||'' } }); ElMessage.success('已增加次数'); addVisible.value=false; await load(); }
 
-function openConsume(row: any){ consumeForm.value = { cardId: row.id, times: 1, vehicleId: undefined, memberId: undefined, remark: '' }; consumeVisible.value = true; }
+function openConsume(row: any){ consumeForm.value = { cardId: row.id, times: 1, reason: 'SERVICE_DEDUCT', vehicleId: undefined, memberId: undefined, remark: '' }; consumeVisible.value = true; searchConsumeVehicles(''); }
 async function doConsume(){
   if(!groupId.value){ ElMessage.error('缺少集团ID'); return; }
-  await http(`/group/${groupId.value}/cards/${consumeForm.value.cardId}/consume`, { method: 'POST', body: { times: consumeForm.value.times, vehicleId: consumeForm.value.vehicleId || null, memberId: consumeForm.value.memberId || null, remark: consumeForm.value.remark || '' } });
+  // 自动拼接备注中的车辆信息
+  let remark = consumeForm.value.remark || '';
+  const v = consumeVehicles.value.find((x:any)=>x.id===consumeForm.value.vehicleId);
+  if (v && !String(remark).includes('服务车辆：')) { remark = `${remark || '服务划扣'}（服务车辆：${v.plateNumber}）`; }
+  await http(`/group/${groupId.value}/cards/${consumeForm.value.cardId}/consume`, { method: 'POST', body: { times: consumeForm.value.times, reason: consumeForm.value.reason, vehicleId: consumeForm.value.vehicleId || null, memberId: consumeForm.value.memberId || null, remark } });
   ElMessage.success('已划扣');
   consumeVisible.value=false;
   await load();
+}
+
+async function searchConsumeVehicles(q?: string){
+  if(!groupId.value){ consumeVehicles.value = []; return; }
+  loadingConsumeVehicles.value = true;
+  try{
+    const res:any[] = await http(`/group/${groupId.value}/vehicles`, { method:'GET', query: { keyword: (q||'').trim() || undefined, source: 'all' } });
+    consumeVehicles.value = Array.isArray(res) ? res : [];
+  } finally { loadingConsumeVehicles.value = false; }
+}
+
+function onConsumeVehicleChange(){
+  const v:any = consumeVehicles.value.find((x:any)=>x.id===consumeForm.value.vehicleId);
+  if (v && v.memberId) consumeForm.value.memberId = v.memberId; // 若车辆属于集团会员，反填会员ID
 }
 
 async function doDelete(row:any){
@@ -215,6 +271,10 @@ function applyExpiryMonths(months: number){
 }
 function applyExpiryYears(years: number){
   try { const d = new Date(); d.setFullYear(d.getFullYear() + years); form.value.expiryAt = formatDateISO(d); createFormPermanent.value = false; } catch {}
+}
+function gotoOrder(orderId: number){
+  const path = `/admin/orders/${orderId}`;
+  try { window.open(path, '_blank'); } catch { location.href = path; }
 }
 onMounted(()=>{ const q = Number(route.query.groupId||0); if (Number.isFinite(q) && q>0) { groupId.value = q; load(); } });
 

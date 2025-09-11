@@ -58,6 +58,7 @@
 						</el-form-item>
 						<el-form-item label="分类"><el-select v-model="form.categoryId" placeholder="选择分类"><el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
 						<el-form-item label="上架"><el-switch v-model="form.enabled" /></el-form-item>
+						<el-form-item v-if="form.type==='SERVICE'" label="计为洗车(次)"><el-switch v-model="form.isCarWash" /></el-form-item>
 						<el-form-item label="排序"><el-input-number v-model="form.sortWeight" :min="0" /></el-form-item>
 						<el-form-item label="商品图片">
 							<div style="width:100%;">
@@ -218,7 +219,7 @@ async function fetchCategories(){ categories.value = await http('/store/categori
 
 const show = ref(false);
 const formTab = ref<'base'|'extra'|'desc'>('base');
-const form = ref<any>({ id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0 });
+const form = ref<any>({ id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false });
 const formImages = ref<string[]>([]);
 // 多规格：规格项定义与输入草稿
 const specItems = ref<Array<{ name: string; values: string[] }>>([]);
@@ -227,7 +228,7 @@ const pickerVisible = ref(false);
 const pickerForDesc = ref(false);
 const skuPickerRow = ref<any|null>(null);
 
-function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0 }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
+function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
 const couponOptions = ref<any[]>([]);
 async function fetchCoupons(){ couponOptions.value = await http('/coupons', { query: { type: 'WASH_CARD' } }); }
 function openEdit(row:any){

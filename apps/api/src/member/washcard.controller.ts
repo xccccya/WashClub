@@ -9,9 +9,10 @@ export class WashCardController {
 
     // 管理端
     @Get('list')
-    @ApiOperation({ summary: '洗车卡列表（管理员，分页/关键词）' })
-    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string){
-        return this.service.listAdmin(Number(page||1), Number(pageSize||20), keyword);
+    @ApiOperation({ summary: '洗车卡列表（管理员，分页/关键词/按会员）' })
+    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('memberId') memberId?: string){
+        const mid = Number(memberId||'');
+        return this.service.listAdmin(Number(page||1), Number(pageSize||20), keyword, Number.isFinite(mid) && mid>0 ? mid : undefined);
     }
 
     @Get(':id')

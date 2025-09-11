@@ -1,11 +1,39 @@
 <template>
 	<BasePage title="洗车计次卡">
 		<template #actions>
-			<el-input v-model="keyword" placeholder="搜索卡名/会员姓名/手机号" style="width:280px;margin-right:8px;" />
+			<el-select
+				v-model="selectedMemberId"
+				filterable
+				remote
+				clearable
+				:remote-method="searchMembers"
+				:loading="loadingMembers"
+				placeholder="选择会员（按昵称/手机号搜索）"
+				style="width: 320px; margin-right: 8px;"
+				@change="onMemberChange"
+			>
+				<el-option v-for="m in memberOptions" :key="m.id" :label="`${m.name || '会员'}（${m.phone}）`" :value="m.id" />
+			</el-select>
+
+			<el-select
+				v-model="selectedVehicleId"
+				filterable
+				remote
+				clearable
+				:remote-method="searchVehicles"
+				:loading="loadingVehicles"
+				placeholder="选择车辆（按车牌搜索）"
+				style="width: 300px; margin-right: 8px;"
+				@change="onVehicleChange"
+			>
+				<el-option v-for="v in vehicleOptions" :key="v.id" :label="`${v.plateNumber}（${v.memberName||v.memberPhone||'-'}）`" :value="v.id" />
+			</el-select>
+
 			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">
 				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
 				<span style="vertical-align: middle;">搜索</span>
 			</el-button>
+			<el-button @click="clearFilters" style="margin-right:8px;">清空</el-button>
 			<el-button type="primary" @click="openCreate">
 				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
 				<span style="vertical-align: middle;">新增洗车卡</span>
@@ -110,6 +138,11 @@
 						<el-option label="后台手动划扣" value="BACKEND_DEDUCT" />
 					</el-select>
 				</el-form-item>
+				<el-form-item v-if="deductForm.reason==='SERVICE_DEDUCT'" label="服务车辆">
+					<el-select v-model="deductForm.vehicleId" filterable placeholder="选择车辆（含持有人及共享会员车辆）" style="width:100%">
+						<el-option v-for="v in deductVehicles" :key="v.id" :label="`${v.plateNumber}（${v._ownerDisplay}）`" :value="v.id" />
+					</el-select>
+				</el-form-item>
 				<el-form-item label="备注"><el-input v-model="deductForm.remark" /></el-form-item>
 			</el-form>
 			<template #footer>
@@ -148,17 +181,20 @@
 						{{ row.action === 'ADD' ? '增加' : (row.action === 'DEDUCT' ? '划扣' : '共享') }}
 					</template>
 				</el-table-column>
-				<el-table-column prop="reason" label="原因" width="200" />
+				<el-table-column label="原因" width="220">
+					<template #default="{ row }">{{ zhReason(row.reason) }}</template>
+				</el-table-column>
 				<el-table-column label="变更" width="120">
 					<template #default="{ row }">{{ row.change > 0 ? ('+'+row.change) : row.change }}</template>
 				</el-table-column>
 				<el-table-column label="剩余(前→后)" width="160">
 					<template #default="{ row }">{{ row.beforeRemaining }} → {{ row.afterRemaining }}</template>
 				</el-table-column>
-				<el-table-column label="共享对象" width="220">
+				<el-table-column label="共享对象/车辆" width="260">
 					<template #default="{ row }">
 						<span v-if="row.member">{{ row.member.name || '会员' }}（{{ row.member.phone }}）</span>
 						<span v-else>-</span>
+						<span v-if="row.vehicle" style="margin-left:8px; color:#909399;">车辆：{{ row.vehicle.plateNumber }}</span>
 					</template>
 				</el-table-column>
 				<el-table-column label="关联订单" width="140">
@@ -202,6 +238,13 @@ type Member = { id: number; name: string; phone: string };
 type Share = { id: number; memberId: number; member?: Member };
 type Card = { id: number; name: string; ownerMemberId: number; owner?: Member; totalTimes: number; remainingTimes: number; expiryAt?: string | null; shares?: Share[]; isDefault?: boolean; cardNo?: string };
 const memberOptions = ref<Member[]>([]);
+const selectedMemberId = ref<number | null>(null);
+const loadingMembers = ref(false);
+
+type VehicleLite = { id: number; plateNumber: string; memberId?: number | null; memberName?: string; memberPhone?: string; _ownerDisplay?: string };
+const vehicleOptions = ref<VehicleLite[]>([]);
+const loadingVehicles = ref(false);
+const selectedVehicleId = ref<number | null>(null);
 
 const list = ref<Card[]>([]);
 const keyword = ref('');
@@ -218,7 +261,8 @@ const dialogAdd = ref(false);
 const addForm = ref<{ count: number; remark?: string }>({ count: 1 });
 
 const dialogDeduct = ref(false);
-const deductForm = ref<{ count: number; reason: 'SERVICE_DEDUCT'|'REFUND_DEDUCT'|'BACKEND_DEDUCT'; remark?: string }>({ count: 1, reason: 'BACKEND_DEDUCT' });
+const deductVehicles = ref<VehicleLite[]>([]);
+const deductForm = ref<{ count: number; reason: 'SERVICE_DEDUCT'|'REFUND_DEDUCT'|'BACKEND_DEDUCT'; remark?: string; vehicleId?: number | null }>({ count: 1, reason: 'BACKEND_DEDUCT' });
 
 const dialogShare = ref(false);
 const shareForm = ref<{ memberId?: number }>({});
@@ -244,17 +288,53 @@ async function fetchMembers(){
     memberOptions.value = res.items || [];
 }
 
+async function searchMembers(q?: string){
+    loadingMembers.value = true;
+    try{
+        const res = await http<{ items: Member[] }>("/member/list", { method:'GET', query: { page: 1, pageSize: 50, keyword: (q||'').trim() || undefined } });
+        memberOptions.value = res.items || [];
+    } finally { loadingMembers.value = false; }
+}
+
+async function searchVehicles(q?: string){
+    loadingVehicles.value = true;
+    try{
+        const res = await http<VehicleLite[]>("/vehicle/search", { method:'GET', query: { q: (q||'').trim() || undefined, limit: 30 } });
+        vehicleOptions.value = Array.isArray(res) ? res.map(v => ({ ...v, _ownerDisplay: v.memberName || v.memberPhone || '-' })) : [];
+    } finally { loadingVehicles.value = false; }
+}
+
 async function fetchList(){
     loading.value = true;
     try {
+        const query:any = { keyword: keyword.value || undefined, page: page.value, pageSize: pageSize.value };
+        if (selectedMemberId.value) query.memberId = selectedMemberId.value;
         const res = await http<{ items: Card[]; total: number; page: number; pageSize: number }>(
-            '/wash-card/list', { method: 'GET', query: { keyword: keyword.value, page: page.value, pageSize: pageSize.value } }
+            '/wash-card/list', { method: 'GET', query }
         );
         list.value = res.items; total.value = res.total;
     } finally { loading.value = false; }
 }
 
 function onPageChange(p: number){ page.value = p; fetchList(); }
+
+function onMemberChange(){
+    // 选择会员后清空车辆选择
+    selectedVehicleId.value = null;
+    fetchList();
+}
+
+async function onVehicleChange(){
+    // 通过车辆反查所属会员并筛选其洗车卡
+    try{
+        const v = vehicleOptions.value.find(x=>x.id===selectedVehicleId.value);
+        if (v?.memberId) { selectedMemberId.value = v.memberId; }
+    } finally {
+        fetchList();
+    }
+}
+
+function clearFilters(){ selectedMemberId.value = null; selectedVehicleId.value = null; keyword.value=''; fetchList(); }
 
 function openCreate(){ current.value = null; createForm.value = { name: '洗车计次卡', totalTimes: 0, remainingTimes: 0, expiryAt: null, ownerMemberId: undefined, isDefault: true }; dialogCreate.value = true; }
 async function onCreateSave(){
@@ -268,8 +348,38 @@ async function onCreateSave(){
 function openAdd(card: Card){ current.value = card; addForm.value = { count: 1, remark: '' }; dialogAdd.value = true; }
 async function onAddSave(){ if (!current.value) return; await http(`/wash-card/${current.value.id}/add`, { method: 'POST', body: addForm.value }); dialogAdd.value = false; ElMessage.success('已增加次数'); fetchList(); }
 
-function openDeduct(card: Card){ current.value = card; deductForm.value = { count: 1, reason: 'BACKEND_DEDUCT', remark: '' }; dialogDeduct.value = true; }
-async function onDeductSave(){ if (!current.value) return; await http(`/wash-card/${current.value.id}/deduct`, { method: 'POST', body: deductForm.value }); dialogDeduct.value = false; ElMessage.success('已划扣'); fetchList(); }
+async function loadDeductVehicles(card: Card){
+    try{
+        const ownerId = card.ownerMemberId;
+        const ownerVehicles = await http<any[]>(`/vehicle/member/${ownerId}`, { method:'GET' });
+        // 聚合共享会员车辆
+        const sharedMemberIds = (card.shares||[]).map(s=>s.memberId);
+        const sharedVehiclesArr = await Promise.all(sharedMemberIds.map(id=> http<any[]>(`/vehicle/member/${id}`, { method:'GET' }).catch(()=>[])));
+        const all = [
+            ...(ownerVehicles||[]).map((v:any)=> ({ id: v.id, plateNumber: v.plateNumber, _ownerDisplay: '持有人' })),
+            ...sharedVehiclesArr.flat().map((v:any)=> ({ id: v.id, plateNumber: v.plateNumber, _ownerDisplay: '共享会员' })),
+        ];
+        // 去重
+        const map = new Map<number, any>();
+        for (const v of all){ if (!map.has(v.id)) map.set(v.id, v); }
+        deductVehicles.value = Array.from(map.values());
+    } catch { deductVehicles.value = []; }
+}
+
+function openDeduct(card: Card){ current.value = card; deductForm.value = { count: 1, reason: 'BACKEND_DEDUCT', remark: '', vehicleId: null }; dialogDeduct.value = true; loadDeductVehicles(card); }
+async function onDeductSave(){
+    if (!current.value) return;
+    const body:any = { count: deductForm.value.count, reason: deductForm.value.reason, remark: deductForm.value.remark };
+    if (deductForm.value.reason === 'SERVICE_DEDUCT' && deductForm.value.vehicleId) {
+        body.vehicleId = deductForm.value.vehicleId;
+        // 自动拼接车辆信息到备注
+        const v = deductVehicles.value.find(x=>x.id===deductForm.value.vehicleId);
+        const suffix = v ? `（服务车辆：${v.plateNumber}）` : '';
+        if (!body.remark) body.remark = `服务划扣${suffix}`; else if (!String(body.remark).includes('服务车辆：') && suffix) body.remark += suffix;
+    }
+    await http(`/wash-card/${current.value.id}/deduct`, { method: 'POST', body });
+    dialogDeduct.value = false; ElMessage.success('已划扣'); fetchList();
+}
 
 function openShare(card: Card){ current.value = card; shareForm.value = {}; dialogShare.value = true; }
 async function onAddShare(){ if (!current.value || !shareForm.value.memberId) return; await http(`/wash-card/${current.value.id}/shares`, { method: 'POST', body: { memberId: shareForm.value.memberId } }); ElMessage.success('已共享'); const fresh = await http<Card>(`/wash-card/${current.value.id}`, { method: 'GET' }); current.value = fresh; fetchList(); }
@@ -302,6 +412,18 @@ async function setDefault(card: Card){ await http(`/wash-card/${card.id}/set-def
 function openDelete(card: Card){ current.value = card; delCountdown.value = 5; delDialog.value = true; if (delTimer) { clearInterval(delTimer); delTimer = null; } delTimer = setInterval(()=>{ delCountdown.value = Math.max(0, delCountdown.value - 1); if (delCountdown.value === 0 && delTimer) { clearInterval(delTimer); delTimer = null; } }, 1000); }
 function clearDelTimer(){ if (delTimer) { clearInterval(delTimer); delTimer = null; } }
 async function onDeleteConfirm(){ if (!current.value) return; await http(`/wash-card/${current.value.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); }
+
+function zhReason(r?: string){
+    const v = String(r||'').toUpperCase();
+    if (v === 'BACKEND_ADD') return '后台增加';
+    if (v === 'PURCHASE_ADD') return '购卡增加';
+    if (v === 'SERVICE_DEDUCT') return '服务划扣';
+    if (v === 'REFUND_DEDUCT') return '退款扣减';
+    if (v === 'BACKEND_DEDUCT') return '后台扣减';
+    if (v === 'SHARE_ADD') return '共享加入';
+    if (v === 'SHARE_REMOVE') return '取消共享';
+    return r || '-';
+}
 </script>
 
 <style scoped>
