@@ -116,7 +116,7 @@
 					<image class="icon-img" src="/static/icons/jtuser.png" mode="aspectFit" />
 					<text class="icon-text">集团客户</text>
 				</view>
-				<view class="icon-btn" @tap="onTapAdmin">
+				<view v-if="isEmployee" class="icon-btn" @tap="onTapAdmin">
 					<image class="icon-img" src="/static/icons/admin.png" mode="aspectFit" />
 					<text class="icon-text">商家管理</text>
 				</view>
@@ -139,6 +139,7 @@ import { useSafeArea } from '../../utils/safe-area';
 import WashCard from '../../components/WashCard.vue';
 
 const { topSpacerHeight } = useSafeArea();
+const isEmployee = ref(false);
 
 const card = ref<any|null>(null);
 // 订单角标数量
@@ -284,7 +285,7 @@ onMounted(() => {
 // 页面展示：检查登录并拉取默认洗车卡
 // #ifdef MP-WEIXIN || H5
 import { onShow } from '@dcloudio/uni-app';
-onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); await loadOrderBadges(); }});
+onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); await loadOrderBadges(); await checkEmployee(); }});
 // 加载积分
 onShow(async ()=>{ try{ await loadPoints(); }catch{} });
 // #endif
@@ -397,7 +398,17 @@ function goPointsCenter(){ try { uni.navigateTo({ url: '/pages/points/index' });
 // 其它功能入口
 function onTapAddress(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/address/index'); }
 function onTapCoupon(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/coupon/index'); }
-function onTapAdmin(){ uni.showToast({ title: '商家管理开发中', icon: 'none' }); }
+function onTapAdmin(){ try { uni.navigateTo({ url: '/pages/merchant/index' }); } catch {} }
+
+async function checkEmployee(){
+    try{
+        const t = uni.getStorageSync('token');
+        if (!t) { isEmployee.value = false; return; }
+        const http = createHttp();
+        const r = await http<any>('/system/miniapp/employee/profile', { method: 'GET' });
+        isEmployee.value = !!(r && r.enabled !== false);
+    }catch{ isEmployee.value = false; }
+}
 function onTapAbout(){ uni.showToast({ title: '关于我们开发中', icon: 'none' }); }
 
 // 统计订单角标：待支付/待收货/待服务

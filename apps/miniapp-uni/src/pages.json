@@ -1,5 +1,6 @@
 {
 	"pages": [
+
 		{
 			"path": "pages/index/index",
 			"style": {
@@ -160,6 +161,11 @@
 			"path": "pages/group/recharge",
 			"style": { "navigationBarTitleText": "集团充值" }
 		}
+		,
+		{
+			"path": "pages/merchant/index",
+			"style": { "navigationBarTitleText": "商家中心" }
+		}
 	],
 	"tabBar": {
 		"color": "#666666",
@@ -192,6 +198,13 @@
 				"selectedIconPath": "static/tabbar/user-active.png"
 			}
 		]
+	},
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue",
+			"^mp-(.*)": "mp-html/dist/uni-app/components/mp-$1/mp-$1"
+		}
 	},
 	"globalStyle": {
 		"navigationStyle": "custom"

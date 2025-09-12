@@ -1,28 +1,46 @@
 <template>
 	<view class="page">
-		<view v-if="topSpacerHeight" :style="{ height: topSpacerHeight + 'px' }" />
 		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="goBack">
-			<image class="nav-back-icon" src="/static/icons/back.png" />
+			<image class="nav-back-icon" src="/static/icons/back2.png" />
 		</view>
 
 		<!-- 图片轮播 -->
-		<view class="gallery">
-			<swiper class="swiper" circular :indicator-dots="true" :autoplay="false">
+		<view class="gallery" :style="{ height: galleryHeight + 'px' }">
+			<swiper class="swiper" circular :indicator-dots="true" :autoplay="false" :current="currentIndex" @change="onSwiperChange">
 				<swiper-item v-for="(img, idx) in displayImages" :key="idx">
-					<image class="img" :src="resolveImageUrl(img)" mode="aspectFill" />
+					<view class="img-wrap">
+						<image class="img" :src="resolveImageUrl(img)" mode="aspectFill" :lazy-load="true" @load="onImgLoad(idx)" @tap="onTapImage(idx)" @longpress="onLongPressImage(idx)" />
+						<view class="img-skeleton" v-if="!imgLoaded[idx]"></view>
+					</view>
 				</swiper-item>
 			</swiper>
+			<view class="indicator" v-if="displayImages && displayImages.length">{{ currentIndex + 1 }}/{{ displayImages.length }}</view>
 		</view>
 
 		<!-- 基本信息 -->
 		<view class="card info-card">
 			<view class="row-top">
 				<text class="name">{{ product?.name || '' }}</text>
-				<text class="sales" v-if="Number(product?.totalSales||0)>0">销量 {{ product?.totalSales }}</text>
 			</view>
 			<view class="row-mid">
-				<text class="price">¥{{ displayPriceText }}</text>
-				<text class="list-price" v-if="Number(product?.listPrice||0)>0 && (product?.specType!=='MULTI')">¥{{ formatPrice(product?.listPrice) }}</text>
+				<template v-if="isRangeMode">
+					<text class="price-hint">价格区间：</text>
+					<text class="price">¥{{ minPriceText }}-¥{{ maxPriceText }}</text>
+				</template>
+				<template v-else>
+					<text class="price">¥{{ displayPrice }}</text>
+				</template>
+				<text class="list-price" v-if="showListPrice">¥{{ formatPrice(effectiveListPrice) }}</text>
+				<view class="promo-tags" v-if="promoTags.length">
+					<text v-for="(t,i) in promoTags" :key="i" class="promo-tag">{{ t }}</text>
+				</view>
+				<view class="spacer"></view>
+				<view class="decision-info" v-if="decisionChips.length">
+					<view v-for="(chip,i) in decisionChips" :key="i" class="decision-chip">{{ chip }}</view>
+				</view>
+			</view>
+			<view class="row-meta" v-if="trustSummaryText">
+				<text class="meta-text">{{ trustSummaryText }}</text>
 			</view>
 			<view v-if="product?.sellPoint" class="sell">{{ product?.sellPoint }}</view>
 			<!-- 单规格实物商品：直接展示库存信息 -->
@@ -33,7 +51,7 @@
 		</view>
 
 		<!-- 规格选择（多规格） -->
-		<view v-if="product?.specType==='MULTI'" class="card">
+		<view v-if="product?.specType==='MULTI'" class="card" id="spec-block">
 			<view class="block-title">选择规格</view>
 			<view v-if="specKeys.length" v-for="key in specKeys" :key="key" class="spec-group">
 				<text class="spec-key">{{ key }}</text>
@@ -52,8 +70,21 @@
 		<!-- 商品介绍 -->
 		<view class="card">
 			<view class="block-title">商品介绍</view>
-			<view class="desc" v-if="product?.description">{{ product?.description }}</view>
-			<view class="desc" v-else>暂无介绍</view>
+			<view v-if="descLoading" class="desc-skeleton">
+				<view class="sk-line w80" /><view class="sk-line w90" /><view class="sk-line w60" />
+			</view>
+			<view v-else-if="renderNodesHtml" class="desc" :class="{ collapsed: descCollapsed && shouldShowCollapse }">
+				<!-- #ifdef MP-WEIXIN -->
+				<mp-html :content="renderNodesHtml" :tag-style="mpTagStyle" :copy-link="true" :selectable="true" :lazy-load="true" />
+				<!-- #endif -->
+				<!-- #ifndef MP-WEIXIN -->
+				<rich-text :nodes="renderNodesHtml" />
+				<!-- #endif -->
+				<view v-if="hasTable" class="scroll-tip">左右滑动查看表格</view>
+				<view class="desc-fade" v-if="descCollapsed && shouldShowCollapse"></view>
+			</view>
+			<view v-if="renderNodesHtml && shouldShowCollapse" class="desc-toggle" @tap="descCollapsed = !descCollapsed">{{ descCollapsed ? '展开全部' : '收起' }}</view>
+			<view v-else class="desc">暂无介绍</view>
 		</view>
 
 		<!-- 底部操作栏 -->
@@ -72,6 +103,7 @@
 				<image class="cart-icon" src="/static/icons/cart.png" mode="aspectFit" />
 				<!-- #endif -->
 				<text class="cart-text">加入购物车</text>
+				<view v-if="cartCount>0" class="badge">{{ cartCount>99 ? '99+' : cartCount }}</view>
 			</view>
 			<view class="buy" :class="{ disabled: buyDisabled }" @tap="onBuyTap">{{ buyText }}</view>
 		</view>
@@ -87,6 +119,25 @@ import { createHttp, getToken, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
+// #ifdef MP-WEIXIN
+// 通过 easycom 使用 mp-html 组件
+// #endif
+
+// 微信小程序端 mp-html 标签样式（避免未定义导致渲染失败，并提供基础排版）
+// #ifdef MP-WEIXIN
+const mpTagStyle: Record<string, string> = {
+	'body': 'font-size:26rpx; line-height:1.7; color:#1f2937;',
+	'p': 'margin:0 0 12rpx; font-size:26rpx; line-height:1.7; color:#1f2937;',
+	'img': 'max-width:100%; height:auto; display:block; border-radius:0;',
+	'a': 'color:#2563eb; word-break:break-all; text-decoration:underline;',
+	'ul': 'padding-left:28rpx; margin:0 0 12rpx;',
+	'ol': 'padding-left:28rpx; margin:0 0 12rpx;',
+	'li': 'margin:0 0 8rpx; font-size:26rpx; line-height:1.7;',
+	'table': 'width:100%; border-collapse:collapse; margin:8rpx 0;',
+	'th': 'border:1px solid #e5e7eb; padding:8rpx; background:#f9fafb; font-weight:600; font-size:24rpx;',
+	'td': 'border:1px solid #e5e7eb; padding:8rpx; font-size:24rpx;'
+};
+// #endif
 
 type Sku = { id: number; name?: string; price: number; stockQuantity?: number; enabled?: boolean; specsJson?: Array<{ key: string; value: string }>|null };
 
@@ -106,6 +157,12 @@ type Product = {
 	totalSales?: number;
 	minPrice?: number; maxPrice?: number;
 	priceRange?: string|null;
+	// 可选：用于决策信息与信任概要（若后端未提供则不显示）
+	serviceMode?: 'IN_STORE'|'DELIVERY'|'BOTH'|null;
+	durationMinutes?: number|null;
+	scopeText?: string|null;
+	ratingAvg?: number|null;
+	ratingCount?: number|null;
 };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
@@ -116,6 +173,13 @@ const product = ref<Product|null>(null);
 const selectedSkuId = ref<number|undefined>(undefined);
 const collected = ref<boolean>(false);
 const sheetVisible = ref<boolean>(false);
+const cartCount = ref<number>(0);
+
+// 图集：高度自适应与懒加载骨架
+const sysInfo = uni.getSystemInfoSync?.() as any;
+const galleryHeight = Math.floor((sysInfo?.windowWidth || 375) * 0.75);
+const imgLoaded = ref<boolean[]>([]);
+function onImgLoad(idx:number){ const arr = imgLoaded.value.slice(); arr[idx] = true; imgLoaded.value = arr; }
 
 function goBack(){
 	try {
@@ -133,6 +197,7 @@ onLoad(async (q: any) => {
 	id.value = pid;
 	await fetchDetail();
 	initCollect();
+	refreshCartCount();
 });
 
 async function fetchDetail(){
@@ -156,6 +221,7 @@ async function fetchDetail(){
 		}
 		await initCollect();
 	} catch { product.value = null; }
+	finally { descLoading.value = false; }
 }
 
 const displayImages = computed(() => {
@@ -175,6 +241,48 @@ const displayImages = computed(() => {
 	}
 	return urls.length ? urls : ['/static/icons/placeholder.png'];
 });
+
+const displayImageAbsUrls = computed<string[]>(() => (displayImages.value || []).map(u => resolveImageUrl(u) || u));
+const currentIndex = ref<number>(0);
+function onSwiperChange(e:any){ try{ currentIndex.value = Number(e?.detail?.current||0) || 0; }catch{ currentIndex.value = 0; } }
+function onTapImage(idx:number){
+	try{
+		const urls = displayImageAbsUrls.value;
+		const i = Math.min(Math.max(0, idx||0), urls.length-1);
+		uni.previewImage({ current: urls[i], urls });
+	}catch{}
+}
+function onLongPressImage(idx:number){
+	try{
+		const urls = displayImageAbsUrls.value;
+		const i = Math.min(Math.max(0, idx||0), urls.length-1);
+		const url = urls[i];
+		// #ifdef MP-WEIXIN
+		uni.showActionSheet({
+			itemList: ['保存到相册'],
+			success: async (res:any) => {
+				if (res.tapIndex === 0) {
+					try{
+						const d:any = await uni.downloadFile({ url });
+						if (Number(d?.statusCode) === 200 && d?.tempFilePath) {
+							await uni.saveImageToPhotosAlbum({ filePath: d.tempFilePath });
+							uni.showToast({ title:'已保存到相册', icon:'none' });
+						}
+					}catch{ uni.showToast({ title:'保存失败', icon:'none' }); }
+				}
+			}
+		});
+		// #endif
+		// #ifdef H5
+		try{
+			const a = document.createElement('a');
+			a.href = url; a.download = url.split('/').pop() || 'image.jpg';
+			document.body.appendChild(a); a.click(); document.body.removeChild(a);
+			uni.showToast({ title:'已触发下载', icon:'none' });
+		}catch{}
+		// #endif
+	}catch{}
+}
 
 const enabledSkus = computed(() => (product.value?.skus||[]).filter(s => s.enabled!==false));
 const selectionComplete = computed(() => {
@@ -203,7 +311,9 @@ const stockText = computed<string>(() => {
 	if (product.value?.type !== 'PHYSICAL') return '';
 	const qty = currentStock.value;
 	if (qty === undefined) return '';
-	return qty <= 0 ? '库存不足' : `剩余 ${qty}`;
+	if (qty <= 0) return '库存不足';
+	if (qty > 0 && qty <= 5) return `仅剩 ${qty} 件`;
+	return `剩余 ${qty}`;
 });
 
 const stockClass = computed<string>(() => {
@@ -223,11 +333,68 @@ const buyDisabled = computed<boolean>(() => {
 	return qty <= 0;
 });
 
+// 价格区与CTA逻辑
+const isRangeMode = computed<boolean>(() => {
+	if (!product.value) return false;
+	if (product.value.specType !== 'MULTI') return false;
+	if (typeof selectedSkuId.value === 'number') return false;
+	const min = Number(product.value.minPrice || 0);
+	const max = Number(product.value.maxPrice || 0);
+	return max > 0 && (max - min) > 0.009;
+});
+const minPriceText = computed<string>(() => {
+	const min = Number(product.value?.minPrice || product.value?.price || 0);
+	return isNaN(min) ? '0.00' : min.toFixed(2);
+});
+const maxPriceText = computed<string>(() => {
+	const max = Number(product.value?.maxPrice || product.value?.price || 0);
+	return isNaN(max) ? '0.00' : max.toFixed(2);
+});
+const effectiveListPrice = computed<number>(() => {
+	if (!product.value) return 0;
+	if (product.value.specType === 'SINGLE') return Number(product.value.listPrice || 0);
+	// 多规格：缺少SKU划线价数据则不展示
+	return 0;
+});
+const showListPrice = computed<boolean>(() => effectiveListPrice.value > 0 && effectiveListPrice.value > Number(unitPrice.value || 0));
+const promoTags = computed<string[]>(() => {
+	const tags: string[] = [];
+	if (showListPrice.value) {
+		const lp = effectiveListPrice.value;
+		const p = Number(unitPrice.value || 0);
+		if (lp > 0 && p > 0 && lp > p) {
+			const off = Math.round((1 - p / lp) * 100);
+			if (off >= 5) tags.push(`立省${off}%`);
+		}
+		// 轻量标签（占位）
+		tags.push('限时');
+	}
+	return tags.slice(0,2);
+});
+const decisionChips = computed<string[]>(() => {
+	const chips: string[] = [];
+	const p = product.value as any;
+	const mode = p?.serviceMode as string|undefined;
+	if (mode === 'IN_STORE') chips.push('到店');
+	else if (mode === 'DELIVERY') chips.push('配送');
+	else if (mode === 'BOTH') chips.push('到店/配送');
+	if (typeof p?.durationMinutes === 'number' && p.durationMinutes > 0) chips.push(`预计时长约${p.durationMinutes}分钟`);
+	if (p?.scopeText) chips.push(`适用范围：${String(p.scopeText).trim()}`);
+	return chips;
+});
+const trustSummaryText = computed<string>(() => {
+	const p = product.value as any;
+	const arr: string[] = [];
+	if (typeof p?.ratingAvg === 'number' && p.ratingAvg > 0) arr.push(`评分 ${p.ratingAvg.toFixed(1)}`);
+	if (typeof p?.ratingCount === 'number' && p.ratingCount > 0) arr.push(`评价 ${p.ratingCount}`);
+	if (typeof p?.totalSales === 'number' && p.totalSales > 0) arr.push(`销量 ${p.totalSales}`);
+	return arr.join(' · ');
+});
+
 const buyText = computed<string>(() => {
+	if (product.value?.specType === 'MULTI' && !selectionComplete.value) return '选择规格';
 	if (product.value?.type !== 'PHYSICAL') return '立即购买';
 	if (product.value.specType === 'SINGLE') return buyDisabled.value ? '当前商品售罄' : '立即购买';
-	// 多规格
-	if (!selectionComplete.value) return '立即购买';
 	return buyDisabled.value ? '当前商品售罄' : '立即购买';
 });
 
@@ -388,8 +555,15 @@ function isOptionDisabled(key: string, value: string){
 }
 
 function onSelectSpec(key: string, value: string){
-	if (isOptionDisabled(key, value)) return;
-	selectedSpecValues.value = { ...selectedSpecValues.value, [key]: value };
+	if (selectedSpecValues.value[key] === value) {
+		// 再次点击同一值，撤销选择
+		const next = { ...selectedSpecValues.value };
+		delete next[key];
+		selectedSpecValues.value = next;
+	} else {
+		if (isOptionDisabled(key, value)) return;
+		selectedSpecValues.value = { ...selectedSpecValues.value, [key]: value };
+	}
 	const matches = enabledSkus.value.filter(s => isSkuMatchSelection(s, selectedSpecValues.value));
 	selectedSkuId.value = matches.length === 1 ? matches[0].id : undefined;
 }
@@ -471,6 +645,7 @@ async function addToCart(){
 		if (canAdd <= 0) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
 		await http('/cart/me/add', { method:'POST', body: { productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: canAdd } });
 		uni.showToast({ title: canAdd===1 ? '已加入购物车' : `库存不足，已加入${canAdd}件`, icon:'none' });
+		refreshCartCount();
 	} catch {
 		uni.showToast({ title:'加入失败', icon:'none' });
 	}
@@ -481,26 +656,125 @@ function onBuyTap(){
 	if (!getToken()) { uni.navigateTo({ url:'/pages/login/index' }); return; }
 	checkAuthAndRefresh({ redirectIfExpired: true });
 	if (product.value.type !== 'PHYSICAL') { sheetVisible.value = true; return; }
-	if (product.value.specType === 'MULTI' && !selectionComplete.value) { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
+	if (product.value.specType === 'MULTI' && !selectionComplete.value) {
+		// 引导滚动到规格区
+		try { uni.pageScrollTo({ selector:'#spec-block', duration: 300 }); } catch {}
+		return;
+	}
 	if (buyDisabled.value) return; // 售罄时不可点击
 	sheetVisible.value = true;
 }
 function onSubmitted(){ /* 可根据需要刷新 */ }
+
+// 富文本渲染：将后端编辑器内容做适配（图片绝对化与自适应）+ 骨架屏
+const descLoading = ref<boolean>(true);
+const renderedHtml = computed<string>(() => {
+	const html = String(product.value?.description || '').trim();
+	if (!html) return '';
+	return sanitizeHtml(transformEditorHtml(html));
+});
+const isHtmlRich = computed<boolean>(() => /<\w+[^>]*>/.test(String(product.value?.description||'')));
+const hasTable = computed<boolean>(() => /<table\b/i.test(String(renderedHtml.value||'')));
+const descCollapsed = ref<boolean>(true);
+const shouldShowCollapse = computed<boolean>(() => {
+	const plain = String(product.value?.description||'');
+	if (!plain) return false;
+	if (/\n/.test(plain) || /<img\b/i.test(String(renderedHtml.value||''))) return true;
+	return plain.length > 160;
+});
+const renderedHtmlAsParagraph = computed<string>(() => {
+	const text = String(product.value?.description||'').trim();
+	if (!text) return '';
+	const esc = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+	return `<p>${esc}</p>`;
+});
+// 统一 rich-text nodes，避免 mp-html 依赖在某些环境不生效
+const renderNodesHtml = computed<string>(() => {
+	if (!renderedHtml.value) return '';
+	return isHtmlRich.value ? renderedHtml.value : renderedHtmlAsParagraph.value;
+});
+
+function transformEditorHtml(html: string): string{
+	try{
+		let out = html;
+		// 去除 DOCTYPE / html / head 包裹并抽取 body 内部
+		out = out.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
+		const bodyMatch = out.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+		if (bodyMatch && bodyMatch[1]) out = bodyMatch[1];
+		out = out.replace(/<head[\s\S]*?>[\s\S]*?<\/head>/gi, '');
+		out = out.replace(/<html[^>]*>|<\/html>/gi, '');
+		// 语义标签替换为 div，提升在小程序端的兼容性
+		out = out.replace(/<\/?(section|article|header|footer|main|aside|figure|figcaption)\b/gi, (m) => m.replace(/\w+/, (w)=> w[0]==='<'?'<div':'div'));
+		// 移除可能影响布局的行内宽高
+		out = out.replace(/\swidth=["'][^"']*["']/gi, '').replace(/\sheight=["'][^"']*["']/gi, '');
+		// 处理 img：src 绝对化，添加自适应样式
+		out = out.replace(/<img\b[^>]*>/gi, (tag) => {
+			let t = tag;
+			t = t.replace(/src=["']([^"']+)["']/i, (m, p1) => {
+				const abs = resolveImageUrl(p1) || p1;
+				return `src="${abs}"`;
+			});
+			if (/style=/.test(t)) {
+				t = t.replace(/style=["']([^"']*)["']/, (m, s) => `style="${s};max-width:100%;height:auto;display:block"`);
+			} else {
+				t = t.replace(/<img\b/i, '<img style="max-width:100%;height:auto;display:block"');
+			}
+			return t;
+		});
+		return out;
+	}catch{ return html; }
+}
+
+function sanitizeHtml(html: string): string{
+	try{
+		// 仅移除危险脚本/样式/iframe，保留其它内容
+		let out = html;
+		out = out.replace(/<(script|style|iframe)[\s\S]*?>[\s\S]*?<\/\1>/gi,'');
+		// 过滤行内事件与 javascript: 协议
+		out = out.replace(/<([^\s>\/]+)([^>]*)>/gi, (m, tag, attrs) => {
+			let a = String(attrs||'');
+			a = a.replace(/\son[a-zA-Z]+\s*=\s*"[^"]*"/gi,'').replace(/\son[a-zA-Z]+\s*=\s*'[^']*'/gi,'');
+			a = a.replace(/\shref\s*=\s*"javascript:[^"]*"/gi,'').replace(/\shref\s*=\s*'javascript:[^']*'/gi,'');
+			a = a.replace(/\ssrc\s*=\s*"javascript:[^"]*"/gi,'').replace(/\ssrc\s*=\s*'javascript:[^']*'/gi,'');
+			return `<${tag}${a}>`;
+		});
+		return out;
+	}catch{ return html; }
+}
+
+async function refreshCartCount(){
+	try{
+		const token = getToken(); if (!token) { cartCount.value = 0; return; }
+		const list:any[] = await http('/cart/me/list', { method:'GET' });
+		const total = (Array.isArray(list)? list:[]).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
+		cartCount.value = Math.max(0, Number(total||0));
+	}catch{ cartCount.value = 0; }
+}
 </script>
 
 <style>
 .page { min-height: 100vh; background:#f7fafc; padding-bottom: calc(env(safe-area-inset-bottom) + 120rpx); }
-.gallery { height: 520rpx; background:#fff; }
+.gallery { position: relative; background:#fff; }
 .swiper { width: 100%; height: 100%; }
+.img-wrap { position: relative; width: 100%; height: 100%; }
 .img { width: 100%; height: 100%; display:block; }
+.img-skeleton { position:absolute; inset:0; background: linear-gradient(90deg, #f3f4f6, #e5e7eb, #f3f4f6); background-size:200% 100%; animation: sk 1.2s infinite; }
+.indicator { position: absolute; right: 16rpx; bottom: 16rpx; padding: 6rpx 12rpx; font-size: 22rpx; color:#fff; background: rgba(17,24,39,.4); border-radius: 999rpx; }
 .card { background:#ffffff; border-radius:24rpx; padding:24rpx; margin: 16rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); }
 .info-card .row-top { display:flex; align-items:center; justify-content: space-between; }
 .name { font-size: 32rpx; font-weight: 800; color:#0b1220; }
 .sales { font-size: 24rpx; color:#6b7280; }
-.row-mid { margin-top: 8rpx; display:flex; align-items: baseline; gap: 8rpx; }
+.row-mid { margin-top: 8rpx; display:flex; align-items: center; gap: 8rpx; }
 .price { font-size: 36rpx; color:#ef4444; font-weight: 800; }
 .list-price { font-size: 24rpx; color:#6b7280; text-decoration: line-through; }
 .price-hint { font-size: 24rpx; color:#6b7280; }
+.promo-tags { display:flex; gap:8rpx; margin-left: 8rpx; }
+.promo-tag { font-size: 20rpx; color:#0ea5e9; background:#e0f2fe; border-radius: 999rpx; padding: 4rpx 10rpx; }
+.spacer { flex:1; }
+.decision-info { display:flex; gap:8rpx; flex-wrap:wrap; justify-content:flex-end; }
+.decision-chip { font-size: 20rpx; color:#475569; background:#f1f5f9; padding: 4rpx 10rpx; border-radius: 999rpx; }
+.row-meta { margin-top: 6rpx; }
+.meta-text { font-size: 22rpx; color:#6b7280; }
 .sell { margin-top: 8rpx; font-size: 24rpx; color:#374151; background:#f3f4f6; padding: 10rpx 12rpx; border-radius: 12rpx; }
 .stock-chip { margin-top: 10rpx; display:inline-flex; align-items:center; gap: 8rpx; padding: 8rpx 12rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; background:#ffffff; }
 .stock-chip.ok { border-color:#86efac; background:#ecfdf5; }
@@ -518,23 +792,36 @@ function onSubmitted(){ /* 可根据需要刷新 */ }
 .spec-row { display:flex; flex-wrap: wrap; gap: 12rpx; }
 .spec-chip { padding: 10rpx 18rpx; border-radius: 999rpx; border: 2rpx solid #e5e7eb; color:#1f2937; background:#fff; }
 .spec-chip.active { background: linear-gradient(135deg, #60a5fa, #a78bfa); border-color: transparent; color:#fff; }
-.spec-chip.disabled { opacity: .5; }
-.desc { font-size: 26rpx; color:#1f2937; line-height: 1.6; white-space: pre-wrap; }
+.spec-chip.disabled { opacity: .5; border-style: dashed; }
+.desc { font-size: 26rpx; color:#1f2937; line-height: 1.6; white-space: pre-wrap; position: relative; }
+.desc.collapsed { max-height: 240rpx; overflow: hidden; }
+.desc-fade { position:absolute; left:0; right:0; bottom:0; height: 80rpx; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 70%); }
+.desc-toggle { margin-top: 8rpx; color:#2563eb; font-size: 26rpx; }
+.scroll-tip { margin-top: 8rpx; font-size: 22rpx; color:#94a3b8; }
+.desc-skeleton { display:flex; flex-direction: column; gap: 12rpx; }
+.sk-line { height: 28rpx; background: linear-gradient(90deg, #f3f4f6, #e5e7eb, #f3f4f6); background-size: 200% 100%; border-radius: 8rpx; animation: sk 1.2s infinite; }
+.sk-line.w80 { width: 80%; }
+.sk-line.w90 { width: 90%; }
+.sk-line.w60 { width: 60%; }
+@keyframes sk { 0% { background-position: 0 0; } 100% { background-position: -200% 0; } }
 .bottom-bar { position: fixed; left:0; right:0; bottom:0; background:#ffffff; border-top: 2rpx solid #e5e7eb; padding: 12rpx 16rpx; display:flex; align-items:center; gap: 12rpx; }
-.action { min-width: 160rpx; text-align:center; padding: 8rpx 0; border-radius: 16rpx; background: transparent; color:#111827; border: none; display:flex; flex-direction: column; align-items:center; gap: 6rpx; }
-.action.active { background: transparent; color:#ef4444; border: none; }
+.action { min-width: 160rpx; text-align:center; padding: 8rpx 0; border-radius: 16rpx; background: transparent; color:#111827; border: none; display:flex; flex-direction: column; align-items:center; gap: 6rpx; transition: transform .15s ease, opacity .15s ease; }
+.action.active { background: transparent; color:#2563eb; border: none; }
 .fav-action { min-width: 120rpx; }
 .fav-action .fav-text { color:#111827; font-size: 22rpx; }
-.fav-action.active .fav-text { color:#ef4444; }
+.fav-action.active .fav-text { color:#2563eb; }
 .fav-icon { width: 40rpx; height: 40rpx; }
-.cart-action { min-width: 160rpx; }
+.cart-action { min-width: 160rpx; position: relative; }
 .cart-icon { width: 40rpx; height: 40rpx; }
 .cart-svg { width: 40rpx; height: 40rpx; display:block; }
 .cart-text { font-size: 22rpx; color:#111827; }
-.buy { flex:1; text-align:center; padding: 18rpx 0; border-radius: 16rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; font-size: 28rpx; }
+.badge { position:absolute; top:-4rpx; right: 8rpx; background:#ef4444; color:#fff; font-size: 18rpx; padding: 2rpx 6rpx; border-radius: 999rpx; min-width: 28rpx; text-align:center; }
+.buy { flex:1; text-align:center; padding: 18rpx 0; border-radius: 16rpx; background: linear-gradient(135deg, #60a5fa, #a78bfa); color:#fff; font-size: 28rpx; transition: transform .15s ease, opacity .15s ease; }
 .buy.disabled { opacity: .6; filter: grayscale(0.15); }
+.action:active { transform: scale(0.98); }
+.buy:active { transform: scale(0.985); }
 
 /* 返回按钮复用风格 */
-.nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }
+.nav-back { position: fixed; left: 16rpx; z-index: 1000; width: 72rpx; height: 72rpx; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.1); border-radius: 50%; backdrop-filter: blur(2px); }
 .nav-back-icon { width: 56rpx; height: 56rpx; }
 </style>

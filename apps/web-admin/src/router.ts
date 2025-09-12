@@ -34,6 +34,7 @@ import GroupList from './pages/GroupList.vue';
 import GroupVehicles from './pages/GroupVehicles.vue';
 import GroupCards from './pages/GroupCards.vue';
 import GroupBalance from './pages/GroupBalance.vue';
+import SystemEmployees from './pages/SystemEmployees.vue';
 
 const router = createRouter({
 	history: createWebHistory('/admin'),
@@ -75,6 +76,7 @@ const router = createRouter({
 				{ path: '/system/basic', component: SystemBasic, meta: { perm: 'system-basic', title: '基础设置' } },
 				{ path: '/system/files', component: SystemFiles, meta: { perm: 'system-files', title: '文件管理' } },
 				{ path: '/system/sms', component: SystemSms, meta: { perm: 'system-sms', title: '短信管理' } },
+				{ path: '/system/employees', component: SystemEmployees, meta: { perm: 'system-employees', title: '员工配置' } },
 				// ====== 新增：集团客户 ======
 				{ path: '/groups', component: GroupList, meta: { perm: 'group', title: '集团客户' } },
 				{ path: '/groups/vehicles', component: GroupVehicles, meta: { perm: 'group-vehicles', title: '集团车辆' } },

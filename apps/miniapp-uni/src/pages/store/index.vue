@@ -399,7 +399,7 @@ async function addToCartFromList(p:any){
 </script>
 
 <style>
-.page { min-height: 100vh; padding: 24rpx 24rpx 0 24rpx; background: linear-gradient(180deg, #e9f5ff 0%, #fff0f6 100%); box-sizing: border-box; padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx); }
+.page { min-height: 100vh; display:flex; flex-direction: column; padding: 24rpx 24rpx 0 24rpx; background: linear-gradient(180deg, #e9f5ff 0%, #fff0f6 100%); box-sizing: border-box; padding-bottom: calc(env(safe-area-inset-bottom) + 120rpx); }
 
 .card { background:#ffffff; border-radius:24rpx; padding:24rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); margin-bottom:24rpx; }
 
@@ -420,12 +420,12 @@ async function addToCartFromList(p:any){
 .tab-item.active { color:#111827; font-weight:600; border-bottom-color:#60a5fa; }
 
 /* 主内容卡片 */
-.content-card { background:#ffffff; border-radius:32rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); display:flex; flex-direction: column; overflow:hidden; min-height: 920rpx; }
+.content-card { background:#ffffff; border-radius:32rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); display:flex; flex-direction: column; overflow:hidden; flex: 1; }
 .content-body { display:flex; flex:1; overflow:hidden; }
 
 /* 左侧分类 */
 .category-sidebar { width: 220rpx; background:#f9fafb; padding: 16rpx 0; display:flex; flex-direction: column; }
-.category-list { height: 100%; max-height: 1000rpx; }
+.category-list { height: 100%; }
 .category-item { padding: 24rpx 20rpx; font-size:26rpx; color:#374151; border-left: 8rpx solid transparent; }
 .category-item.active { background:#ffffff; color:#111827; border-left-color:#60a5fa; }
 

@@ -102,6 +102,9 @@ model Member {
 
   // 反向关联：作为集团的订单占位会员（Group.orderOwnerMember）
   groupOrderOwnerOf Group[] @relation("GroupOrderOwnerMember")
+
+  // 反向关联：员工绑定（一个会员最多绑定一个员工）
+  employee Employee?
 }
 
 model MemberLevel {
@@ -1452,4 +1455,25 @@ model MemberPointsLog {
   @@index([memberId, createdAt])
   @@index([memberId])
   @@index([orderId])
+}
+
+// =====================
+// 员工模型（绑定已存在会员）
+// =====================
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberId  Int      @unique
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // 展示姓名（可覆盖会员昵称）
+  name      String?
+  // 职务名称（如 店长/收银/技师 等）
+  title     String?
+  enabled   Boolean  @default(true)
+
+  @@index([enabled])
 }

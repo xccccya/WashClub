@@ -23,6 +23,7 @@ export type AdminMenuKey =
 	| 'member-tags'
 	| 'system-files'
 	| 'system-sms'
+	| 'system-employees'
 	| 'content-notices'
 	| 'content-banners'
 	| 'content-reviews'
@@ -117,6 +118,7 @@ export class AdminRoleService {
 			{ key: 'system-admins', name: '后台管理员', path: '/system/admins' },
 			{ key: 'system-files', name: '文件管理', path: '/system/files' },
 			{ key: 'system-sms', name: '短信管理', path: '/system/sms' },
+			{ key: 'system-employees', name: '员工配置', path: '/system/employees' },
 			{ key: 'service-queue', name: '服务队列', path: '/service-queue' },
 			{ key: 'content-notices', name: '滚动通知', path: '/content/notices' },
 			{ key: 'content-banners', name: '广告横幅', path: '/content/banners' },

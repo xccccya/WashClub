@@ -62,6 +62,7 @@
 					<el-menu-item v-if="can('system-admins')" index="/system/admins"><el-icon style="margin-right:6px;"><User /></el-icon>后台管理员</el-menu-item>
 					<el-menu-item v-if="can('system-files')" index="/system/files"><el-icon style="margin-right:6px;"><Folder /></el-icon>文件管理</el-menu-item>
 					<el-menu-item v-if="can('system-sms')" index="/system/sms"><el-icon style="margin-right:6px;"><Message /></el-icon>短信管理</el-menu-item>
+					<el-menu-item v-if="can('system-employees')" index="/system/employees"><el-icon style="margin-right:6px;"><User /></el-icon>员工配置</el-menu-item>
 				</el-sub-menu>
 			</el-menu>
 		</aside>
