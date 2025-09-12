@@ -200,6 +200,7 @@
 				<el-table-column label="关联订单" width="140">
 					<template #default="{ row }">
 						<el-button v-if="(row.reason==='PURCHASE_ADD' && row.purchaseOrderId) || (row.reason==='REFUND_DEDUCT' && row.purchaseOrderId)" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
+						<el-button v-else-if="row.serviceOrderId" size="small" link type="primary" @click="gotoOrder(row.serviceOrderId)">服务订单</el-button>
 						<span v-else>—</span>
 					</template>
 				</el-table-column>

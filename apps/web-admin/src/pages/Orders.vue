@@ -108,11 +108,14 @@
 					<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="small" type="warning" @click="openRefund(row)">
 						<el-icon style="margin-right:4px;"><Money /></el-icon>退款
 					</el-button>
+                    <el-button v-if="canWriteoff()" size="small" type="danger" @click="writeoff(row)">
+                        <el-icon style="margin-right:4px;"><Delete /></el-icon>作废/红冲
+                    </el-button>
 					<!-- 商品履约：发货/收货 -->
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" size="small" type="primary" @click="openShip(row)">
 						<el-icon style="margin-right:4px;"><Promotion /></el-icon>发货
 					</el-button>
-					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="小" type="primary" @click="receive(row.id)">
+					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" size="small" type="primary" @click="receive(row.id)">
 						<el-icon style="margin-right:4px;"><Finished /></el-icon>确认收货
 					</el-button>
 					<el-button v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && row.payMethod==='WECHAT_JSAPI' && !row.deletedAt" size="small" @click="openEditTracking(row)">
@@ -164,6 +167,20 @@
 						<el-button type="primary" :loading="wxPayLoading" @click="doWxMicropay">发起付款码支付</el-button>
 					</div>
 				</el-tab-pane>
+				<el-tab-pane label="洗车卡划扣" name="wash">
+					<div style="color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; margin-bottom:8px;">
+						系统会自动识别本订单中标记为“计为洗车(次)”的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。
+					</div>
+					<el-radio-group v-model="washPrefer" size="small">
+						<el-radio-button label="AUTO">自动选择</el-radio-button>
+						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
+						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
+					</el-radio-group>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" @click="doWashDeduct">确认划扣并支付</el-button>
+					</div>
+				</el-tab-pane>
 			</el-tabs>
 		</el-dialog>
 
@@ -188,7 +205,7 @@
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item v-if="refundMode==='PART'" label="退款金额">
-						<el-input v-model="refundAmountText" inputmode="decimal" :placeholder="`输入金额，最低0.01，最高¥${refundableLeft.toFixed(2)}`" />
+						<el-input v-model="refundAmountText" inputmode="decimal" :placeholder="'输入金额，最低0.01，最高¥' + refundableLeft.toFixed(2)" />
 						<div style="margin-left:8px;color:#666;">剩余可退：¥{{ refundableLeft.toFixed(2) }}</div>
 					</el-form-item>
 				</template>
@@ -262,7 +279,7 @@ import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 // 替换为 Element Plus 内置图标（已在 main.ts 全局注册）
 
@@ -287,7 +304,7 @@ function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='
 function statusTagType(v?: string){ if(v==='CREATED') return 'info'; if(v==='PAID') return 'success'; if(v==='FULFILLED') return 'success'; if(v==='CLOSED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
 function payStatusLabel(v?: string){ if(v==='UNPAID') return '未支付'; if(v==='PAID') return '已支付'; if(v==='REFUNDED') return '已退款'; if(v==='CANCELLED') return '已作废'; return v || '-'; }
 function payStatusTagType(v?: string){ if(v==='UNPAID') return 'info'; if(v==='PAID') return 'success'; if(v==='REFUNDED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
-function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; return v; }
+function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; if(v==='WASH_CARD') return '洗车卡结算'; return v; }
 function fulfillLabel(v?: string){ if(!v) return '-'; if(v==='NONE') return '不需履约'; if(v==='PENDING') return '待履约/待发货'; if(v==='SHIPPED') return '已发货'; if(v==='RECEIVED') return '已收货'; if(v==='IN_SERVICE') return '服务中'; if(v==='DONE') return '服务完成'; return v; }
 
 async function fetchList(){
@@ -372,6 +389,9 @@ async function doEditTracking(){
     ElMessage.success('已修改'); showEditTrackingDialog.value=false; await fetchList();
 }
 
+function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
+async function writeoff(row:any){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; await http(`/orders/${row.id}/void`, { method:'POST', body: { reason: '后台作废/红冲' } }); ElMessage.success('操作成功'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+
 function openShip(row:any){
     shipOrderId.value = row?.id || null;
     shipMode.value = 'express';
@@ -430,7 +450,8 @@ async function finishService(id:number){ try { await http(`/orders/${id}/finish-
 const showPay = ref(false);
 const currentOrderId = ref<number | null>(null);
 const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'|'CASH'>('CASH');
-const payTab = ref<'manual'|'wx'>('manual');
+const payTab = ref<'manual'|'wx'|'wash'>('manual');
+const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
 const showScan = ref(false);
@@ -438,7 +459,7 @@ const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
 let mediaStream: MediaStream | null = null;
 let scanTimer: any = null;
-function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; showPay.value = true; }
+function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; showPay.value = true; }
 async function doMarkPaid(){
     if (!currentOrderId.value) return;
     try { await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
@@ -461,6 +482,21 @@ async function doWxMicropay(){
     }finally{
         wxPayLoading.value = false;
     }
+}
+
+async function doWashDeduct(){
+    if (!currentOrderId.value) return;
+    try{
+        const detail:any = list.value.find(x=>x.id===currentOrderId.value) || await http(`/orders/${currentOrderId.value}`);
+        if (String(detail?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; }
+        const prefer = washPrefer.value === 'AUTO' ? undefined : washPrefer.value;
+        const ret:any = await http(`/orders/${currentOrderId.value}/pay/wash-card`, { method:'POST', body: { prefer } });
+        const plan = Array.isArray(ret?.plan)?ret.plan:[];
+        const times = Number(ret?.requiredTimes||0);
+        ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`);
+        showPay.value = false;
+        await fetchList();
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); }
 }
 
 async function openScan(){
@@ -554,6 +590,8 @@ async function openRefund(row:any){
     hasPartialRefund.value = successSum > 0;
     showRefund.value = true;
 }
+function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; fetchList(); }
+async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
 async function doRefund(){
     if (!currentOrderId.value) return;
     const row = currentOrder.value;
@@ -573,7 +611,6 @@ async function doRefund(){
         const resAny: any = await http(`/orders/${currentOrderId.value}/refund`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
         if (resAny && resAny.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error((resAny && resAny.error) || '退款申请失败'); }
     } else {
-        // 非微信渠道：仅支持一次性内部退款
         const res = await http(`/orders/${currentOrderId.value}/refund`, { method:'POST', body: { reason: refundReason.value || undefined } });
         if ((res as any)?.id){ ElMessage.success('已退款'); }
     }
@@ -581,23 +618,14 @@ async function doRefund(){
     await fetchList();
 }
 
-function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; fetchList(); }
+onMounted(() => {
+	fetchList();
+});
 
-async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
-
-onMounted(async()=>{ await fetchList(); try{ if(tickTimer) clearInterval(tickTimer); }catch{} tickTimer=setInterval(()=>{ list.value = list.value.slice(); }, 1000); });
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; gap:8px; width:100%; }
-.no-wrap{ flex-wrap: wrap; }
-.card{ background:#fff; border:1px solid #eee; border-radius:8px; padding:12px; }
-.table-scroll{ overflow:auto; width:100%; }
-.link{ color: var(--app-primary); cursor:pointer; }
-.deleted{ text-decoration: line-through; opacity: .65; }
-.icon-btn{ padding: 4px; min-width: auto; }
-.icon-btn.danger{ color:#F56C6C; }
-.icon{ width: 18px; height: 18px; object-fit: contain; display:inline-block; }
+.table-scroll{ overflow:auto; }
+.link{ color: var(--app-primary); cursor: pointer; text-decoration: underline; }
+.link.deleted{ color: #909399; text-decoration: line-through; }
 </style>
-
-

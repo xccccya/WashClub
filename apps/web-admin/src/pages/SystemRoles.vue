@@ -128,7 +128,7 @@ const menuGroups = computed<MenuGroup[]>(() => {
       groups.groups.children.push(m);
     } else if (m.key.startsWith('store-')) {
       groups.store.children.push(m);
-    } else if (['orders','after-sales'].includes(m.key)) {
+    } else if (['orders','after-sales','orders-writeoff'].includes(m.key)) {
       groups.orders.children.push(m);
     } else if (m.key.startsWith('coupon')) {
       groups.coupon.children.push(m);

@@ -1,6 +1,7 @@
 <template>
 	<div>
 		<el-button @click="$router.back()" style="margin-bottom:12px;">返回</el-button>
+		<el-button v-if="canWriteoff() && data?.id" type="danger" @click="writeoffThis">作废/红冲</el-button>
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
 		<el-descriptions :column="2" border>
 			<el-descriptions-item label="订单号">{{ data?.no }}</el-descriptions-item>
@@ -17,6 +18,7 @@
 			<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
 			<el-descriptions-item label="订单总额">{{ data?.totalAmount }}</el-descriptions-item>
 			<el-descriptions-item label="减免金额">{{ data?.discountAmount }}</el-descriptions-item>
+			<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">{{ (data as any)?.washCardDeductAmount }}</el-descriptions-item>
 			<el-descriptions-item label="会员折扣减免" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>
 			<el-descriptions-item label="支付金额">{{ data?.payAmount }}</el-descriptions-item>
@@ -209,6 +211,9 @@
 					<span v-if="data?.couponInfo?.discountApplied != null" style="margin-left:8px;color:#67C23A;">(减免¥{{ Number(data?.couponInfo?.discountApplied||0).toFixed(2) }})</span>
 				</template>
 			</el-descriptions-item>
+			<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">
+				<span>已用洗车卡抵扣：¥{{ Number((data as any)?.washCardDeductAmount||0).toFixed(2) }}</span>
+			</el-descriptions-item>
 		</el-descriptions>
 	</div>
 </template>
@@ -219,7 +224,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 const route = useRoute();
 const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
@@ -262,6 +267,9 @@ async function openRetryRefund(){
         await http(`/orders/_refunds/${rec.id}/retry`, { method:'POST' });
     }catch{}
 }
+
+function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
+async function writeoffThis(){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; const id = Number((data.value?.id)||0); if(!id) return; await http(`/orders/${id}/void`, { method:'POST', body: { reason: '后台作废/红冲' } }); ElMessage.success('操作成功'); await fetchDetail(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 function canQueryRefund(row:any){
     try{
@@ -412,6 +420,7 @@ function displayPayMethod(m?: string){
 	if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付';
 	if (v.includes('CASH')) return '现金支付';
 	if (v.includes('OFFLINE')) return '线下支付';
+	if (v.includes('WASH_CARD') || v==='WASH_CARD') return '洗车卡结算';
 	if (v.includes('QRCODE')) return '扫码支付';
 	return '其它';
 }
@@ -475,6 +484,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	}
 	if (e==='BENEFITS'){
 		if (v==='WASHCARD_ROLLBACK') return '退款回收计次';
+		if (v==='WASHCARD_DEDUCT') return '洗车卡划扣';
 		if (v==='POINTS_ROLLBACK') return '返还积分';
 		if (v==='COUPON_RESTORE') return '恢复优惠券';
 		if (v==='COUPON_NOTE') return '优惠券说明';

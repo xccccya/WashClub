@@ -34,7 +34,7 @@ import { MemberPointsService } from './points.service.js';
 	],
 	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController, MemberSignInController, MemberPointsController],
 	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService, MemberPointsService],
-	exports: [VehicleService],
+	exports: [VehicleService, WashCardService],
 })
 export class MemberModule {}
 

@@ -38,6 +38,7 @@ import { MemberModule } from '../member/member.module.js';
     GroupVehicleService,
     GroupBalanceService,
     GroupCardService
-  ]
+  ],
+  exports: [GroupCardService]
 })
 export class GroupModule {}

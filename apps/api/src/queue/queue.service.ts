@@ -73,7 +73,8 @@ export class QueueService {
             }
 
             const orderSort = await tx.serviceQueueItem.count();
-            const currentTaskIndex = orderSort > 0 ? -1 : 0; // 若已有车辆，则新车未开始
+            // 统一入队为未开始，需要人工点击“开始第一步”
+            const currentTaskIndex = -1; // 若已有车辆或队列为空，均保持未开始
             const item = await tx.serviceQueueItem.create({
                 data: {
                     vehicleId: vehicleId || undefined,
@@ -102,11 +103,16 @@ export class QueueService {
 
     async listActive() {
         const items = await this.prisma.serviceQueueItem.findMany({
-            where: { status: { in: ['IN_QUEUE', 'SERVING'] as any } },
+            where: { status: { in: ['IN_QUEUE', 'SERVING', 'COMPLETED'] as any } },
             orderBy: { orderSort: 'asc' },
-            include: { tasks: { orderBy: { orderIndex: 'asc' } }, vehicle: { include: { member: true, group: true } } },
+            include: {
+                tasks: { orderBy: { orderIndex: 'asc' } },
+                vehicle: { include: { member: true, group: true } },
+                queueType: { include: { steps: { orderBy: { orderIndex: 'asc' } } } }
+            },
         });
-        return items.map((it, idx) => this.decorateComputed(it, idx, items));
+        const basicDecorated = items.map((it, idx) => this.decorateComputed(it, idx, items));
+        return this.decorateEta(basicDecorated);
     }
 
     async summary() {
@@ -185,9 +191,48 @@ export class QueueService {
 
     async remove(queueItemId: number) {
         return this.prisma.$transaction(async (tx) => {
+            const item = await tx.serviceQueueItem.findUnique({ where: { id: queueItemId } });
+            if (item && item.orderId) {
+                const order = await tx.order.findUnique({ where: { id: item.orderId } });
+                if (order && (order as any).type === 'SERVICE' && (order as any).payStatus === 'UNPAID') {
+                    // 同步取消未支付的服务订单
+                    await this.cancelUnpaidOrderTx(tx, order.id);
+                }
+            }
             await tx.serviceTask.deleteMany({ where: { queueItemId } });
             return tx.serviceQueueItem.delete({ where: { id: queueItemId } });
         });
+    }
+
+    private async cancelUnpaidOrderTx(tx: any, orderId: number){
+        const order = await tx.order.findUnique({ where: { id: orderId } });
+        if (!order || (order as any).payStatus !== 'UNPAID') return;
+        const items = await tx.orderItem.findMany({ where: { orderId } });
+        for (const it of items) {
+            if (!it.productId) continue;
+            const product = await tx.product.findUnique({ where: { id: it.productId } });
+            if (!product) continue;
+            if (product.type === 'PHYSICAL' || product.type === 'VIRTUAL_CARD') {
+                const qty = Math.max(1, Number(it.quantity || 0));
+                if (product.specType === 'MULTI') {
+                    if (!it.skuId) continue;
+                    const beforeRow = await tx.productSku.findUnique({ where: { id: it.skuId }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity || 0);
+                    await tx.productSku.update({ where: { id: it.skuId }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: it.skuId, change: qty, beforeStock: before, afterStock: after, reason: 'ORDER_ROLLBACK' as any, remark: '队列移除取消订单回滚库存', operatorUserId: null } });
+                } else {
+                    const beforeRow = await tx.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity || 0);
+                    await tx.product.update({ where: { id: product.id }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({ data: { productId: product.id, skuId: null, change: qty, beforeStock: before, afterStock: after, reason: 'ORDER_ROLLBACK' as any, remark: '队列移除取消订单回滚库存', operatorUserId: null } });
+                }
+            }
+        }
+        await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' as any, payStatus: 'CANCELLED' as any, remark: '队列移除同步取消订单' } });
+        try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'ORDER_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
+        try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'PAY_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
     }
 
     async startFirstTask(queueItemId: number) {
@@ -216,21 +261,184 @@ export class QueueService {
     }
 
     private itemRemainingMinutes(item: any): number {
-        const idx = item.currentTaskIndex || 0;
+        const idx = typeof item.currentTaskIndex === 'number' ? item.currentTaskIndex : -1;
         const tasks = (item.tasks || []).sort((a: any, b: any) => a.orderIndex - b.orderIndex);
         let total = 0;
         for (let i = 0; i < tasks.length; i++) {
             const t = tasks[i];
-            if (i < idx) continue;
-            if (i === idx) {
-                if (t.status === 'DONE') continue;
-                // 简化：进行中的任务按剩余等于全部时长估算
-                total += Number(t.durationMin || 0);
-            } else {
-                total += Number(t.durationMin || 0);
-            }
+            // 基于任务状态估算：DONE 不计入，其余按完整时长估算
+            if (String(t?.status || '') === 'DONE') continue;
+            total += Number(t.durationMin || 0);
         }
         return total;
+    }
+
+    // ===== ETA 计算扩展 =====
+    private decorateEta(all: any[]) {
+        // 预构建组级统计：仅面向“已配置且参与”的项
+        interface GroupStat { totalRemaining: number; doingCount: number; types: Record<number, { parallelSlots: number | null }>; }
+        const groupStats = new Map<string, GroupStat>();
+        const etaStepIndexCache = new Map<number, Set<number>>(); // typeId -> eta step indexes
+
+        const getEtaIndexes = (type: any): Set<number> => {
+            const key = Number(type?.id || 0);
+            if (!key) return new Set();
+            if (etaStepIndexCache.has(key)) return etaStepIndexCache.get(key)!;
+            const set = new Set<number>();
+            const steps = Array.isArray(type?.steps) ? type.steps : [];
+            for (const s of steps) { if (s && s.isEta === true) set.add(Number(s.orderIndex || 0)); }
+            etaStepIndexCache.set(key, set);
+            return set;
+        };
+
+        const isConfiguredAndParticipate = (type: any): { configured: boolean; excluded: boolean; parallel: number | null; groupKey: string } => {
+            const participate = (type?.participateInEta === true);
+            const excluded = (type?.participateInEta === false);
+            const parallelSlots = Number.isFinite(type?.etaParallelSlots) ? Number(type.etaParallelSlots) : null;
+            const etaIdx = getEtaIndexes(type);
+            const configured = participate && !!parallelSlots && parallelSlots! > 0 && etaIdx.size > 0;
+            const groupKey: string = String(type?.etaGroupKey || `TYPE:${type?.id || 'NA'}`);
+            return { configured, excluded, parallel: configured ? (parallelSlots as number) : (parallelSlots ?? null), groupKey };
+        };
+
+        // 构建组统计
+        for (const it of all) {
+            const type = (it as any).queueType || null;
+            const { configured, excluded, groupKey } = isConfiguredAndParticipate(type);
+            if (!configured || excluded) continue;
+            const etaIdx = getEtaIndexes(type);
+            const tasks = Array.isArray(it?.tasks) ? it.tasks : [];
+            let remain = 0; let doing = 0;
+            for (const t of tasks) {
+                const idx = Number(t?.orderIndex || 0);
+                if (!etaIdx.has(idx)) continue;
+                const status = String(t?.status || '');
+                if (status === 'DONE') continue;
+                remain += Number(t?.durationMin || 0);
+                if (status === 'DOING') doing += 1;
+            }
+            const stat = groupStats.get(groupKey) || { totalRemaining: 0, doingCount: 0, types: {} };
+            stat.totalRemaining += remain;
+            stat.doingCount += doing;
+            const tid = Number(type?.id || 0);
+            if (tid && !(tid in stat.types)) stat.types[tid] = { parallelSlots: Number.isFinite(type?.etaParallelSlots) ? Number(type.etaParallelSlots) : null };
+            groupStats.set(groupKey, stat);
+        }
+
+        // 逐项注入 ETA 字段
+        return all.map((it, index) => {
+            const type = (it as any).queueType || null;
+            const { configured, excluded, parallel, groupKey } = isConfiguredAndParticipate(type);
+            const etaIdx = getEtaIndexes(type);
+            const tasks = Array.isArray(it?.tasks) ? it.tasks : [];
+            // 本车 ETA 剩余：仅 ETA 步骤且未 DONE
+            let remainingMinutesEta = 0;
+            for (const t of tasks) {
+                const oi = Number(t?.orderIndex || 0);
+                if (!etaIdx.has(oi)) continue;
+                if (String(t?.status || '') === 'DONE') continue;
+                remainingMinutesEta += Number(t?.durationMin || 0);
+            }
+            // 计算前方等待（同组，且只看 index 之前的条目）
+            let aheadEtaSum = 0;
+            if (configured && !excluded) {
+                for (let i = 0; i < index; i++) {
+                    const prev = all[i];
+                    const pType = (prev as any).queueType || null;
+                    const { configured: pCfg, excluded: pEx, groupKey: pKey } = isConfiguredAndParticipate(pType);
+                    if (!pCfg || pEx) continue;
+                    if (pKey !== groupKey) continue;
+                    const pIdx = getEtaIndexes(pType);
+                    const pTasks = Array.isArray(prev?.tasks) ? prev.tasks : [];
+                    for (const t of pTasks) {
+                        const oi = Number(t?.orderIndex || 0);
+                        if (!pIdx.has(oi)) continue;
+                        if (String(t?.status || '') === 'DONE') continue;
+                        aheadEtaSum += Number(t?.durationMin || 0);
+                    }
+                }
+            }
+            let aheadMinutesEta = aheadEtaSum;
+            // 并行位修正：若同组 doing 小于并行位，则新车无需等待
+            if (configured && !excluded && typeof parallel === 'number' && parallel > 0) {
+                const stat = groupStats.get(groupKey) || { totalRemaining: 0, doingCount: 0, types: {} };
+                if (stat.doingCount < parallel) {
+                    aheadMinutesEta = 0;
+                } else {
+                    aheadMinutesEta = Math.max(0, Math.ceil(aheadEtaSum / parallel));
+                }
+            }
+            const etaNote = configured && !excluded ? `仅计算已勾选ETA步骤；资源组=${String(type?.etaGroupKey || `TYPE:${type?.id||'NA'}`)}；并行=${typeof parallel==='number'?parallel:'未配'}` : undefined;
+            return { ...it, excludedFromEta: !!excluded, etaConfigured: !!configured, aheadMinutesEta, remainingMinutesEta, etaNote };
+        });
+    }
+
+    async etaSummaryByType() {
+        // 取所有启用类型
+        const types = await (this.prisma as any).serviceQueueType.findMany({
+            orderBy: [{ sortWeight: 'desc' }, { id: 'asc' }],
+            include: { steps: { orderBy: { orderIndex: 'asc' } } }
+        });
+        // 取活跃队列项
+        const items = await this.prisma.serviceQueueItem.findMany({
+            where: { status: { in: ['IN_QUEUE', 'SERVING', 'COMPLETED'] as any } },
+            include: { tasks: true, queueType: { include: { steps: { orderBy: { orderIndex: 'asc' } } } } }
+        });
+
+        const etaIdxCache = new Map<number, Set<number>>();
+        const getIdx = (t: any) => {
+            const id = Number(t?.id || 0);
+            if (!id) return new Set<number>();
+            if (etaIdxCache.has(id)) return etaIdxCache.get(id)!;
+            const set = new Set<number>();
+            for (const s of (t?.steps || [])) { if (s?.isEta === true) set.add(Number(s.orderIndex||0)); }
+            etaIdxCache.set(id, set); return set;
+        };
+
+        // 组统计
+        interface G { totalRemaining: number; doingCount: number; }
+        const groupMap = new Map<string, G>();
+        for (const it of items) {
+            const type = (it as any).queueType;
+            if (!type) continue;
+            const participate = (type?.participateInEta === true);
+            const excluded = (type?.participateInEta === false);
+            const parallelSlots = Number.isFinite(type?.etaParallelSlots) ? Number(type.etaParallelSlots) : null;
+            const idxs = getIdx(type);
+            const configured = participate && !!parallelSlots && parallelSlots! > 0 && idxs.size > 0;
+            if (!configured || excluded) continue;
+            const gk = String(type?.etaGroupKey || `TYPE:${type?.id}`);
+            let rem = 0, doing = 0;
+            for (const t of (it as any).tasks || []) {
+                const oi = Number(t?.orderIndex || 0);
+                if (!idxs.has(oi)) continue;
+                const status = String(t?.status || '');
+                if (status === 'DONE') continue;
+                rem += Number(t?.durationMin || 0);
+                if (status === 'DOING') doing += 1;
+            }
+            const g = groupMap.get(gk) || { totalRemaining: 0, doingCount: 0 };
+            g.totalRemaining += rem; g.doingCount += doing; groupMap.set(gk, g);
+        }
+
+        // 汇总到类型维度（顶部按类型展示，但值来自其组）
+        const result = types.map((t: any) => {
+            const participate = (t?.participateInEta === true);
+            const excluded = (t?.participateInEta === false);
+            const idxs = getIdx(t);
+            const parallel = Number.isFinite(t?.etaParallelSlots) ? Number(t.etaParallelSlots) : null;
+            const configured = participate && !!parallel && parallel! > 0 && idxs.size > 0;
+            const gk = String(t?.etaGroupKey || `TYPE:${t?.id}`);
+            const g = groupMap.get(gk) || { totalRemaining: 0, doingCount: 0 };
+            let etaForNewCar: number | null = null;
+            if (configured && !excluded) {
+                if ((g.doingCount || 0) < (parallel as number)) etaForNewCar = 0;
+                else etaForNewCar = Math.max(0, Math.ceil((g.totalRemaining || 0) / (parallel as number)));
+            }
+            const tips = configured && !excluded ? `资源组=${gk}；并行=${parallel}; 步骤数(ETA)=${idxs.size}` : (excluded ? '不计入预计等待' : '未配置ETA');
+            return { typeId: t.id, typeName: t.name, displayColor: t.displayColor || null, etaConfigured: !!configured, excludedFromEta: !!excluded, etaForNewCar, tips };
+        });
+        return result;
     }
 }
 

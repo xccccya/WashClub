@@ -11,6 +11,16 @@
 		</view>
 		<view class="card">
 			<view class="card-title">服务队列</view>
+			<!-- 类型汇总（按类型展示，按资源组计算） -->
+			<scroll-view class="types-bar" scroll-x v-if="etaSummary.length">
+				<view class="type-chip" :class="{ active: selectedTypeId===null }" @tap="selectType(null)">全部</view>
+				<view v-for="t in etaSummary" :key="t.typeId" class="type-chip" :class="{ active: selectedTypeId===t.typeId }" :style="t.displayColor && selectedTypeId===t.typeId ? { background: t.displayColor, color: '#fff', borderColor: t.displayColor } : {}" @tap="selectType(t.typeId)">
+					<text>{{ t.typeName }}</text>
+					<text v-if="t.excludedFromEta" class="chip-sub">不计入</text>
+					<text v-else-if="!t.etaConfigured" class="chip-sub">未配置</text>
+					<text v-else class="chip-sub">新车≈{{ t.etaForNewCar }}分</text>
+				</view>
+			</scroll-view>
 			<view class="legend">
 				<view class="legend-chip done">已完成</view>
 				<view class="legend-chip active">进行中</view>
@@ -25,11 +35,19 @@
 							<text class="plate">{{ maskPlate(item.plateNumber) }}</text>
 							<text class="brand-series" v-if="item?.vehicle">{{ (item?.vehicle?.brand||'-') + ' / ' + (item?.vehicle?.series||'-') }}</text>
 						</view>
-						<text class="tag" :class="item.guest?'guest':'member'">{{ item.guest ? '游客' : ('会员' + last4(item?.vehicle?.member?.phone)) }}</text>
+						<view style="display:flex; align-items:center; gap: 8rpx;">
+							<view v-if="item?.queueType?.name" class="type-tag" :style="item?.queueType?.displayColor ? { background: item.queueType.displayColor, color:'#fff', borderColor: item.queueType.displayColor } : {}">{{ item.queueType.name }}</view>
+							<text v-if="item?.vehicle?.group" class="tag member">集团客户</text>
+							<text v-else class="tag" :class="item.guest?'guest':'member'">{{ item.guest ? '游客' : ('会员' + last4(item?.vehicle?.member?.phone)) }}</text>
+						</view>
 					</view>
 					<view class="row">
-						<text class="small">前方 {{ idx }} 辆 · 预计等待 {{ aheadMinutesModel(idx) }} 分钟</text>
-						<text class="small">本车剩余约 {{ combinedRemainingModel(item, idx) }} 分钟</text>
+						<text class="small" v-if="item.excludedFromEta">不计入预计等待</text>
+						<text class="small" v-else-if="!item.etaConfigured">预计时间未配置</text>
+						<text class="small" v-else>同组预计等待：前方≈ {{ item.aheadMinutesEta }} 分钟；本车≈ {{ item.remainingMinutesEta }} 分钟</text>
+					</view>
+					<view class="row">
+						<text class="small">本车全部流程剩余≈ {{ remainingMinutesModel(item) }} 分钟</text>
 					</view>
 					<view class="steps">
 						<view v-for="(t,i) in item.tasks" :key="t.id" class="step" :class="stepClass(item, i, t)">
@@ -40,15 +58,18 @@
 				</view>
 			</view>
 		</view>
-		<!-- 新增车辆预计等待时间卡片 -->
-		<view v-if="list.length>0" class="card eta-card">
+		<!-- 新增车辆预计等待卡片（基于所选类型） -->
+		<view v-if="etaSummary.length>0" class="card eta-card">
 			<view class="eta-title">新增车辆预计等待</view>
-			<view class="eta-row">
-				<text class="eta-value">{{ etaForNewCar }}</text>
+			<view class="eta-hint" v-if="selectedType && selectedType.excludedFromEta">所选类型不计入预计等待</view>
+			<view class="eta-hint" v-else-if="selectedType && !selectedType.etaConfigured">所选类型 ETA 未配置</view>
+			<view class="eta-row" v-else-if="selectedType">
+				<text class="eta-value">{{ selectedType.etaForNewCar ?? 0 }}</text>
 				<text class="eta-unit">分钟</text>
 			</view>
+			<view class="eta-hint" v-else>请选择上方队列类型查看预计等待</view>
 			<view class="eta-hint">基于当前排队实时估算，实际以现场为准</view>
-            <view class="eta-hint">预计等待时间为新增车辆开始服务所需等待的时间</view>
+			<view class="eta-hint">预计等待为新增车辆开始服务所需等待时间</view>
 		</view>
 	</view>
 </template>
@@ -61,7 +82,12 @@ import { createHttp, API_BASE } from '../../utils/auth';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const list = ref<any[]>([]);
-const etaForNewCar = computed(()=> computeEtaForNewCar(list.value));
+// 顶部 ETA 汇总与类型选择
+type EtaType = { typeId:number; typeName:string; displayColor?: string|null; etaConfigured:boolean; excludedFromEta:boolean; etaForNewCar: number|null };
+const etaSummary = ref<EtaType[]>([]);
+const selectedTypeId = ref<number|null>(null);
+const selectedType = computed(()=> etaSummary.value.find(t=>t.typeId===selectedTypeId.value));
+function selectType(id: number | null){ selectedTypeId.value = id; fetchList(); }
 
 function toAbs(u?: string | null){ if (!u) return ''; if (/^https?:\/\//i.test(String(u))) return String(u); return `${API_BASE}${String(u).startsWith('/')?u:('/'+u)}`; }
 
@@ -88,12 +114,18 @@ function stepClass(item: any, index: number, t: any){
 async function fetchList(){
     try {
         const http = createHttp();
-        const arr = await http<any[]>('/queue/list', { method: 'GET' });
+        let arr = await http<any[]>('/queue/list', { method: 'GET' });
+        const sel = selectedTypeId.value;
+        if (sel !== null) {
+            arr = (arr||[]).filter((x:any)=> Number(x?.queueTypeId || x?.queueType?.id || 0) === sel);
+        }
         list.value = Array.isArray(arr) ? arr : [];
     } catch { list.value = []; }
 }
 
-onShow(fetchList);
+async function fetchEtaSummary(){ try { const http = createHttp(); etaSummary.value = await http<any[]>('/queue/eta-summary', { method:'GET' }); } catch { etaSummary.value = []; } }
+
+onShow(async()=>{ await Promise.all([fetchEtaSummary(), fetchList()]); });
 
 function goBack(){
     try {
@@ -101,34 +133,6 @@ function goBack(){
         if (pages.length > 1) { uni.navigateBack(); return; }
         uni.reLaunch({ url: '/pages/index/index' });
     } catch { uni.reLaunch({ url: '/pages/index/index' }); }
-}
-
-function aheadMinutesModel(index: number): number {
-    const items = (list.value || []).slice(0, index);
-    return computeEtaForNewCar(items);
-}
-
-function combinedRemainingModel(row: any, index: number): number {
-    const waitAhead = aheadMinutesModel(index);
-    const selfRemain = remainingMinutesModel(row);
-    return Math.max(0, Math.round(waitAhead + selfRemain));
-}
-
-function computeEtaForNewCar(items: any[]): number {
-    let total = 0;
-    for (const it of (items || [])) {
-        const tasks = Array.isArray(it?.tasks) ? [...it.tasks].sort((a:any,b:any)=>a.orderIndex-b.orderIndex) : [] as any[];
-        const idx = Number(it?.currentTaskIndex ?? 0);
-        const tE1: any = tasks.find((t:any)=> t.orderIndex === 0);
-        const tE2: any = tasks.find((t:any)=> t.orderIndex === 1);
-        const e1Dur = Number(tE1?.durationMin ?? 5) || 5;
-        const e2Dur = Number(tE2?.durationMin ?? 5) || 5;
-        const e1Done = idx > 0 || String(tE1?.status||'') === 'DONE';
-        const e2Done = idx > 1 || String(tE2?.status||'') === 'DONE';
-        if (!e1Done) total += e1Dur;
-        if (!e2Done) total += e2Dur;
-    }
-    return Math.max(0, Math.round(total));
 }
 
 function remainingMinutesModel(row: any): number {
@@ -185,6 +189,13 @@ function remainingMinutesModel(row: any): number {
 .eta-value { font-size: 48rpx; color:#1d4ed8; font-weight: 800; letter-spacing: 1rpx; }
 .eta-unit { font-size: 22rpx; color:#2563eb; opacity: .9; }
 .eta-hint { font-size: 20rpx; color:#6b7280; margin-top: 6rpx; }
+
+/* 类型标签滚动条 */
+.types-bar { white-space: nowrap; margin: 8rpx 0 4rpx; }
+.type-chip { display:inline-flex; align-items:center; gap: 6rpx; height: 48rpx; padding: 0 16rpx; margin-right: 10rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx dashed #e5e7eb; color:#374151; font-size: 22rpx; }
+.type-chip.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+.chip-sub { margin-left: 8rpx; font-size: 20rpx; opacity: .85; }
+.type-tag { font-size: 22rpx; padding: 4rpx 8rpx; border-radius: 999rpx; background:#eef2ff; border: 2rpx dashed #c7d2fe; color:#3730a3; }
 </style>
 
 

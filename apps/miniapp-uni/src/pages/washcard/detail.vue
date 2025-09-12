@@ -41,8 +41,9 @@
 							<text v-if="l.action!=='SHARE'" class="muted">变更 {{ changeText(l) }} · 余 {{ l.beforeRemaining }}→{{ l.afterRemaining }}</text>
 							<text v-else-if="l.member" class="muted">对象：{{ l.member?.name || '会员' }}（{{ l.member?.phone }}）</text>
 						</view>
-						<view v-if="((l.reason==='PURCHASE_ADD' && l.purchaseOrderId) || (l.reason==='REFUND_DEDUCT' && l.purchaseOrderId))" class="log-actions">
-							<text class="link" @tap="gotoOrder(l.purchaseOrderId)">查看订单详情 ›</text>
+						<view v-if="((l.reason==='PURCHASE_ADD' && l.purchaseOrderId) || (l.reason==='REFUND_DEDUCT' && l.purchaseOrderId) || l.serviceOrderId)" class="log-actions">
+							<text v-if="(l.reason==='PURCHASE_ADD' && l.purchaseOrderId) || (l.reason==='REFUND_DEDUCT' && l.purchaseOrderId)" class="link" @tap="gotoOrder(l.purchaseOrderId)">查看订单详情 ›</text>
+							<text v-else-if="l.serviceOrderId" class="link" @tap="gotoOrder(l.serviceOrderId)">服务订单详情 ›</text>
 						</view>
 						<view v-if="l.remark" class="log-remark">{{ l.remark }}</view>
 					</view>

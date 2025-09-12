@@ -6,6 +6,45 @@ import { bindFileReferences } from '../file/file-binding.util.js';
 @Injectable()
 export class GroupService {
   constructor(private prisma: PrismaService) {}
+  // 确保集团订单占位会员存在（懒创建），返回其 memberId
+  async ensureOrderOwnerMember(groupId: number) {
+    const gid = Number(groupId);
+    if (!gid) throw new BadRequestException('groupId 无效');
+    return this.prisma.$transaction(async (tx)=>{
+      const g:any = await tx.group.findUnique({ where: { id: gid }, select: { id: true, name: true, orderOwnerMemberId: true } });
+      if (!g) throw new NotFoundException('集团不存在');
+      if (g.orderOwnerMemberId) return Number(g.orderOwnerMemberId);
+      // 创建虚拟会员（不可登录，仅占位）：phone 使用保留号段避免冲突；name 明确标识
+      // 生成唯一 phone（199 + groupId + 随机3位），仅占位
+      let phone = '';
+      for (let i=0;i<10;i++){
+        const rnd = Math.floor(100 + Math.random()*900);
+        phone = `199${gid}${rnd}`.slice(0,11);
+        const exists = await tx.member.findUnique({ where: { phone } }).catch(()=>null);
+        if (!exists) break;
+      }
+      if (!phone) phone = `199${gid}`.padEnd(11,'0');
+      const name = `${g.name}（集团订单）`;
+      // 生成唯一8位 uid（与普通会员规则一致）
+      let uid:number;
+      while (true) {
+        uid = Math.floor(10000000 + Math.random() * 90000000);
+        const exists = await tx.member.findUnique({ where: { uid } }).catch(()=>null);
+        if (!exists) break;
+      }
+      const created = await tx.member.create({ data: { name, phone, uid } });
+      await tx.group.update({ where: { id: gid }, data: { orderOwnerMemberId: created.id } });
+      // 打系统标签：GROUP_ORDER_OWNER（若不存在则创建）
+      try {
+        let tag = await (tx as any).memberTag.findFirst({ where: { name: 'GROUP_ORDER_OWNER' }, select: { id: true } });
+        if (!tag) {
+          tag = await (tx as any).memberTag.create({ data: { name: 'GROUP_ORDER_OWNER', isSystem: true } });
+        }
+        await (tx as any).member.update({ where: { id: created.id }, data: { tags: { connect: [{ id: tag.id }] } } });
+      } catch {}
+      return created.id as number;
+    });
+  }
 
   async generateGroupCode(tx: PrismaClient | Prisma.TransactionClient) {
     // 按“会员号生成规则一致 + 前缀 G”：随机生成唯一的8位数字，并在前面加 'G'

@@ -291,11 +291,20 @@ function computeEtaForNewCar(items: any[]): number {
 async function loadQueueSummary(){
     try {
         const http = createHttp();
-        const list = await http<any[]>('/queue/list', { method: 'GET' });
-        const items = Array.isArray(list) ? list : [];
-        servingCars.value = items.filter((x:any)=> String(x?.status||'') === 'SERVING').length;
-        waitingCars.value = items.filter((x:any)=> String(x?.status||'') === 'IN_QUEUE').length;
-        estimatedWaitMinutes.value = computeEtaForNewCar(items);
+        // 统计数量
+        const summary = await http<any>('/queue/summary', { method: 'GET' });
+        servingCars.value = Number(summary?.servingCars || 0);
+        waitingCars.value = Number(summary?.waitingCars || 0);
+        // 新 ETA 口径（按类型汇总、按资源组计算），首页取“最短预计等待”
+        const etaList = await http<any[]>('/queue/eta-summary', { method: 'GET' });
+        const arr = Array.isArray(etaList) ? etaList : [];
+        const candidates = arr.filter((t:any)=> t && t.etaConfigured === true && t.excludedFromEta !== true);
+        if (!candidates.length) {
+            estimatedWaitMinutes.value = 0;
+        } else {
+            const mins = candidates.map((t:any)=> Number.isFinite(t?.etaForNewCar) ? Number(t.etaForNewCar) : 0);
+            estimatedWaitMinutes.value = Math.max(0, Math.min(...mins));
+        }
     } catch {
         servingCars.value = 0; waitingCars.value = 0; estimatedWaitMinutes.value = 0;
     }

@@ -13,13 +13,13 @@ export class QueueTypeController {
 
     @Post()
     @ApiOperation({ summary: '创建队列类型' })
-    create(@Body() body: { name: string; enabled?: boolean; sortWeight?: number; remark?: string | null }) {
+    create(@Body() body: { name: string; enabled?: boolean; sortWeight?: number; remark?: string | null; participateInEta?: boolean | null; etaParallelSlots?: number | null; etaGroupKey?: string | null; displayColor?: string | null }) {
         return this.service.create(body);
     }
 
     @Put(':id')
     @ApiOperation({ summary: '更新队列类型' })
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; enabled?: boolean; sortWeight?: number; remark?: string | null }) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; enabled?: boolean; sortWeight?: number; remark?: string | null; participateInEta?: boolean | null; etaParallelSlots?: number | null; etaGroupKey?: string | null; displayColor?: string | null }) {
         return this.service.update(id, body);
     }
 
@@ -29,8 +29,8 @@ export class QueueTypeController {
 
     @Put(':id/steps')
     @ApiOperation({ summary: '设置队列类型的步骤（覆盖式）' })
-    setSteps(@Param('id', ParseIntPipe) id: number, @Body() body: { steps: Array<{ orderIndex?: number; name: string; durationMin: number }> }) {
-        const steps = (body?.steps || []).map((s, i) => ({ orderIndex: typeof s.orderIndex === 'number' ? s.orderIndex : i, name: s.name, durationMin: s.durationMin }));
+    setSteps(@Param('id', ParseIntPipe) id: number, @Body() body: { steps: Array<{ orderIndex?: number; name: string; durationMin: number; isEta?: boolean | null }> }) {
+        const steps = (body?.steps || []).map((s, i) => ({ orderIndex: typeof s.orderIndex === 'number' ? s.orderIndex : i, name: s.name, durationMin: s.durationMin, isEta: typeof s.isEta === 'boolean' ? !!s.isEta : null }));
         return this.service.setSteps(id, steps);
     }
 

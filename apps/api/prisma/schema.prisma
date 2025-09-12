@@ -99,6 +99,9 @@ model Member {
 
   // 新增：受影响的集团洗车卡流水（例如代客服务时）
   groupWashCardLogsAffected GroupWashCardLog[] @relation("MemberAffectedGroupWashCardLogs")
+
+  // 反向关联：作为集团的订单占位会员（Group.orderOwnerMember）
+  groupOrderOwnerOf Group[] @relation("GroupOrderOwnerMember")
 }
 
 model MemberLevel {
@@ -304,6 +307,10 @@ model Group {
 
   // 反向关联：订单归属本集团
   orders     Order[]
+
+  // 集团订单占位会员：集团订单的 memberId 指向该虚拟会员，权限与聚合以 groupId 为准
+  orderOwnerMemberId Int?
+  orderOwnerMember   Member?   @relation("GroupOrderOwnerMember", fields: [orderOwnerMemberId], references: [id])
 
   @@index([createdAt])
   @@index([name])
@@ -533,6 +540,13 @@ model ServiceQueueType {
   sortWeight Int       @default(0)
   remark     String?
 
+  // ETA 配置（可选，未配置则前端标注“未配置”）
+  etaGroupKey       String?
+  participateInEta  Boolean?
+  etaParallelSlots  Int?
+  // 前端配色（可选）
+  displayColor      String?
+
   steps    ServiceQueueStep[]
   products ServiceQueueTypeProduct[]
   items    ServiceQueueItem[]
@@ -540,6 +554,7 @@ model ServiceQueueType {
   @@index([enabled])
   @@index([sortWeight])
   @@index([name])
+  @@index([etaGroupKey])
 }
 
 model ServiceQueueStep {
@@ -553,6 +568,8 @@ model ServiceQueueStep {
   orderIndex  Int               @default(0)
   name        String
   durationMin Int               @default(0)
+  // 是否计入 ETA（可选，未配置不计入）
+  isEta       Boolean?
 
   @@index([queueTypeId])
   @@index([orderIndex])
@@ -649,6 +666,7 @@ enum PayMethod {
   OFFLINE
   WECHAT_JSAPI
   WECHAT_MICROPAY
+  WASH_CARD
 }
 
 // 履约与评价状态（方案B新增）
@@ -918,6 +936,8 @@ model Order {
   // 会员折扣减免金额（由会员等级的 payDiscountPercent 对支持会员折扣的商品小计按比例减免）
   memberDiscountAmount    Decimal           @default(0) @db.Decimal(12, 2)
   payAmount               Decimal           @default(0) @db.Decimal(12, 2)
+  // 新增：洗车卡抵扣金额（用于展示），标记支付时计算写入
+  washCardDeductAmount    Decimal           @default(0) @db.Decimal(12, 2)
   refundedAmount          Decimal           @default(0) @db.Decimal(12, 2)
   shippingFee             Decimal           @default(0) @db.Decimal(12, 2)
   // 支付相关

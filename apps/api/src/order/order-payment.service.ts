@@ -1,9 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { PayMethod } from '@prisma/client';
+import { PayMethod, OrderSettlement } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
 import { WxpayService } from './wxpay.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
 import { OrderRewardsService } from './order-rewards.service.js';
+import { WashCardService } from '../member/washcard.service.js';
+import { GroupCardService } from '../group/card.service.js';
 
 @Injectable()
 export class OrderPaymentService {
@@ -11,7 +13,9 @@ export class OrderPaymentService {
         private readonly prisma: PrismaService,
         private readonly wxpay: WxpayService,
         private readonly wxship?: WechatShippingService,
-        private readonly rewards?: OrderRewardsService
+        private readonly rewards?: OrderRewardsService,
+        private readonly washcards?: WashCardService,
+        private readonly groupCards?: GroupCardService
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -19,6 +23,142 @@ export class OrderPaymentService {
             const db = params.tx ?? this.prisma;
             await db.orderTimeline.create({ data: { orderId: params.orderId, event: params.event, value: params.value || null, remark: params.remark || null, operatorUserId: params.operatorUserId ?? null } });
         } catch {/* ignore timeline errors */ }
+    }
+
+    // 统计订单中的洗车项目总次数（按商品 isCarWash 与数量汇总）
+    private async computeWashTimes(orderId: number): Promise<number> {
+        const items = await this.prisma.orderItem.findMany({ where: { orderId } });
+        if (!items.length) return 0;
+        const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
+        if (!productIds.length) return 0;
+        const products = await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, isCarWash: true } });
+        const flag = new Map<number, boolean>(products.map(p => [p.id, !!(p as any).isCarWash]));
+        let times = 0;
+        for (const it of items) {
+            const pid = it.productId as any as number | null;
+            if (pid && flag.get(pid)) times += Math.max(1, Number(it.quantity || 0));
+        }
+        return times;
+    }
+
+    // 使用洗车卡划扣并标记订单支付成功（支持个人/集团卡，自动选择），含并发幂等与多卡分摊
+    async markPaidByWashCard(params: { orderId: number; prefer?: 'GROUP'|'MEMBER'; operatorUserId?: number | null }) {
+        const { orderId, prefer, operatorUserId } = params;
+        const basic: any = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!basic) throw new BadRequestException('订单不存在');
+        if (basic.type !== 'SERVICE') throw new BadRequestException('仅服务订单支持洗车卡划扣');
+        if (basic.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可划扣');
+        if (!basic.vehicleId) throw new BadRequestException('订单缺少服务车辆信息');
+
+        const timesNeeded = await this.computeWashTimes(basic.id);
+        if (timesNeeded <= 0) throw new BadRequestException('该订单无洗车项目，无需划扣');
+
+        const res = await this.prisma.$transaction(async (tx) => {
+            const order = await tx.order.findUnique({ where: { id: orderId } });
+            if (!order || order.payStatus !== 'UNPAID') throw new BadRequestException('订单状态已变更');
+
+            const vehicle = await tx.vehicle.findUnique({ where: { id: order.vehicleId! } });
+
+            // 先原子标记支付（幂等）：仅当仍为 UNPAID 才更新，行级锁避免并发重复
+            const payAmountOld = Number(order.payAmount || 0);
+            const settlementAuto = (() => {
+                if (prefer === 'GROUP') return 'GROUP_WASH_CARD';
+                if (prefer === 'MEMBER') return 'WASH_CARD';
+                return vehicle?.groupId ? 'GROUP_WASH_CARD' : 'WASH_CARD';
+            })();
+
+            const upd = await tx.order.updateMany({
+                where: { id: order.id, payStatus: 'UNPAID' as any },
+                data: {
+                    payStatus: 'PAID' as any,
+                    status: 'PAID' as any,
+                    payMethod: 'WASH_CARD' as any,
+                    paidAt: new Date(),
+                    settlement: settlementAuto as any,
+                    washCardDeductAmount: payAmountOld as any,
+                    payAmount: 0 as any,
+                } as any
+            });
+            if (!upd || (upd as any).count === 0) {
+                // 已被他人处理
+                throw new BadRequestException('该订单已被处理');
+            }
+
+            // 准备候选卡片（带排序）：
+            const groupCards = vehicle?.groupId
+                ? await tx.groupWashCard.findMany({ where: { groupId: vehicle.groupId, status: 'ACTIVE' as any }, orderBy: { id: 'asc' } })
+                : [];
+            const owned = await tx.washCard.findMany({ where: { ownerMemberId: order.memberId, status: 'ACTIVE' as any }, orderBy: { id: 'asc' } });
+            const sharedLinks = await tx.washCardShare.findMany({ where: { memberId: order.memberId }, select: { cardId: true } });
+            const sharedIds = Array.from(new Set(sharedLinks.map(x => x.cardId)));
+            const shared = sharedIds.length ? await tx.washCard.findMany({ where: { id: { in: sharedIds }, status: 'ACTIVE' as any }, orderBy: { id: 'asc' } }) : [];
+            const memberCards = [...owned, ...shared];
+
+            const preferGroup = prefer === 'GROUP' || (!prefer && !!vehicle?.groupId);
+            const candidate: Array<{ type: 'GROUP'|'MEMBER'; id: number; remain: number }>
+                = [ ...(preferGroup ? groupCards.map(c=>({ type:'GROUP' as const, id:c.id, remain:Number(c.remainingTimes||0) })) : []),
+                    ...memberCards.map(c=>({ type:'MEMBER' as const, id:c.id, remain:Number(c.remainingTimes||0) })),
+                    ...(!preferGroup ? groupCards.map(c=>({ type:'GROUP' as const, id:c.id, remain:Number(c.remainingTimes||0) })) : []) ];
+
+            const totalRemain = candidate.reduce((s,c)=> s + c.remain, 0);
+            if (totalRemain < timesNeeded) throw new BadRequestException('可用洗车卡余次不足');
+
+            // 分摊计划
+            let left = timesNeeded;
+            const plan: Array<{ type:'GROUP'|'MEMBER'; cardId:number; used:number }> = [];
+            for (const c of candidate) {
+                if (left <= 0) break;
+                const take = Math.min(c.remain, left);
+                if (take > 0) { plan.push({ type: c.type, cardId: c.id, used: take }); left -= take; }
+            }
+
+            // 审计信息
+            const orderNo = order.no;
+            let plate = '';
+            try { const v = await tx.vehicle.findUnique({ where: { id: order.vehicleId! }, select: { plateNumber: true } }); plate = v?.plateNumber || ''; } catch {}
+            const opText = (operatorUserId ? `操作人#${operatorUserId}` : '系统');
+            const remarkBase = `订单${orderNo}${plate?`/车辆${plate}`:''}，${opText}`;
+
+            // 扣减并写日志（同一事务）
+            for (const it of plan) {
+                if (it.type === 'MEMBER') {
+                    const card = await tx.washCard.findUnique({ where: { id: it.cardId } });
+                    if (!card) throw new BadRequestException('洗车卡不存在');
+                    if ((card.remainingTimes || 0) < it.used) throw new BadRequestException('洗车卡余次不足');
+                    const before = Number(card.remainingTimes || 0);
+                    const after = before - it.used;
+                    await tx.washCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+                    await tx.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'SERVICE_DEDUCT' as any, change: -it.used, beforeRemaining: before, afterRemaining: after, remark: `服务划扣（${remarkBase}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: order.id, vehicleId: order.vehicleId ?? null, memberId: order.memberId } as any });
+                } else {
+                    const card = await tx.groupWashCard.findUnique({ where: { id: it.cardId } });
+                    if (!card) throw new BadRequestException('集团洗车卡不存在');
+                    if ((card.remainingTimes || 0) < it.used) throw new BadRequestException('集团洗车卡余次不足');
+                    const before = Number(card.remainingTimes || 0);
+                    const after = before - it.used;
+                    await tx.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+                    await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'SERVICE_DEDUCT' as any, change: -it.used, beforeRemaining: before, afterRemaining: after, remark: `服务划扣（${remarkBase}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: order.id, vehicleId: order.vehicleId ?? null, memberId: order.memberId } as any });
+                }
+            }
+
+            // 时间线（事务内）
+            await this.writeTimeline({ tx, orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: operatorUserId ?? null });
+            await this.writeTimeline({ tx, orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: operatorUserId ?? null });
+            await this.writeTimeline({ tx, orderId: order.id, event: 'BENEFITS', value: 'WASHCARD_DEDUCT', remark: `划扣次数：${timesNeeded}次`, operatorUserId: operatorUserId ?? null });
+
+            // 服务订单支付后自动移出队列
+            try {
+                const it = await tx.serviceQueueItem.findFirst({ where: { orderId: order.id } } as any);
+                if (it) {
+                    await tx.serviceTask.deleteMany({ where: { queueItemId: it.id } });
+                    await tx.serviceQueueItem.delete({ where: { id: it.id } });
+                }
+            } catch {}
+
+            const usedCardType = preferGroup ? (plan.some(p=>p.type==='GROUP') ? 'GROUP' : 'MEMBER') : (plan.some(p=>p.type==='MEMBER') ? 'MEMBER' : 'GROUP');
+            return { ok: true, settlement: settlementAuto, usedCardType, requiredTimes: timesNeeded, deducted: payAmountOld, plan } as any;
+        });
+
+        return res;
     }
 
     // 获取会员微信openid
@@ -32,6 +172,11 @@ export class OrderPaymentService {
         const order: any = await this.prisma.order.findUnique({ where: { id: orderId } });
         if (!order || order.memberId !== memberId) throw new BadRequestException('订单不存在或不属于当前用户');
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('订单非待支付状态');
+        // 先服务后付：服务未完成前不允许拉起支付
+        if (String(order.type||'').toUpperCase() === 'SERVICE' && order.payAfterService === true) {
+            const fs = String(order.fulfillmentStatus||'').toUpperCase();
+            if (fs !== 'DONE') throw new BadRequestException('服务尚未完成，完成后请支付');
+        }
         
         // 若已过期，阻止拉起支付
         try {
@@ -268,11 +413,13 @@ export class OrderPaymentService {
             }
         }
         
-        // 若为服务订单：支付成功后自动从队列移除
+        // 若为服务订单：仅当服务已完成（队列 COMPLETED 或订单履约 DONE）时才自动从队列移除
         try {
             if (updated && (updated as any).type === 'SERVICE') {
                 const it = await this.prisma.serviceQueueItem.findFirst({ where: { orderId: updated.id } } as any);
-                if (it) {
+                const fulfillDone = String((updated as any)?.fulfillmentStatus || '').toUpperCase() === 'DONE';
+                const queueCompleted = !!it && (String((it as any)?.status||'').toUpperCase() === 'COMPLETED' || !!(it as any)?.finishedAt);
+                if (it && (fulfillDone || queueCompleted)) {
                     await this.prisma.$transaction(async (tx) => {
                         await tx.serviceTask.deleteMany({ where: { queueItemId: it.id } });
                         await tx.serviceQueueItem.delete({ where: { id: it.id } });

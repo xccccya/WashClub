@@ -1,13 +1,16 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard.js';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueueService } from './queue.service.js';
 import { PrismaService } from '../prisma.service.js';
 import { OrderService } from '../order/order.service.js';
+import { VehicleService } from '../member/vehicle.service.js';
+import { GroupService } from '../group/group.service.js';
 
 @ApiTags('queue')
 @Controller('queue')
 export class QueueController {
-    constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService) {}
+    constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService, private vehicles: VehicleService, private groups: GroupService) {}
 
     @Get('list')
     @ApiOperation({ summary: '服务队列列表（进行中/待处理）' })
@@ -16,6 +19,10 @@ export class QueueController {
     @Get('summary')
     @ApiOperation({ summary: '队列摘要统计' })
     summary() { return this.service.summary(); }
+
+    @Get('eta-summary')
+    @ApiOperation({ summary: 'ETA 顶部汇总（按类型展示，按资源组计算）' })
+    etaSummary() { return this.service.etaSummaryByType(); }
 
     @Post('add')
     @ApiOperation({ summary: '添加到队列（支持多种模式）' })
@@ -79,31 +86,36 @@ export class QueueController {
             memberId = v.memberId ?? null;
             groupId = v.groupId ?? null;
         } else {
-            // 游客车辆创建（仅创建车辆，不入队）
-            const createdVehicle = await (this.prisma as any).vehicle.create({
-                data: {
-                    plateNumber: resolvedPlate,
-                    vin: body?.vin ?? null,
-                    brand: typeof body?.brand === 'string' ? body.brand : undefined,
-                    series: typeof body?.series === 'string' ? body.series : undefined,
-                    typeMain: typeof body?.typeMain === 'string' ? body.typeMain : undefined,
-                    typeSub: typeof body?.typeSub === 'string' ? body.typeSub : null,
-                    color: typeof body?.color === 'string' ? body.color : null,
-                }
+            // 游客车辆创建：走统一服务以便拉取品牌/车系图片并入库绑定
+            const createdVehicle = await this.vehicles.createGuestVehicle({
+                plateNumber: resolvedPlate,
+                vin: body?.vin ?? null,
+                brand: typeof body?.brand === 'string' ? body.brand : undefined,
+                series: typeof body?.series === 'string' ? body.series : undefined,
+                typeMain: typeof body?.typeMain === 'string' ? body.typeMain : undefined,
+                typeSub: typeof body?.typeSub === 'string' ? body.typeSub : undefined,
+                color: typeof body?.color === 'string' ? body.color : undefined,
+                brandId: typeof body?.brandId === 'number' ? body.brandId : (body?.brandId ? Number(body.brandId) : undefined),
+                seriesId: typeof body?.seriesId === 'number' ? body.seriesId : (body?.seriesId ? Number(body.seriesId) : undefined),
             });
             resolvedVehicleId = createdVehicle?.id ?? null;
             resolvedPlate = createdVehicle?.plateNumber || resolvedPlate;
             guest = true;
         }
 
-        // 订单会员归属：游客使用 GUEST_MEMBER_ID
+        // 订单会员归属优先策略：若为集团车辆，订单完全归属集团名下（使用集团订单占位会员），否则回退到游客会员
         if (!memberId) {
-            const gid = Number(process.env.GUEST_MEMBER_ID || 0);
-            if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
-            // 校验 member 是否存在
-            const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
-            if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。请将 GUEST_MEMBER_ID 设置为一个有效的会员ID。');
-            memberId = gid;
+            if (groupId) {
+                try { memberId = await this.groups.ensureOrderOwnerMember(groupId); } catch {}
+            }
+            if (!memberId) {
+                const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+                if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
+                // 校验 member 是否存在
+                const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+                if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。请将 GUEST_MEMBER_ID 设置为一个有效的会员ID。');
+                memberId = gid;
+            }
         }
 
         // 读取商品快照
@@ -119,7 +131,8 @@ export class QueueController {
             const existed = await tx.serviceQueueItem.findFirst({ where: { status: { in: ['IN_QUEUE','SERVING'] }, OR: [ { plateNumber: resolvedPlate }, { vehicleId: resolvedVehicleId ?? undefined } ] } as any });
             if (existed) throw new BadRequestException('该车辆已在服务队列中');
             const orderSort = await tx.serviceQueueItem.count();
-            const currentTaskIndex = orderSort > 0 ? -1 : 0;
+            // 统一入队为未开始，需要人工点击“开始第一步”
+            const currentTaskIndex = -1;
             const item = await tx.serviceQueueItem.create({
                 data: {
                     vehicleId: resolvedVehicleId ?? undefined,
@@ -160,6 +173,7 @@ export class QueueController {
 
     @Delete(':id')
     @ApiOperation({ summary: '移出队列/取消' })
+    @UseGuards(AdminGuard)
     remove(@Param('id') id: string) { return this.service.remove(Number(id)); }
 }
 

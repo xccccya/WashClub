@@ -16,21 +16,29 @@ export class QueueTypeService {
         return types;
     }
 
-    async create(input: { name: string; enabled?: boolean; sortWeight?: number; remark?: string | null }) {
+    async create(input: { name: string; enabled?: boolean; sortWeight?: number; remark?: string | null; participateInEta?: boolean | null; etaParallelSlots?: number | null; etaGroupKey?: string | null; displayColor?: string | null }) {
         const name = String(input?.name || '').trim();
         if (!name) throw new BadRequestException('名称为必填');
         const enabled = !!(input?.enabled ?? true);
         const sortWeight = Number.isFinite(input?.sortWeight) ? Number(input?.sortWeight) : 0;
         const remark = input?.remark ?? null;
-        return (this.prisma as any).serviceQueueType.create({ data: { name, enabled, sortWeight, remark } });
+        const participateInEta = typeof input?.participateInEta === 'boolean' ? !!input.participateInEta : null;
+        const etaParallelSlots = Number.isFinite(input?.etaParallelSlots) ? Number(input?.etaParallelSlots) : null;
+        const etaGroupKey = typeof input?.etaGroupKey === 'string' ? (String(input?.etaGroupKey).trim() || null) : null;
+        const displayColor = typeof input?.displayColor === 'string' ? (String(input?.displayColor).trim() || null) : null;
+        return (this.prisma as any).serviceQueueType.create({ data: { name, enabled, sortWeight, remark, participateInEta, etaParallelSlots, etaGroupKey, displayColor } });
     }
 
-    async update(id: number, input: { name?: string; enabled?: boolean; sortWeight?: number; remark?: string | null }) {
+    async update(id: number, input: { name?: string; enabled?: boolean; sortWeight?: number; remark?: string | null; participateInEta?: boolean | null; etaParallelSlots?: number | null; etaGroupKey?: string | null; displayColor?: string | null }) {
         const data: any = {};
         if (typeof input?.name === 'string') data.name = String(input.name).trim();
         if (typeof input?.enabled === 'boolean') data.enabled = !!input.enabled;
         if (typeof input?.sortWeight === 'number') data.sortWeight = Number(input.sortWeight);
         if (typeof input?.remark !== 'undefined') data.remark = input.remark ?? null;
+        if (typeof input?.participateInEta !== 'undefined') data.participateInEta = input.participateInEta === null ? null : !!input.participateInEta;
+        if (typeof input?.etaParallelSlots !== 'undefined') data.etaParallelSlots = Number.isFinite(input?.etaParallelSlots as any) ? Number(input?.etaParallelSlots as any) : null;
+        if (typeof input?.etaGroupKey !== 'undefined') data.etaGroupKey = typeof input?.etaGroupKey === 'string' ? (String(input.etaGroupKey).trim() || null) : null;
+        if (typeof input?.displayColor !== 'undefined') data.displayColor = typeof input?.displayColor === 'string' ? (String(input.displayColor).trim() || null) : null;
         if (Object.keys(data).length === 0) throw new BadRequestException('无更新项');
         return (this.prisma as any).serviceQueueType.update({ where: { id }, data });
     }
@@ -43,19 +51,20 @@ export class QueueTypeService {
         return (this.prisma as any).serviceQueueType.delete({ where: { id } });
     }
 
-    async setSteps(id: number, steps: Array<{ orderIndex: number; name: string; durationMin: number }>) {
+    async setSteps(id: number, steps: Array<{ orderIndex: number; name: string; durationMin: number; isEta?: boolean | null }>) {
         if (!Array.isArray(steps) || steps.length === 0) throw new BadRequestException('步骤不能为空');
         if (steps.length > 10) throw new BadRequestException('步骤数建议≤10');
         const normalized = steps.map((s, i) => ({
             orderIndex: Number.isFinite(s.orderIndex) ? Number(s.orderIndex) : i,
             name: String(s.name || '').trim(),
-            durationMin: Math.max(0, Math.min(120, Math.floor(Number(s.durationMin || 0))))
+            durationMin: Math.max(0, Math.min(120, Math.floor(Number(s.durationMin || 0)))),
+            isEta: typeof s.isEta === 'boolean' ? !!s.isEta : null
         }));
         if (normalized.some(s => !s.name)) throw new BadRequestException('步骤名不能为空');
         return (this.prisma as any).$transaction(async (tx: any) => {
             await tx.serviceQueueStep.deleteMany({ where: { queueTypeId: id } });
             for (const s of normalized) {
-                await tx.serviceQueueStep.create({ data: { queueTypeId: id, orderIndex: s.orderIndex, name: s.name, durationMin: s.durationMin } });
+                await tx.serviceQueueStep.create({ data: { queueTypeId: id, orderIndex: s.orderIndex, name: s.name, durationMin: s.durationMin, isEta: s.isEta } });
             }
             return tx.serviceQueueType.findUnique({ where: { id }, include: { steps: { orderBy: { orderIndex: 'asc' } } } } as any);
         });

@@ -106,6 +106,7 @@
 			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).memberDiscountAmount && Number((order as any).memberDiscountAmount)>0"><text class="k">会员折扣</text><text class="v">-¥{{ formatPrice((order as any).memberDiscountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
+			<view class="kv kv--sub" v-if="(order as any).washCardDeductAmount && Number((order as any).washCardDeductAmount)>0"><text class="k">洗车卡抵扣</text><text class="v">-¥{{ formatPrice((order as any).washCardDeductAmount) }}</text></view>
 			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
 			<view class="kv" v-if="order.type!=='SERVICE' && order.type!=='FK'"><text class="k">运费</text><text class="v">¥{{ formatPrice(order.shippingFee) }}</text></view>
 			<view class="kv total"><text class="k">应付金额</text><text class="v">¥{{ formatPrice(order.payAmount) }}</text></view>
@@ -157,7 +158,7 @@
 		<view style="height: 24rpx;"></view>
 		<view class="actions actions--footer" v-if="order">
 			<template v-if="order.payStatus==='UNPAID'">
-				<view class="btn ghost" @tap="confirmCancelInDetail">取消订单</view>
+				<view v-if="canShowCancel(order as any)" class="btn ghost" @tap="confirmCancelInDetail">取消订单</view>
 				<view class="btn primary" @tap="choosePayInDetail">去支付</view>
 			</template>
 			<template v-else>
@@ -382,7 +383,9 @@ async function confirmReceiveInDetail(){
         const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail();
     }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); }
 }
-async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; const http = createHttp(); await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason:'用户主动取消' } }); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } }
+function within15min(createdAt?: string){ try{ if(!createdAt) return false; const t = new Date(createdAt).getTime(); return Date.now() - t <= 15*60*1000; }catch{ return false; } }
+function canShowCancel(o:any){ try{ if (!o) return false; if (o.payStatus!=='UNPAID') return false; if (String(o.type||'').toUpperCase()!=='SERVICE') return within15min(o.createdAt); const fs = String(o.fulfillmentStatus||'').toUpperCase(); if (fs!=='PENDING') return false; return within15min(o.createdAt); }catch{ return false; } }
+async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; if (!canShowCancel(o)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); return; } const http = createHttp(); await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason:'用户主动取消' } }); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch(e:any){ const msg = String(e?.message||''); if (msg.includes('服务已开始')||/409/.test(msg)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); } else { uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } } }
 async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) return; let list = ['线下支付'];
     // #ifdef MP-WEIXIN
     list = ['微信支付','线下支付'];
@@ -391,6 +394,11 @@ async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) retur
     // #ifdef MP-WEIXIN
     if (res.tapIndex===0){
         if (isExpired.value) { uni.showToast({ title:'订单已超时，请重新下单', icon:'none' }); return; }
+        // 服务单先服务后付：未完成服务禁止拉起支付（与后端一致）
+        if (String(o.type||'').toUpperCase()==='SERVICE' && o.payAfterService===true){
+            const fs = String(o.fulfillmentStatus||'').toUpperCase();
+            if (fs !== 'DONE') { uni.showToast({ title:'服务尚未完成，完成后请支付', icon:'none' }); return; }
+        }
         try{ const http = createHttp(); const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method:'POST' }); await new Promise<void>((resolve,reject)=>{ (uni as any).requestPayment({ timeStamp: params.timeStamp, nonceStr: params.nonceStr, package: params.package, signType: params.signType || 'RSA', paySign: params.paySign, success:()=>resolve(), fail:(e:any)=>reject(e) }); }); uni.showToast({ title:'支付成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'支付未完成', icon:'none' }); }
     } else { uni.showToast({ title:'请到店线下支付', icon:'none' }); }
     // #endif
@@ -503,6 +511,7 @@ function displayPayMethod(m?: string|null){
 	if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付';
 	if (v.includes('CASH')) return '现金支付';
 	if (v.includes('OFFLINE')) return '线下支付';
+	if (v.includes('WASH_CARD') || v==='WASH_CARD') return '洗车卡结算';
 	if (v.includes('QRCODE')) return '扫码支付';
 	return '其它';
 }
@@ -760,6 +769,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 	}
 	if (e==='BENEFITS'){
 		if (v==='WASHCARD_ROLLBACK') return '退款回收计次';
+		if (v==='WASHCARD_DEDUCT') return '洗车卡划扣';
 		if (v==='POINTS_ROLLBACK') return '返还积分';
 		if (v==='COUPON_RESTORE') return '恢复优惠券';
 		if (v==='COUPON_NOTE') return '优惠券说明';

@@ -19,7 +19,12 @@
 					<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
 				</template>
 			</el-table-column>
-			<el-table-column prop="name" label="昵称" width="140" />
+			<el-table-column prop="name" label="昵称" width="220">
+				<template #default="{ row }">
+					<span>{{ row.name }}</span>
+					<el-tag v-if="isGroupOrderOwner(row)" type="warning" effect="dark" style="margin-left:6px;">集团订单占位</el-tag>
+				</template>
+			</el-table-column>
 			<el-table-column prop="phone" label="手机号" width="150" />
 			<el-table-column prop="level.name" label="等级" width="120">
 				<template #default="{ row }">{{ row.level?.name || '-' }}</template>
@@ -44,19 +49,19 @@
 			<el-table-column label="操作" width="420" fixed="right">
 				<template #default="{ row }">
 					<div class="op-btns">
-						<el-button size="small" link @click="openEdit(row)">
+						<el-button size="small" link :disabled="isGroupOrderOwner(row)" @click="openEdit(row)">
 							<el-icon><User /></el-icon>
 							<span>查看资料</span>
 						</el-button>
-						<el-button size="small" link type="warning" @click="openResetPwd(row)">
+						<el-button size="small" link type="warning" :disabled="isGroupOrderOwner(row)" @click="openResetPwd(row)">
 							<el-icon><Edit /></el-icon>
 							<span>修改密码</span>
 						</el-button>
-						<el-button size="small" link type="primary" @click="openGrowthLogs(row)">
+						<el-button size="small" link type="primary" :disabled="isGroupOrderOwner(row)" @click="openGrowthLogs(row)">
 							<el-icon><List /></el-icon>
 							<span>成长日志</span>
 						</el-button>
-						<el-button size="small" link type="danger" @click="openDeleteDialog(row)">
+						<el-button size="small" link type="danger" :disabled="isGroupOrderOwner(row)" @click="openDeleteDialog(row)">
 							<el-icon><Delete /></el-icon>
 							<span>删除</span>
 						</el-button>
@@ -229,6 +234,10 @@ const current = ref<Member | null>(null);
 const formRef = ref();
 const form = ref<any>({ name: '', phone: '', levelId: undefined, categoryId: undefined, tagIds: [] as Array<number|string>, password: '', password2: '', points: 0, balance: 0, avatarUrl: undefined as string | null | undefined });
 const systemTagsRO = computed(() => (current.value?.tags || []).filter(t => (t as any).isSystem));
+function isGroupOrderOwner(m: Member){
+    const tags = (m?.tags || []) as any[];
+    return tags.some(t => String(t?.name||'').toUpperCase() === 'GROUP_ORDER_OWNER');
+}
 
 const rules = {
 	name: [
@@ -345,13 +354,14 @@ function openCreate() {
 }
 
 function openEdit(item: Member) {
+    if (isGroupOrderOwner(item)) { ElMessage.warning('集团订单占位会员禁止编辑'); return; }
 	current.value = item;
 	const nonSystemTagIds = (item.tags||[]).filter((t: any) => !t.isSystem).map(t=>t.id);
 	form.value = { ...item, levelId: item.level?.id, categoryId: item.category?.id, tagIds: nonSystemTagIds, password: '', password2: '' };
 	dialogVisible.value = true;
 }
 
-function openResetPwd(item: Member){ pwdForm.value = { id: item.id, password: '', password2: '' }; pwdDialog.value = true; }
+function openResetPwd(item: Member){ if (isGroupOrderOwner(item)) { ElMessage.warning('集团订单占位会员禁止修改密码'); return; } pwdForm.value = { id: item.id, password: '', password2: '' }; pwdDialog.value = true; }
 
 async function onResetPwdSave(){
 	if (!pwdForm.value.password || pwdForm.value.password !== pwdForm.value.password2) { ElMessage.error('两次密码不一致'); return; }
@@ -409,6 +419,7 @@ function clearDelTimer(){ if (delTimer) { clearInterval(delTimer); delTimer = nu
 
 async function onDeleteConfirm(){
 	if (!delTarget.value) return;
+	if (isGroupOrderOwner(delTarget.value)) { ElMessage.warning('集团订单占位会员禁止删除'); delDialog.value=false; return; }
 	await http(`/member/${delTarget.value.id}`, { method: 'DELETE' });
 	ElMessage.success('已删除');
 	delDialog.value = false; delTarget.value = null; fetchList();

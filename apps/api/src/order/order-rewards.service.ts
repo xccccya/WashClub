@@ -130,20 +130,51 @@ export class OrderRewardsService {
 
     // 回滚洗车卡（退款时）
     async rollbackWashCardForRefund(orderId: number, operatorUserId?: number | null, ctx?: { outRefundNo?: string | null; wechatRefundId?: string | null }) {
+        // 1) 回滚“购买发放”的洗车卡（如订单购买了洗车卡商品）
         const addLogs = await this.prisma.washCardLog.findMany({ where: { purchaseOrderId: orderId, reason: 'PURCHASE_ADD' as any } });
-        if (!addLogs.length) return;
-        // 获取订单号用于日志备注展示
-        let orderNo: string | undefined;
-        try { const ord = await this.prisma.order.findUnique({ where: { id: orderId }, select: { no: true } }); orderNo = ord?.no; } catch { }
-        for (const log of addLogs) {
-            const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId } });
-            if (!card) continue;
-            const canDeduct = Math.min(card.remainingTimes, Math.abs(log.change));
-            const before = card.remainingTimes;
-            const afterRemain = before - canDeduct;
-            await this.prisma.washCard.update({ where: { id: card.id }, data: { totalTimes: Math.max(0, card.totalTimes - canDeduct), remainingTimes: afterRemain } });
-            const mark = ctx?.outRefundNo ? `退款单号：${ctx.outRefundNo}` : (ctx?.wechatRefundId ? `微信退款ID：${ctx.wechatRefundId}` : `订单号：${orderNo || orderId}`);
-            await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（${mark}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
+        if (addLogs.length) {
+            let orderNo: string | undefined;
+            try { const ord = await this.prisma.order.findUnique({ where: { id: orderId }, select: { no: true } }); orderNo = ord?.no; } catch { }
+            for (const log of addLogs) {
+                const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId } });
+                if (!card) continue;
+                const canDeduct = Math.min(card.remainingTimes, Math.abs(log.change));
+                const before = card.remainingTimes;
+                const afterRemain = before - canDeduct;
+                await this.prisma.washCard.update({ where: { id: card.id }, data: { totalTimes: Math.max(0, card.totalTimes - canDeduct), remainingTimes: afterRemain } });
+                const mark = ctx?.outRefundNo ? `退款单号：${ctx.outRefundNo}` : (ctx?.wechatRefundId ? `微信退款ID：${ctx.wechatRefundId}` : `订单号：${orderNo || orderId}`);
+                await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（${mark}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
+            }
+        }
+
+        // 2) 若该订单由洗车卡结算（WASH_CARD / GROUP_WASH_CARD）：返还本单划扣的次数
+        const ord = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!ord) return;
+        const settle = String((ord as any).settlement || '');
+        if (settle === 'WASH_CARD' || settle === 'GROUP_WASH_CARD') {
+            // 查找与本单关联的扣次日志（个人与集团）
+            const memberLogs = await this.prisma.washCardLog.findMany({ where: { serviceOrderId: orderId, reason: 'SERVICE_DEDUCT' as any } });
+            const groupLogs = await this.prisma.groupWashCardLog.findMany({ where: { serviceOrderId: orderId, reason: 'SERVICE_DEDUCT' as any } });
+            const orderNo = (await this.prisma.order.findUnique({ where: { id: orderId }, select: { no: true } }))?.no;
+            // 返还：将扣减的次数按卡逐条加回，并写 ADD 日志（reason 可用 BACKEND_ADD）
+            for (const lg of memberLogs) {
+                const card = await this.prisma.washCard.findUnique({ where: { id: lg.cardId } });
+                if (!card) continue;
+                const before = card.remainingTimes;
+                const change = Math.abs(lg.change);
+                const after = before + change;
+                await this.prisma.washCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+                await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change, beforeRemaining: before, afterRemaining: after, remark: `退款返还（订单${orderNo || orderId}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: orderId } as any });
+            }
+            for (const lg of groupLogs) {
+                const card = await this.prisma.groupWashCard.findUnique({ where: { id: lg.cardId } });
+                if (!card) continue;
+                const before = card.remainingTimes;
+                const change = Math.abs(lg.change);
+                const after = before + change;
+                await this.prisma.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+                await this.prisma.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change, beforeRemaining: before, afterRemaining: after, remark: `退款返还（订单${orderNo || orderId}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: orderId } as any });
+            }
         }
     }
 

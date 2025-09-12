@@ -30,6 +30,7 @@ export type AdminMenuKey =
 	| 'store-products'
 	| 'store-inventory'
 	| 'orders'
+	| 'orders-writeoff'
 	| 'after-sales'
 	| 'coupon-groups'
 	| 'coupons'
@@ -124,6 +125,7 @@ export class AdminRoleService {
 			{ key: 'store-products', name: '商品列表', path: '/store/products' },
 			{ key: 'store-inventory', name: '库存管理', path: '/store/inventory' },
 			{ key: 'orders', name: '订单列表', path: '/orders' },
+			{ key: 'orders-writeoff', name: '订单作废/红冲', path: '' },
 			{ key: 'after-sales', name: '售后', path: '/after-sales' },
 			{ key: 'coupon-groups', name: '卡券分组', path: '/coupon/groups' },
 			{ key: 'coupons', name: '卡券列表', path: '/coupon/list' },

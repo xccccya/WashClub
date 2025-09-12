@@ -16,11 +16,15 @@ import { OrderTimeoutService } from './timeout.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 import { FileModule } from '../file/file.module.js';
+import { MemberModule } from '../member/member.module.js';
+import { GroupModule } from '../group/group.module.js';
 
 @Module({
     imports: [
         AuthModule,
         FileModule,
+        MemberModule,
+        GroupModule,
         JwtModule.register({
             secret: process.env.JWT_SECRET || 'dev_secret',
         })

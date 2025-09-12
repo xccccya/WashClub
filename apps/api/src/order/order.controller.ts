@@ -98,6 +98,15 @@ export class OrderController {
         return this.payment.markPaid({ orderId: id, method: body.method, paidAt, operatorUserId });
     }
 
+    // 管理后台：洗车卡划扣支付（自动识别集团/个人卡）
+    @Post(':id/pay/wash-card')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async payByWashCard(@Param('id', ParseIntPipe) id: number, @Body() body: { prefer?: 'GROUP'|'MEMBER' }, @Headers('authorization') authHeader?: string){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        return this.payment.markPaidByWashCard({ orderId: id, prefer: body?.prefer, operatorUserId });
+    }
+
     // 管理后台：微信付款码支付（V2 micropay 流程）
     @Post(':id/pay/wx-micropay')
     @UseGuards(AdminGuard)
@@ -141,10 +150,72 @@ export class OrderController {
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可取消');
         // 会员必须为本人订单
         if (memberId && order.memberId !== memberId) throw new UnauthorizedException('无权操作该订单');
+        // 服务订单的额外限制：冷静期 + 服务未开始
+        if (String(order.type||'').toUpperCase() === 'SERVICE') {
+            // 冷静期：下单15分钟内
+            try {
+                const createdAt = order.createdAt ? new Date(order.createdAt) : null as any;
+                const within15Min = createdAt && (Date.now() - createdAt.getTime()) <= 15 * 60 * 1000;
+                if (!within15Min) {
+                    // 前端统一文案：服务已开始/完成，订单不可取消，如需帮助请联系门店
+                    throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                }
+            } catch { /* 忽略解析错误，按不可取消处理 */
+                throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+            }
+            // 校验队列状态：只允许“未开始”（无 currentTaskIndex 或 <0，且未 finished）时取消
+            try {
+                const qi = await (this.orders as any).prisma.serviceQueueItem.findFirst({ where: { orderId: order.id } });
+                if (qi) {
+                    const started = typeof qi.currentTaskIndex === 'number' && qi.currentTaskIndex >= 0;
+                    const finished = !!qi.finishedAt;
+                    if (started || finished || String(qi.status||'') === 'SERVING' || String(qi.status||'') === 'COMPLETED') {
+                        throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                    }
+                }
+                // 若无队列项，但订单履约已非 PENDING，也视为已开始
+                const fs = String(order.fulfillmentStatus||'').toUpperCase();
+                if (fs !== 'PENDING') {
+                    throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                }
+            } catch (e) {
+                if ((e as any)?.name === 'ConflictException') throw e;
+                throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+            }
+        }
         // 关单：按是否存在JSAPI预下单做兜底，这里直接调用关单接口（多次调用幂等）
         try { await this.wxpay.closeJsapi(order.no); } catch (e) { /* 忽略关单失败以避免卡住取消流程 */ }
         const userInitiated = !!memberId && order.memberId === memberId;
         return this.fulfillment.cancelOrder(id, body?.reason, adminId ?? null, { userInitiated });
+    }
+
+    // 作废/红冲：需专项权限
+    @Post(':id/void')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders-writeoff')
+    async writeoff(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string }, @Headers('authorization') authHeader?: string) {
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        const order: any = await this.orders.getOrder(id);
+        if (!order) throw new BadRequestException('订单不存在');
+        if (order.payStatus === 'UNPAID') {
+            return this.fulfillment.cancelOrder(id, body?.reason || '后台作废', operatorUserId, { userInitiated: false });
+        }
+        if (order.payStatus === 'PAID') {
+            const pm = String(order.payMethod || '').toUpperCase();
+            // 渠道支付：走渠道退款；洗车卡/线下/其他：走内部退款（含洗车卡次数返还/积分回退）
+            if (pm === 'WECHAT_JSAPI') {
+                return this.refund.createWechatRefund({ orderId: id, reason: body?.reason || '后台红冲', operatorUserId });
+            }
+            if (pm === 'WECHAT_MICROPAY') {
+                // 付款码：统一入口会走 v2 退款
+                return this.refund.createWechatRefund({ orderId: id, reason: body?.reason || '后台红冲', operatorUserId });
+            }
+            // 其余（含 WASH_CARD / GROUP_WASH_CARD / 线下）：内部退款，自动返还洗车卡次数与积分
+            return this.refund.finalizeInternalRefund(id, body?.reason || '后台红冲', operatorUserId);
+        }
+        // 其它状态：按关闭处理
+        return this.fulfillment.closeOrder(id, body?.reason || '后台作废', operatorUserId);
     }
 
     // 恢复软删除

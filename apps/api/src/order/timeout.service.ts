@@ -14,12 +14,47 @@ export class OrderTimeoutService implements OnModuleInit, OnModuleDestroy {
         const enabled = String(process.env.ORDER_TIMEOUT_ENABLED || 'true').toLowerCase() !== 'false';
         const intervalMs = Number(process.env.ORDER_TIMEOUT_SCAN_MS || 60_000);
         if (!enabled) { this.logger.log('Order timeout scanner disabled by env'); return; }
-        this.timer = setInterval(() => this.scanAndCancelExpired().catch(()=>{}), Math.max(intervalMs, 10_000));
+        this.timer = setInterval(() => Promise.all([
+            this.scanAndCancelExpired().catch(()=>{}),
+            this.scanAndMarkOverdueAfterService().catch(()=>{})
+        ]).then(()=>{}), Math.max(intervalMs, 10_000));
         this.logger.log(`Order timeout scanner started (interval=${Math.max(intervalMs, 10_000)}ms)`);
     }
 
     onModuleDestroy() {
         if (this.timer) { try { clearInterval(this.timer); } catch {} this.timer = null; }
+    }
+
+    // 服务完成后24小时仍未支付：写时间线 OVERDUE（不自动取消，仅提示运营）
+    private async scanAndMarkOverdueAfterService(){
+        const now = Date.now();
+        const threshold = 24 * 60 * 60 * 1000; // 24h
+        const candidates = await this.prisma.order.findMany({
+            where: {
+                type: 'SERVICE' as any,
+                payAfterService: true as any,
+                payStatus: 'UNPAID' as any,
+                fulfillmentStatus: 'DONE' as any,
+                deletedAt: null as any,
+            },
+            select: { id: true },
+            orderBy: { id: 'asc' },
+            take: 100
+        });
+        for (const ord of candidates){
+            try{
+                // 取关联队列完成时间
+                const qi = await (this.prisma as any).serviceQueueItem.findFirst({ where: { orderId: ord.id }, select: { finishedAt: true } });
+                const fin = qi?.finishedAt ? new Date(qi.finishedAt).getTime() : null;
+                if (!fin) continue;
+                if (now - fin >= threshold) {
+                    // 查重：若已有 OVERDUE 记录则跳过
+                    const existed = await (this.prisma as any).orderTimeline.findFirst({ where: { orderId: ord.id, event: 'NOTE', value: 'OVERDUE' } });
+                    if (existed) continue;
+                    await (this.prisma as any).orderTimeline.create({ data: { orderId: ord.id, event: 'NOTE', value: 'OVERDUE', remark: '服务完成超24小时未支付', operatorUserId: null } });
+                }
+            }catch{}
+        }
     }
 
     private async scanAndCancelExpired() {
