@@ -17,8 +17,8 @@
 				<div class="row compact" v-if="hasPhysicalInCart">
 					<div class="label">配送方式</div>
 					<el-radio-group v-model="model.delivery" size="small">
-						<el-radio-button label="EXPRESS" :disabled="model.deliveryAllowExpress===false">快递配送</el-radio-button>
 						<el-radio-button label="PICKUP" :disabled="model.deliveryAllowPickup===false">自提/无需快递</el-radio-button>
+						<el-radio-button label="EXPRESS" :disabled="model.deliveryAllowExpress===false">快递配送</el-radio-button>
 					</el-radio-group>
 				</div>
 				<div class="row compact" v-if="hasPhysicalInCart && model.delivery==='EXPRESS' && identity==='member' && selectedMember">

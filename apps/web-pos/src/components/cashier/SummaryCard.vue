@@ -9,7 +9,8 @@
 				</el-radio-group>
 			</div>
 		</div>
-		<div class="sc-row" v-if="identity==='member'">
+		<transition name="flip-fade" mode="out-in">
+		<div class="sc-row" v-if="identity==='member'" key="member-block">
 			<div class="sc-label">会员</div>
 			<div class="sc-content">
 				<el-autocomplete :model-value="memberKeyword" :fetch-suggestions="queryMembers" placeholder="手机号/姓名" clearable @select="onPickMember" :value-key="'name'" style="width:100%" @update:model-value="(v: any)=>emit('update:memberKeyword', String(v||''))">
@@ -20,7 +21,9 @@
 				<el-button v-if="selectedMember" type="default" @click="emit('clear-member')" plain style="margin-left:8px">清除</el-button>
 			</div>
 		</div>
-		<div class="sc-row" v-if="orderKind==='SERVICE'">
+		</transition>
+		<transition name="flip-fade" mode="out-in">
+		<div class="sc-row" v-if="orderKind==='SERVICE'" key="vehicle-block">
 			<div class="sc-label">车辆</div>
 			<div class="sc-content" style="display:flex; gap:8px; align-items:center;">
 				<template v-if="identity==='guest'">
@@ -35,6 +38,7 @@
 				</template>
 			</div>
 		</div>
+		</transition>
 		<div class="sc-row" v-if="orderKind==='SERVICE'">
 			<div class="sc-label">先服务后付</div>
 			<div class="sc-content"><el-switch :model-value="payAfterService" @change="(v: any)=>emit('update:payAfterService', !!v)" /></div>
@@ -112,9 +116,22 @@ defineExpose({ openPlate });
 .plate-wrap :deep(.nev-badge){ position:absolute; right:6px; top:6px; transform:none; display:inline-flex; flex-direction:row; gap:2px; padding:2px 4px; border-radius:6px; background:#e6fff4; color:#16a34a; font-size:10px; line-height:1; margin-left:0; pointer-events:none; z-index:1; }
 .plate-wrap :deep(.nev-badge-text){ line-height:1; }
 .summary-card :deep(.el-radio-button--large .el-radio-button__inner){ padding:10px 18px; }
+/* 胶囊切换时轻微流光 */
+.summary-card :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner){ position:relative; overflow:hidden; }
+.summary-card :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner::after){
+  content:''; position:absolute; top:0; bottom:0; left:-30%; width:30%;
+  background: linear-gradient(90deg, rgba(255,255,255,.0), rgba(255,255,255,.6), rgba(255,255,255,.0));
+  transform: skewX(-20deg);
+  animation: shine-quick-2 .18s ease forwards;
+}
+@keyframes shine-quick-2 { to { left: 130%; } }
 .wide-input :deep(.el-input__wrapper){ padding:16px 18px !important; min-height:56px !important; height:auto !important; }
 .wide-input :deep(.el-input__inner){ font-size:18px !important; line-height:24px !important; }
 .guest-vehicle-chip{ background-color: #f0f0f0; border-radius: 4px; padding: 4px 8px; margin-right: 8px; font-size: 14px; color: #333; }
+/* 切换动效 */
+.flip-fade-enter-active, .flip-fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.flip-fade-enter-from { opacity: 0; transform: rotateX(12deg) translateY(-4px); transform-origin: top; }
+.flip-fade-leave-to { opacity: 0; transform: rotateX(-12deg) translateY(4px); transform-origin: top; }
 </style>
 
 

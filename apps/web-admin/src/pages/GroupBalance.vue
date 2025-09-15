@@ -36,7 +36,14 @@
           <span :style="{ color: Number(row.amount||0) >= 0 ? '#16a34a' : '#ef4444' }">{{ (row.amount || 0) >= 0 ? '+' : '' }}¥ {{ Number(row.amount||0).toFixed(2) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="orderId" label="订单ID" width="120" />
+      <el-table-column prop="orderNo" label="订单号" width="260">
+        <template #default="{ row }">
+          <span v-if="row.orderNo">
+            <router-link :to="`/orders/no/${encodeURIComponent(String(row.orderNo))}`">{{ row.orderNo }}</router-link>
+          </span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="note" label="备注" />
       <el-table-column prop="createdAt" label="时间" width="180">
         <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>

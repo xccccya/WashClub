@@ -377,6 +377,8 @@ model GroupBalanceLedger {
   type           GroupBalanceFlowType
   amount         Decimal              @db.Decimal(12, 2) // 正负金额
 
+  // 优化：关联订单使用订单号（保留 orderId 作为兼容字段）
+  orderNo        String?
   orderId        Int?
   order          Order?               @relation("OrderToGroupBalanceLedgers", fields: [orderId], references: [id])
 
@@ -387,6 +389,7 @@ model GroupBalanceLedger {
 
   @@index([groupId, createdAt])
   @@index([orderId])
+  @@index([orderNo])
   @@index([type])
 }
 
@@ -432,7 +435,9 @@ model GroupWashCardLog {
 
   // 订单/业务占位字段（用于购卡入账、服务划扣、退款等）
   serviceOrderId  Int?
+  serviceOrderNo  String?
   purchaseOrderId Int?
+  purchaseOrderNo String?
   refundRecordId  Int?
 
   vehicleId       Int?
@@ -444,6 +449,10 @@ model GroupWashCardLog {
   @@index([cardId, createdAt])
   @@index([vehicleId])
   @@index([memberId])
+  @@index([serviceOrderId])
+  @@index([purchaseOrderId])
+  @@index([serviceOrderNo])
+  @@index([purchaseOrderNo])
 }
 
 model ScrollNotice {
@@ -673,6 +682,7 @@ enum PayMethod {
   WECHAT_JSAPI
   WECHAT_MICROPAY
   WASH_CARD
+  GROUP_BALANCE
 }
 
 // 履约与评价状态（方案B新增）

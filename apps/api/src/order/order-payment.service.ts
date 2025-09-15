@@ -41,6 +41,58 @@ export class OrderPaymentService {
         return times;
     }
 
+    // 集团余额支付（仅服务订单且挂载了 groupId）。不计入订单 payAmount（保持为0），仅做集团余额扣减与流水日志，订单标记为已支付。
+    async markPaidByGroupBalance(params: { orderId: number; operatorUserId?: number | null }) {
+        const { orderId, operatorUserId } = params;
+        const basic: any = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!basic) throw new BadRequestException('订单不存在');
+        if (basic.type !== 'SERVICE') throw new BadRequestException('仅服务订单支持集团余额支付');
+        if (!basic.groupId) throw new BadRequestException('非集团订单，不能使用集团余额支付');
+        if (basic.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可支付');
+
+        // 以订单当前应付金额为准进行集团余额扣减，避免与各种折扣/运费口径不一致
+        const amount = Math.max(0, Number(basic.payAmount || 0));
+        // 余额扣减仅作为内部记账（不计入 Order.payAmount），但必须确保集团余额充足
+        await this.prisma.$transaction(async (tx) => {
+            // 幂等：仅当仍为 UNPAID 时更新
+            const upd = await tx.order.updateMany({ where: { id: basic.id, payStatus: 'UNPAID' as any }, data: { payStatus: 'PAID' as any, status: 'PAID' as any, payMethod: 'GROUP_BALANCE' as any, settlement: 'NORMAL' as any, paidAt: new Date(), payAmount: 0 as any } as any });
+            if (!upd || (upd as any).count === 0) throw new BadRequestException('该订单已被处理');
+
+            // 扣减集团余额（乐观锁）
+            let acc0 = await tx.groupBalanceAccount.findUnique({ where: { groupId: basic.groupId } });
+            if (!acc0) {
+                await tx.groupBalanceAccount.create({ data: { groupId: basic.groupId, balance: 0 as any, version: 0 } });
+                acc0 = await tx.groupBalanceAccount.findUnique({ where: { groupId: basic.groupId } });
+            }
+            const currentAcc = await tx.groupBalanceAccount.findUnique({ where: { groupId: basic.groupId } });
+            const before = Number((currentAcc as any)?.balance || 0);
+            if (before < amount) throw new BadRequestException('集团余额不足');
+            const version = (currentAcc as any)?.version ?? 0;
+            const ok = await tx.groupBalanceAccount.updateMany({ where: { groupId: basic.groupId, version }, data: { balance: (before - amount) as any, version: { increment: 1 } as any } as any });
+            if (!ok || (ok as any).count === 0) throw new BadRequestException('集团余额并发更新失败，请重试');
+
+            await tx.groupBalanceLedger.create({ data: ({ groupId: basic.groupId, type: 'DEDUCT' as any, amount: (-amount) as any, orderId: basic.id, orderNo: basic.no, operatorUserId: operatorUserId ?? null, note: '集团余额支付扣减' } as any) });
+
+            await this.writeTimeline({ tx, orderId: basic.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: operatorUserId ?? null });
+            await this.writeTimeline({ tx, orderId: basic.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: operatorUserId ?? null });
+            await this.writeTimeline({ tx, orderId: basic.id, event: 'NOTE', value: 'GROUP_BALANCE_PAY', remark: `金额：${amount.toFixed(2)}`, operatorUserId: operatorUserId ?? null });
+        });
+
+        // 服务订单支付后，若队列中存在则移除（与其他支付方式保持一致）
+        try {
+            const it = await this.prisma.serviceQueueItem.findFirst({ where: { orderId } } as any);
+            if (it) {
+                await this.prisma.$transaction(async (tx) => {
+                    await tx.serviceTask.deleteMany({ where: { queueItemId: it.id } });
+                    await tx.serviceQueueItem.delete({ where: { id: it.id } });
+                });
+            }
+        } catch {}
+
+        // 集团余额支付不发放成长值与积分，也不计入 member.totalPaidAmount
+        return { ok: true } as any;
+    }
+
     // 使用洗车卡划扣并标记订单支付成功（支持个人/集团卡，自动选择），含并发幂等与多卡分摊
     async markPaidByWashCard(params: { orderId: number; prefer?: 'GROUP'|'MEMBER'; operatorUserId?: number | null }) {
         const { orderId, prefer, operatorUserId } = params;
@@ -136,7 +188,7 @@ export class OrderPaymentService {
                     const before = Number(card.remainingTimes || 0);
                     const after = before - it.used;
                     await tx.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
-                    await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'SERVICE_DEDUCT' as any, change: -it.used, beforeRemaining: before, afterRemaining: after, remark: `服务划扣（${remarkBase}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: order.id, vehicleId: order.vehicleId ?? null, memberId: order.memberId } as any });
+                    await tx.groupWashCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'SERVICE_DEDUCT' as any, change: -it.used, beforeRemaining: before, afterRemaining: after, remark: `服务划扣（${remarkBase}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: order.id, serviceOrderNo: order.no, vehicleId: order.vehicleId ?? null, memberId: order.memberId } as any });
                 }
             }
 
@@ -461,7 +513,10 @@ export class OrderPaymentService {
                 // 乐观锁失败则抛错交由上层忽略（不影响支付成功），后续可通过对账修复
                 throw new Error('Group balance concurrent update failed');
             }
-            await tx.groupBalanceLedger.create({ data: { groupId, type: 'RECHARGE' as any, amount: amount as any, orderId, operatorUserId: operatorUserId ?? null, note: '订单支付入账（集团充值）' } });
+            // 获取订单号用于流水关联
+            let ordNo: string | null = null;
+            try { const ord:any = await tx.order.findUnique({ where: { id: orderId }, select: { no: true } }); ordNo = ord?.no || null; } catch {}
+            await tx.groupBalanceLedger.create({ data: ({ groupId, type: 'RECHARGE' as any, amount: amount as any, orderId, orderNo: ordNo, operatorUserId: operatorUserId ?? null, note: '订单支付入账（集团充值）' } as any) });
         });
     }
 }

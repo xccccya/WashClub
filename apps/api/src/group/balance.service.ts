@@ -16,10 +16,21 @@ export class GroupBalanceService {
     if (type) where.type = type as any;
     if (start) where.createdAt = { ...(where.createdAt||{}), gte: new Date(start) };
     if (end) where.createdAt = { ...(where.createdAt||{}), lte: new Date(end) };
-    const [total, items] = await this.prisma.$transaction([
+    const [total, rows] = await this.prisma.$transaction([
       this.prisma.groupBalanceLedger.count({ where }),
-      this.prisma.groupBalanceLedger.findMany({ where, orderBy: { id: 'desc' }, skip: (page - 1) * pageSize, take: pageSize })
+      this.prisma.groupBalanceLedger.findMany({ where, orderBy: { id: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { order: { select: { id: true, no: true } } } })
     ]);
+    const items = (Array.isArray(rows) ? rows : []).map((r:any)=> ({
+      id: r.id,
+      createdAt: r.createdAt,
+      groupId: r.groupId,
+      type: r.type,
+      amount: r.amount,
+      orderId: r.orderId ?? (r.order?.id ?? null),
+      orderNo: r.orderNo ?? (r.order?.no ?? null),
+      operatorUserId: r.operatorUserId,
+      note: r.note
+    }));
     return { total, page, pageSize, items };
   }
 

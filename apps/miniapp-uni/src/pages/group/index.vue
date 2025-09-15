@@ -44,7 +44,7 @@
           </view>
         </view>
       </view>
-      <view v-if="isAdmin" class="section">
+      <view class="section">
         <view class="ledger-toggle" @tap="toggleLedger">
           <text class="lt-right">
             <text class="lt-text">余额明细</text>
@@ -52,11 +52,18 @@
           </text>
         </view>
         <view v-if="showLedger" class="ledger-list">
-          <view v-for="(it,idx) in ledger" :key="idx" class="ledger-item cardled">
+          <view v-for="(it,idx) in ledger" :key="idx" class="ledger-item cardled" @tap="goOrderByNo(it.orderNo)" :hover-class="it.orderNo ? 'hover' : ''">
             <view class="li-top">
               <text class="badge-led" :class="badgeClass(it.type)">{{ typeLabel(it.type) }}</text>
               <text v-if="it.note" class="note">{{ it.note }}</text>
               <text class="a" :class="{ inc: Number(it.amount)>=0, dec: Number(it.amount)<0 }">{{ Number(it.amount)>=0? '+':'' }}{{ Number(it.amount).toFixed(2) }}</text>
+            </view>
+            <view class="li-order" v-if="it.orderNo">
+              <view class="order-chip" role="button">
+                <text class="order-chip-label">关联订单：</text>
+                <text class="order-chip-text">{{ it.orderNo }}</text>
+                <text class="order-chip-arr">›</text>
+              </view>
             </view>
             <view class="li-time">
               <text class="d">{{ fmtTime(it.createdAt) }}</text>
@@ -65,9 +72,9 @@
         </view>
       </view>
       <view class="section">
-        <view class="row"><text class="label">集团洗车卡</text></view>
+        <view class="row"><text class="label">集团洗车卡</text><text class="section-tip">Tips:点击卡片可查看其使用详情</text></view>
         <view v-if="cards.length>0" class="list">
-          <view v-for="c in cards" :key="c.id" :class="['gwc-item', statusClass(c)]">
+          <view v-for="c in cards" :key="c.id" :class="['gwc-item', statusClass(c)]" @tap="goGroupCard(c)">
             <view class="gwc-bg"></view>
             <view class="gwc-accent"></view>
             <view class="gwc-left">
@@ -159,6 +166,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
 import { API_BASE, createHttp } from '../../utils/auth';
+declare const uni: any;
 
 const { topSpacerHeight } = useSafeArea();
 
@@ -270,6 +278,9 @@ async function loadGroup(){
   }catch{}
 }
 
+function goOrderByNo(no?: string){ try{ const n = String(no||'').trim(); if (!n) return; uni.navigateTo({ url: `/pages/order/detail?no=${encodeURIComponent(n)}` }); }catch{} }
+function goGroupCard(c: any){ try{ if (!c?.id) return; uni.navigateTo({ url: `/pages/group/washcard?id=${c.id}` }); }catch{} }
+
 onMounted(()=>{ try { token.value = uni.getStorageSync('token'); const u = uni.getStorageSync('user'); const id = Number(u?.id); if (Number.isFinite(id)) myMemberId.value = id; } catch {}; loadGroup(); });
 </script>
 
@@ -311,6 +322,13 @@ onMounted(()=>{ try { token.value = uni.getStorageSync('token'); const u = uni.g
 .ledger-item .a.dec{ color:#dc2626; }
 .ledger-item .a{ margin-left:auto; font-weight:700; }
 .li-time{ display:flex; justify-content:flex-end; margin-top:2px; }
+.li-order{ display:flex; justify-content:flex-end; margin-top:2px; }
+.order-link{ color:#2563eb; font-size:11px; }
+.order-chip{ display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:999px; background: linear-gradient(90deg, #eff6ff, #f5f3ff); border:1px solid #e5e7eb; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+.order-chip-icon{ width:10px; height:10px; opacity:.6; }
+.order-chip-label{ font-size:11px; color:#6b7280; }
+.order-chip-text{ font-size:9px; color:#1f2937; font-weight:600; }
+.order-chip-arr{ font-size:12px; color:#6b7280; padding-left:2px; }
 .ledger-item .d{ color:#6b7280; font-size:11px; }
 .note{ flex:1; min-width:0; color:#6b7280; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .li-bottom{ display:flex; align-items:center; justify-content:space-between; margin-top:2px; }
@@ -346,6 +364,7 @@ onMounted(()=>{ try { token.value = uni.getStorageSync('token'); const u = uni.g
 .gwc-name{ font-weight:800; color:#111827; }
 .gwc-badge{ margin-left:6px; font-size:11px; color:#059669; background:#ecfdf5; border:1px solid #d1fae5; border-radius:999px; padding:1px 6px; }
 .gwc-title-row{ display:flex; align-items:center; min-width:0; }
+.section-tip{ margin-left:8px; font-size:11px; color:#6b7280; }
 .gwc-meta{ margin-top:4px; display:flex; flex-wrap:wrap; gap:8px; color:#374151; font-size:12px; }
 .gwc-meta-item{ background:rgba(255,255,255,0.6); border:1px solid #eef2ff; border-radius:999px; padding:2px 6px; }
 .gwc-progress{ margin-top:8px; display:flex; align-items:center; gap:8px; }

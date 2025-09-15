@@ -150,7 +150,8 @@ export class OrderService {
             }
             
             // 游客订单：禁止使用优惠券
-            const guestMode = isGuestOrderFlag === true;
+            const guestEnvId = Number(process.env.GUEST_MEMBER_ID || (process.env as any)?.GUESS_MEMBER_ID || 0);
+            const guestMode = isGuestOrderFlag === true || (Number(memberId) === guestEnvId && guestEnvId > 0);
             // 优惠券校验与折扣（兼容旧单券 memberCouponId；新增多券 memberCouponIds）
             let memberCoupon: any = null;
             // 记录单券折扣金额，便于写入订单与日志

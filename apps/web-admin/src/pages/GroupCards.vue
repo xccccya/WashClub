@@ -141,11 +141,26 @@
             <span v-else>—</span>
           </template>
         </el-table-column>
-        <el-table-column label="关联订单" width="140">
+        <el-table-column label="关联订单号" width="260">
           <template #default="{ row }">
-            <el-button v-if="(row.reason==='PURCHASE_ADD' && row.purchaseOrderId) || (row.reason==='REFUND_DEDUCT' && row.purchaseOrderId)" size="small" link type="primary" @click="gotoOrder(row.purchaseOrderId)">查看订单</el-button>
-            <el-button v-else-if="row.serviceOrderId" size="small" link type="primary" @click="gotoOrder(row.serviceOrderId)">服务订单</el-button>
-            <span v-else>—</span>
+            <span v-if="(row.reason==='PURCHASE_ADD' || row.reason==='REFUND_DEDUCT')">
+              <template v-if="row.purchaseOrderNo">
+                <router-link :to="`/orders/no/${encodeURIComponent(String(row.purchaseOrderNo))}`">{{ row.purchaseOrderNo }}</router-link>
+              </template>
+              <template v-else-if="row.purchaseOrderId">
+                <router-link :to="`/orders/${row.purchaseOrderId}`">#{{ row.purchaseOrderId }}</router-link>
+              </template>
+              <span v-else>—</span>
+            </span>
+            <span v-else>
+              <template v-if="row.serviceOrderNo">
+                <router-link :to="`/orders/no/${encodeURIComponent(String(row.serviceOrderNo))}`">{{ row.serviceOrderNo }}</router-link>
+              </template>
+              <template v-else-if="row.serviceOrderId">
+                <router-link :to="`/orders/${row.serviceOrderId}`">#{{ row.serviceOrderId }}</router-link>
+              </template>
+              <span v-else>—</span>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
@@ -272,10 +287,7 @@ function applyExpiryMonths(months: number){
 function applyExpiryYears(years: number){
   try { const d = new Date(); d.setFullYear(d.getFullYear() + years); form.value.expiryAt = formatDateISO(d); createFormPermanent.value = false; } catch {}
 }
-function gotoOrder(orderId: number){
-  const path = `/admin/orders/${orderId}`;
-  try { window.open(path, '_blank'); } catch { location.href = path; }
-}
+function gotoOrderNo(no: string){ const path = `/admin/orders/no/${encodeURIComponent(String(no))}`; try { window.open(path, '_blank'); } catch { location.href = path; } }
 onMounted(()=>{ const q = Number(route.query.groupId||0); if (Number.isFinite(q) && q>0) { groupId.value = q; load(); } });
 
 async function searchGroups(q?: string){

@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Headers, Post, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Headers, Post, Query, Param } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
@@ -58,8 +58,17 @@ export class GroupMiniappController {
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) return [];
     const take = Math.max(1, Math.min(50, Number(limitStr || 10)));
-    const rows = await this.prisma.groupBalanceLedger.findMany({ where: { groupId: gm.groupId }, orderBy: { id: 'desc' }, take });
-    return rows;
+    const rows = await this.prisma.groupBalanceLedger.findMany({ where: { groupId: gm.groupId }, orderBy: { id: 'desc' }, take, include: { order: { select: { id: true, no: true } } } });
+    return (Array.isArray(rows) ? rows : []).map((r:any)=> ({
+      id: r.id,
+      createdAt: r.createdAt,
+      groupId: r.groupId,
+      type: r.type,
+      amount: r.amount,
+      orderId: r.orderId ?? (r.order?.id ?? null),
+      orderNo: r.orderNo ?? (r.order?.no ?? null),
+      note: r.note,
+    }));
   }
 
   @Get('me/cards')
@@ -69,6 +78,64 @@ export class GroupMiniappController {
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) return [];
     return this.prisma.groupWashCard.findMany({ where: { groupId: gm.groupId, status: 'ACTIVE' as any }, orderBy: { id: 'desc' } });
+  }
+
+  @Get('me/card/:cardId')
+  @ApiOperation({ summary: '我的集团洗车卡详情' })
+  async myGroupCardDetail(@Headers() headers: Record<string, string>, @Param('cardId') cardIdParam: string, @Query('token') tokenParam?: string){
+    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
+    if (!gm?.groupId) throw new BadRequestException('未绑定集团');
+    const cardId = Number(cardIdParam || 0);
+    if (!Number.isFinite(cardId) || cardId <= 0) throw new BadRequestException('卡片ID无效');
+    const card = await this.prisma.groupWashCard.findUnique({ where: { id: cardId } });
+    if (!card || card.groupId !== gm.groupId) throw new BadRequestException('卡不存在');
+    return card;
+  }
+
+  @Get('me/card/:cardId/logs')
+  @ApiOperation({ summary: '我的集团洗车卡日志' })
+  async myGroupCardLogs(
+    @Headers() headers: Record<string, string>,
+    @Param('cardId') cardIdParam: string,
+    @Query('page') pageStr?: string,
+    @Query('pageSize') pageSizeStr?: string,
+    @Query('token') tokenParam?: string,
+  ){
+    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
+    if (!gm?.groupId) throw new BadRequestException('未绑定集团');
+    const cardId = Number(cardIdParam || 0);
+    if (!Number.isFinite(cardId) || cardId <= 0) throw new BadRequestException('卡片ID无效');
+    const p = Math.max(1, Math.min(1000, Number(pageStr || 1)));
+    const ps = Math.max(1, Math.min(100, Number(pageSizeStr || 20)));
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.groupWashCardLog.count({ where: { cardId } }),
+      this.prisma.groupWashCardLog.findMany({ where: { cardId }, orderBy: { id: 'desc' }, skip: (p - 1) * ps, take: ps })
+    ]);
+    const serviceIds = (rows || []).map((r:any)=> r.serviceOrderId).filter((v:any)=> typeof v==='number');
+    const purchaseIds = (rows || []).map((r:any)=> r.purchaseOrderId).filter((v:any)=> typeof v==='number');
+    const uniq = (arr:number[]) => Array.from(new Set(arr));
+    const [serviceOrders, purchaseOrders] = await Promise.all([
+      serviceIds.length ? this.prisma.order.findMany({ where: { id: { in: uniq(serviceIds) } }, select: { id:true, no:true } }) : Promise.resolve([]),
+      purchaseIds.length ? this.prisma.order.findMany({ where: { id: { in: uniq(purchaseIds) } }, select: { id:true, no:true } }) : Promise.resolve([]),
+    ]);
+    const toMap = (list:any[])=>{ const m = new Map<number,string>(); for (const it of (list||[])) { if (typeof it?.id==='number') m.set(it.id, String(it.no||'')); } return m; };
+    const serviceMap = toMap(serviceOrders as any);
+    const purchaseMap = toMap(purchaseOrders as any);
+    const items = (Array.isArray(rows)?rows:[]).map((r:any)=> ({
+      id: r.id,
+      createdAt: r.createdAt,
+      action: r.action,
+      reason: r.reason,
+      change: r.change,
+      beforeRemaining: r.beforeRemaining,
+      afterRemaining: r.afterRemaining,
+      remark: r.remark,
+      serviceOrderNo: r.serviceOrderNo || serviceMap.get(r.serviceOrderId) || null,
+      purchaseOrderNo: r.purchaseOrderNo || purchaseMap.get(r.purchaseOrderId) || null,
+    }));
+    return { total, page: p, pageSize: ps, items } as any;
   }
 
   @Get('me/admins')

@@ -97,7 +97,7 @@ export class MetricsController {
         const orderCountPromise = this.prisma.order.count({ where: { payStatus: 'PAID' as any, paidAt: { gte: start, lt: end }, deletedAt: null } });
 
         // 支付金额（净额）：支付总额 - 退款成功总额（均按时间窗聚合）
-        const paymentsSumPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: 'PAID' as any, paidAt: { gte: start, lt: end }, deletedAt: null } });
+        const paymentsSumPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: start, lt: end }, deletedAt: null } });
         const refundsSumPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: start, lt: end } } });
 
         // 洗车卡划扣（个人）：按次数累计，仅统计 SERVICE_DEDUCT；取绝对值求和
@@ -145,7 +145,7 @@ export class MetricsController {
 
         // 上一周期：与当前口径一致
         const orderCountPrevPromise = this.prisma.order.count({ where: { payStatus: 'PAID' as any, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
-        const paymentsSumPrevPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: 'PAID' as any, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
+        const paymentsSumPrevPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
         const refundsSumPrevPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: prevStart, lt: prevEnd } } });
         const washcardTimesPrevPromise = this.prisma.$queryRaw(
             Prisma.sql`

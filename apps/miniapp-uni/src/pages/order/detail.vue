@@ -512,6 +512,7 @@ function displayPayMethod(m?: string|null){
 	if (v.includes('CASH')) return '现金支付';
 	if (v.includes('OFFLINE')) return '线下支付';
 	if (v.includes('WASH_CARD') || v==='WASH_CARD') return '洗车卡结算';
+	if (v==='GROUP_BALANCE') return '集团余额支付';
 	if (v.includes('QRCODE')) return '扫码支付';
 	return '其它';
 }
@@ -797,6 +798,8 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='WECHAT_MICROPAY') return '微信付款码支付';
 		if (v==='GROUP_RECHARGE_CREDIT') return '集团余额充值入账';
 		if (v==='GROUP_RECHARGE_REFUND_DEBIT') return '集团充值退款出账';
+		if (v==='GROUP_BALANCE_PAY') return '集团余额支付';
+		if (v==='GROUP_BALANCE_REFUND_CREDIT') return '集团余额退款入账';
 	}
 	return value || '-';
 }

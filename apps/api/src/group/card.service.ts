@@ -64,6 +64,11 @@ export class GroupCardService {
       const before = card.remainingTimes;
       const after = before - qty;
       const updated = await tx.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
+      // 预取订单号（若提供了对应ID）
+      let serviceOrderNo: string | null = null;
+      let purchaseOrderNo: string | null = null;
+      try { if (opts?.serviceOrderId) { const o:any = await tx.order.findUnique({ where: { id: opts.serviceOrderId }, select: { no: true } }); serviceOrderNo = o?.no || null; } } catch {}
+      try { if (opts?.purchaseOrderId) { const o:any = await tx.order.findUnique({ where: { id: opts.purchaseOrderId }, select: { no: true } }); purchaseOrderNo = o?.no || null; } } catch {}
       await tx.groupWashCardLog.create({
         data: {
           cardId: card.id,
@@ -77,8 +82,10 @@ export class GroupCardService {
           memberId: opts?.memberId ?? null,
           operatorUserId: opts?.operatorUserId ?? null,
           serviceOrderId: opts?.serviceOrderId ?? null,
+          serviceOrderNo,
           refundRecordId: opts?.refundRecordId ?? null,
           purchaseOrderId: opts?.purchaseOrderId ?? null,
+          purchaseOrderNo,
         } as any
       });
       return updated;
@@ -102,10 +109,36 @@ export class GroupCardService {
   async listLogs(cardId: number, page = 1, pageSize = 10) {
     const p = Math.max(1, Number(page || 1));
     const ps = Math.max(1, Math.min(100, Number(pageSize || 10)));
-    const [total, items] = await this.prisma.$transaction([
+    const [total, rows] = await this.prisma.$transaction([
       this.prisma.groupWashCardLog.count({ where: { cardId } }),
       this.prisma.groupWashCardLog.findMany({ where: { cardId }, orderBy: { id: 'desc' }, skip: (p - 1) * ps, take: ps, include: { member: { select: { id: true, name: true, phone: true } }, vehicle: { select: { id: true, plateNumber: true } } } as any })
     ]);
+    const serviceIds = (rows || []).map((r:any)=> r.serviceOrderId).filter((v:any)=> typeof v==='number');
+    const purchaseIds = (rows || []).map((r:any)=> r.purchaseOrderId).filter((v:any)=> typeof v==='number');
+    const uniq = (arr:number[]) => Array.from(new Set(arr));
+    const [serviceOrders, purchaseOrders] = await Promise.all([
+      serviceIds.length ? this.prisma.order.findMany({ where: { id: { in: uniq(serviceIds) } }, select: { id:true, no:true } }) : Promise.resolve([]),
+      purchaseIds.length ? this.prisma.order.findMany({ where: { id: { in: uniq(purchaseIds) } }, select: { id:true, no:true } }) : Promise.resolve([]),
+    ]);
+    const toMap = (list:any[])=>{ const m = new Map<number,string>(); for (const it of (list||[])) { if (typeof it?.id==='number') m.set(it.id, String(it.no||'')); } return m; };
+    const serviceMap = toMap(serviceOrders as any);
+    const purchaseMap = toMap(purchaseOrders as any);
+    const items = (Array.isArray(rows)?rows:[]).map((r:any)=> ({
+      id: r.id,
+      createdAt: r.createdAt,
+      action: r.action,
+      reason: r.reason,
+      change: r.change,
+      beforeRemaining: r.beforeRemaining,
+      afterRemaining: r.afterRemaining,
+      remark: r.remark,
+      vehicle: r.vehicle || null,
+      member: r.member || null,
+      serviceOrderId: r.serviceOrderId || null,
+      purchaseOrderId: r.purchaseOrderId || null,
+      serviceOrderNo: r.serviceOrderNo || serviceMap.get(r.serviceOrderId) || null,
+      purchaseOrderNo: r.purchaseOrderNo || purchaseMap.get(r.purchaseOrderId) || null,
+    }));
     return { total, page: p, pageSize: ps, items } as any;
   }
 

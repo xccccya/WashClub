@@ -275,7 +275,7 @@ async function queryRefund(row:any){ try{ if (!row?.outRefundNo){ ElMessage.erro
 function formatDate(val: string | null | undefined){ if(!val) return '-'; try{ return new Date(val).toLocaleString(); }catch{ return String(val); } }
 function displayType(t?: string){ const v = String(t||'').toUpperCase(); if (!v) return '-'; if (v==='SERVICE') return '服务订单'; if (v==='SP') return '商品订单'; if (v==='FK') return '付款订单'; return '其它'; }
 function displayPayStatus(s?: string){ const v = String(s||'').toUpperCase(); if (!v) return '-'; if (v==='UNPAID') return '未支付'; if (v==='PAID') return '已支付'; if (v==='REFUNDED') return '已退款'; if (v==='CANCELLED') return '已取消'; return s || '-'; }
-function displayPayMethod(m?: string){ const v = String(m||'').toUpperCase(); if (!v) return '-'; if (v.includes('WECHAT')) return '微信支付'; if (v.includes('ALI')) return '支付宝'; if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付'; if (v.includes('CASH')) return '现金支付'; if (v.includes('OFFLINE')) return '线下支付'; if (v.includes('WASH_CARD') || v==='WASH_CARD') return '洗车卡结算'; if (v.includes('QRCODE')) return '扫码支付'; return '其它'; }
+function displayPayMethod(m?: string){ const v = String(m||'').toUpperCase(); if (!v) return '-'; if (v.includes('WECHAT')) return '微信支付'; if (v.includes('ALI')) return '支付宝'; if (v.includes('SHOUQIANBA')) return '收钱吧扫码支付'; if (v.includes('CASH')) return '现金支付'; if (v.includes('OFFLINE')) return '线下支付'; if (v.includes('WASH_CARD') || v==='WASH_CARD') return '洗车卡结算'; if (v==='GROUP_BALANCE') return '集团余额支付'; if (v.includes('QRCODE')) return '扫码支付'; return '其它'; }
 
 function zhRefundMethod(m?: string){ const v = String(m||'').toUpperCase(); if (v.includes('WECHAT')) return '微信原路退款'; if (v.includes('ALI')) return '支付宝原路退款'; if (v.includes('MANUAL')) return '人工退款'; if (v.includes('OFFLINE')) return '线下退款'; return m || '-'; }
 function zhRefundStatus(s?: string){ const v = String(s||'').toUpperCase(); if (v==='PENDING') return '退款中'; if (v==='SUCCESS') return '退款成功'; if (v==='FAILED') return '退款失败'; return s || '-'; }
@@ -325,6 +325,8 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='WECHAT_MICROPAY') return '微信付款码支付';
 		if (v==='GROUP_RECHARGE_CREDIT') return '集团余额充值入账';
 		if (v==='GROUP_RECHARGE_REFUND_DEBIT') return '集团充值退款出账';
+		if (v==='GROUP_BALANCE_PAY') return '集团余额支付';
+		if (v==='GROUP_BALANCE_REFUND_CREDIT') return '集团余额退款入账';
 	}
 	return value || '-';
 }

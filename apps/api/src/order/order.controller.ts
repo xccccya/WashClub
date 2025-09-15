@@ -179,6 +179,16 @@ export class OrderController {
         return this.payment.markPaidByWashCard({ orderId: id, prefer: body?.prefer, operatorUserId });
     }
 
+    // 管理后台：集团余额支付（仅集团服务订单）
+    @Post(':id/pay/group-balance')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async payByGroupBalance(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        return this.payment.markPaidByGroupBalance({ orderId: id, operatorUserId });
+    }
+
     // 管理后台：微信付款码支付（V2 micropay 流程）
     @Post(':id/pay/wx-micropay')
     @UseGuards(AdminGuard)

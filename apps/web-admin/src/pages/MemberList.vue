@@ -7,7 +7,7 @@
 				<span style="vertical-align: middle;">搜索</span>
 			</el-button>
 			<el-button @click="refreshGuestOwner" :loading="syncingGuest" style="margin-right:8px;">
-				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Refresh /></el-icon>
 				<span style="vertical-align: middle;">刷新游客占位账号</span>
 			</el-button>
 			<el-tag v-if="guestOwnerInfo" type="warning" effect="dark" style="margin-right:8px;">游客占位ID：{{ guestOwnerInfo?.guestMemberId ?? '-' }}{{ guestOwnerInfo?.tagged===false? '（未贴标签）':'' }}</el-tag>

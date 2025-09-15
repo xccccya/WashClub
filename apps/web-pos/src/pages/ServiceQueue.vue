@@ -179,6 +179,13 @@
 						<el-button type="primary" @click="doWashDeduct">确认划扣并支付</el-button>
 					</div>
 				</el-tab-pane>
+				<el-tab-pane v-if="canGroupBalance" label="集团余额" name="group">
+					<div class="note">仅用于集团服务订单。集团余额支付不计入支付金额统计，仅进行集团余额内部扣减并记录关联订单流水。</div>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" :loading="groupPayLoading" @click="doGroupBalance">确认集团余额支付</el-button>
+					</div>
+				</el-tab-pane>
 			</el-tabs>
 		</el-dialog>
 		<el-dialog v-model="showScan" title="摄像头识别付款码" width="820px">
@@ -690,16 +697,18 @@ async function confirmRemove(row: QueueItem){
 
 // 支付 & 扫码占位
 const showPay = ref(false);
-const payTab = ref<'manual'|'wx'|'wash'>('manual');
+const payTab = ref<'manual'|'wx'|'wash'|'group'>('manual');
 const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'>('CASH');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const currentOrderId = ref<number|null>(null);
+const canGroupBalance = ref(false);
+const groupPayLoading = ref(false);
 const showScan = ref(false);
 const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
-function openPay(row:any){ currentOrderId.value=Number(row?.orderId||0)||null; showPay.value=true; }
+async function openPay(row:any){ currentOrderId.value=Number(row?.orderId||0)||null; canGroupBalance.value=false; try{ const id=currentOrderId.value; if(id){ const ord:any = await http(`/orders/${id}`); canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; } }catch{ canGroupBalance.value=false; } showPay.value=true; }
 // 无遮罩键盘状态
 const windowW = (typeof window!=='undefined' ? window.innerWidth : 1280) || 1280;
 const searchKbVisible = ref(false);
@@ -738,6 +747,18 @@ async function doWashDeduct(){
 		showPay.value=false;
 		await fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); }
+}
+async function doGroupBalance(){
+    try{
+        const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; }
+        if (!canGroupBalance.value){ ElMessage.error('仅集团服务订单可使用集团余额支付'); return; }
+        groupPayLoading.value = true;
+        await http(`/orders/${id}/pay/group-balance`, { method:'POST' });
+        ElMessage.success('集团余额支付成功');
+        showPay.value=false;
+        await fetchList();
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'支付失败')); }
+    finally{ groupPayLoading.value=false; }
 }
 async function openScan(){ showScan.value=true; await nextTick(); }
 function stopScan(){ try{}catch{} }

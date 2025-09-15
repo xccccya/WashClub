@@ -29,7 +29,7 @@ async function bootstrap() {
 	const config = new DocumentBuilder()
 		.setTitle('Wash Club API')
 		.setDescription('API for 一体化洗车门店管理平台')
-		.setVersion('0.1.0')
+		.setVersion('1.0.0')
 		.addBearerAuth()
 		.build();
 	const document = SwaggerModule.createDocument(app, config);
@@ -43,7 +43,7 @@ async function bootstrap() {
 	const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 	await app.listen(port);
 	// eslint-disable-next-line no-console
-	console.log(`API listening on http://localhost:${port}`);
+	console.log(`系统自检成功，API 已启动，监听端口：http://localhost:${port}。欢迎使用巨科汽车美容会员系统，祝您使用愉快！`);
 }
 
 bootstrap();

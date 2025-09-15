@@ -173,7 +173,7 @@ export class OrderRewardsService {
                 const change = Math.abs(lg.change);
                 const after = before + change;
                 await this.prisma.groupWashCard.update({ where: { id: card.id }, data: { remainingTimes: after } });
-                await this.prisma.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change, beforeRemaining: before, afterRemaining: after, remark: `退款返还（订单${orderNo || orderId}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: orderId } as any });
+                await this.prisma.groupWashCardLog.create({ data: { cardId: card.id, action: 'ADD' as any, reason: 'BACKEND_ADD' as any, change, beforeRemaining: before, afterRemaining: after, remark: `退款返还（订单${orderNo || orderId}）`, operatorUserId: operatorUserId ?? null, serviceOrderId: orderId, serviceOrderNo: (orderNo as any) || null } as any });
             }
         }
     }
@@ -317,12 +317,12 @@ export class OrderRewardsService {
                     let nextExpiry: Date | null = existing.expiryAt ?? null;
                     if (expiryAt) { if (!nextExpiry || new Date(expiryAt) > new Date(nextExpiry)) nextExpiry = expiryAt; }
                     await this.prisma.groupWashCard.update({ where: { id: existing.id }, data: { totalTimes: existing.totalTimes + change, remainingTimes: afterRemaining, expiryAt: nextExpiry } });
-                    await this.prisma.groupWashCardLog.create({ data: { cardId: existing.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: before, afterRemaining: afterRemaining, remark } });
+                    await this.prisma.groupWashCardLog.create({ data: ({ cardId: existing.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: before, afterRemaining: afterRemaining, remark, purchaseOrderId: orderId, purchaseOrderNo: order.no || null } as any) });
                 } else {
                     async function gen2(tx: PrismaService) { for (let i = 0; i < 20; i++) { const n = Math.floor(Math.random() * 100000000); const candidate = String(n).padStart(8, '0'); const exists = await tx.groupWashCard.findFirst({ where: { cardNo: candidate } }).catch(() => null); if (!exists) return candidate; } return String(Date.now()).slice(-8); }
                     const cardNo = await gen2(this.prisma);
                     const created = await this.prisma.groupWashCard.create({ data: { groupId: order.groupId, name: coupon.name, totalTimes: change, remainingTimes: change, cardNo, expiryAt } });
-                    await this.prisma.groupWashCardLog.create({ data: { cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark } });
+                    await this.prisma.groupWashCardLog.create({ data: ({ cardId: created.id, action: 'ADD' as any, reason: 'PURCHASE_ADD' as any, change, beforeRemaining: 0, afterRemaining: change, remark, purchaseOrderId: orderId, purchaseOrderNo: order.no || null } as any) });
                 }
                 continue;
             }

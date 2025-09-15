@@ -181,6 +181,15 @@
 						<el-button type="primary" @click="doWashDeduct">确认划扣并支付</el-button>
 					</div>
 				</el-tab-pane>
+				<el-tab-pane v-if="canGroupBalance" label="集团余额" name="group">
+					<div style="color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; margin-bottom:8px;">
+						仅用于集团服务订单。集团余额支付不计入支付金额统计，仅进行集团余额内部扣减并记录关联订单流水。
+					</div>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" @click="doGroupBalance">确认集团余额支付</el-button>
+					</div>
+				</el-tab-pane>
 			</el-tabs>
 		</el-dialog>
 
@@ -304,7 +313,7 @@ function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='
 function statusTagType(v?: string){ if(v==='CREATED') return 'info'; if(v==='PAID') return 'success'; if(v==='FULFILLED') return 'success'; if(v==='CLOSED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
 function payStatusLabel(v?: string){ if(v==='UNPAID') return '未支付'; if(v==='PAID') return '已支付'; if(v==='REFUNDED') return '已退款'; if(v==='CANCELLED') return '已作废'; return v || '-'; }
 function payStatusTagType(v?: string){ if(v==='UNPAID') return 'info'; if(v==='PAID') return 'success'; if(v==='REFUNDED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
-function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; if(v==='WASH_CARD') return '洗车卡结算'; return v; }
+function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; if(v==='WASH_CARD') return '洗车卡结算'; if(v==='GROUP_BALANCE') return '集团余额支付'; return v; }
 function fulfillLabel(v?: string){ if(!v) return '-'; if(v==='NONE') return '不需履约'; if(v==='PENDING') return '待履约/待发货'; if(v==='SHIPPED') return '已发货'; if(v==='RECEIVED') return '已收货'; if(v==='IN_SERVICE') return '服务中'; if(v==='DONE') return '服务完成'; return v; }
 
 async function fetchList(){
@@ -450,7 +459,8 @@ async function finishService(id:number){ try { await http(`/orders/${id}/finish-
 const showPay = ref(false);
 const currentOrderId = ref<number | null>(null);
 const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'|'CASH'>('CASH');
-const payTab = ref<'manual'|'wx'|'wash'>('manual');
+const payTab = ref<'manual'|'wx'|'wash'|'group'>('manual');
+const canGroupBalance = ref(false);
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
@@ -459,7 +469,18 @@ const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
 let mediaStream: MediaStream | null = null;
 let scanTimer: any = null;
-function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; showPay.value = true; }
+async function openPay(row:any){
+    currentOrderId.value = row.id;
+    payMethod.value = 'CASH';
+    payTab.value = 'manual';
+    washPrefer.value='AUTO';
+    canGroupBalance.value = false;
+    try{
+        const ord:any = await http(`/orders/${row.id}`);
+        canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID';
+    }catch{ canGroupBalance.value=false; }
+    showPay.value = true;
+}
 async function doMarkPaid(){
     if (!currentOrderId.value) return;
     try { await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
@@ -497,6 +518,18 @@ async function doWashDeduct(){
         showPay.value = false;
         await fetchList();
     }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); }
+}
+
+async function doGroupBalance(){
+    if (!currentOrderId.value) return;
+    try{
+        const detail:any = await http(`/orders/${currentOrderId.value}`);
+        if (String(detail?.type||'').toUpperCase()!=='SERVICE' || !detail?.groupId){ ElMessage.error('仅集团服务订单可使用集团余额支付'); return; }
+        await http(`/orders/${currentOrderId.value}/pay/group-balance`, { method:'POST' });
+        ElMessage.success('集团余额支付成功');
+        showPay.value = false;
+        await fetchList();
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'支付失败')); }
 }
 
 async function openScan(){

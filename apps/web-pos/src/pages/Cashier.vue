@@ -16,6 +16,7 @@
 				:show-only-enabled="showOnlyEnabled"
 				:products="products"
 				:products-loading="productsLoading"
+				:highlight-id="highlightProductId"
 				@update:orderKind="v=>orderKind=v as any"
 				@order-kind-change="onOrderKindChange"
 				@update:activeCategoryId="v=>{ activeCategoryId=v as any; }"
@@ -27,43 +28,45 @@
 				<!-- 右侧：下单区 -->
 				<div class="right">
 					<div class="panel">
-						<div class="section">
-							<!-- 顾客信息卡片 -->
-							<SummaryCard
-								ref="summaryRef"
-								:order-kind="orderKind"
-								:identity="identity"
-								:member-keyword="memberKeyword"
-								:selected-member="selectedMember"
-								:member-vehicles="memberVehicles"
-								:member-vehicle-id="memberVehicleId"
-								:guest-vehicle-id="guestVehicleId"
-								:plate-number="plateNumber"
-								:pay-after-service="payAfterService"
-								:coupon-discount-est="couponDiscountEst"
-								:member-discount-applied="memberDiscountApplied"
-								:points-amount-yuan="pointsAmountYuan"
-								@update:identity="(v: any)=>identity=v as any"
-								@update:payAfterService="(v: any)=>payAfterService=v"
-								@update:memberKeyword="(v: any)=>memberKeyword=v"
-								@pick-member="onPickMember"
-								@clear-member="clearMember"
-								@update:memberVehicleId="(v: any)=>memberVehicleId=v as any"
-								@update:plateNumber="(v: any)=>plateNumber=v"
-								@plate-confirm="onPlateConfirmed"
-								@quick-plate="quickPlateInput"
-								@edit-guest-plate="editGuestPlate"
-								@clear-guest-vehicle="clearGuestVehicle"
-								@query-members="queryMembers"
+						<div class="panel-body">
+							<div class="section">
+								<!-- 顾客信息卡片 -->
+								<SummaryCard
+									ref="summaryRef"
+									:order-kind="orderKind"
+									:identity="identity"
+									:member-keyword="memberKeyword"
+									:selected-member="selectedMember"
+									:member-vehicles="memberVehicles"
+									:member-vehicle-id="memberVehicleId"
+									:guest-vehicle-id="guestVehicleId"
+									:plate-number="plateNumber"
+									:pay-after-service="payAfterService"
+									:coupon-discount-est="couponDiscountEst"
+									:member-discount-applied="memberDiscountApplied"
+									:points-amount-yuan="pointsAmountYuan"
+									@update:identity="(v: any)=>identity=v as any"
+									@update:payAfterService="(v: any)=>payAfterService=v"
+									@update:memberKeyword="(v: any)=>memberKeyword=v"
+									@pick-member="onPickMember"
+									@clear-member="clearMember"
+									@update:memberVehicleId="(v: any)=>memberVehicleId=v as any"
+									@update:plateNumber="(v: any)=>plateNumber=v"
+									@plate-confirm="onPlateConfirmed"
+									@quick-plate="quickPlateInput"
+									@edit-guest-plate="editGuestPlate"
+									@clear-guest-vehicle="clearGuestVehicle"
+									@query-members="queryMembers"
+								/>
+							</div>
+
+							<CartList
+								:items="cartItems"
+								@remove="idx=>removeItem(idx)"
+								@clear="clearCart"
+								@update-qty="(p:any)=>{ const { index, quantity } = p||{}; cartItems[index].quantity=Number(quantity); recompute(); reloadCouponsIfNeeded(); }"
 							/>
 						</div>
-
-						<CartList
-							:items="cartItems"
-							@remove="idx=>removeItem(idx)"
-							@clear="clearCart"
-							@update-qty="(p:any)=>{ const { index, quantity } = p||{}; cartItems[index].quantity=Number(quantity); recompute(); reloadCouponsIfNeeded(); }"
-						/>
 
 						<!-- 右侧面板不再提供结算控件，统一在结算弹窗中处理 -->
 
@@ -284,6 +287,8 @@ function clearCart(){ cartItems.value = []; recompute(); reloadCouponsIfNeeded()
 function removeItem(i: number){ cartItems.value.splice(i,1); recompute(); reloadCouponsIfNeeded(); }
 
 const skuDialog = reactive({ visible: false, product: null as any|null });
+const highlightProductId = ref<number|undefined>(undefined);
+let highlightTimer: any = null;
 function isProductDisabled(p:any): boolean {
 	if (!p?.enabled) return true;
 	if (orderKind.value==='SERVICE'){
@@ -312,6 +317,9 @@ function onProductCardClick(p: any){
 	const idx = cartItems.value.findIndex(x=> (x.productId||null)===(item.productId||null) && (x.skuId||null)===(item.skuId||null));
 	if (idx>=0) { cartItems.value[idx].quantity = Number(cartItems.value[idx].quantity||0) + 1; }
 	else { cartItems.value.push(item); }
+	try{ if (highlightTimer) clearTimeout(highlightTimer); }catch{}
+	highlightProductId.value = Number(p.id||0) || undefined;
+	highlightTimer = setTimeout(()=>{ highlightProductId.value = undefined; }, 400);
 	recompute();
 	reloadCouponsIfNeeded();
 }
@@ -750,8 +758,8 @@ const settleDialog = reactive({ visible:false, tab:'wx' as 'manual'|'wx'|'wash',
 const serviceProductsInCart = computed(()=> cartItems.value.filter(it=> it.productType==='SERVICE' && Number(it.productId||0)>0));
 async function loadQueueTypes(){ try{ queueTypes.value = await http<any[]>('/queue-types', { method:'GET' }).catch(()=>[]); }catch{ queueTypes.value = []; } }
 function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visible=true; settleDialog.isService = (orderKind.value==='SERVICE'); settleDialog.createdOrderId=null; settleDialog.tab='wx'; settleDialog.manualMethod='CASH'; settleDialog.wxAuthCode='';
-    // 配送方式默认与限制：根据购物车内实物商品发货形态
-    settleDialog.delivery = hasPhysicalInCart.value ? 'EXPRESS' : 'PICKUP';
+    // 配送方式默认与限制：优先自提，其次快递；仅在自提不可用时选择快递
+    settleDialog.delivery = hasPhysicalInCart.value ? 'PICKUP' : 'PICKUP';
     // 计算禁用项（需要在商品数据中带出 shipAllow*，此处做容错：未知视为可用）
     try{
         const phys = cartItems.value.filter(it=> it.productType==='PHYSICAL');
@@ -760,9 +768,8 @@ function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visi
         (settleDialog as any).deliveryAllowExpress = allAllowExpress;
         (settleDialog as any).deliveryAllowPickup = allAllowPickup;
         if (phys.length){
-            if (allAllowExpress && !allAllowPickup) settleDialog.delivery = 'EXPRESS';
-            else if (!allAllowExpress && allAllowPickup) settleDialog.delivery = 'PICKUP';
-            else settleDialog.delivery = 'EXPRESS';
+            if (!allAllowPickup && allAllowExpress) settleDialog.delivery = 'EXPRESS';
+            else settleDialog.delivery = 'PICKUP';
         }
     }catch{ (settleDialog as any).deliveryAllowExpress = true; (settleDialog as any).deliveryAllowPickup = true; }
     // 打开时清理上次集团信息
@@ -939,9 +946,9 @@ watch(plateNumber, (val)=>{
 </script>
 
 <style scoped>
-.layout{ display:flex; gap:12px; }
+.layout{ display:flex; gap:12px; height:100%; min-height:0; overflow:hidden; contain: layout size paint; }
 .left{ flex: 1 1 auto; min-width: 0; display:flex; flex-direction: column; gap:8px; }
-.right{ width: 480px; flex: 0 0 auto; display:flex; flex-direction: column; gap:8px; }
+.right{ width: 520px; flex: 0 0 auto; display:flex; flex-direction: column; gap:8px; min-height:0; overflow:hidden; }
 .actions{ display:flex; gap:8px; }
 .toolbar{ display:flex; flex-direction: column; gap:8px; }
 .filters{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -960,7 +967,8 @@ watch(plateNumber, (val)=>{
 .price .range{ color:#999; font-size:12px; }
 .stock{ color:#909399; font-size:12px; }
 
-.panel{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:10px; }
+.panel{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:10px; flex:1 1 auto; min-height:0; overflow:hidden; }
+.panel-body{ flex: 1 1 auto; min-height: 0; overflow: auto; display:flex; flex-direction:column; gap:10px; padding-bottom: 12px; }
 .section{ display:flex; flex-direction:column; gap:10px; }
 .row{ display:grid; grid-template-columns: 92px 1fr auto; gap:8px; align-items:center; }
 .row.compact{ grid-template-columns: 72px 1fr auto; }
@@ -976,7 +984,7 @@ watch(plateNumber, (val)=>{
 .ci-price{ font-weight:700; }
 
 .settle{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:10px; }
-.footer{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; display:flex; align-items:flex-end; justify-content:space-between; gap:10px; position:sticky; bottom:0; }
+.footer{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; display:flex; align-items:flex-end; justify-content:space-between; gap:10px; box-shadow: 0 -4px 12px rgba(0,0,0,0.04); }
 .amounts{ display:flex; flex-direction:column; gap:6px; }
 .amounts .line{ display:flex; justify-content:space-between; gap:12px; }
 .amounts .total b{ color: var(--el-color-primary); font-size:18px; }
@@ -1003,7 +1011,7 @@ watch(plateNumber, (val)=>{
 .pay-box .summary{ background:#f9fafb; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; }
 .pay-box .amt{ display:flex; flex-direction:column; gap:6px; }
 .hint{ color:#909399; font-size:12px; }
-@media (max-width: 1440px){ .right{ width: 420px; } .grid{ grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+@media (max-width: 1440px){ .right{ width: 440px; } .grid{ grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
 
 .addr-form-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
 

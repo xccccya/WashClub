@@ -138,6 +138,15 @@
 						<el-button type="primary" @click="doWashDeduct">确认划扣并支付</el-button>
 					</div>
 				</el-tab-pane>
+				<el-tab-pane v-if="canGroupBalance" label="集团余额" name="group">
+					<div style="color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; margin-bottom:8px;">
+						仅用于集团服务订单。集团余额支付不计入支付金额统计，仅进行集团余额内部扣减并记录关联订单流水。
+					</div>
+					<div style="margin-top:12px; text-align:right;">
+						<el-button @click="showPay=false">取消</el-button>
+						<el-button type="primary" :loading="groupPayLoading" @click="doGroupBalance">确认集团余额支付</el-button>
+					</div>
+				</el-tab-pane>
 			</el-tabs>
 		</el-dialog>
 		<el-dialog v-model="showScan" title="摄像头识别付款码" width="520px">
@@ -762,7 +771,7 @@ function onWizardSelectionChange(rows: any[]){
 const showPay = ref(false);
 const currentOrderId = ref<number|null>(null);
 const payMethod = ref<'CASH'|'SHOUQIANBA'|'OFFLINE'>('CASH');
-const payTab = ref<'manual'|'wx'|'wash'>('manual');
+const payTab = ref<'manual'|'wx'|'wash'|'group'>('manual');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
 const showScan = ref(false);
@@ -771,11 +780,34 @@ const canvasRef = ref<HTMLCanvasElement|null>(null);
 let mediaStream: MediaStream | null = null;
 let scanTimer: any = null;
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
+const canGroupBalance = ref(false);
+const groupPayLoading = ref(false);
 
-function openPay(row:any){ currentOrderId.value = Number(row?.orderId||0)||null; payMethod.value='CASH'; payTab.value='manual'; washPrefer.value='AUTO'; wxAuthCode.value=''; showPay.value = true; }
+async function openPay(row:any){
+    currentOrderId.value = Number(row?.orderId||0)||null;
+    payMethod.value='CASH'; payTab.value='manual'; washPrefer.value='AUTO'; wxAuthCode.value='';
+    canGroupBalance.value = false;
+    try{
+        const id = currentOrderId.value;
+        if (id){ const ord:any = await http(`/orders/${id}`); canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; }
+    }catch{ canGroupBalance.value = false; }
+    showPay.value = true;
+}
 async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } await http(`/orders/${id}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; await http(`/orders/${id}/pay/wx-micropay`, { method:'POST', body: { authCode: code } }); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
 async function doWashDeduct(){ try{ const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const ord:any = await http(`/orders/${id}`); if (String(ord?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; } const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value; const ret:any = await http(`/orders/${id}/pay/wash-card`, { method:'POST', body: { prefer } }); const plan = Array.isArray(ret?.plan)?ret.plan:[]; const times = Number(ret?.requiredTimes||0); ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`); showPay.value=false; await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); } }
+async function doGroupBalance(){
+    try{
+        const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; }
+        if (!canGroupBalance.value){ ElMessage.error('仅集团服务订单可使用集团余额支付'); return; }
+        groupPayLoading.value = true;
+        await http(`/orders/${id}/pay/group-balance`, { method:'POST' });
+        ElMessage.success('集团余额支付成功');
+        showPay.value = false;
+        await fetchList();
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'支付失败')); }
+    finally{ groupPayLoading.value = false; }
+}
 
 async function openScan(){ try{ showScan.value=true; await nextTick(); if(!videoRef.value) return; mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); videoRef.value.srcObject = mediaStream as any; await videoRef.value.play(); startDecodeLoop(); } catch(e:any){ ElMessage.error('无法打开摄像头：' + String(e?.message||e||'')); showScan.value=false; } }
 function stopScan(){ try{ if (scanTimer){ clearInterval(scanTimer); scanTimer=null; } }catch{} try{ if (videoRef.value){ videoRef.value.pause(); (videoRef.value as any).srcObject = null; } }catch{} try{ if (mediaStream){ mediaStream.getTracks().forEach(t=> t.stop()); mediaStream=null; } }catch{} }
