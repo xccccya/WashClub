@@ -240,9 +240,9 @@ export class OrderPaymentService {
         const openid = await this.getMemberOpenId(memberId);
         if (!openid) throw new BadRequestException('当前账号未绑定微信openid，请使用一键登录后重试');
         
-        // 元转分
+        // 禁止 0 元订单唤起 JSAPI
         const amountYuan = Number(order.payAmount);
-        if (!Number.isFinite(amountYuan) || amountYuan <= 0) throw new BadRequestException('订单金额异常');
+        if (!Number.isFinite(amountYuan) || amountYuan <= 0) throw new BadRequestException('零元订单不支持微信支付');
         const total = Math.round(amountYuan * 100);
         const notifyUrl = (process.env.PUBLIC_API_BASE || '').replace(/\/$/, '') + '/orders/_notify/wechat';
         const desc = `巨科汽车美容(威远店)-订单支付-${order.no}`;
@@ -310,7 +310,7 @@ export class OrderPaymentService {
         if (order.payStatus !== 'UNPAID') throw new BadRequestException('仅未支付订单可发起付款码支付');
         
         const totalFen = Math.round(Number(order.payAmount) * 100);
-        if (totalFen <= 0) throw new BadRequestException('订单金额异常');
+        if (totalFen <= 0) throw new BadRequestException('零元订单不支持微信支付');
         
         const desc = `巨科汽车美容(威远店)-订单支付-${order.no}`;
         if (!authCode) throw new BadRequestException('缺少付款码');

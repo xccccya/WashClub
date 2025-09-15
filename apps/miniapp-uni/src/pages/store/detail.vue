@@ -83,8 +83,8 @@
 				<view v-if="hasTable" class="scroll-tip">左右滑动查看表格</view>
 				<view class="desc-fade" v-if="descCollapsed && shouldShowCollapse"></view>
 			</view>
-			<view v-if="renderNodesHtml && shouldShowCollapse" class="desc-toggle" @tap="descCollapsed = !descCollapsed">{{ descCollapsed ? '展开全部' : '收起' }}</view>
 			<view v-else class="desc">暂无介绍</view>
+			<view v-if="renderNodesHtml && shouldShowCollapse" class="desc-toggle" @tap="descCollapsed = !descCollapsed">{{ descCollapsed ? '展开全部' : '收起' }}</view>
 		</view>
 
 		<!-- 底部操作栏 -->

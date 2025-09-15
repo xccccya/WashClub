@@ -37,6 +37,8 @@ export class OrderService {
         shippingAddressId?: number | null;
         // 新增：自提/无需快递（含实体商品时允许不填地址）
         noExpress?: boolean | null;
+        // 新增：收银立减（POS 手动优惠，单位元，>=0）
+        cashierDiscountAmount?: Prisma.Decimal | number | null;
         items: Array<{
             productId?: number | null;
             skuId?: number | null;
@@ -68,6 +70,8 @@ export class OrderService {
             shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo,
             memberCouponId, memberCouponIds, disableMemberDiscount, payAfterService
         } = params;
+        const cashierDiscountInput = Number((params as any)?.cashierDiscountAmount ?? 0);
+        const cashierDiscountManual = Number.isFinite(cashierDiscountInput) && cashierDiscountInput > 0 ? cashierDiscountInput : 0;
         const isGuestOrderFlag = !!(params as any)._isGuestOrder;
         const proxyAdminUserId = (params as any)._proxyAdminUserId ?? null;
         const proxyAdminSnapshot = (params as any)._proxyAdminSnapshot ?? null;
@@ -472,10 +476,23 @@ export class OrderService {
                 }
             } catch { }
             
+            // 收银立减：仅由管理员代客/收银端使用；不能大于当前应付口径
+            let cashierDiscountFinal = new Prisma.Decimal(0);
+            if (cashierDiscountManual > 0) {
+                // 仅管理员代客或后台允许手动优惠；普通小程序下单时忽略
+                const allowManualDiscount = !!proxyAdminUserId; // 代客下单/后台
+                if (allowManualDiscount) {
+                    const beforeManual = total.minus(discountTotal);
+                    const req = new Prisma.Decimal(cashierDiscountManual as any);
+                    cashierDiscountFinal = req.greaterThan(beforeManual) ? (beforeManual as any) : req;
+                    discountTotal = discountTotal.plus(cashierDiscountFinal);
+                }
+            }
+
             const shipping = new Prisma.Decimal(shippingFee as any);
             const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal((pointsAmountCalcFen / 100) as any));
-            // 最低应付策略：若小于 0.01，按 0.01 计入订单（允许券减溢出）
-            const minPay = new Prisma.Decimal(0.01 as any);
+            // POS 需求：若为代客下单，允许 0 元订单（仅内部支付方式）。否则保持原 0.01 兜底。
+            const minPay = !!proxyAdminUserId ? new Prisma.Decimal(0 as any) : new Prisma.Decimal(0.01 as any);
             const payAmountAdjusted = payAmount.lessThan(minPay) ? minPay : payAmount;
 
             // 预生成订单号，便于库存预占日志记录
@@ -562,6 +579,7 @@ export class OrderService {
                     totalAmount: total,
                     discountAmount: discountTotal,
                     memberDiscountAmount: memberDiscountAmount,
+                    cashierDiscountAmount: cashierDiscountFinal,
                     payAmount: payAmountAdjusted,
                     shippingFee: shipping,
                     // 自提/无需快递：下单即标记，无需地址

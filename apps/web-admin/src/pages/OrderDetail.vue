@@ -18,6 +18,7 @@
 			<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
 			<el-descriptions-item label="订单总额">{{ data?.totalAmount }}</el-descriptions-item>
 			<el-descriptions-item label="减免金额">{{ data?.discountAmount }}</el-descriptions-item>
+			<el-descriptions-item label="收银立减" v-if="Number((data as any)?.cashierDiscountAmount||0)>0">{{ (data as any)?.cashierDiscountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">{{ (data as any)?.washCardDeductAmount }}</el-descriptions-item>
 			<el-descriptions-item label="会员折扣减免" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
 			<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>

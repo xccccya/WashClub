@@ -89,7 +89,7 @@ export class SystemMiniappEmployeeController {
     const { start: prevStart, end: prevEnd, base } = getPrevRange(rangeKey || 'today');
 
     const orderCountPromise = this.prisma.order.count({ where: { payStatus: 'PAID' as any, paidAt: { gte: start, lt: end }, deletedAt: null } });
-    const paymentsSumPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: 'PAID' as any, paidAt: { gte: start, lt: end }, deletedAt: null } });
+    const paymentsSumPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: start, lt: end }, deletedAt: null } });
     const refundsSumPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: start, lt: end } } });
     const washcardTimesPromise = this.prisma.$queryRaw(Prisma.sql`
       SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM WashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${start} AND createdAt < ${end}
@@ -111,7 +111,7 @@ export class SystemMiniappEmployeeController {
     const washSales = Number((ws?.[0] as any)?.qty || 0) || 0;
     const washCount = washSales + washcardDeductTimes;
 
-    const paymentsSumPrevPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: 'PAID' as any, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
+    const paymentsSumPrevPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
     const refundsSumPrevPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: prevStart, lt: prevEnd } } });
     const wc1PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM WashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${prevStart} AND createdAt < ${prevEnd}`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
     const wc2PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM GroupWashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${prevStart} AND createdAt < ${prevEnd}`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
@@ -174,7 +174,8 @@ export class SystemMiniappEmployeeController {
       ),
       pay AS (
         SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
-        FROM \`Order\` WHERE payStatus='PAID' AND deletedAt IS NULL AND paidAt >= ${start} AND paidAt < ${end}
+        FROM \`Order\`
+        WHERE payStatus IN ('PAID','REFUNDED') AND deletedAt IS NULL AND paidAt >= ${start} AND paidAt < ${end}
         GROUP BY DATE(paidAt)
       ),
       ref AS (

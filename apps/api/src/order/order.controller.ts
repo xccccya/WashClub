@@ -67,6 +67,91 @@ export class OrderController {
         }
     }
 
+    // POS/后台：创建通用付款订单（无商品收款）
+    @Post('_create-fk')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async createFk(@Body() body: { amount: number; remark?: string | null; memberId?: number | null }, @Headers('authorization') authHeader?: string){
+        const amount = Number((body as any)?.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('金额必须为正数');
+
+        // 识别代客下单管理员
+        let proxyAdminUserId: number | null = null;
+        let proxyAdminSnapshot: any = null;
+        try {
+            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+            if (adminId) {
+                proxyAdminUserId = adminId;
+                const u = await (this.orders as any).prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
+                if (u) proxyAdminSnapshot = { id: u.id, name: u.name || null, phone: u.phone || null };
+            }
+        } catch {}
+
+        // 会员归属（可选）；未提供则回退到 GUEST_MEMBER_ID
+        let memberId = Number((body as any)?.memberId || 0);
+        let isGuestOrder = false;
+        if (!Number.isFinite(memberId) || memberId <= 0) {
+            const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+            if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID');
+            const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+            if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效');
+            memberId = gid;
+            isGuestOrder = true;
+        }
+
+        // 生成 FK 订单号
+        const now = new Date();
+        const yyyy = String(now.getFullYear());
+        const MM = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const HH = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const ts = `${yyyy}${MM}${dd}${HH}${mm}${ss}`;
+        const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const rand8 = () => Array.from({ length: 8 }).map(() => charset[Math.floor(Math.random() * charset.length)]).join('');
+        let no: string; let tries = 0;
+        while (true) {
+            no = `FK_${ts}_${rand8()}`;
+            const exists = await (this.orders as any).prisma.order.findUnique({ where: { no } });
+            if (!exists) break;
+            tries++; if (tries > 50) throw new BadRequestException('订单号生成失败');
+        }
+
+        const remark = String((body as any)?.remark || '').trim();
+
+        // 创建订单并写入时间线
+        const order = await (this.orders as any).prisma.order.create({
+            data: ({
+                no,
+                type: 'FK' as any,
+                status: 'CREATED' as any,
+                fulfillmentStatus: 'NONE' as any,
+                totalAmount: amount as any,
+                discountAmount: 0 as any,
+                memberDiscountAmount: 0 as any,
+                cashierDiscountAmount: 0 as any,
+                payAmount: amount as any,
+                shippingFee: 0 as any,
+                payStatus: 'UNPAID' as any,
+                memberId,
+                groupId: null,
+                payAfterService: false,
+                paymentExpireAt: new Date(Date.now() + 15 * 60 * 1000),
+                userRemark: null,
+                paymentNote: remark || null,
+                isGuestOrder: isGuestOrder,
+                isProxyOrder: !!proxyAdminUserId,
+                proxyAdminUserId: proxyAdminUserId ?? null,
+                proxyAdminSnapshot: proxyAdminSnapshot ?? null,
+            } as any)
+        });
+        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' } }); } catch {}
+        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' } }); } catch {}
+        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'FULFILLMENT', value: 'NONE' } }); } catch {}
+        return { id: order.id, no: order.no } as any;
+    }
+
     @Get(':id(\\d+)')
     async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
         const o: any = await this.orders.getOrder(id);

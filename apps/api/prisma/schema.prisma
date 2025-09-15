@@ -954,6 +954,8 @@ model Order {
   discountAmount          Decimal           @default(0) @db.Decimal(12, 2)
   // 会员折扣减免金额（由会员等级的 payDiscountPercent 对支持会员折扣的商品小计按比例减免）
   memberDiscountAmount    Decimal           @default(0) @db.Decimal(12, 2)
+  // 收银立减（POS 手动优惠）
+  cashierDiscountAmount   Decimal           @default(0) @db.Decimal(12, 2)
   payAmount               Decimal           @default(0) @db.Decimal(12, 2)
   // 新增：洗车卡抵扣金额（用于展示），标记支付时计算写入
   washCardDeductAmount    Decimal           @default(0) @db.Decimal(12, 2)

@@ -81,9 +81,16 @@
 							</div>
 							<div class="buttons">
 								<el-button size="large" @click="saveToHang" :disabled="cartItems.length===0"><el-icon><CollectionTag /></el-icon> 挂单</el-button>
-								<el-button size="large" type="primary" :disabled="!canOpenSettle" @click="openSettleDialog">
-									<el-icon><CreditCard /></el-icon> 结算
-								</el-button>
+								<template v-if="cartItems.length>0">
+									<el-button size="large" type="primary" :disabled="!canOpenSettle" @click="openSettleDialog">
+										<el-icon><CreditCard /></el-icon> 结算
+									</el-button>
+								</template>
+								<template v-else>
+									<el-button size="large" type="primary" @click="openFkDialog">
+										<el-icon><CreditCard /></el-icon> 无商品收款
+									</el-button>
+								</template>
 							</div>
 						</div>
 					</div>
@@ -109,13 +116,49 @@
 			<!-- 挂单抽屉 -->
 			<HangDrawer v-model="hangDrawer" :hang-slots="hangSlots" @load="loadFromHang" @clear="clearHang" />
 
-			<!-- 统一结算弹窗（商品/服务） -->
+			<!-- 无商品收款弹窗 -->
+			<el-dialog v-model="fkDialog.visible" title="无商品收款" width="560px" class="fk-dialog">
+				<div class="fk-form">
+					<div class="fk-row">
+						<div class="fk-label">收款金额</div>
+						<div class="fk-field">
+							<div class="fk-amount-input">
+								<el-input-number v-model="fkDialog.amount" :min="0.01" :step="0.01" :precision="2" :controls="false" />
+								<div class="fk-amount-large">¥ {{ Number(fkDialog.amount||0).toFixed(2) }}</div>
+							</div>
+							<div class="fk-quick">
+								<el-button size="small" @click="fkDialog.amount=10">¥10</el-button>
+								<el-button size="small" @click="fkDialog.amount=20">¥20</el-button>
+								<el-button size="small" @click="fkDialog.amount=50">¥50</el-button>
+								<el-button size="small" @click="fkDialog.amount=100">¥100</el-button>
+								<el-button size="small" @click="fkDialog.amount=200">¥200</el-button>
+							</div>
+						</div>
+					</div>
+					<div class="fk-row">
+						<div class="fk-label">备注</div>
+						<div class="fk-field">
+							<el-input v-model="fkDialog.remark" placeholder="请输入付款说明（必填）" maxlength="60" show-word-limit type="textarea" :rows="3" />
+							<div class="fk-hint">将作为付款订单的付款说明展示</div>
+						</div>
+					</div>
+				</div>
+				<template #footer>
+					<div class="fk-footer">
+						<el-button @click="fkDialog.visible=false">取消</el-button>
+						<el-button type="primary" @click="confirmFkCollect">确认收款</el-button>
+					</div>
+				</template>
+			</el-dialog>
+
+			<!-- 统一结算弹窗（商品/服务/付款） -->
 			<SettleDialog
 				v-model="settleDialog.visible"
 				:model="settleDialog"
-				:order-kind="orderKind"
-				:subtotal="subtotal"
-				:pay-amount="payAmount"
+				:order-kind="orderKindForDialog"
+				:subtotal="dialogSubtotal"
+				:pay-amount="dialogPayAmount"
+				:pay-amount-cap="dialogPayAmount"
 				:coupon-discount-est="couponDiscountEst"
 				:coupon-over="couponOver"
 				:member-discount-applied="memberDiscountApplied"
@@ -493,11 +536,16 @@ const couponDiscountEst = computed(()=>{
     return picked.reduce((s:any, mc:any)=> s + Number(mc.discountApplied||0), 0);
 });
 const couponOver = computed(()=> Math.max(0, Number(couponDiscountEst.value||0) - subtotal.value));
-// 应收：小计 -(会员折扣+积分) - 券减；若基础>0且结果<0.01，显示0.01
+// 立减上限：不含"收银立减"的应收基数
+// 由于弹窗内由 props.payAmount 提供最终应收，这里不再单独复算 cap，防止重复叠加导致上限异常
+const payAmountCap = computed(()=> Number((subtotal.value - discountTotal.value - Number(couponDiscountEst.value||0)).toFixed(2)));
+// 应收：在上限基础上减去"收银立减"，允许到 0 元
 const payAmount = computed(()=>{
     const baseAfterMdPts = Math.max(0, Number((subtotal.value - discountTotal.value).toFixed(2)));
-    const after = Math.max(0, baseAfterMdPts - Number(couponDiscountEst.value||0));
-    return (after < 0.01 && baseAfterMdPts > 0) ? 0.01 : Number(after.toFixed(2));
+    const afterCoupon = Math.max(0, baseAfterMdPts - Number(couponDiscountEst.value||0));
+    const manual = Math.max(0, Number((settleDialog as any)?.cashierDiscountAmount||0));
+    const afterManual = Math.max(0, afterCoupon - manual);
+    return Number(afterManual.toFixed(2));
 });
 
 // 选择券互斥：通过禁用选项防止产生非法组合（参考小程序）
@@ -754,7 +802,7 @@ async function submitProductOrder(){ if (orderKind.value!=='SP') return; if (!ca
 
 // ============ 统一结算弹窗（新增） ============
 const queueTypes = ref<any[]>([]);
-const settleDialog = reactive({ visible:false, tab:'wx' as 'manual'|'wx'|'wash', manualMethod:'CASH' as 'CASH'|'OFFLINE'|'SHOUQIANBA', wxAuthCode:'', loading:false, isService:false, createdOrderId: null as number|null, queueTypeId: undefined as number|undefined, serviceProductIds: [] as number[], washPrefer:'AUTO' as 'AUTO'|'MEMBER'|'GROUP', delivery: 'PICKUP' as 'EXPRESS'|'PICKUP', shippingAddressId: undefined as number|undefined, memberAddresses: [] as any[], showMemberAddrForm: false, addrForm: { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' }, groupId: undefined as number|undefined, groupName: '' as string });
+const settleDialog = reactive({ visible:false, tab:'wx' as 'manual'|'wx'|'wash', manualMethod:'CASH' as 'CASH'|'OFFLINE'|'SHOUQIANBA', wxAuthCode:'', loading:false, isService:false, isFk:false, fkAmount: 0 as number, createdOrderId: null as number|null, queueTypeId: undefined as number|undefined, serviceProductIds: [] as number[], washPrefer:'AUTO' as 'AUTO'|'MEMBER'|'GROUP', delivery: 'PICKUP' as 'EXPRESS'|'PICKUP', shippingAddressId: undefined as number|undefined, memberAddresses: [] as any[], showMemberAddrForm: false, addrForm: { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' }, groupId: undefined as number|undefined, groupName: '' as string, cashierDiscountAmount: 0 as number });
 const serviceProductsInCart = computed(()=> cartItems.value.filter(it=> it.productType==='SERVICE' && Number(it.productId||0)>0));
 async function loadQueueTypes(){ try{ queueTypes.value = await http<any[]>('/queue-types', { method:'GET' }).catch(()=>[]); }catch{ queueTypes.value = []; } }
 function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visible=true; settleDialog.isService = (orderKind.value==='SERVICE'); settleDialog.createdOrderId=null; settleDialog.tab='wx'; settleDialog.manualMethod='CASH'; settleDialog.wxAuthCode='';
@@ -772,8 +820,10 @@ function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visi
             else settleDialog.delivery = 'PICKUP';
         }
     }catch{ (settleDialog as any).deliveryAllowExpress = true; (settleDialog as any).deliveryAllowPickup = true; }
-    // 打开时清理上次集团信息
+    // 打开时清理上次集团信息与收银立减
     (settleDialog as any).groupId = undefined; (settleDialog as any).groupName = '';
+    (settleDialog as any).cashierDiscountAmount = 0;
+    (settleDialog as any).isFk = false; (settleDialog as any).fkAmount = 0;
     settleDialog.shippingAddressId = undefined; settleDialog.memberAddresses = []; settleDialog.showMemberAddrForm=false; settleDialog.addrForm = { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' };
     if (orderKind.value==='SERVICE' && payAfterService.value){ loadQueueTypes(); }
     if (orderKind.value==='SP' && identity.value==='member' && selectedMember.value && hasPhysicalInCart.value){ loadMemberAddresses(Number(selectedMember.value.id)); }
@@ -824,6 +874,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
             }
             const isGuest = !(identity.value==='member' && selectedMember.value);
             const payload:any = { type: 'SP', memberId: memberIdForSp, items, usedPoints: isGuest ? 0 : (pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0), memberCouponIds: isGuest ? undefined : (selectedCouponIds.value.length ? selectedCouponIds.value : undefined), disableMemberDiscount: isGuest ? true : !(enableMemberDiscount.value && memberDiscountAllowedByCoupons.value), noExpress: !requiresAddress, shippingAddressId };
+            try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) (payload as any).cashierDiscountAmount = Number(v.toFixed(2)); }catch{}
             const res:any = await http('/orders', { method:'POST', body: payload });
             if (res?.id){ settleDialog.createdOrderId = Number(res.id); return Number(res.id); }
             return null;
@@ -845,6 +896,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
             }
             const memberIdResolved = identity.value==='member' && selectedMember.value ? Number(selectedMember.value.id) : (GUEST_MEMBER_ID_CONST || await ensureGuestMemberId());
             const payload:any = { type: 'SERVICE', memberId: memberIdResolved, items, userRemark: null, vehicleId: vehicleIdResolved, payAfterService: false } as any;
+            try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) (payload as any).cashierDiscountAmount = Number(v.toFixed(2)); }catch{}
             // 若为集团车辆，显式传 groupId
             try{ if ((settleDialog as any).groupId) payload.groupId = Number((settleDialog as any).groupId); }catch{}
             const res:any = await http('/orders', { method:'POST', body: payload });
@@ -943,6 +995,29 @@ watch(plateNumber, (val)=>{
         guestVehicleKeyword.value = '';
     }catch{}
 });
+
+// ============ 无商品收款弹窗 ============
+const fkDialog = reactive({ visible: false, amount: 0 as number, remark: '' });
+const orderKindForDialog = computed(()=> (settleDialog as any).isFk ? 'FK' : orderKind.value);
+const dialogSubtotal = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : subtotal.value);
+const dialogPayAmount = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : payAmount.value);
+function openFkDialog(){ fkDialog.visible = true; fkDialog.amount = 0; fkDialog.remark=''; }
+async function confirmFkCollect(){
+    try{
+        const amt = Math.max(0, Number(fkDialog.amount||0));
+        const remark = String(fkDialog.remark||'').trim();
+        if (!Number.isFinite(amt) || amt<=0){ ElMessage.error('请填写大于0的收款金额'); return; }
+        if (!remark){ ElMessage.error('请填写备注'); return; }
+        const body:any = { amount: Number(amt.toFixed(2)), remark };
+        if (identity.value==='member' && selectedMember.value){ body.memberId = Number(selectedMember.value.id); }
+        const res:any = await http('/orders/_create-fk', { method:'POST', body });
+        if (!res?.id){ ElMessage.error('创建付款订单失败'); return; }
+        // 打开统一结算弹窗（付款订单）
+        (settleDialog as any).isFk = true; (settleDialog as any).fkAmount = Number(amt.toFixed(2));
+        settleDialog.isService = false; settleDialog.createdOrderId = Number(res.id); settleDialog.tab = 'wx'; settleDialog.visible = true;
+        fkDialog.visible = false;
+    }catch(e:any){ ElMessage.error(String(e?.message||'提交失败')); }
+}
 </script>
 
 <style scoped>
@@ -1052,6 +1127,26 @@ watch(plateNumber, (val)=>{
     padding: 4px 8px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+/* 无商品收款弹窗样式（适配12.7英寸平板） */
+.fk-dialog :deep(.el-dialog__header){ padding: 14px 16px; }
+.fk-form{ display:flex; flex-direction:column; gap:14px; padding: 4px 2px; }
+.fk-row{ display:grid; grid-template-columns: 96px 1fr; gap:12px; align-items:flex-start; }
+.fk-label{ color:#555; font-weight:600; line-height:36px; }
+.fk-field{ display:flex; flex-direction:column; gap:8px; }
+.fk-amount-input{ display:grid; grid-template-columns: 220px 1fr; gap:16px; align-items:center; }
+.fk-amount-input :deep(.el-input__wrapper){ padding: 8px 10px; }
+.fk-amount-input :deep(.el-input__inner){ font-size:18px; font-weight:700; }
+.fk-amount-large{ font-size:28px; font-weight:800; color:#111827; letter-spacing:0.5px; }
+.fk-quick{ display:flex; gap:8px; flex-wrap:wrap; }
+.fk-quick :deep(.el-button--small){ padding: 6px 10px; }
+.fk-hint{ color:#909399; font-size:12px; }
+.fk-footer{ display:flex; justify-content:flex-end; gap:10px; width:100%; }
+
+@media (max-width: 1440px){
+  .fk-amount-input{ grid-template-columns: 200px 1fr; }
+  .fk-amount-large{ font-size:24px; }
 }
 </style>
 

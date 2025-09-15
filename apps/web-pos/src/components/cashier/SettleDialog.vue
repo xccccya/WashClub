@@ -2,7 +2,7 @@
 	<el-dialog v-model="visibleLocal" title="结算" width="620px">
 		<div class="pay-box">
 			<div class="summary">
-				<div>类型：{{ orderKind==='SERVICE' ? '服务订单' : '商品/卡券订单' }}</div>
+				<div>类型：{{ orderKind==='SERVICE' ? '服务订单' : (orderKind==='FK' ? '付款订单' : '商品/卡券订单') }}</div>
 				<div class="amt">
 					<div>小计：¥{{ subtotal.toFixed(2) }}</div>
 					<div v-if="orderKind==='SERVICE' && (model as any).groupId" class="hint">集团：{{ (model as any).groupName || '集团' }}（ID：{{ (model as any).groupId }}）</div>
@@ -10,6 +10,22 @@
 					<div v-if="orderKind==='SP' && couponOver>0" class="hint">券减溢出 ¥{{ couponOver.toFixed(2) }}</div>
 					<div v-if="memberDiscountApplied>0">会员折扣：-¥{{ memberDiscountApplied.toFixed(2) }}</div>
 					<div v-if="pointsAmountYuan>0">积分抵扣：-¥{{ pointsAmountYuan.toFixed(2) }}</div>
+					<div class="row compact" v-if="orderKind!=='FK'">
+						<div class="label">收银立减</div>
+						<el-input-number
+							v-model="model.cashierDiscountAmount"
+							:min="0"
+							:max="payAmountCap"
+							:step="0.01"
+							:precision="2"
+							:controls="false"
+							size="small"
+							style="width: 120px;"
+							class="cashier-discount-input"
+							@change="onManualDiscountChange"
+						/>
+						<div class="hint">最多可减至 0 元；0 元仅支持内部支付</div>
+					</div>
 					<div class="total">应收：<b>¥{{ payAmount.toFixed(2) }}</b></div>
 				</div>
 			</div>
@@ -117,7 +133,7 @@
 				<el-tab-pane label="微信付款码" name="wx">
 					<div class="pay-section">
 						<el-input v-model="model.wxAuthCode" placeholder="请扫描顾客微信付款码或手动输入授权码" />
-						<el-button type="primary" :loading="model.loading" @click="$emit('confirm-wx')">提交</el-button>
+						<el-button type="primary" :loading="model.loading" :disabled="Number(payAmount)<=0" @click="$emit('confirm-wx')">提交</el-button>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="现金/线下" name="manual">
@@ -155,13 +171,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 const props = defineProps<{ 
 	modelValue: boolean;
 	model: any;
-	orderKind: 'SERVICE'|'SP';
+	orderKind: 'SERVICE'|'SP'|'FK';
 	subtotal: number;
 	payAmount: number;
+	payAmountCap?: number;
 	couponDiscountEst: number;
 	couponOver: number;
 	memberDiscountApplied: number;
@@ -216,6 +233,10 @@ const couponDiscountEst = computed(()=> props.couponDiscountEst);
 const couponOver = computed(()=> props.couponOver);
 const memberDiscountApplied = computed(()=> props.memberDiscountApplied);
 const pointsAmountYuan = computed(()=> props.pointsAmountYuan);
+const payAmountCap = computed(()=> {
+  try{ return Number(props.payAmountCap ?? props.payAmount ?? 0); }catch{ return 0; }
+});
+const payAmount = computed(()=> props.payAmount);
 const hasPhysicalInCart = computed(()=> props.hasPhysicalInCart);
 const identity = computed(()=> props.identity);
 const selectedMember = computed(()=> props.selectedMember);
@@ -229,6 +250,28 @@ const pointsAllowedByCoupons = computed(()=> props.pointsAllowedByCoupons);
 const enableMemberDiscount = computed(()=> props.enableMemberDiscount);
 const payAfterService = computed(()=> !!props.payAfterService);
 const pointsAvailable = computed(()=> Number(props.pointsAvailable||0));
+
+// 钳制手动立减：不得小于0，不得超过当前应收
+function onManualDiscountChange(){
+  try{
+    let v = Number((model as any).value?.cashierDiscountAmount||0);
+    if (!Number.isFinite(v)) v = 0;
+    v = Math.floor(v * 100) / 100; // 去除多位小数
+    const cap = Number(payAmountCap.value||0);
+    const n = Math.max(0, Math.min(v, cap));
+    (model as any).value.cashierDiscountAmount = Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+  }catch{}
+}
+
+// 当上限变化（如选券/改积分/改清单）时，自动钳制已填的立减金额
+watch(payAmountCap, (cap)=>{
+  try{
+    const cur = Number((model as any).value?.cashierDiscountAmount||0);
+    if (!Number.isFinite(cur)) { (model as any).value.cashierDiscountAmount = 0; return; }
+    const n = Math.max(0, Math.min(cur, Number(cap||0)));
+    (model as any).value.cashierDiscountAmount = Number(n.toFixed(2));
+  }catch{}
+});
 
 // 在弹窗内部也给出会员折扣与所选券的互斥计算，避免直接依赖父层的 computed 名称
 const computedMemberDiscountAllowed = computed(()=>{
@@ -328,8 +371,8 @@ function checkAndAdjustForCouponChanges(selectedIds: number[]){
 .pay-box .summary{ background:#f9fafb; border:1px solid var(--el-border-color); border-radius:8px; padding:10px; }
 .pay-box .amt{ display:flex; flex-direction:column; gap:6px; }
 .hint{ color:#909399; font-size:12px; }
-.row{ display:grid; grid-template-columns: 92px 1fr auto; gap:8px; align-items:center; }
-.row.compact{ grid-template-columns: 72px 1fr auto; }
+.row{ display:grid; grid-template-columns: 92px auto 1fr; gap:8px; align-items:center; }
+.row.compact{ grid-template-columns: 72px auto 1fr; }
 .label{ color:#666; }
 .total b{ color: var(--el-color-primary); font-size:18px; }
 .pay-section{ display:flex; flex-direction:column; gap:10px; }
@@ -374,6 +417,10 @@ function checkAndAdjustForCouponChanges(selectedIds: number[]){
   color:#111827; 
   background:rgba(255,255,255,0.3); 
 }
+
+/* 放大收银立减输入框中的数字 */
+.cashier-discount-input :deep(.el-input__wrapper){ padding: 6px 10px; }
+.cashier-discount-input :deep(.el-input__inner){ font-size: 18px; font-weight: 700; }
 </style>
 
 

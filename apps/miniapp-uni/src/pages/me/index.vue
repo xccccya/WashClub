@@ -25,7 +25,7 @@
 					<view v-if="isLoggedIn && uid" class="uid-line">会员号 {{ uid }}</view>
 				</view>
 			</view>
-			<view class="setting-btn" v-if="isLoggedIn" @tap.stop="onTapSetting">设置</view>
+			<image v-if="isLoggedIn" class="setting-icon" src="/static/icons/setting.png" mode="aspectFit" @tap.stop="onTapSetting" />
 		</view>
 
 		<!-- 等级信息卡片（展示等级名称、图标、以及升级进度） -->
@@ -478,7 +478,7 @@ onMounted(()=>{ try { token.value = uni.getStorageSync('token'); } catch {}; loa
 .card-title { font-size: 28rpx; font-weight: 600; color: #2b2f36; }
 
 /* 个人信息 */
-.profile-card { display:flex; align-items:center; justify-content: space-between; background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
+.profile-card { display:flex; align-items:center; justify-content: space-between; background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); position: relative; }
 .profile-left { display:flex; align-items:center; gap: 24rpx; flex: 1; min-width: 0; }
 .avatar { width: 120rpx; height: 120rpx; border-radius: 50%; background: linear-gradient(135deg, #a8d8ff, #ffc9de); box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.08); }
 .avatar-wrap { position: relative; width: 120rpx; height: 120rpx; }
@@ -487,7 +487,8 @@ onMounted(()=>{ try { token.value = uni.getStorageSync('token'); } catch {}; loa
 .meta { display:flex; flex-direction: column; gap: 10rpx; flex: 1; min-width: 0; }
 .chips-row { display:flex; align-items:center; gap: 16rpx; min-width: 0; }
 .nickname-text { font-size: 36rpx; font-weight: 800; color: #0b1220; letter-spacing: 1rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
-.setting-btn { padding: 12rpx 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); font-size: 24rpx; color: #1f2937; }
+.setting-btn { display:none; }
+.setting-icon { position: absolute; right: 20rpx; top: 20rpx; width: 48rpx; height: 48rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
 .uid-line { font-size: 22rpx; color: #374151; padding: 6rpx 10rpx; background: rgba(255,255,255,.8); border: 2rpx dashed #e5e7eb; border-radius: 999rpx; align-self: flex-start; letter-spacing: 1rpx; }
 /* 未登录 CTA */
 .login-cta { padding: 12rpx 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); color: #0b1220; font-size: 26rpx; font-weight: 700; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.06); }

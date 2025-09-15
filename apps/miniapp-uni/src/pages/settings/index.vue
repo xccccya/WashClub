@@ -103,7 +103,7 @@ const bottomInsetPx = ref(0);
 // 动态读取站点默认头像
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
 async function ensureSiteSetting(){ if (siteSetting.value) return; try{ siteSetting.value = await http('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
-const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : `${API_BASE}/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png`);
+const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : '/static/icons/placeholder.png');
 const user = ref<any>({});
 const avatarPreview = ref<string>('');
 const nickname = ref<string>('');

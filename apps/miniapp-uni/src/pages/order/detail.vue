@@ -105,6 +105,7 @@
 			<view class="kv"><text class="k">商品总额</text><text class="v">¥{{ formatPrice(order.totalAmount) }}</text></view>
 			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).memberDiscountAmount && Number((order as any).memberDiscountAmount)>0"><text class="k">会员折扣</text><text class="v">-¥{{ formatPrice((order as any).memberDiscountAmount) }}</text></view>
+			<view class="kv kv--sub" v-if="(order as any).cashierDiscountAmount && Number((order as any).cashierDiscountAmount)>0"><text class="k">收银立减</text><text class="v">-¥{{ formatPrice((order as any).cashierDiscountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).washCardDeductAmount && Number((order as any).washCardDeductAmount)>0"><text class="k">洗车卡抵扣</text><text class="v">-¥{{ formatPrice((order as any).washCardDeductAmount) }}</text></view>
 			<view class="kv kv--sub" v-for="(c, idx) in couponDisplayList" :key="idx"><text class="k">{{ c.name }}</text><text class="v">-¥{{ formatPrice(c.amount) }}</text></view>
