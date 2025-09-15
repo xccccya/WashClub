@@ -82,6 +82,13 @@
 				</el-tab-pane>
 				<el-tab-pane label="扩展信息" name="extra">
 					<el-form label-width="100">
+						<el-form-item v-if="form.type==='PHYSICAL'" label="发货形式">
+							<div style="display:flex;align-items:center;gap:12px;">
+								<el-checkbox v-model="form.shipAllowExpress">允许快递配送</el-checkbox>
+								<el-checkbox v-model="form.shipAllowPickup">允许到店自提</el-checkbox>
+							</div>
+							<div style="color:#909399;margin-left:100px;" v-if="form.type==='PHYSICAL' && !(form.shipAllowExpress || form.shipAllowPickup)">至少选择一种发货形式</div>
+						</el-form-item>
 						<el-form-item label="规格类型"><el-select v-model="form.specType"><el-option label="单规格" value="SINGLE" /><el-option label="多规格" value="MULTI" /></el-select></el-form-item>
 						<div v-if="form.type==='SERVICE'" style="margin:-4px 0 8px 100px;color:#909399;">提示：服务商品不参与库存统计，库存项将自动隐藏。</div>
 						<template v-if="form.specType==='SINGLE'">
@@ -219,7 +226,7 @@ async function fetchCategories(){ categories.value = await http('/store/categori
 
 const show = ref(false);
 const formTab = ref<'base'|'extra'|'desc'>('base');
-const form = ref<any>({ id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false });
+const form = ref<any>({ id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false, shipAllowExpress: true, shipAllowPickup: true });
 const formImages = ref<string[]>([]);
 // 多规格：规格项定义与输入草稿
 const specItems = ref<Array<{ name: string; values: string[] }>>([]);
@@ -228,12 +235,15 @@ const pickerVisible = ref(false);
 const pickerForDesc = ref(false);
 const skuPickerRow = ref<any|null>(null);
 
-function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
+function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false, shipAllowExpress: true, shipAllowPickup: true }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
 const couponOptions = ref<any[]>([]);
 async function fetchCoupons(){ couponOptions.value = await http('/coupons', { query: { type: 'WASH_CARD' } }); }
 function openEdit(row:any){
 	form.value = JSON.parse(JSON.stringify(row));
 	if (!Array.isArray(form.value.skus)) form.value.skus = [];
+	// 默认勾选（兼容老数据）
+	if (form.value.shipAllowExpress===undefined) form.value.shipAllowExpress = true;
+	if (form.value.shipAllowPickup===undefined) form.value.shipAllowPickup = true;
 	const imgs = Array.isArray((row as any).imagesJson) ? (row as any).imagesJson : [];
 	formImages.value = imgs.length ? imgs.slice() : (row.imageUrl ? [row.imageUrl] : []);
 	// 规格项定义（后端字段：specsDefinitionJson）

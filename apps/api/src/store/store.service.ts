@@ -59,13 +59,19 @@ export class StoreService {
         // data 包含 specType、imagesJson、specsDefinitionJson、以及（当 MULTI 时）skus
         const { skus, imagesJson, specsDefinitionJson, ...rest } = data;
         // 仅保留允许写入的字段，避免把 category/派生字段等传入 Prisma
-        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash'];
+        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash','shipAllowExpress','shipAllowPickup'];
         const payload: any = {};
         for (const k of allowedKeys) if (k in rest) (payload as any)[k] = (rest as any)[k];
         if ('id' in payload) delete payload.id;
         if (typeof payload?.barcode === 'string') {
             const b = String(payload.barcode).trim();
             payload.barcode = b ? b : null;
+        }
+        // 发货形式校验（仅实物商品）
+        if (String(payload?.type||'').toUpperCase() === 'PHYSICAL') {
+            const allowExpress = payload.shipAllowExpress !== false;
+            const allowPickup = payload.shipAllowPickup !== false;
+            if (!allowExpress && !allowPickup) throw new Error('实物商品至少选择一种发货形式');
         }
         // 规格校验与字段归位
         if (payload.specType === 'SINGLE') {
@@ -119,7 +125,7 @@ export class StoreService {
     }
     updateProduct(id: number, data: any) {
         const { skus, imagesJson, specsDefinitionJson, ...rest } = data;
-        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash'];
+        const allowedKeys = ['type','name','barcode','categoryId','imageUrl','sortWeight','enabled','description','pointsDeductible','memberDiscount','specType','price','listPrice','stockQuantity','initialSales','sellPoint','couponId','isCarWash','shipAllowExpress','shipAllowPickup'];
         const payload: any = {};
         for (const k of allowedKeys) if (k in rest) (payload as any)[k] = (rest as any)[k];
         if ('id' in payload) delete payload.id;
@@ -127,6 +133,7 @@ export class StoreService {
             const b = String(payload.barcode).trim();
             payload.barcode = b ? b : null;
         }
+        // 发货形式校验：若未显式传 type，稍后在事务中按库值校验
         // 处理 images 与分类连接
         const images = Array.isArray(imagesJson) ? imagesJson : null;
         const categoryIdVal = Object.prototype.hasOwnProperty.call(payload, 'categoryId') ? payload.categoryId : undefined;
@@ -141,6 +148,16 @@ export class StoreService {
             baseData.coupon = couponIdVal === null ? { disconnect: true } : { connect: { id: Number(couponIdVal) } };
         }
         return this.prisma.$transaction(async (tx) => {
+            // 若未传 type，需要从数据库取出用于校验
+            let typeVal = String(payload?.type || '').toUpperCase();
+            if (!typeVal) {
+                try { const row = await tx.product.findUnique({ where: { id }, select: { type: true } }); typeVal = String((row as any)?.type || ''); } catch {}
+            }
+            if (typeVal === 'PHYSICAL') {
+                const allowExpress = payload.shipAllowExpress !== false;
+                const allowPickup = payload.shipAllowPickup !== false;
+                if (!allowExpress && !allowPickup) throw new Error('实物商品至少选择一种发货形式');
+            }
             const product = await tx.product.update({ where: { id }, data: baseData });
             if (payload.specType === 'SINGLE') {
                 await tx.productSku.updateMany({ where: { productId: id }, data: { enabled: false } });

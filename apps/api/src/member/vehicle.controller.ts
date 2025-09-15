@@ -10,7 +10,14 @@ export class VehicleController {
     // 管理端列表
     @Get('list')
     @ApiOperation({ summary: '车辆列表（管理员，分页/关键词）' })
-    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('scope') scope?: 'member'|'all') {
+    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('scope') scope?: 'member'|'all', @Query('guest') guest?: string) {
+        // 兼容旧参数：guest=1 时仅返回游客车辆；优先级高于 scope
+        if (String(guest||'') === '1') {
+            return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword, 'all').then((res: any)=>{
+                try { res.items = (res.items||[]).filter((it:any)=> !it?.memberId); } catch {}
+                return res;
+            });
+        }
         return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword, (scope === 'all' ? 'all' : 'member'));
     }
 

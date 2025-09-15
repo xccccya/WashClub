@@ -6,8 +6,8 @@
 				<view class="close" @tap="close">×</view>
 			</view>
 
-			<!-- 地址（仅实物商品显示） -->
-			<view v-if="isPhysical" class="block">
+			<!-- 地址（仅实物商品且选择快递时显示） -->
+			<view v-if="isPhysical && delivery==='EXPRESS'" class="block">
 				<view class="block-title">收货地址</view>
 				<view v-if="addresses.length===0" class="addr-empty" @tap="gotoAddress">去新增收货地址</view>
 				<scroll-view v-else scroll-y class="addr-list">
@@ -55,6 +55,16 @@
 					<text class="num">{{ quantity }}</text>
 					<view class="btn" @tap="inc">+</view>
 				</view>
+			</view>
+
+			<!-- 配送方式（仅实物显示；隐藏不可用方式） -->
+			<view class="block" v-if="product?.type==='PHYSICAL' && (shipAllowExpress || shipAllowPickup)">
+				<view class="block-title">配送方式</view>
+				<view class="pay-row">
+					<view v-if="shipAllowExpress" class="pay-chip" :class="{ active: delivery==='EXPRESS' }" @tap="() => setDelivery('EXPRESS')">快递配送</view>
+					<view v-if="shipAllowPickup" class="pay-chip" :class="{ active: delivery==='PICKUP' }" @tap="() => setDelivery('PICKUP')">到店自提</view>
+				</view>
+				<view class="tip" v-if="delivery==='PICKUP'">自提无需填写收货地址</view>
 			</view>
 
 			<!-- 优惠券选择（在支付方式前） -->
@@ -173,6 +183,12 @@ payMethod.value = 'WECHAT';
 // #endif
 
 const http = createHttp();
+// 发货形式（仅 PHYSICAL 使用）
+const delivery = ref<'EXPRESS'|'PICKUP'>('PICKUP');
+const shipAllowExpress = computed(()=> (product.value?.type==='PHYSICAL') ? ((product.value as any)?.shipAllowExpress !== false) : true);
+const shipAllowPickup = computed(()=> (product.value?.type==='PHYSICAL') ? ((product.value as any)?.shipAllowPickup !== false) : true);
+function setDelivery(v: 'EXPRESS'|'PICKUP'){ delivery.value = v; }
+
 
 const enabledSkus = computed(() => (product.value?.skus||[]).filter(s => s.enabled!==false));
 
@@ -334,6 +350,12 @@ watch(() => props.product, async () => {
 	remark.value = '';
 	selectedSkuId.value = undefined;
 	selectedSpecValues.value = {};
+	// 选择默认配送方式
+	if (product.value?.type === 'PHYSICAL'){
+		if (shipAllowExpress.value && !shipAllowPickup.value) delivery.value = 'EXPRESS';
+		else if (!shipAllowExpress.value && shipAllowPickup.value) delivery.value = 'PICKUP';
+		else delivery.value = 'EXPRESS';
+	} else { delivery.value = 'PICKUP'; }
 	const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
 	if (!authed) { addresses.value = []; vehicles.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 	if (isPhysical.value) { loadAddresses(); }
@@ -693,7 +715,7 @@ async function submit(){
 	// 校验规格/库存
 	if (product.value.specType==='MULTI' && !selectedSkuId.value) { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
 	// 校验地址
-	if (isPhysical.value) {
+	if (isPhysical.value && delivery.value==='EXPRESS') {
 		if (!addresses.value.length) { uni.showToast({ title:'请先添加收货地址', icon:'none' }); return; }
 		if (!selectedAddressId.value) { uni.showToast({ title:'请选择收货地址', icon:'none' }); return; }
 	}
@@ -742,7 +764,8 @@ async function submit(){
 			}
 		],
 		userRemark: remark.value || undefined,
-		shippingAddressId: isPhysical.value ? selectedAddressId.value : undefined,
+		shippingAddressId: (isPhysical.value && delivery.value==='EXPRESS') ? selectedAddressId.value : undefined,
+		noExpress: (isPhysical.value ? (delivery.value==='PICKUP') : undefined),
 		memberCouponIds: Array.from(selectedCouponIds.value),
 		usedPoints: pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0,
 		disableMemberDiscount: !memberDiscountAllowedByCoupons.value

@@ -30,13 +30,73 @@ export class OrderController {
     ) {}
 
     @Post('')
-    create(@Body() body: any) { return this.orders.createOrder(body); }
+    async create(@Body() body: any, @Headers('authorization') authHeader?: string) {
+        // 游客兜底：若未提供有效 memberId，则回退到环境变量配置的 GUEST_MEMBER_ID
+        try {
+            let memberId = Number(body?.memberId || 0);
+            let isGuestOrder = false;
+            if (!Number.isFinite(memberId) || memberId <= 0) {
+                const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+                if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
+                // 校验该会员是否存在
+                const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+                if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。');
+                memberId = gid;
+                isGuestOrder = true;
+            } else {
+                const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+                if (gid && memberId === gid) isGuestOrder = true;
+            }
+
+            // 识别代客下单管理员
+            let proxyAdminUserId: number | null = null;
+            let proxyAdminSnapshot: any = null;
+            try {
+                const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+                if (adminId) {
+                    proxyAdminUserId = adminId;
+                    const u = await (this.orders as any).prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
+                    if (u) proxyAdminSnapshot = { id: u.id, name: u.name || null, phone: u.phone || null };
+                }
+            } catch {}
+
+            const payload = { ...body, memberId, _isGuestOrder: isGuestOrder, _proxyAdminUserId: proxyAdminUserId, _proxyAdminSnapshot: proxyAdminSnapshot };
+            return await this.orders.createOrder(payload);
+        } catch (e) {
+            throw e;
+        }
+    }
 
     @Get(':id(\\d+)')
-    get(@Param('id', ParseIntPipe) id: number) { return this.orders.getOrder(id); }
+    async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
+        const o: any = await this.orders.getOrder(id);
+        // 非管理员请求：隐藏代客下单的管理员快照信息
+        try{
+            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+            if (!adminId) {
+                if (o) {
+                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
+                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                }
+            }
+        }catch{}
+        return o;
+    }
 
     @Get('by-no/:no')
-    getByNo(@Param('no') no: string) { return this.orders.getOrderByNo(no); }
+    async getByNo(@Param('no') no: string, @Headers('authorization') authHeader?: string) {
+        const o: any = await this.orders.getOrderByNo(no);
+        try{
+            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+            if (!adminId) {
+                if (o) {
+                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
+                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                }
+            }
+        }catch{}
+        return o;
+    }
 
     @Get('')
     async list(
@@ -66,7 +126,19 @@ export class OrderController {
             memberId = Number.isFinite(selfId) ? selfId : undefined;
             includeDeleted = false;
         }
-        return this.orders.listOrders({ type: type as any, status: status as any, payStatus: payStatus as any, scene, includeDeleted, memberId, keyword, start, end });
+        const list = await this.orders.listOrders({ type: type as any, status: status as any, payStatus: payStatus as any, scene, includeDeleted, memberId, keyword, start, end });
+        // 对会员侧列表隐藏代客管理员信息
+        if (tokenType === 'member') {
+            try{
+                return (list || []).map((o: any)=>{
+                    if (!o) return o;
+                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
+                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                    return o;
+                });
+            }catch{ return list; }
+        }
+        return list;
     }
 
     // 微信 JSAPI 预支付下单：返回 wx.requestPayment 所需参数

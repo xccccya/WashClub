@@ -244,22 +244,27 @@
 							</el-form>
 						</el-card>
 						<el-card header="可用服务商品" shadow="never">
-							<div style="display:flex; gap:8px; margin-bottom:8px;">
+							<div style="display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap: wrap;">
 								<el-input v-model="productKeyword" placeholder="搜索商品" clearable style="width:260px;" />
 								<el-button size="small" @click="loadServiceProducts">搜索</el-button>
+								<el-switch v-model="showDisabled" active-text="显示停用" @change="loadServiceProducts" />
 							</div>
-							<el-table ref="serviceTableRef" :data="serviceProducts" size="small" height="260" @selection-change="onSelectProducts" :row-key="productRowKey">
+							<el-table ref="serviceTableRef" :data="serviceProducts" size="small" height="260" :row-key="productRowKey">
 								<el-table-column label="图片" width="72">
 									<template #default="{ row }">
 										<img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #eee;" />
 										<div v-else style="width:48px;height:48px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#bbb;">无</div>
 									</template>
 								</el-table-column>
-								<el-table-column type="selection" width="50" :selectable="spSelectable" />
 								<el-table-column prop="name" label="商品" min-width="260" />
 								<el-table-column prop="price" label="价格" width="120" />
 								<el-table-column prop="enabled" label="状态" width="100">
 									<template #default="{ row }"><el-tag :type="row.enabled ? 'success':'info'">{{ row.enabled?'启用':'停用' }}</el-tag></template>
+								</el-table-column>
+								<el-table-column label="可用于该队列" width="160">
+									<template #default="{ row }">
+										<el-switch :model-value="isAllowed(row.id)" :disabled="savingRowId===row.id" @change="(v:boolean)=>onToggleAllowed(row.id,v)" />
+									</template>
 								</el-table-column>
 							</el-table>
 							<div style="margin-top:8px; display:flex; gap:8px;">
@@ -658,16 +663,39 @@ async function saveSteps(){ if (!activeType.value) return; savingSteps.value=tru
 
 // 可用商品
 const productKeyword = ref('');
+const showDisabled = ref(false);
 type Product = { id:number; name:string; price:number; enabled:boolean; type:string; imageUrl?: string | null };
 const serviceProducts = ref<Product[]>([]);
 const selectedProductIds = ref<number[]>([]);
-function spSelectable(row: Product){ return String(row.type||'') === 'SERVICE'; }
+const savingRowId = ref<number|null>(null);
+function isAllowed(id: number){ const t = activeType.value; if (!t) return false; return (t.products||[]).some((x:any)=> Number(x.productId)===Number(id)); }
+async function onToggleAllowed(productId: number, allowed: boolean){ try { savingRowId.value = productId; const t = activeType.value; if (!t) return; const set = new Set<number>((t.products||[]).map((x:any)=>Number(x.productId))); if (allowed) set.add(productId); else set.delete(productId); selectedProductIds.value = Array.from(set); await saveTypeProducts(); } finally { savingRowId.value=null; } }
 const serviceTableRef = ref();
 function productRowKey(row: { id: number }){ return row.id; }
-async function loadServiceProducts(){ const res = await http<Product[]>(`/store/products`, { method: 'GET', query: { type: 'SERVICE', keyword: productKeyword.value || undefined } as any }); serviceProducts.value = res||[]; await loadTypeProductsSelection(); await nextTick(); try { const table:any = serviceTableRef.value; if (table && table.clearSelection) { table.clearSelection(); } const set = new Set(selectedProductIds.value); for (const row of serviceProducts.value) { if (set.has(row.id)) { try { (serviceTableRef.value as any).toggleRowSelection(row, true); } catch {} } } } catch {} }
-async function loadTypeProductsSelection(){ const t = activeType.value; if (!t) return; const ids = new Set<number>((t.products||[]).map((x:any)=>x.productId)); selectedProductIds.value = Array.from(ids); }
+async function loadServiceProducts(){
+    const query:any = { type: 'SERVICE', keyword: productKeyword.value || undefined };
+    if (!showDisabled.value) query.enabled = true as any;
+    const res = await http<Product[]>(`/store/products`, { method: 'GET', query });
+    serviceProducts.value = res||[];
+    await loadTypeProductsSelection();
+    await nextTick(); try { const table:any = serviceTableRef.value; if (table && table.clearSelection) { table.clearSelection(); } const set = new Set(selectedProductIds.value); for (const row of serviceProducts.value) { if (set.has(row.id)) { try { (serviceTableRef.value as any).toggleRowSelection(row, true); } catch {} } } } catch {}
+}
+async function loadTypeProductsSelection(){
+    const t = activeType.value; if (!t) return;
+    const ids = new Set<number>((t.products||[]).map((x:any)=>x.productId));
+    const currentIds = new Set<number>((serviceProducts.value||[]).map(p=>p.id));
+    selectedProductIds.value = Array.from(ids).filter(id=> showDisabled.value ? true : currentIds.has(id));
+}
 const savingProducts = ref(false);
-async function saveTypeProducts(){ const t = activeType.value; if (!t) return; const ids = selectedProductIds.value.filter(id=>Number.isFinite(id)); await http(`/queue-types/${t.id}/products`, { method:'PUT', body: { productIds: ids } }); ElMessage.success('已保存可用商品'); await loadQueueTypes(); await nextTick(); try { await loadServiceProducts(); } catch {} }
+async function saveTypeProducts(){
+    const t = activeType.value; if (!t) return;
+    const enabledSet = new Set<number>(serviceProducts.value.filter(p=>p.enabled).map(p=>p.id));
+    const ids = selectedProductIds.value.filter(id=>Number.isFinite(id) && enabledSet.has(id));
+    await http(`/queue-types/${t.id}/products`, { method:'PUT', body: { productIds: ids } });
+    ElMessage.success('已保存可用商品');
+    await loadQueueTypes();
+    await nextTick(); try { await loadServiceProducts(); } catch {}
+}
 function onSelectProducts(rows: any[]){ selectedProductIds.value = rows.map(r=>r.id); }
 
 // 类型增删改

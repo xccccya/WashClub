@@ -32,6 +32,37 @@ export class MemberService {
 		return { items, total, page, pageSize };
 	}
 
+	// 同步游客订单占位账号：根据 GUEST_MEMBER_ID，将系统标签 GUEST_ORDER_OWNER 切换到该会员
+	async syncGuestOrderOwnerByEnv() {
+		const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+		if (!gid) throw new BadRequestException('未配置 GUEST_MEMBER_ID');
+		return this.prisma.$transaction(async (tx) => {
+			const m = await tx.member.findUnique({ where: { id: gid }, select: { id: true } });
+			if (!m) throw new BadRequestException('GUEST_MEMBER_ID 指向的会员不存在');
+			// 确保系统标签存在
+			let tag = await (tx as any).memberTag.findFirst({ where: { name: 'GUEST_ORDER_OWNER' }, select: { id: true } });
+			if (!tag) { tag = await (tx as any).memberTag.create({ data: { name: 'GUEST_ORDER_OWNER', isSystem: true } }); }
+			// 移除所有会员上的该系统标签
+			const taggedMembers: any[] = await (tx as any).member.findMany({ where: { tags: { some: { name: 'GUEST_ORDER_OWNER' } } }, select: { id: true } });
+			for (const row of taggedMembers) {
+				await (tx as any).member.update({ where: { id: row.id }, data: { tags: { disconnect: [{ id: tag.id }] } } });
+			}
+			// 将标签连接到目标会员
+			await (tx as any).member.update({ where: { id: gid }, data: { tags: { connect: [{ id: tag.id }] } } });
+			return { ok: true, guestMemberId: gid } as const;
+		});
+	}
+
+	// 查询当前游客占位账号（从环境变量读取 ID，并返回是否已贴上系统标签）
+	async getGuestOrderOwnerByEnv() {
+		const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+		if (!gid) return { guestMemberId: null, tagged: false } as const;
+		const m: any = await this.prisma.member.findUnique({ where: { id: gid }, include: { tags: true } });
+		if (!m) return { guestMemberId: gid, exists: false, tagged: false } as const;
+		const tagged = (m?.tags || []).some((t: any) => String(t?.name || '').toUpperCase() === 'GUEST_ORDER_OWNER');
+		return { guestMemberId: gid, exists: true, tagged } as const;
+	}
+
 	findById(id: number) {
 		return this.prisma.member.findUnique({ where: { id }, include: { level: true, category: true, vehicles: true, tags: true } });
 	}

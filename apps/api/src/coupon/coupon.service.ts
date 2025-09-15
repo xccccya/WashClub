@@ -110,7 +110,7 @@ export class CouponService {
         if (query.expired === '1') where.endAt = { lte: new Date() };
         const [total, items] = await this.prisma.$transaction([
             (this.prisma as any).memberCoupon.count({ where }),
-            (this.prisma as any).memberCoupon.findMany({ where, orderBy: { id: 'desc' }, skip: (page-1)*pageSize, take: pageSize, include: { member: { select: { id:true, name:true, phone:true } }, coupon: { select: { id:true, name:true } }, order: { select: { id:true, no:true } } } }) ]);
+            (this.prisma as any).memberCoupon.findMany({ where, orderBy: { id: 'desc' }, skip: (page-1)*pageSize, take: pageSize, include: { member: { select: { id:true, name:true, phone:true } }, coupon: { select: { id:true, name:true, allowCombine:true, allowStackWithPoints:true, allowStackWithMemberDiscount:true, faceValue:true, type:true, applyScope:true } }, order: { select: { id:true, no:true } } } }) ]);
         return { total, page, pageSize, items }; }
 
     getMemberCoupon(id: number){ return (this.prisma as any).memberCoupon.findUnique({ where: { id }, include: { member: { select: { id:true, name:true, phone:true } }, coupon: true, order: { select: { id:true, no:true } } } }); }

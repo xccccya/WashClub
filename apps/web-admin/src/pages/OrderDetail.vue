@@ -25,6 +25,9 @@
 			<el-descriptions-item label="下单时间">{{ formatDate(data?.createdAt) }}</el-descriptions-item>
 			<el-descriptions-item label="支付时间">{{ formatDate(data?.paidAt) }}</el-descriptions-item>
 			<el-descriptions-item label="会员">{{ data?.member?.name }}（UID: {{ data?.member?.uid }} / {{ data?.member?.phone }}）</el-descriptions-item>
+			<el-descriptions-item v-if="data?.isProxyOrder" label="代客下单">
+				<span>由 {{ data?.proxyAdminSnapshot?.name || data?.proxyAdminUser?.name || '-' }}（{{ data?.proxyAdminSnapshot?.phone || data?.proxyAdminUser?.phone || '-' }}）创建</span>
+			</el-descriptions-item>
 			<el-descriptions-item label="用户备注">{{ (data as any)?.userRemark || '-' }}</el-descriptions-item>
 			<el-descriptions-item label="付款说明">{{ (data as any)?.paymentNote || '-' }}</el-descriptions-item>
 			<el-descriptions-item label="系统备注">{{ data?.remark || '-' }}</el-descriptions-item>

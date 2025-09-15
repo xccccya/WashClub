@@ -40,6 +40,9 @@ model User {
   growthLogsOperated  MemberGrowthLog[] @relation("UserOperatesGrowthLogs")
   // 反向关联：操作的积分日志（后台调整/退款扣减触发者等）
   pointsLogsOperated  MemberPointsLog[] @relation("UserOperatesPointsLogs")
+
+  // 新增：作为代客下单的管理员，反向关联订单
+  proxyOrders         Order[]          @relation("ProxyAdminToOrders")
 }
 
 model Member {
@@ -845,6 +848,9 @@ model Product {
   // 扩展项
   pointsDeductible    Boolean          @default(false)
   memberDiscount      Boolean          @default(false)
+  // 发货形式配置：是否允许快递/是否允许到店自提（仅对 PHYSICAL 生效）
+  shipAllowExpress    Boolean          @default(true)
+  shipAllowPickup     Boolean          @default(true)
   // 是否计入洗车服务销量
   isCarWash           Boolean          @default(false)
   specType            ProductSpecType  @default(SINGLE)
@@ -955,6 +961,12 @@ model Order {
   paymentExpireAt         DateTime?
   // 微信支付：交易单号（回调 resource 解密字段 transaction_id）
   wechatTransactionId     String?
+  // 代客/游客标记与快照
+  isProxyOrder            Boolean           @default(false)
+  proxyAdminUserId        Int?
+  proxyAdminUser          User?             @relation("ProxyAdminToOrders", fields: [proxyAdminUserId], references: [id])
+  proxyAdminSnapshot      Json?
+  isGuestOrder            Boolean           @default(false)
   // 权益/积分/卡券
   usedPoints              Int               @default(0)
   pointsAmount            Decimal           @default(0) @db.Decimal(12, 2)
@@ -1032,6 +1044,8 @@ model Order {
   @@index([payStatus, deletedAt, paidAt])
   @@index([memberId, createdAt])
   @@index([groupId])
+  @@index([isProxyOrder])
+  @@index([isGuestOrder])
 }
 
 model OrderItem {

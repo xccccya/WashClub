@@ -377,9 +377,17 @@ export class OrderPaymentService {
                 } catch { }
             } catch { }
         } else {
-            // 成长：累计支付金额与成长值入账，并尝试按成长值升级会员等级
+            // 游客订单：累计支付金额仍需入账；但不发成长/积分，也不发放虚拟卡
+            const isGuest = !!(updated as any)?.isGuestOrder;
             try {
-                if (this.rewards) {
+                if (isGuest) {
+                    try {
+                        const amt = Math.max(0, Number((updated as any)?.payAmount || 0));
+                        if (amt > 0) {
+                            await this.prisma.member.update({ where: { id: (updated as any).memberId }, data: { totalPaidAmount: { increment: amt as any } } as any });
+                        }
+                    } catch { }
+                } else if (this.rewards) {
                     await this.rewards.grantRewardsForPayment(order.id);
                     await this.rewards.grantWashCardsForPayment(order.id);
                 }

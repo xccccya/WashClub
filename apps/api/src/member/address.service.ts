@@ -106,6 +106,41 @@ export class AddressService {
         }
         return data;
     }
+
+    // ================= 管理端接口（POS 代客） =================
+    private async getGuestMemberId(): Promise<number> {
+        const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+        if (!Number.isFinite(gid) || gid <= 0) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID');
+        const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+        if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员');
+        return gid;
+    }
+
+    async adminCreate(params: { memberId?: number | null; useGuest?: boolean; input: { province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null } }) {
+        const memberId = params.useGuest ? await this.getGuestMemberId() : Number(params.memberId || 0);
+        if (!Number.isFinite(memberId) || memberId <= 0) throw new BadRequestException('缺少有效的 memberId');
+        this.assertInput(params.input);
+        const data = this.normalize(params.input);
+        // 校验会员是否存在
+        const exists = await this.prisma.member.findUnique({ where: { id: memberId }, select: { id: true } });
+        if (!exists) throw new BadRequestException('会员不存在');
+        return this.prisma.memberAddress.create({ data: { ...data, memberId } });
+    }
+
+    async adminUpdate(id: number, input: Partial<{ province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null }>) {
+        const existing = await this.prisma.memberAddress.findUnique({ where: { id } });
+        if (!existing) throw new BadRequestException('地址不存在');
+        this.assertPartialInput(input);
+        const data = this.normalizePartial(input);
+        return this.prisma.memberAddress.update({ where: { id }, data });
+    }
+
+    async adminDelete(id: number) {
+        const existing = await this.prisma.memberAddress.findUnique({ where: { id } });
+        if (!existing) throw new BadRequestException('地址不存在');
+        await this.prisma.memberAddress.delete({ where: { id } });
+        return { ok: true };
+    }
 }
 
 

@@ -29,6 +29,13 @@
 
 		<!-- 地址选择卡片（若有实体商品则需要地址） -->
 		<view class="card">
+			<!-- 配送方式（仅含实体商品时显示） -->
+			<view class="block-title" v-if="hasPhysical && (allowExpress || allowPickup)">配送方式</view>
+			<view class="pay-row" v-if="hasPhysical && (allowExpress || allowPickup)">
+				<view v-if="allowExpress" class="pay-chip" :class="{ active: delivery==='EXPRESS' }" @tap="() => setDelivery('EXPRESS')">快递配送</view>
+				<view v-if="allowPickup" class="pay-chip" :class="{ active: delivery==='PICKUP' }" @tap="() => setDelivery('PICKUP')">到店自提</view>
+			</view>
+			<view class="tip" v-if="hasPhysical && delivery==='PICKUP'">自提无需填写收货地址</view>
 			<view class="block-title">收货地址</view>
 			<view v-if="requiresAddress && addresses.length===0" class="addr-empty" @tap="gotoAddress">去新增收货地址</view>
 			<scroll-view v-else-if="requiresAddress" scroll-y class="addr-list">
@@ -135,9 +142,45 @@ const selectedCouponIds = ref<Set<number>>(new Set());
 type Address = { id: number; province: string; city: string; district: string; street: string; detail: string; phone: string };
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number|undefined>(undefined);
+// 配送方式与商品发货形态
+const delivery = ref<'EXPRESS'|'PICKUP'>('PICKUP');
+const productShipMeta = ref<Record<number, { allowExpress: boolean; allowPickup: boolean; type: string }>>({});
+const hasPhysical = computed(()=> items.value.some(it => String(it?.snapshot?.type||'')==='PHYSICAL'));
+const allowExpress = computed(()=>{
+	try{
+		const phys = items.value.filter(it => String(it?.snapshot?.type||'')==='PHYSICAL');
+		if (!phys.length) return true;
+		return phys.every(it => productShipMeta.value[Number(it.productId||0)]?.allowExpress !== false);
+	}catch{ return true; }
+});
+const allowPickup = computed(()=>{
+	try{
+		const phys = items.value.filter(it => String(it?.snapshot?.type||'')==='PHYSICAL');
+		if (!phys.length) return true;
+		return phys.every(it => productShipMeta.value[Number(it.productId||0)]?.allowPickup !== false);
+	}catch{ return true; }
+});
+function setDelivery(v: 'EXPRESS'|'PICKUP'){ delivery.value = v; }
 
 async function loadSelected(){
 	try { const http=createHttp(); items.value = await http<any[]>('/cart/me/list', { method:'GET', query:{ onlyChecked: true } }); } catch { items.value = []; }
+	// 预取商品发货形态并设置默认配送方式
+	try{
+		const phys = (items.value||[]).filter(it => String(it?.snapshot?.type||'')==='PHYSICAL');
+		if (phys.length){
+			const http = createHttp();
+			const metas: Record<number, { allowExpress: boolean; allowPickup: boolean; type: string }> = {} as any;
+			await Promise.all(phys.map(async (it:any)=>{
+				try{ const p:any = await http(`/store/products/${it.productId}`, { method:'GET' }); metas[Number(it.productId||0)] = { allowExpress: p?.shipAllowExpress!==false, allowPickup: p?.shipAllowPickup!==false, type: String(p?.type||'') }; } catch {}
+			}));
+			productShipMeta.value = metas;
+			const canExpress = phys.every(it => metas[Number(it.productId||0)]?.allowExpress !== false);
+			const canPickup = phys.every(it => metas[Number(it.productId||0)]?.allowPickup !== false);
+			if (canExpress && !canPickup) delivery.value = 'EXPRESS';
+			else if (!canExpress && canPickup) delivery.value = 'PICKUP';
+			else delivery.value = 'EXPRESS';
+		} else { delivery.value = 'PICKUP'; }
+	}catch{ delivery.value = hasPhysical.value ? 'EXPRESS' : 'PICKUP'; }
 	// 若包含实体商品则加载地址
 	if (requiresAddress.value) {
 		try {
@@ -300,7 +343,7 @@ const couponOver = computed(()=> {
   const over = disc - base;
   return over > 0 ? over : 0;
 });
-const requiresAddress = computed(()=> items.value.some(it => String(it?.snapshot?.type||'')==='PHYSICAL'));
+const requiresAddress = computed(()=> hasPhysical.value && delivery.value==='EXPRESS');
 function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); } catch {} }
 function selectAddress(id?: number){ selectedAddressId.value = id; }
 function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
@@ -386,7 +429,7 @@ async function submit(){
 	}
 	// 允许券减溢出：不再前端拦截 < 0.01，展示层已按 0.01 显示，后端将按 0.01 入单
 	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
-	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, memberCouponIds: Array.from(selectedCouponIds.value), usedPoints: pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0, disableMemberDiscount: !memberDiscountAllowedByCoupons.value };
+	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, noExpress: hasPhysical.value ? (delivery.value==='PICKUP') : undefined, memberCouponIds: Array.from(selectedCouponIds.value), usedPoints: pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0, disableMemberDiscount: !memberDiscountAllowedByCoupons.value };
 	try {
 		const created = await http<any>('/orders', { method:'POST', body });
 		// 清理后端已勾选条目

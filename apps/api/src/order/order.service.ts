@@ -35,6 +35,8 @@ export class OrderService {
         vehicleId?: number | null;
         groupId?: number | null;
         shippingAddressId?: number | null;
+        // 新增：自提/无需快递（含实体商品时允许不填地址）
+        noExpress?: boolean | null;
         items: Array<{
             productId?: number | null;
             skuId?: number | null;
@@ -56,31 +58,55 @@ export class OrderService {
         memberCouponIds?: number[] | null;
         disableMemberDiscount?: boolean | null;
         payAfterService?: boolean | null;
+        // 控制标记（由控制器注入）：游客/代客
+        _isGuestOrder?: boolean | null;
+        _proxyAdminUserId?: number | null;
+        _proxyAdminSnapshot?: any;
     }): Promise<{ id: number; no: string }> {
         const {
-            type, memberId, vehicleId, groupId, shippingAddressId, items, userRemark, remark,
+            type, memberId, vehicleId, groupId, shippingAddressId, noExpress, items, userRemark, remark,
             shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo,
             memberCouponId, memberCouponIds, disableMemberDiscount, payAfterService
         } = params;
+        const isGuestOrderFlag = !!(params as any)._isGuestOrder;
+        const proxyAdminUserId = (params as any)._proxyAdminUserId ?? null;
+        const proxyAdminSnapshot = (params as any)._proxyAdminSnapshot ?? null;
         
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
         return this.prisma.$transaction(async (tx) => {
-            // 若为商品订单，检查是否包含实体商品，实体商品必须提供收货地址
+            // 若为商品订单，检查是否包含实体商品，并结合 noExpress 与商品发货形式决定地址是否必填
             let requiresAddress = false;
             const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
+            let physicalExists = false;
+            let shipAllowExpressOk = true;
+            let shipAllowPickupOk = true;
             if (type === 'SP' && productIds.length > 0) {
                 const products = await tx.product.findMany({
                     where: { id: { in: productIds } },
-                    select: { id: true, type: true }
+                    select: { id: true, type: true, shipAllowExpress: true, shipAllowPickup: true }
                 });
-                const map = new Map(products.map(p => [p.id, p.type] as const));
-                requiresAddress = items.some(it => (it.productId ? map.get(it.productId) === 'PHYSICAL' : false));
+                const map = new Map(products.map(p => [p.id, p] as const));
+                for (const it of items) {
+                    const p = it.productId ? map.get(it.productId) : undefined;
+                    if (!p) continue;
+                    if (p.type === 'PHYSICAL') {
+                        physicalExists = true;
+                        shipAllowExpressOk = shipAllowExpressOk && (p.shipAllowExpress !== false);
+                        shipAllowPickupOk = shipAllowPickupOk && (p.shipAllowPickup !== false);
+                    }
+                }
+                // 选择自提(noExpress=true)：必须所有实物商品允许自提
+                if (physicalExists && !!noExpress && !shipAllowPickupOk) throw new Error('该订单包含不支持到店自提的实物商品');
+                // 选择快递(noExpress!=true)：必须所有实物商品允许快递
+                if (physicalExists && !noExpress && !shipAllowExpressOk) throw new Error('该订单包含仅支持自提的实物商品');
+                // 地址仅在选择快递且存在实物时必填
+                requiresAddress = physicalExists && !noExpress;
             }
             
             let addressSnapshot: Prisma.InputJsonValue | undefined = undefined;
             let addressIdToSave: number | null = null;
-            if (requiresAddress) {
+            if (requiresAddress && !noExpress) {
                 if (!shippingAddressId) throw new Error('实体商品订单必须选择收货地址');
                 const addr = await tx.memberAddress.findUnique({ where: { id: shippingAddressId } });
                 if (!addr || addr.memberId !== memberId) throw new Error('收货地址无效');
@@ -123,6 +149,8 @@ export class OrderService {
                 discountTotal = discountTotal.plus(discount);
             }
             
+            // 游客订单：禁止使用优惠券
+            const guestMode = isGuestOrderFlag === true;
             // 优惠券校验与折扣（兼容旧单券 memberCouponId；新增多券 memberCouponIds）
             let memberCoupon: any = null;
             // 记录单券折扣金额，便于写入订单与日志
@@ -131,7 +159,7 @@ export class OrderService {
             const couponDiscountByMemberCouponId: Record<number, Prisma.Decimal> = {};
             const ids = Array.isArray(memberCouponIds) && memberCouponIds.length > 0 ? memberCouponIds : (memberCouponId ? [memberCouponId] : []);
             
-            if (ids.length === 1) {
+            if (!guestMode && ids.length === 1) {
                 const memberCouponId = ids[0];
                 memberCoupon = await (tx as any).memberCoupon.findUnique({
                     where: { id: memberCouponId },
@@ -222,7 +250,7 @@ export class OrderService {
                     if (face.greaterThan(0)) discountTotal = discountTotal.plus(applied);
                     singleCouponDiscountApplied = applied as any;
                 }
-            } else if (ids.length > 1) {
+            } else if (!guestMode && ids.length > 1) {
                 const now = new Date();
                 const records: any[] = await (tx as any).memberCoupon.findMany({
                     where: { id: { in: ids } },
@@ -315,7 +343,7 @@ export class OrderService {
             // 会员折扣（按会员等级的 payDiscountPercent，作用于商品维度开启了 memberDiscount 的小计）
             let memberDiscountAmount = new Prisma.Decimal(0);
             try {
-                if (disableMemberDiscount) { throw new Error('DISABLED_BY_REQUEST'); }
+                if (disableMemberDiscount || guestMode) { throw new Error('DISABLED_BY_REQUEST'); }
                 const productIdsAll = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
                 const productFlags = productIdsAll.length ? await tx.product.findMany({
                     where: { id: { in: productIdsAll } },
@@ -382,10 +410,11 @@ export class OrderService {
                 // 忽略会员折扣/可抵扣比例异常
             }
             
-            // 按配置与会员积分余额，核算积分可抵扣金额与实际可用积分
-            let usedPointsCalc = Math.max(0, Math.floor(Number(usedPoints || 0)));
+            // 按配置与会员积分余额，核算积分可抵扣金额与实际可用积分（游客强制为0）
+            let usedPointsCalc = guestMode ? 0 : Math.max(0, Math.floor(Number(usedPoints || 0)));
             let pointsAmountCalcFen = 0; // 单位：分
             try {
+                if (guestMode) { throw new Error('GUEST_FORBID_POINTS'); }
                 const ss: any = await tx.siteSetting.findFirst().catch(() => null);
                 const fenPerPoint = Math.max(0, Number(ss?.pointsFenPerPoint || 0));
                 const maxFenPerOrder = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder || 0));
@@ -534,6 +563,8 @@ export class OrderService {
                     memberDiscountAmount: memberDiscountAmount,
                     payAmount: payAmountAdjusted,
                     shippingFee: shipping,
+                    // 自提/无需快递：下单即标记，无需地址
+                    shipNoExpress: !!noExpress,
                     payStatus: 'UNPAID',
                     memberId,
                     vehicleId: vehicleId ?? null,
@@ -550,9 +581,13 @@ export class OrderService {
                         faceValue: memberCoupon.coupon?.faceValue ?? null,
                         name: memberCoupon.name ?? memberCoupon.coupon?.name ?? null,
                         discountApplied: Number(singleCouponDiscountApplied || 0)
-                    } as any) : (couponInfo ?? undefined),
+                    } as any) : (guestMode ? undefined : (couponInfo ?? undefined)),
                     shippingAddressId: addressIdToSave,
                     shippingAddressSnapshot: addressSnapshot,
+                    isGuestOrder: guestMode,
+                    isProxyOrder: !!proxyAdminUserId,
+                    proxyAdminUserId: proxyAdminUserId ?? null,
+                    proxyAdminSnapshot: proxyAdminSnapshot ?? null,
                 } as any,
             });
             
@@ -621,7 +656,7 @@ export class OrderService {
                         }
                     });
                 } catch { }
-            } else if (Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
+            } else if (!guestMode && Array.isArray(memberCouponIds) && memberCouponIds.length > 1) {
                 for (const cid of memberCouponIds) {
                     await (tx as any).memberCoupon.update({
                         where: { id: cid },
@@ -719,7 +754,8 @@ export class OrderService {
                 couponFlows: {
                     orderBy: { id: 'desc' },
                     include: { coupon: true, memberCoupon: true }
-                }
+                },
+                proxyAdminUser: { select: { id: true, name: true, phone: true } }
             }
         });
         return await this.enrichOrderWithProductTypes(o);
@@ -739,7 +775,8 @@ export class OrderService {
                 couponFlows: {
                     orderBy: { id: 'desc' },
                     include: { coupon: true, memberCoupon: true }
-                }
+                },
+                proxyAdminUser: { select: { id: true, name: true, phone: true } }
             }
         });
         return await this.enrichOrderWithProductTypes(o);

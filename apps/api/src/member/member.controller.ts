@@ -16,6 +16,22 @@ export class MemberController {
 		return this.service.list(Number(page || 1), Number(pageSize || 20), keyword);
 	}
 
+	@Post('_sync-guest-owner')
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
+	@ApiOperation({ summary: '同步游客订单占位账号（根据环境变量 GUEST_MEMBER_ID）' })
+	async syncGuestOrderOwner() {
+		return this.service.syncGuestOrderOwnerByEnv();
+	}
+
+	@Get('_guest-owner')
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
+	@ApiOperation({ summary: '获取当前游客订单占位账号信息（根据环境变量）' })
+	async getGuestOrderOwner() {
+		return this.service.getGuestOrderOwnerByEnv();
+	}
+
 	// 放在参数路由之前，避免被 ":id" 匹配到
 	@Get('me/profile')
 	@ApiOperation({ summary: '查询当前会员资料（支持token参数）' })

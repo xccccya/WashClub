@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards, Headers } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueueService } from './queue.service.js';
@@ -6,11 +6,12 @@ import { PrismaService } from '../prisma.service.js';
 import { OrderService } from '../order/order.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { GroupService } from '../group/group.service.js';
+import { JwtService } from '@nestjs/jwt';
 
 @ApiTags('queue')
 @Controller('queue')
 export class QueueController {
-    constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService, private vehicles: VehicleService, private groups: GroupService) {}
+    constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService, private vehicles: VehicleService, private groups: GroupService, private jwt: JwtService) {}
 
     @Get('list')
     @ApiOperation({ summary: '服务队列列表（进行中/待处理）' })
@@ -52,7 +53,7 @@ export class QueueController {
 
     @Post('create-service-order-and-enqueue')
     @ApiOperation({ summary: '创建服务订单并入队（先服务后付）' })
-    async createServiceOrderAndEnqueue(@Body() body: any) {
+    async createServiceOrderAndEnqueue(@Body() body: any, @Headers('authorization') authHeader?: string) {
         const queueTypeId = Number(body?.queueTypeId || 0);
         const productIds = Array.isArray(body?.productIds) ? body.productIds.map((n: any)=>Number(n)).filter((n: any)=>Number.isFinite(n)) : [];
         const plateNumber = String(body?.plateNumber || '').trim();
@@ -123,7 +124,28 @@ export class QueueController {
         const items = products.map((p)=>({ productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, specsText: null, barcode: p.barcode ?? null, price: p.price || 0, discount: 0, quantity: 1 }));
 
         // 创建服务订单（先服务后付）
-        const ord = await this.orders.createOrder({ type: 'SERVICE' as any, memberId: Number(memberId), vehicleId: resolvedVehicleId, groupId: groupId ?? null, items, payAfterService: true, userRemark: body?.userRemark });
+        // 代客识别：从管理员令牌中提取操作者
+        let proxyAdminUserId: number | null = null;
+        let proxyAdminSnapshot: any = null;
+        try{
+            const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
+            const token = m?.[1];
+            if (token) {
+                const decoded: any = this.jwt.verify(token);
+                if (decoded?.type === 'admin') {
+                    const id = Number(decoded?.sub);
+                    if (Number.isFinite(id) && id > 0) {
+                        proxyAdminUserId = id;
+                        const u = await this.prisma.user.findUnique({ where: { id }, select: { id:true, name:true, phone:true } });
+                        if (u) proxyAdminSnapshot = { id: u.id, name: u.name || null, phone: u.phone || null };
+                    }
+                }
+            }
+        }catch{}
+
+        const gidEnv = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+        const isGuestOrder = guest || (!!gidEnv && Number(memberId) === gidEnv);
+        const ord = await this.orders.createOrder({ type: 'SERVICE' as any, memberId: Number(memberId), vehicleId: resolvedVehicleId, groupId: groupId ?? null, items, payAfterService: true, userRemark: body?.userRemark, _isGuestOrder: isGuestOrder, _proxyAdminUserId: proxyAdminUserId, _proxyAdminSnapshot: proxyAdminSnapshot } as any);
 
         // 创建队列项（使用队列类型的步骤快照）
         const created = await (this.prisma as any).$transaction(async (tx: any) => {

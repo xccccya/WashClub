@@ -6,6 +6,11 @@
 				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
 				<span style="vertical-align: middle;">搜索</span>
 			</el-button>
+			<el-button @click="refreshGuestOwner" :loading="syncingGuest" style="margin-right:8px;">
+				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+				<span style="vertical-align: middle;">刷新游客占位账号</span>
+			</el-button>
+			<el-tag v-if="guestOwnerInfo" type="warning" effect="dark" style="margin-right:8px;">游客占位ID：{{ guestOwnerInfo?.guestMemberId ?? '-' }}{{ guestOwnerInfo?.tagged===false? '（未贴标签）':'' }}</el-tag>
 			<el-button type="primary" @click="openCreate">
 				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
 				<span style="vertical-align: middle;">新建会员</span>
@@ -23,6 +28,7 @@
 				<template #default="{ row }">
 					<span>{{ row.name }}</span>
 					<el-tag v-if="isGroupOrderOwner(row)" type="warning" effect="dark" style="margin-left:6px;">集团订单占位</el-tag>
+					<el-tag v-if="isGuestOrderOwner(row)" type="warning" effect="dark" style="margin-left:6px;">游客订单占位</el-tag>
 				</template>
 			</el-table-column>
 			<el-table-column prop="phone" label="手机号" width="150" />
@@ -49,19 +55,19 @@
 			<el-table-column label="操作" width="420" fixed="right">
 				<template #default="{ row }">
 					<div class="op-btns">
-						<el-button size="small" link :disabled="isGroupOrderOwner(row)" @click="openEdit(row)">
+						<el-button size="small" link :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openEdit(row)">
 							<el-icon><User /></el-icon>
 							<span>查看资料</span>
 						</el-button>
-						<el-button size="small" link type="warning" :disabled="isGroupOrderOwner(row)" @click="openResetPwd(row)">
+						<el-button size="small" link type="warning" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openResetPwd(row)">
 							<el-icon><Edit /></el-icon>
 							<span>修改密码</span>
 						</el-button>
-						<el-button size="small" link type="primary" :disabled="isGroupOrderOwner(row)" @click="openGrowthLogs(row)">
+						<el-button size="small" link type="primary" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openGrowthLogs(row)">
 							<el-icon><List /></el-icon>
 							<span>成长日志</span>
 						</el-button>
-						<el-button size="small" link type="danger" :disabled="isGroupOrderOwner(row)" @click="openDeleteDialog(row)">
+						<el-button size="small" link type="danger" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openDeleteDialog(row)">
 							<el-icon><Delete /></el-icon>
 							<span>删除</span>
 						</el-button>
@@ -205,7 +211,7 @@ import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
-import { Search, CirclePlus, User, Edit, List, Delete } from '@element-plus/icons-vue';
+import { Search, CirclePlus, User, Edit, List, Delete, Refresh } from '@element-plus/icons-vue';
 
 const http = createHttpClient({
 	baseUrl: API_BASE,
@@ -238,6 +244,14 @@ function isGroupOrderOwner(m: Member){
     const tags = (m?.tags || []) as any[];
     return tags.some(t => String(t?.name||'').toUpperCase() === 'GROUP_ORDER_OWNER');
 }
+function isGuestOrderOwner(m: Member){
+    const tags = (m?.tags || []) as any[];
+    return tags.some(t => String(t?.name||'').toUpperCase() === 'GUEST_ORDER_OWNER');
+}
+const guestOwnerInfo = ref<{ guestMemberId: number|null; exists?: boolean; tagged?: boolean }|null>(null);
+const syncingGuest = ref(false);
+async function loadGuestOwnerInfo(){ try{ guestOwnerInfo.value = await http('/member/_guest-owner', { method:'GET' }); }catch{ guestOwnerInfo.value = null; } }
+async function refreshGuestOwner(){ try{ syncingGuest.value = true; await http('/member/_sync-guest-owner', { method:'POST' }); await loadGuestOwnerInfo(); await fetchList(); ElMessage.success('已刷新游客占位账号'); }catch(e:any){ ElMessage.error(String(e?.message||'刷新失败')); } finally { syncingGuest.value = false; } }
 
 const rules = {
 	name: [
@@ -425,7 +439,7 @@ async function onDeleteConfirm(){
 	delDialog.value = false; delTarget.value = null; fetchList();
 }
 
-onMounted(()=>{ ensureSiteSetting(); fetchLevels(); fetchCategories(); fetchTags(); fetchList(); });
+onMounted(()=>{ ensureSiteSetting(); fetchLevels(); fetchCategories(); fetchTags(); fetchList(); loadGuestOwnerInfo(); });
 
 // 读取站点默认头像，避免写死默认图
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);

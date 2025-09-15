@@ -1,6 +1,8 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AddressService } from './address.service.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 
 @ApiTags('address')
 @Controller('address')
@@ -70,6 +72,31 @@ export class AddressController {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
         const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
         return this.service.meDelete(token, Number(id));
+    }
+
+    // ================= 管理端（POS 代客） =================
+    @Post('admin/create')
+    @UseGuards(AdminGuard)
+    @RequirePerm('member-addresses')
+    @ApiOperation({ summary: '管理员创建收货地址（支持指定会员或使用游客会员）' })
+    adminCreate(@Body() body: { memberId?: number | null; useGuest?: boolean; input: { province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null } }) {
+        return this.service.adminCreate({ memberId: body?.memberId ?? null, useGuest: !!body?.useGuest, input: body?.input as any });
+    }
+
+    @Put('admin/:id')
+    @UseGuards(AdminGuard)
+    @RequirePerm('member-addresses')
+    @ApiOperation({ summary: '管理员修改收货地址' })
+    adminUpdate(@Param('id') id: string, @Body() body: Partial<{ province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null }>) {
+        return this.service.adminUpdate(Number(id), body);
+    }
+
+    @Delete('admin/:id')
+    @UseGuards(AdminGuard)
+    @RequirePerm('member-addresses')
+    @ApiOperation({ summary: '管理员删除收货地址' })
+    adminDelete(@Param('id') id: string) {
+        return this.service.adminDelete(Number(id));
     }
 }
 
