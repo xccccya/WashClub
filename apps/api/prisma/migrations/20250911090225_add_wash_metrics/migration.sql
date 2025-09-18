@@ -1,5 +1,0 @@
--- AlterTable
-ALTER TABLE `Order` ADD COLUMN `settlement` ENUM('NORMAL', 'WASH_CARD', 'GROUP_WASH_CARD') NOT NULL DEFAULT 'NORMAL';
-
--- AlterTable
-ALTER TABLE `Product` ADD COLUMN `isCarWash` BOOLEAN NOT NULL DEFAULT false;

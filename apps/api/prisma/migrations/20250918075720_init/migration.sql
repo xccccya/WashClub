@@ -5,6 +5,7 @@ CREATE TABLE `User` (
     `updatedAt` DATETIME(3) NOT NULL,
     `phone` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NULL,
+    `avatarUrl` VARCHAR(191) NULL,
     `password` VARCHAR(191) NOT NULL,
     `role` VARCHAR(191) NOT NULL DEFAULT 'staff',
     `roleId` INTEGER NULL,
@@ -119,8 +120,10 @@ CREATE TABLE `Vehicle` (
     `brandImage` VARCHAR(191) NULL,
     `seriesImage` VARCHAR(191) NULL,
     `memberId` INTEGER NULL,
+    `groupId` INTEGER NULL,
 
     UNIQUE INDEX `Vehicle_plateNumber_key`(`plateNumber`),
+    INDEX `Vehicle_groupId_idx`(`groupId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -176,6 +179,120 @@ CREATE TABLE `WashCardLog` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `Group` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `deletedAt` DATETIME(3) NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `iconUrl` VARCHAR(191) NULL,
+    `remark` VARCHAR(191) NULL,
+    `orderOwnerMemberId` INTEGER NULL,
+
+    UNIQUE INDEX `Group_code_key`(`code`),
+    INDEX `Group_createdAt_idx`(`createdAt`),
+    INDEX `Group_name_idx`(`name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupMember` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `groupId` INTEGER NOT NULL,
+    `memberId` INTEGER NOT NULL,
+    `role` ENUM('ADMIN', 'USER') NOT NULL DEFAULT 'USER',
+    `joinedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `GroupMember_memberId_key`(`memberId`),
+    INDEX `GroupMember_groupId_idx`(`groupId`),
+    INDEX `GroupMember_role_idx`(`role`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupBalanceAccount` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `updatedAt` DATETIME(3) NOT NULL,
+    `groupId` INTEGER NOT NULL,
+    `balance` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `version` INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE INDEX `GroupBalanceAccount_groupId_key`(`groupId`),
+    INDEX `GroupBalanceAccount_updatedAt_idx`(`updatedAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupBalanceLedger` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `groupId` INTEGER NOT NULL,
+    `type` ENUM('RECHARGE', 'DEDUCT', 'ADJUST', 'REFUND') NOT NULL,
+    `amount` DECIMAL(12, 2) NOT NULL,
+    `orderNo` VARCHAR(191) NULL,
+    `orderId` INTEGER NULL,
+    `operatorUserId` INTEGER NULL,
+    `note` VARCHAR(191) NULL,
+
+    INDEX `GroupBalanceLedger_groupId_createdAt_idx`(`groupId`, `createdAt`),
+    INDEX `GroupBalanceLedger_orderId_idx`(`orderId`),
+    INDEX `GroupBalanceLedger_orderNo_idx`(`orderNo`),
+    INDEX `GroupBalanceLedger_type_idx`(`type`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupWashCard` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `groupId` INTEGER NOT NULL,
+    `name` VARCHAR(191) NOT NULL DEFAULT '集团洗车计次卡',
+    `totalTimes` INTEGER NOT NULL DEFAULT 0,
+    `remainingTimes` INTEGER NOT NULL DEFAULT 0,
+    `status` ENUM('ACTIVE', 'DISABLED', 'EXPIRED') NOT NULL DEFAULT 'ACTIVE',
+    `expiryAt` DATETIME(3) NULL,
+    `cardNo` VARCHAR(191) NOT NULL,
+
+    UNIQUE INDEX `GroupWashCard_cardNo_key`(`cardNo`),
+    INDEX `GroupWashCard_groupId_idx`(`groupId`),
+    INDEX `GroupWashCard_status_idx`(`status`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupWashCardLog` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `cardId` INTEGER NOT NULL,
+    `action` ENUM('ADD', 'DEDUCT', 'SHARE') NOT NULL,
+    `reason` ENUM('BACKEND_ADD', 'PURCHASE_ADD', 'SERVICE_DEDUCT', 'REFUND_DEDUCT', 'BACKEND_DEDUCT', 'SHARE_ADD', 'SHARE_REMOVE') NOT NULL,
+    `change` INTEGER NOT NULL,
+    `beforeRemaining` INTEGER NOT NULL,
+    `afterRemaining` INTEGER NOT NULL,
+    `remark` VARCHAR(191) NULL,
+    `operatorUserId` INTEGER NULL,
+    `serviceOrderId` INTEGER NULL,
+    `serviceOrderNo` VARCHAR(191) NULL,
+    `purchaseOrderId` INTEGER NULL,
+    `purchaseOrderNo` VARCHAR(191) NULL,
+    `refundRecordId` INTEGER NULL,
+    `vehicleId` INTEGER NULL,
+    `memberId` INTEGER NULL,
+
+    INDEX `GroupWashCardLog_cardId_createdAt_idx`(`cardId`, `createdAt`),
+    INDEX `GroupWashCardLog_vehicleId_idx`(`vehicleId`),
+    INDEX `GroupWashCardLog_memberId_idx`(`memberId`),
+    INDEX `GroupWashCardLog_serviceOrderId_idx`(`serviceOrderId`),
+    INDEX `GroupWashCardLog_purchaseOrderId_idx`(`purchaseOrderId`),
+    INDEX `GroupWashCardLog_serviceOrderNo_idx`(`serviceOrderNo`),
+    INDEX `GroupWashCardLog_purchaseOrderNo_idx`(`purchaseOrderNo`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `ScrollNotice` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -215,7 +332,11 @@ CREATE TABLE `ServiceQueueItem` (
     `currentTaskIndex` INTEGER NOT NULL DEFAULT -1,
     `startedAt` DATETIME(3) NULL,
     `finishedAt` DATETIME(3) NULL,
+    `queueTypeId` INTEGER NULL,
+    `orderId` INTEGER NULL,
 
+    INDEX `ServiceQueueItem_queueTypeId_idx`(`queueTypeId`),
+    INDEX `ServiceQueueItem_orderId_idx`(`orderId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -234,6 +355,54 @@ CREATE TABLE `ServiceTask` (
 
     INDEX `ServiceTask_queueItemId_idx`(`queueItemId`),
     INDEX `ServiceTask_orderIndex_idx`(`orderIndex`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ServiceQueueType` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `enabled` BOOLEAN NOT NULL DEFAULT true,
+    `sortWeight` INTEGER NOT NULL DEFAULT 0,
+    `remark` VARCHAR(191) NULL,
+    `etaGroupKey` VARCHAR(191) NULL,
+    `participateInEta` BOOLEAN NULL,
+    `etaParallelSlots` INTEGER NULL,
+    `displayColor` VARCHAR(191) NULL,
+
+    INDEX `ServiceQueueType_enabled_idx`(`enabled`),
+    INDEX `ServiceQueueType_sortWeight_idx`(`sortWeight`),
+    INDEX `ServiceQueueType_name_idx`(`name`),
+    INDEX `ServiceQueueType_etaGroupKey_idx`(`etaGroupKey`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ServiceQueueStep` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `queueTypeId` INTEGER NOT NULL,
+    `orderIndex` INTEGER NOT NULL DEFAULT 0,
+    `name` VARCHAR(191) NOT NULL,
+    `durationMin` INTEGER NOT NULL DEFAULT 0,
+    `isEta` BOOLEAN NULL,
+
+    INDEX `ServiceQueueStep_queueTypeId_idx`(`queueTypeId`),
+    INDEX `ServiceQueueStep_orderIndex_idx`(`orderIndex`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ServiceQueueTypeProduct` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `queueTypeId` INTEGER NOT NULL,
+    `productId` INTEGER NOT NULL,
+
+    INDEX `ServiceQueueTypeProduct_productId_idx`(`productId`),
+    UNIQUE INDEX `ServiceQueueTypeProduct_queueTypeId_productId_key`(`queueTypeId`, `productId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -271,7 +440,7 @@ CREATE TABLE `Coupon` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
-    `type` ENUM('COUPON', 'WASH_CARD') NOT NULL,
+    `type` ENUM('COUPON', 'WASH_CARD', 'GROUP_WASH_CARD') NOT NULL,
     `groupId` INTEGER NULL,
     `expiryType` ENUM('FIXED', 'AFTER_RECEIVE', 'PERMANENT') NOT NULL DEFAULT 'PERMANENT',
     `startAt` DATETIME(3) NULL,
@@ -357,6 +526,9 @@ CREATE TABLE `Product` (
     `description` VARCHAR(191) NULL,
     `pointsDeductible` BOOLEAN NOT NULL DEFAULT false,
     `memberDiscount` BOOLEAN NOT NULL DEFAULT false,
+    `shipAllowExpress` BOOLEAN NOT NULL DEFAULT true,
+    `shipAllowPickup` BOOLEAN NOT NULL DEFAULT true,
+    `isCarWash` BOOLEAN NOT NULL DEFAULT false,
     `specType` ENUM('SINGLE', 'MULTI') NOT NULL DEFAULT 'SINGLE',
     `price` DECIMAL(12, 2) NULL DEFAULT 0,
     `listPrice` DECIMAL(12, 2) NULL DEFAULT 0,
@@ -423,23 +595,33 @@ CREATE TABLE `Order` (
     `totalAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `discountAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `memberDiscountAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `cashierDiscountAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `payAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    `washCardDeductAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `refundedAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `shippingFee` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `payStatus` ENUM('UNPAID', 'PAID', 'REFUNDED', 'CANCELLED') NOT NULL DEFAULT 'UNPAID',
-    `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL,
+    `payMethod` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY', 'WASH_CARD', 'GROUP_BALANCE') NULL,
     `paidAt` DATETIME(3) NULL,
+    `settlement` ENUM('NORMAL', 'WASH_CARD', 'GROUP_WASH_CARD') NOT NULL DEFAULT 'NORMAL',
+    `payAfterService` BOOLEAN NOT NULL DEFAULT false,
     `paymentExpireAt` DATETIME(3) NULL,
     `wechatTransactionId` VARCHAR(191) NULL,
+    `isProxyOrder` BOOLEAN NOT NULL DEFAULT false,
+    `proxyAdminUserId` INTEGER NULL,
+    `proxyAdminSnapshot` JSON NULL,
+    `isGuestOrder` BOOLEAN NOT NULL DEFAULT false,
     `usedPoints` INTEGER NOT NULL DEFAULT 0,
     `pointsAmount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
     `couponInfo` JSON NULL,
     `shippingAddressId` INTEGER NULL,
     `shippingAddressSnapshot` JSON NULL,
     `memberId` INTEGER NOT NULL,
+    `groupId` INTEGER NULL,
     `vehicleId` INTEGER NULL,
     `remark` VARCHAR(191) NULL,
     `userRemark` VARCHAR(191) NULL,
+    `paymentNote` VARCHAR(191) NULL,
     `shippedAt` DATETIME(3) NULL,
     `shipNoExpress` BOOLEAN NOT NULL DEFAULT false,
     `shipExpressCompanyCode` VARCHAR(191) NULL,
@@ -460,6 +642,9 @@ CREATE TABLE `Order` (
     INDEX `Order_userRemark_idx`(`userRemark`),
     INDEX `Order_payStatus_deletedAt_paidAt_idx`(`payStatus`, `deletedAt`, `paidAt`),
     INDEX `Order_memberId_createdAt_idx`(`memberId`, `createdAt`),
+    INDEX `Order_groupId_idx`(`groupId`),
+    INDEX `Order_isProxyOrder_idx`(`isProxyOrder`),
+    INDEX `Order_isGuestOrder_idx`(`isGuestOrder`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -516,7 +701,7 @@ CREATE TABLE `RefundRecord` (
     `orderId` INTEGER NOT NULL,
     `memberId` INTEGER NOT NULL,
     `amount` DECIMAL(12, 2) NOT NULL DEFAULT 0,
-    `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY') NULL,
+    `method` ENUM('CASH', 'SHOUQIANBA', 'OFFLINE', 'WECHAT_JSAPI', 'WECHAT_MICROPAY', 'WASH_CARD', 'GROUP_BALANCE') NULL,
     `status` ENUM('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     `reasonCode` VARCHAR(191) NULL,
     `reasonText` VARCHAR(191) NULL,
@@ -737,6 +922,72 @@ CREATE TABLE `MemberPointsLog` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `Notification` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `title` VARCHAR(191) NOT NULL,
+    `content` TEXT NULL,
+    `type` VARCHAR(191) NULL,
+    `linkPath` VARCHAR(512) NULL,
+    `targetType` ENUM('ADMIN', 'MEMBER') NOT NULL,
+    `targetUserId` INTEGER NULL,
+    `targetMemberId` INTEGER NULL,
+    `status` ENUM('UNREAD', 'READ') NOT NULL DEFAULT 'UNREAD',
+    `readAt` DATETIME(3) NULL,
+
+    INDEX `Notification_targetUserId_status_createdAt_idx`(`targetUserId`, `status`, `createdAt`),
+    INDEX `Notification_targetMemberId_status_createdAt_idx`(`targetMemberId`, `status`, `createdAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `NotificationTemplate` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `typeKey` VARCHAR(191) NOT NULL,
+    `titleTemplate` VARCHAR(191) NOT NULL,
+    `contentTemplate` VARCHAR(191) NOT NULL,
+    `enabled` BOOLEAN NOT NULL DEFAULT true,
+    `channel` VARCHAR(191) NOT NULL DEFAULT 'MEMBER',
+    `uiDuration` INTEGER NULL,
+    `uiType` VARCHAR(191) NULL,
+    `uiPosition` VARCHAR(191) NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `NotificationTypeSetting` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `typeKey` VARCHAR(191) NOT NULL,
+    `channel` VARCHAR(191) NOT NULL,
+    `enabled` BOOLEAN NOT NULL DEFAULT true,
+    `allowFallback` BOOLEAN NOT NULL DEFAULT true,
+    `defaultUi` JSON NULL,
+
+    UNIQUE INDEX `NotificationTypeSetting_typeKey_channel_key`(`typeKey`, `channel`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Employee` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `memberId` INTEGER NOT NULL,
+    `name` VARCHAR(191) NULL,
+    `title` VARCHAR(191) NULL,
+    `enabled` BOOLEAN NOT NULL DEFAULT true,
+
+    UNIQUE INDEX `Employee_memberId_key`(`memberId`),
+    INDEX `Employee_enabled_idx`(`enabled`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `_MemberToMemberTag` (
     `A` INTEGER NOT NULL,
     `B` INTEGER NOT NULL,
@@ -756,6 +1007,9 @@ ALTER TABLE `Member` ADD CONSTRAINT `Member_categoryId_fkey` FOREIGN KEY (`categ
 
 -- AddForeignKey
 ALTER TABLE `Vehicle` ADD CONSTRAINT `Vehicle_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Vehicle` ADD CONSTRAINT `Vehicle_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `WashCard` ADD CONSTRAINT `WashCard_ownerMemberId_fkey` FOREIGN KEY (`ownerMemberId`) REFERENCES `Member`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -779,10 +1033,61 @@ ALTER TABLE `WashCardLog` ADD CONSTRAINT `WashCardLog_vehicleId_fkey` FOREIGN KE
 ALTER TABLE `WashCardLog` ADD CONSTRAINT `WashCardLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Group` ADD CONSTRAINT `Group_orderOwnerMemberId_fkey` FOREIGN KEY (`orderOwnerMemberId`) REFERENCES `Member`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupMember` ADD CONSTRAINT `GroupMember_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupMember` ADD CONSTRAINT `GroupMember_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupBalanceAccount` ADD CONSTRAINT `GroupBalanceAccount_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupBalanceLedger` ADD CONSTRAINT `GroupBalanceLedger_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupBalanceLedger` ADD CONSTRAINT `GroupBalanceLedger_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupBalanceLedger` ADD CONSTRAINT `GroupBalanceLedger_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupWashCard` ADD CONSTRAINT `GroupWashCard_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupWashCardLog` ADD CONSTRAINT `GroupWashCardLog_cardId_fkey` FOREIGN KEY (`cardId`) REFERENCES `GroupWashCard`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupWashCardLog` ADD CONSTRAINT `GroupWashCardLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupWashCardLog` ADD CONSTRAINT `GroupWashCardLog_vehicleId_fkey` FOREIGN KEY (`vehicleId`) REFERENCES `Vehicle`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupWashCardLog` ADD CONSTRAINT `GroupWashCardLog_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `ServiceQueueItem` ADD CONSTRAINT `ServiceQueueItem_vehicleId_fkey` FOREIGN KEY (`vehicleId`) REFERENCES `Vehicle`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `ServiceQueueItem` ADD CONSTRAINT `ServiceQueueItem_queueTypeId_fkey` FOREIGN KEY (`queueTypeId`) REFERENCES `ServiceQueueType`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ServiceQueueItem` ADD CONSTRAINT `ServiceQueueItem_orderId_fkey` FOREIGN KEY (`orderId`) REFERENCES `Order`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `ServiceTask` ADD CONSTRAINT `ServiceTask_queueItemId_fkey` FOREIGN KEY (`queueItemId`) REFERENCES `ServiceQueueItem`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ServiceQueueStep` ADD CONSTRAINT `ServiceQueueStep_queueTypeId_fkey` FOREIGN KEY (`queueTypeId`) REFERENCES `ServiceQueueType`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ServiceQueueTypeProduct` ADD CONSTRAINT `ServiceQueueTypeProduct_queueTypeId_fkey` FOREIGN KEY (`queueTypeId`) REFERENCES `ServiceQueueType`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ServiceQueueTypeProduct` ADD CONSTRAINT `ServiceQueueTypeProduct_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Coupon` ADD CONSTRAINT `Coupon_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `CouponGroup`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -824,10 +1129,16 @@ ALTER TABLE `InventoryLog` ADD CONSTRAINT `InventoryLog_skuId_fkey` FOREIGN KEY 
 ALTER TABLE `InventoryLog` ADD CONSTRAINT `InventoryLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Order` ADD CONSTRAINT `Order_proxyAdminUserId_fkey` FOREIGN KEY (`proxyAdminUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `Order` ADD CONSTRAINT `Order_shippingAddressId_fkey` FOREIGN KEY (`shippingAddressId`) REFERENCES `MemberAddress`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Order` ADD CONSTRAINT `Order_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Order` ADD CONSTRAINT `Order_groupId_fkey` FOREIGN KEY (`groupId`) REFERENCES `Group`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Order` ADD CONSTRAINT `Order_vehicleId_fkey` FOREIGN KEY (`vehicleId`) REFERENCES `Vehicle`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -930,6 +1241,9 @@ ALTER TABLE `MemberPointsLog` ADD CONSTRAINT `MemberPointsLog_orderId_fkey` FORE
 
 -- AddForeignKey
 ALTER TABLE `MemberPointsLog` ADD CONSTRAINT `MemberPointsLog_operatorUserId_fkey` FOREIGN KEY (`operatorUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Employee` ADD CONSTRAINT `Employee_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `_MemberToMemberTag` ADD CONSTRAINT `_MemberToMemberTag_A_fkey` FOREIGN KEY (`A`) REFERENCES `Member`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
