@@ -67,6 +67,28 @@ const GLOBAL_DEFINED_BASE: string | undefined = GLOBAL_OBJ?.__VITE_API_BASE__ ||
 const ENV_BASE_1: string | undefined = (import.meta as any)?.env?.VITE_API_BASE;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ENV_BASE_2: string | undefined = (import.meta as any)?.env?.VITE_APP_API_BASE;
+// 允许 H5 通过 URL 参数覆盖（与 web 前端保持一致）
+let QUERY_BASE: string | undefined;
+try {
+  // #ifdef H5
+  if (typeof window !== 'undefined' && window.location && window.location.search) {
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get('api') || sp.get('apibase');
+    if (q) QUERY_BASE = String(q);
+  }
+  // 兼容 hash 路由中的查询参数：/#/path?api=...
+  if (!QUERY_BASE && typeof window !== 'undefined' && window.location && typeof window.location.hash === 'string') {
+    const hash = window.location.hash || '';
+    const idx = hash.indexOf('?');
+    if (idx >= 0) {
+      const qs = hash.slice(idx + 1);
+      const sp2 = new URLSearchParams(qs);
+      const q2 = sp2.get('api') || sp2.get('apibase');
+      if (q2) QUERY_BASE = String(q2);
+    }
+  }
+  // #endif
+} catch {}
 // 编译期常量兜底（由 vite.config.ts define 注入）
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const __APP_VITE_API_BASE__: any;
@@ -80,9 +102,9 @@ const IS_PROD: boolean = !!((import.meta as any)?.env?.PROD);
 
 let decidedBase: string | undefined;
 if (IS_PROD) {
-  decidedBase = GLOBAL_DEFINED_BASE || ENV_BASE_1 || ENV_BASE_2 || CONST_BASE || (!isLocalHostBase(STORAGE_BASE) ? STORAGE_BASE : undefined) || detectApiBase();
+  decidedBase = GLOBAL_DEFINED_BASE || ENV_BASE_1 || ENV_BASE_2 || CONST_BASE || QUERY_BASE || (!isLocalHostBase(STORAGE_BASE) ? STORAGE_BASE : undefined) || detectApiBase();
 } else {
-  decidedBase = GLOBAL_DEFINED_BASE || STORAGE_BASE || ENV_BASE_1 || ENV_BASE_2 || CONST_BASE || detectApiBase();
+  decidedBase = GLOBAL_DEFINED_BASE || QUERY_BASE || STORAGE_BASE || ENV_BASE_1 || ENV_BASE_2 || CONST_BASE || detectApiBase();
 }
 
 export const API_BASE = stripTrailingSlash(decidedBase);

@@ -445,7 +445,8 @@ async function checkEmployee(){
         if (!t) { isEmployee.value = false; return; }
         const http = createHttp();
         const r = await http<any>('/system/miniapp/employee/profile', { method: 'GET' });
-        isEmployee.value = !!(r && r.enabled !== false);
+        // 更严格：仅当后端明确返回 enabled === true 才视为员工
+        isEmployee.value = r?.enabled === true;
     }catch{ isEmployee.value = false; }
 }
 function onTapAbout(){ uni.showToast({ title: '关于我们开发中', icon: 'none' }); }

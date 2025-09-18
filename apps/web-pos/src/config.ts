@@ -1,5 +1,5 @@
 // 统一 API 基址解析：
-// 优先级：环境变量 > URL 查询参数(api/apibase) > localStorage(API_BASE) > 基于当前 host 推断 > 127.0.0.1:3000
+// 优先级：全局注入/编译期常量 > 环境变量 > URL 查询参数(api/apibase) > localStorage(API_BASE) > 基于当前 host 推断 > 127.0.0.1:3000
 function normalizeBase(u: string): string {
     try {
         const s = String(u || '').trim();
@@ -10,7 +10,23 @@ function normalizeBase(u: string): string {
     } catch { return ''; }
 }
 
+// 兼容全局注入与编译期常量
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const __APP_VITE_API_BASE__: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const GLOBAL_OBJ: any = (typeof globalThis !== 'undefined') ? (globalThis as any) : (typeof window !== 'undefined' ? (window as any) : {});
+const GLOBAL_DEFINED_BASE: string | undefined = GLOBAL_OBJ?.__VITE_API_BASE__ || GLOBAL_OBJ?.VITE_API_BASE;
+
 function resolveApiBase(): string {
+    // 0) 全局注入/编译期常量
+    try {
+        if (GLOBAL_DEFINED_BASE) return normalizeBase(String(GLOBAL_DEFINED_BASE));
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        if (typeof __APP_VITE_API_BASE__ !== 'undefined' && __APP_VITE_API_BASE__) {
+            return normalizeBase(String(__APP_VITE_API_BASE__));
+        }
+    } catch {}
+
     // 1) 环境变量（构建/启动时指定）
     const envBase = (import.meta as any)?.env?.VITE_API_BASE || (import.meta as any)?.env?.VITE_APP_API_BASE;
     if (envBase) return normalizeBase(String(envBase));
