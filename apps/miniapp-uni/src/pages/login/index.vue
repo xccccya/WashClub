@@ -53,7 +53,8 @@
 
 				<view class="agreements" @tap="agreeTerms = !agreeTerms">
 					<view class="dot" :class="{ checked: agreeTerms }" />
-					<text>已阅读并同意《用户协议》</text>
+					<text>已阅读并同意</text>
+					<text class="link" @tap.stop="openTerms">《用户协议》</text>
 				</view>
 				<view class="agreements" @tap="agreeAuto = !agreeAuto">
 					<view class="dot" :class="{ checked: agreeAuto }" />
@@ -120,6 +121,18 @@ function toggleMode(){
 function onTapForgot(){
 	// 仅跳转到修改密码占位页（页面仅界面即可）
 	cardPulse.value = true; setTimeout(()=>{ cardPulse.value = false; navigate('/pages/reset-password/index'); }, 200);
+}
+
+function openTerms(){
+	try{
+		const url = `${API_BASE}/system/public/miniapp-terms`;
+		// 统一跳转到通用 webview 页面
+		const encoded = encodeURIComponent(url);
+		// #ifdef H5
+		if (typeof window !== 'undefined'){ window.open(url, '_blank'); return; }
+		// #endif
+		uni.navigateTo({ url: `/pages/webview/index?url=${encoded}&title=${encodeURIComponent('用户协议')}` });
+	}catch{}
 }
 
 function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/reset-password/index' | '/pages/store/index'){

@@ -1,9 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { AssetService } from '../file/asset.service.js';
+import { join, dirname } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import type { Response } from 'express';
 
 @ApiTags('system')
 @Controller('system')
@@ -105,6 +108,69 @@ export class SystemSettingController {
                 if (!ok) { try { await this.assets.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); } catch {} }
             }
         } catch {}
+    }
+
+    // =========================
+    // 小程序用户协议：以静态HTML文件方式存储与输出
+    // =========================
+
+    private getTermsFilePath(): string {
+        const dir = join(process.cwd(), 'uploads', 'public');
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        return join(dir, 'miniapp-terms.html');
+    }
+
+    // 管理端：读取当前用户协议HTML
+    @Get('miniapp-terms')
+    @UseGuards(AdminGuard)
+    @RequirePerm('system-basic')
+    @ApiOperation({ summary: '获取小程序用户协议（HTML）' })
+    async getMiniappTerms() {
+        try {
+            const path = this.getTermsFilePath();
+            if (existsSync(path)) {
+                const html = readFileSync(path, 'utf8');
+                return { html };
+            }
+        } catch {}
+        const fallback = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><title>用户协议</title><style>body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",sans-serif;margin:16px;line-height:1.7;color:#111827}h1,h2{margin:.6em 0}a{color:#2563eb;text-decoration:underline}</style></head><body><h1>用户协议</h1><p>请在此处编辑用户协议内容。</p></body></html>';
+        return { html: fallback };
+    }
+
+    // 管理端：保存用户协议HTML为静态文件
+    @Post('miniapp-terms')
+    @UseGuards(AdminGuard)
+    @RequirePerm('system-basic')
+    @ApiOperation({ summary: '保存小程序用户协议（HTML）' })
+    async saveMiniappTerms(@Body() body: { html?: string }) {
+        const raw = String(body?.html ?? '').trim();
+        // 允许空：写入占位模板，确保有有效HTML骨架
+        const html = raw || '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><title>用户协议</title></head><body><h1>用户协议</h1><p>内容为空。</p></body></html>';
+        const filePath = this.getTermsFilePath();
+        const dir = dirname(filePath);
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        writeFileSync(filePath, html, 'utf8');
+        // 返回可公开访问的URL（供前端展示/复制）
+        const publicPath = '/uploads/public/miniapp-terms.html';
+        return { ok: true, url: publicPath };
+    }
+
+    // 公共：直接输出HTML（Content-Type: text/html）
+    @Get('public/miniapp-terms')
+    @ApiOperation({ summary: '公共-输出小程序用户协议HTML' })
+    async getPublicMiniappTerms(@Res() res: Response) {
+        try {
+            const filePath = this.getTermsFilePath();
+            if (existsSync(filePath)) {
+                const html = readFileSync(filePath, 'utf8');
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.send(html);
+                return;
+            }
+        } catch {}
+        const fallback = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><title>用户协议</title></head><body><h1>用户协议</h1><p>内容暂未配置。</p></body></html>';
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(fallback);
     }
 }
 

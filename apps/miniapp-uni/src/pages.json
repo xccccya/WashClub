@@ -68,6 +68,11 @@
 		}
 		,
 		{
+			"path": "pages/webview/index",
+			"style": { "navigationBarTitleText": "网页" }
+		}
+		,
+		{
 			"path": "pages/reset-password/index",
 			"style": { "navigationBarTitleText": "重置密码" }
 		}
