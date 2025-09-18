@@ -95,6 +95,8 @@ export function saveAuth(token: string, user: any) {
     uni.setStorageSync('token', token);
     uni.setStorageSync('user', user || {});
     uni.setStorageSync('loginAt', Date.now());
+    // 通知应用登录态已变更：用于驱动实时连接等
+    try { uni.$emit?.('auth:changed'); } catch {}
   } catch {}
 }
 

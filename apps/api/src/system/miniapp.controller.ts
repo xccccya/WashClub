@@ -92,10 +92,18 @@ export class SystemMiniappEmployeeController {
     const paymentsSumPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: start, lt: end }, deletedAt: null } });
     const refundsSumPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: start, lt: end } } });
     const washcardTimesPromise = this.prisma.$queryRaw(Prisma.sql`
-      SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM WashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${start} AND createdAt < ${end}
+      SELECT COALESCE(SUM(ABS(l.\`change\`)), 0) AS times
+      FROM WashCardLog l
+      JOIN \`Order\` o ON o.id = l.serviceOrderId
+      WHERE l.action='DEDUCT' AND l.reason='SERVICE_DEDUCT' AND l.createdAt >= ${start} AND l.createdAt < ${end}
+        AND o.payStatus='PAID' AND o.deletedAt IS NULL
     `) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
     const groupWashcardTimesPromise = this.prisma.$queryRaw(Prisma.sql`
-      SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM GroupWashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${start} AND createdAt < ${end}
+      SELECT COALESCE(SUM(ABS(g.\`change\`)), 0) AS times
+      FROM GroupWashCardLog g
+      JOIN \`Order\` o ON o.id = g.serviceOrderId
+      WHERE g.action='DEDUCT' AND g.reason='SERVICE_DEDUCT' AND g.createdAt >= ${start} AND g.createdAt < ${end}
+        AND o.payStatus='PAID' AND o.deletedAt IS NULL
     `) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
     const washSalesPromise = this.prisma.$queryRaw(Prisma.sql`
       SELECT COALESCE(SUM(oi.quantity), 0) AS qty
@@ -113,8 +121,8 @@ export class SystemMiniappEmployeeController {
 
     const paymentsSumPrevPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID','REFUNDED'] as any }, paidAt: { gte: prevStart, lt: prevEnd }, deletedAt: null } });
     const refundsSumPrevPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any, updatedAt: { gte: prevStart, lt: prevEnd } } });
-    const wc1PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM WashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${prevStart} AND createdAt < ${prevEnd}`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
-    const wc2PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(\`change\`)), 0) AS times FROM GroupWashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${prevStart} AND createdAt < ${prevEnd}`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
+    const wc1PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(l.\`change\`)), 0) AS times FROM WashCardLog l JOIN \`Order\` o ON o.id = l.serviceOrderId WHERE l.action='DEDUCT' AND l.reason='SERVICE_DEDUCT' AND l.createdAt >= ${prevStart} AND l.createdAt < ${prevEnd} AND o.payStatus='PAID' AND o.deletedAt IS NULL`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
+    const wc2PrevPromise = this.prisma.$queryRaw(Prisma.sql`SELECT COALESCE(SUM(ABS(g.\`change\`)), 0) AS times FROM GroupWashCardLog g JOIN \`Order\` o ON o.id = g.serviceOrderId WHERE g.action='DEDUCT' AND g.reason='SERVICE_DEDUCT' AND g.createdAt >= ${prevStart} AND g.createdAt < ${prevEnd} AND o.payStatus='PAID' AND o.deletedAt IS NULL`) as unknown as Promise<Array<{ times: Prisma.Decimal | number | null }>>;
     const wsPrevPromise = this.prisma.$queryRaw(Prisma.sql`
       SELECT COALESCE(SUM(oi.quantity), 0) AS qty
       FROM OrderItem oi JOIN \`Order\` o ON o.id = oi.orderId AND o.payStatus='PAID' AND o.deletedAt IS NULL AND o.paidAt >= ${prevStart} AND o.paidAt < ${prevEnd}
@@ -183,12 +191,12 @@ export class SystemMiniappEmployeeController {
         GROUP BY DATE(updatedAt)
       ),
       wc1 AS (
-        SELECT DATE(createdAt) AS d, SUM(ABS(\`change\`)) AS t FROM WashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${start} AND createdAt < ${end}
-        GROUP BY DATE(createdAt)
+        SELECT DATE(l.createdAt) AS d, SUM(ABS(l.\`change\`)) AS t FROM WashCardLog l JOIN \`Order\` o ON o.id = l.serviceOrderId WHERE l.action='DEDUCT' AND l.reason='SERVICE_DEDUCT' AND l.createdAt >= ${start} AND l.createdAt < ${end} AND o.payStatus='PAID' AND o.deletedAt IS NULL
+        GROUP BY DATE(l.createdAt)
       ),
       wc2 AS (
-        SELECT DATE(createdAt) AS d, SUM(ABS(\`change\`)) AS t FROM GroupWashCardLog WHERE action='DEDUCT' AND reason='SERVICE_DEDUCT' AND createdAt >= ${start} AND createdAt < ${end}
-        GROUP BY DATE(createdAt)
+        SELECT DATE(g.createdAt) AS d, SUM(ABS(g.\`change\`)) AS t FROM GroupWashCardLog g JOIN \`Order\` o ON o.id = g.serviceOrderId WHERE g.action='DEDUCT' AND g.reason='SERVICE_DEDUCT' AND g.createdAt >= ${start} AND g.createdAt < ${end} AND o.payStatus='PAID' AND o.deletedAt IS NULL
+        GROUP BY DATE(g.createdAt)
       ),
       sales AS (
         SELECT DATE(o.paidAt) AS d, SUM(oi.quantity) AS qty

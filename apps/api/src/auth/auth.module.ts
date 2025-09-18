@@ -10,6 +10,7 @@ import { SmsAdminController } from './sms.controller.js';
 import { AdminGuard } from './admin.guard.js';
 import { WechatTokenService } from './wechat-token.service.js';
 import { MetricsController } from './metrics.controller.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { MetricsController } from './metrics.controller.js';
 			secret: process.env.JWT_SECRET || 'dev_secret',
 			signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
 		}),
+		FileModule,
 	],
 	controllers: [AuthController, AdminRoleController, SmsAdminController, MetricsController],
 	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard, WechatTokenService],

@@ -171,6 +171,16 @@
 			"path": "pages/merchant/index",
 			"style": { "navigationBarTitleText": "商家中心" }
 		}
+		,
+		{
+			"path": "pages/message/list",
+			"style": { "navigationBarTitleText": "消息中心" }
+		}
+		,
+		{
+			"path": "pages/message/detail",
+			"style": { "navigationBarTitleText": "消息详情" }
+		}
 	],
 	"tabBar": {
 		"color": "#666666",

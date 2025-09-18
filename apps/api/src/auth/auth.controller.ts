@@ -103,6 +103,16 @@ class WechatOneTapDto {
 	jsCode!: string; // wx.login 的 code
 }
 
+class UpdateAdminAvatarDto {
+	@Type(() => Number)
+	@IsInt()
+	userId!: number;
+
+	@IsOptional()
+	@IsString()
+	avatarUrl?: string | null;
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -173,6 +183,12 @@ export class AuthController {
 	@ApiOperation({ summary: '管理员修改密码' })
 	updateAdminPassword(@Body() dto: UpdatePasswordDto) {
 		return this.service.updateAdminPassword(Number(dto.userId), dto.oldPassword, dto.newPassword);
+	}
+
+	@Post('admin/update-avatar')
+	@ApiOperation({ summary: '管理员更换头像' })
+	updateAdminAvatar(@Body() dto: UpdateAdminAvatarDto) {
+		return this.service.updateAdminAvatar(Number(dto.userId), dto.avatarUrl ?? null);
 	}
 }
 

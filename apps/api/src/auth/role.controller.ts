@@ -42,12 +42,12 @@ export class AdminRoleController {
 	@Post('admins')
 	@ApiOperation({ summary: '创建管理员' })
 	@RequirePerm('system-admins')
-	createAdmin(@Body() body: { phone: string; name?: string; password: string; roleId: number }) { return this.service.createAdmin(body); }
+	createAdmin(@Body() body: { phone: string; name?: string; password: string; roleId: number; avatarUrl?: string | null }) { return this.service.createAdmin(body); }
 
 	@Put('admins/:id')
 	@ApiOperation({ summary: '更新管理员' })
 	@RequirePerm('system-admins')
-	updateAdmin(@Param('id') id: string, @Body() body: { phone?: string; name?: string; password?: string; roleId?: number | null }) {
+	updateAdmin(@Param('id') id: string, @Body() body: { phone?: string; name?: string; password?: string; roleId?: number | null; avatarUrl?: string | null }) {
 		return this.service.updateAdmin(Number(id), body);
 	}
 

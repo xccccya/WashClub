@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, OrderType, OrderStatus, PayStatus, FulfillmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 import { AssetService } from '../file/asset.service.js';
 
@@ -11,7 +12,8 @@ export class OrderService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly coupons: CouponService,
-        private readonly assets?: AssetService
+        private readonly assets?: AssetService,
+        private readonly notifier?: NotificationService,
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -733,6 +735,20 @@ export class OrderService {
                     }
                 }
             } catch { }
+            // 管理通知：新订单提醒（为每个管理员持久化并广播，按模板渲染标题/正文，携带 UI 属性）
+            try{
+                const ord:any = await this.prisma.order.findUnique({ where: { id: res.id }, select: { id:true, no:true, payAmount:true, type:true } });
+                const link = `/orders/${ord?.id||0}`;
+                const amountStr = Number(ord?.payAmount||0).toFixed(2);
+                const rawType = String(ord?.type||'').toUpperCase();
+                const typeText = rawType === 'SP' ? '商品' : (rawType === 'SERVICE' ? '服务' : (rawType === 'FK' ? '付款' : rawType));
+                const vars = { no: ord?.no, amount: amountStr, type: typeText } as any;
+                const fallback = { title: '新订单提醒', content: `订单 ${ord?.no||''} 金额￥${amountStr}，类型：${typeText}` } as any;
+                const admins = await this.prisma.user.findMany({ select: { id: true } });
+                for (const u of admins){
+                    await this.notifier?.sendByTemplate('ADMIN_NEW_ORDER', vars, { kind:'ADMIN', userId: u.id }, fallback, link);
+                }
+            }catch{}
             return res;
         });
     }

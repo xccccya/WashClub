@@ -185,7 +185,7 @@
 
 		<h4 class="mt16">订单项</h4>
 		<el-table :data="data?.items||[]" border size="small" style="width: 100%">
-			<el-table-column label="图片" width="80"><template #default="{ row }"><img v-if="row.imageUrl" :src="row.imageUrl" class="img48" /><span v-else>-</span></template></el-table-column>
+			<el-table-column label="图片" width="80"><template #default="{ row }"><img v-if="row.imageUrl" :src="absUrl(row.imageUrl)" class="img48" /><span v-else>-</span></template></el-table-column>
 			<el-table-column prop="name" label="名称" />
 			<el-table-column prop="specsText" label="规格" width="200" />
 			<el-table-column prop="barcode" label="条码" width="160" />
@@ -402,6 +402,12 @@ async function copyNo(no?: string){
 		if (ok){ ElMessage.success('已复制订单号'); }
 		else { throw new Error('copy failed'); }
 	}catch(e:any){ ElMessage.error('复制失败，请手动选择复制'); }
+}
+
+function absUrl(url: string){
+	if (!url) return '';
+	if (url.startsWith('http://') || url.startsWith('https://')) return url;
+	return `${API_BASE}${url}`;
 }
 </script>
 

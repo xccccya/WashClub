@@ -192,7 +192,7 @@ export class AuthService {
 		const token = await this.jwt.signAsync({ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone }, { expiresIn });
 		let expiresAt: number | undefined = undefined;
 		try { const decoded: any = this.jwt.decode(token); const exp = Number(decoded?.exp||0); if (exp) expiresAt = exp * 1000; } catch {}
-		return { token, expiresAt, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions } };
+		return { token, expiresAt, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions, avatarUrl: (user as any).avatarUrl ?? null } };
 	}
 
 	// 小程序会员登录
@@ -268,7 +268,7 @@ export class AuthService {
 			} catch {}
 		}
 		const token = await this.jwt.signAsync({ sub: member.id, type: 'member', phone: member.phone }, { expiresIn: '7d' });
-		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone }, createdNew };
+		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone } };
 	}
 
 	// 重置会员密码（校验短信验证码 purpose: 'resetPwd'，设置新密码）
@@ -332,6 +332,12 @@ export class AuthService {
 		const newHashed = this.hashPassword(newPassword);
 		await this.prisma.user.update({ where: { id: userId }, data: { password: newHashed } });
 		return { ok: true };
+	}
+
+	// 新增：更新管理员头像
+	async updateAdminAvatar(userId: number, avatarUrl: string | null) {
+		const updated = await (this.prisma.user.update({ where: { id: userId }, data: ({ avatarUrl: avatarUrl ?? null } as any) }) as any);
+		return { id: updated.id, avatarUrl: (updated as any).avatarUrl ?? null };
 	}
 }
 

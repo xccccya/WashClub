@@ -18,6 +18,7 @@ import { CouponService } from '../coupon/coupon.service.js';
 import { FileModule } from '../file/file.module.js';
 import { MemberModule } from '../member/member.module.js';
 import { GroupModule } from '../group/group.module.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 @Module({
     imports: [
@@ -25,6 +26,7 @@ import { GroupModule } from '../group/group.module.js';
         FileModule,
         MemberModule,
         GroupModule,
+        NotificationModule,
         JwtModule.register({
             secret: process.env.JWT_SECRET || 'dev_secret',
         })

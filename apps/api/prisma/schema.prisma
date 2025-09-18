@@ -13,6 +13,7 @@ model User {
   updatedAt             DateTime       @updatedAt
   phone                 String         @unique
   name                  String?
+  avatarUrl             String?
   password              String
   role                  String         @default("staff")
   roleId                Int?
@@ -1481,6 +1482,83 @@ model MemberPointsLog {
   @@index([memberId, createdAt])
   @@index([memberId])
   @@index([orderId])
+}
+
+// =====================
+// 站内通知 模型
+// =====================
+
+enum NotificationTargetType {
+  ADMIN
+  MEMBER
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+model Notification {
+  id            Int                     @id @default(autoincrement())
+  createdAt     DateTime                @default(now())
+
+  // 展示内容
+  title         String
+  content       String?                 @db.Text
+  type          String?                 // 业务类型：ORDER_PAID / SERVICE_DONE / COUPON_WILL_EXPIRE / REFUND_ARRIVED / WASH_CARD_DEDUCT 等
+  linkPath      String?                 @db.VarChar(512) // 前端跳转路径（web: /orders/123；miniapp: pages/order/detail?id=xxx）
+
+  // 目标受众（二选一）
+  targetType    NotificationTargetType
+  targetUserId  Int?                    // 管理后台/收银台管理员 User.id
+  targetMemberId Int?                   // 小程序会员 Member.id
+
+  status        NotificationStatus      @default(UNREAD)
+  readAt        DateTime?
+
+  // 便于筛选
+  @@index([targetUserId, status, createdAt])
+  @@index([targetMemberId, status, createdAt])
+}
+
+// 通知模板配置：用于配置标题/正文模板与启用状态
+model NotificationTemplate {
+  id              Int       @id @default(autoincrement())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // 模板类型键：如 ORDER_PAID / SERVICE_DONE / COUPON_WILL_EXPIRE / REFUND_ARRIVED / WASH_CARD_DEDUCT
+  typeKey         String
+  titleTemplate   String
+  contentTemplate String
+  enabled         Boolean   @default(true)
+
+  // 新增：模板频道（用户通知/管理通知/小程序订阅）
+  // MEMBER: 会员用户端通知；ADMIN: 管理端通知；WXAPP: 小程序订阅消息
+  channel         String    @default("MEMBER")
+
+  // 管理端通知的展示属性（Element Plus Notification）
+  // 仅在 channel=ADMIN 时生效
+  uiDuration      Int?
+  uiType          String?
+  uiPosition      String?
+}
+
+// 通知类型设置：控制每个类型在不同频道的开关、回退与默认UI
+model NotificationTypeSetting {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  typeKey    String
+  channel    String   // MEMBER / ADMIN / WXAPP
+  enabled    Boolean  @default(true)
+  allowFallback Boolean @default(true)
+
+  // ADMIN 频道默认 UI（缺模板或模板未设时使用）
+  defaultUi  Json?
+
+  @@unique([typeKey, channel])
 }
 
 // =====================

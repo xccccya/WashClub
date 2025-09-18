@@ -25,7 +25,15 @@
 					<view v-if="isLoggedIn && uid" class="uid-line">会员号 {{ uid }}</view>
 				</view>
 			</view>
-			<image v-if="isLoggedIn" class="setting-icon" src="/static/icons/setting.png" mode="aspectFit" @tap.stop="onTapSetting" />
+			<view v-if="isLoggedIn" style="position:absolute; right: 112rpx; top: 20rpx;">
+				<view class="msg-btn" @tap.stop="onTapMessages">
+					<image class="msg-icon" src="/static/icons/message.png" mode="aspectFit" />
+					<view v-if="unreadCount>0" class="msg-badge">{{ unreadCountText }}</view>
+				</view>
+			</view>
+			<view v-if="isLoggedIn" class="setting-btn" @tap.stop="onTapSetting">
+				<image class="setting-icon" src="/static/icons/setting.png" mode="aspectFit" />
+			</view>
 		</view>
 
 		<!-- 等级信息卡片（展示等级名称、图标、以及升级进度） -->
@@ -132,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+declare function getCurrentPages(): any[];
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE, checkAuthAndRefresh, createHttp } from '../../utils/auth';
@@ -277,19 +286,49 @@ onMounted(() => {
 					currentRequired.value = Number(profile?.currentRequiredGrowth || 0);
 				}
 			}).catch(()=>{});
-			try { http('/member/me/active', { method: 'POST' }).catch(()=>{}); } catch {}
+			try { http('/member/me/active', { method:'POST' }).catch(()=>{}); } catch {}
 		}
 	} catch {}
 	try { uni.$on?.('auth:changed', handleAuthChanged); } catch {}
+    // 订阅未读事件：使用具名处理器，避免全局 off 误删其他页面监听
+    try{
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const onUnread:any = (p:any)=>{ try{ unreadCount.value = Math.max(0, Number(p?.count||0)); }catch{} };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const onUnreadDelta:any = (p:any)=>{ try{ unreadCount.value = Math.max(0, unreadCount.value + Number(p?.delta||0)); }catch{} };
+        // 将处理器保存到页面实例（用于卸载时精准移除）
+        try{ const pages:any[] = (getCurrentPages as any)?.()||[]; const cur:any = pages?.[pages.length-1]; if (cur) { (cur as any).__onUnread = onUnread; (cur as any).__onUnreadDelta = onUnreadDelta; } }catch{}
+        uni.$on?.('realtime:unread', onUnread);
+        uni.$on?.('realtime:unread-delta', onUnreadDelta);
+    }catch{}
 });
 // 页面展示：检查登录并拉取默认洗车卡
 // #ifdef MP-WEIXIN || H5
 import { onShow } from '@dcloudio/uni-app';
-onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) { try { handleAuthChanged(); } catch {} await loadCard(); await loadOrderBadges(); await checkEmployee(); }});
+onShow(async ()=>{
+    const ok = await checkAuthAndRefresh({ redirectIfExpired: true });
+    if (ok) {
+        try { handleAuthChanged(); } catch {}
+        await loadCard();
+        await loadOrderBadges();
+        await checkEmployee();
+    }
+    // 无论登录与否，刷新未读气泡（未登录则显示 0）
+    try { await refreshUnread(); } catch {}
+});
 // 加载积分
 onShow(async ()=>{ try{ await loadPoints(); }catch{} });
 // #endif
-onBeforeUnmount(() => { try { uni.$off?.('auth:changed', handleAuthChanged); } catch {} });
+onBeforeUnmount(() => {
+    try { uni.$off?.('auth:changed', handleAuthChanged); } catch {}
+    // 卸载实时事件监听器（仅移除当前页面注册的处理器）
+    try{
+        const pages:any[] = (getCurrentPages as any)?.()||[]; const cur:any = pages?.[pages.length-1];
+        const onUnread = cur?.__onUnread; const onUnreadDelta = cur?.__onUnreadDelta;
+        if (onUnread) uni.$off?.('realtime:unread', onUnread);
+        if (onUnreadDelta) uni.$off?.('realtime:unread-delta', onUnreadDelta);
+    }catch{}
+});
 
 function onTapSetting() { try { uni.navigateTo({ url: '/pages/settings/index' }); } catch {} }
 // 微信小程序头像更换：与 settings 页面保持一致
@@ -387,7 +426,7 @@ function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/
 
 // 已切换为系统 tabBar
 
-function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {} token.value = null; nickname.value = '点击登录账号'; uni.showToast({ title: '已退出', icon: 'none' }); }
+function logout() { try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {} token.value = null; nickname.value = '点击登录账号'; try{ uni.$emit?.('auth:changed'); }catch{} uni.showToast({ title: '已退出', icon: 'none' }); }
 
 function onTapWashCard(){ if (!isLoggedIn.value) { navigate('/pages/login/index'); return; } navigate('/pages/washcard/index'); }
 
@@ -463,6 +502,30 @@ async function loadGroupFlag(){
 function onTapGroup(){ navigate('/pages/group/index'); }
 
 onMounted(()=>{ try { token.value = uni.getStorageSync('token'); } catch {}; loadGroupFlag(); });
+
+// ======= 消息通知入口 =======
+const unreadCount = ref<number>(0);
+const unreadCountText = computed(()=> unreadCount.value>9 ? '9+' : String(unreadCount.value));
+async function refreshUnread(){
+    try{
+        const t = uni.getStorageSync('token');
+        if (!t){
+            // 未登录也展示入口，但无未读数
+            unreadCount.value = 0;
+            return;
+        }
+        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
+        const r:any = await http('/notification/unread-count', { method: 'GET' });
+        unreadCount.value = Number(r?.count||0);
+    }catch{ unreadCount.value = 0; }
+}
+function onTapMessages(){
+    try{
+        const t = uni.getStorageSync('token');
+        if (!t){ uni.navigateTo({ url: '/pages/login/index' }); return; }
+    }catch{}
+    try { uni.navigateTo({ url: '/pages/message/list' }); } catch {}
+}
 </script>
 
 <style>
@@ -487,8 +550,11 @@ onMounted(()=>{ try { token.value = uni.getStorageSync('token'); } catch {}; loa
 .meta { display:flex; flex-direction: column; gap: 10rpx; flex: 1; min-width: 0; }
 .chips-row { display:flex; align-items:center; gap: 16rpx; min-width: 0; }
 .nickname-text { font-size: 36rpx; font-weight: 800; color: #0b1220; letter-spacing: 1rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
-.setting-btn { display:none; }
-.setting-icon { position: absolute; right: 20rpx; top: 20rpx; width: 48rpx; height: 48rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
+.setting-btn { position: absolute; right: 20rpx; top: 20rpx; width: 56rpx; height: 56rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); display:flex; align-items:center; justify-content:center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
+.setting-icon { width: 40rpx; height: 40rpx; image-rendering: -webkit-optimize-contrast; }
+.msg-btn{ position: relative; width: 56rpx; height: 56rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); display:flex; align-items:center; justify-content:center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
+.msg-icon{ width: 40rpx; height: 40rpx; image-rendering: -webkit-optimize-contrast; }
+.msg-badge{ position:absolute; right:-6rpx; top:-6rpx; width: 28rpx; height: 28rpx; border-radius: 999rpx; background: #ef4444; color:#fff; font-size: 20rpx; display:flex; align-items:center; justify-content:center; box-shadow: 0 2rpx 6rpx rgba(239,68,68,0.35); }
 .uid-line { font-size: 22rpx; color: #374151; padding: 6rpx 10rpx; background: rgba(255,255,255,.8); border: 2rpx dashed #e5e7eb; border-radius: 999rpx; align-self: flex-start; letter-spacing: 1rpx; }
 /* 未登录 CTA */
 .login-cta { padding: 12rpx 20rpx; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); color: #0b1220; font-size: 26rpx; font-weight: 700; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.06); }

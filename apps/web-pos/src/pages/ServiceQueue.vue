@@ -78,7 +78,7 @@
 					<div class="ops">
 						<template v-if="row.status!=='COMPLETED'">
 							<el-button v-if="row.currentTaskIndex < 0" size="large" type="primary" class="btn-lg" @click="startFirst(row)"><el-icon><VideoPlay /></el-icon><span>开始 {{ row?.tasks?.[0]?.name || '第一步' }}</span></el-button>
-							<!-- 步骤切换移入更多菜单；当显示“开始”按钮时隐藏“完成当前”；最后一步也隐藏“完成当前” -->
+							<!-- 步骤切换移入更多菜单；当显示"开始"按钮时隐藏"完成当前"；最后一步也隐藏"完成当前" -->
 							<el-button v-if="row.currentTaskIndex >= 0 && row.currentTaskIndex < (row.tasks?.length||0) - 1" size="large" type="success" class="btn-lg" @click="finishTask(row)"><el-icon><SuccessFilled /></el-icon><span>完成当前</span></el-button>
 							<el-popconfirm v-if="row.currentTaskIndex >= 0" title="确认该车辆所有步骤均已完成？" @confirm="confirmComplete(row)">
 								<template #reference>
@@ -122,7 +122,7 @@
 		<div class="ops-measure">
 			<div ref="opsTplNotStartedRef" class="ops">
 				<el-button size="large" type="primary" class="btn-lg"><el-icon><VideoPlay /></el-icon><span>开始 第一步</span></el-button>
-				<!-- 未开始组合：不显示“完成当前”，以更接近真实列宽需求 -->
+				<!-- 未开始组合：不显示"完成当前"，以更接近真实列宽需求 -->
 				<el-button size="large" class="btn-lg" plain>更多</el-button>
 			</div>
 			<div ref="opsTplRunningRef" class="ops">
@@ -1057,11 +1057,12 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .eta-tags{ display:flex; align-items:center; gap:10px; flex-wrap: wrap; padding: 6px 8px; background: #fafafa; border: 1px dashed #e5e7eb; border-radius: 8px; }
 .actions-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .search-input{ width:340px; }
-.pos-table :deep(.el-table__header){ font-size: 15px; }
-.pos-table :deep(.el-table__row){ height: auto; }
-.pos-table :deep(.el-button){ font-size: 15px; white-space: nowrap; }
-.pos-table :deep(.el-select .el-input__wrapper){ padding: 10px 12px; }
-.step-switch{ width:180px; margin:0 8px; }
++.pos-table{ border-radius: 12px; overflow: hidden; border: 1px solid var(--el-border-color); box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+ .pos-table :deep(.el-table__header){ font-size: 15px; }
+ .pos-table :deep(.el-table__row){ height: auto; }
+ .pos-table :deep(.el-button){ font-size: 15px; white-space: nowrap; }
+ .pos-table :deep(.el-select .el-input__wrapper){ padding: 10px 12px; }
+ .step-switch{ width:180px; margin:0 8px; }
 .quick-filter{ display:flex; align-items:center; }
 .vehicle{ display:flex; align-items:center; gap:12px; }
 .brand-img{ width:28px;height:28px;object-fit:contain;border-radius:4px; border:1px solid #eee; }

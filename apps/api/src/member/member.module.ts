@@ -24,6 +24,7 @@ import { MemberSignInController } from './signin.controller.js';
 import { MemberSignInService } from './signin.service.js';
 import { MemberPointsController } from './points.controller.js';
 import { MemberPointsService } from './points.service.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 @Module({
 	imports: [
@@ -31,6 +32,7 @@ import { MemberPointsService } from './points.service.js';
 			secret: process.env.JWT_SECRET || 'dev_secret',
 		}),
 		FileModule,
+		NotificationModule,
 	],
 	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController, MemberSignInController, MemberPointsController],
 	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService, MemberPointsService],

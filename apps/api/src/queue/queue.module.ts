@@ -9,9 +9,10 @@ import { JwtService } from '@nestjs/jwt';
 import { FileModule } from '../file/file.module.js';
 import { OrderModule } from '../order/order.module.js';
 import { GroupService } from '../group/group.service.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 @Module({
-    imports: [FileModule, OrderModule],
+    imports: [FileModule, OrderModule, NotificationModule],
     providers: [PrismaService, QueueService, VehicleService, JwtService, QueueTypeService, GroupService],
     controllers: [QueueController, QueueTypeController],
 })

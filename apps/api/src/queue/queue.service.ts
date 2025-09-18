@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 type CreateQueueInput =
     | { mode: 'vehicleId'; vehicleId: number; queueTypeId?: number | undefined }
@@ -9,7 +10,11 @@ type CreateQueueInput =
 
 @Injectable()
 export class QueueService {
-    constructor(private prisma: PrismaService, private vehicleService: VehicleService) {}
+    constructor(
+        private prisma: PrismaService, 
+        private vehicleService: VehicleService,
+        private notifier: NotificationService
+    ) {}
 
     async addToQueue(input: CreateQueueInput) {
         let vehicleId: number | null = null;
@@ -179,11 +184,19 @@ export class QueueService {
             await tx.serviceTask.updateMany({ where: { queueItemId }, data: { status: 'DONE' as any, finishedAt: now } });
             return tx.serviceQueueItem.update({ where: { id: queueItemId }, data: { status: 'COMPLETED' as any, finishedAt: now } });
         });
+        
         // 联动订单履约状态至 DONE（待支付）
         try {
             if ((item as any).orderId) {
                 await this.prisma.order.update({ where: { id: (item as any).orderId }, data: { fulfillmentStatus: 'DONE' as any } });
                 try { await (this.prisma as any).orderTimeline.create({ data: { orderId: (item as any).orderId, event: 'FULFILLMENT', value: 'DONE' } }); } catch {}
+                
+                // 添加服务完成通知
+                try{
+                    const ord:any = await this.prisma.order.findUnique({ where: { id: (item as any).orderId }, select: { id:true, no:true, memberId:true, updatedAt:true } });
+                    const endAt = (()=>{ try{ const d = now; const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{return '';} })();
+                    await this.notifier.sendByTemplate('SERVICE_DONE', { no: ord?.no, id: ord?.id, endAt }, { kind:'MEMBER', memberId: Number(ord?.memberId||0) }, { title:'服务已完成', content:`订单 ${ord?.no||''} 服务已完成。` }, `/pages/order/detail?id=${ord?.id}`);
+                }catch{}
             }
         } catch {}
         return updated;

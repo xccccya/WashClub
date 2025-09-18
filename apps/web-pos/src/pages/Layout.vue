@@ -35,9 +35,14 @@
 					</template>
 				</div>
 				<div class="user">
+					<div class="notify-bell" title="消息通知" @click="openNotifyDrawer">
+						<el-badge :value="unreadCountText" :hidden="unreadCount===0" class="bell-badge">
+							<el-icon><Bell /></el-icon>
+						</el-badge>
+					</div>
 					<el-dropdown>
-						<span class="user-trigger">
-							<el-icon><UserFilled /></el-icon>
+						<span class="user-trigger" title="当前账号">
+							<el-avatar class="user-avatar" :size="28" :src="formatAvatar(avatarUrl)" />
 							<span class="name">{{ userName }}</span>
 						</span>
 						<template #dropdown>
@@ -58,6 +63,34 @@
 				</router-view>
 			</section>
 		</main>
+		<!-- 通知抽屉（POS 触屏优化） -->
+		<el-drawer v-model="notifyDrawer" :with-header="false" size="420px" append-to-body :modal-append-to-body="false">
+			<div class="notify-drawer">
+				<div class="notify-drawer__header">
+					<div class="title">消息通知</div>
+					<div class="actions">
+						<el-button size="large" @click="reloadNotifications" :loading="notifyLoading">刷新</el-button>
+						<el-button size="large" type="primary" plain @click="markAllRead" :disabled="!notifications.some(n=>n.status==='UNREAD')">全部已读</el-button>
+					</div>
+				</div>
+				<el-scrollbar class="notify-list">
+					<div v-for="n in notifications" :key="n.id" class="notify-item" :data-unread="n.status==='UNREAD'" @click="openNotification(n)">
+						<div class="item-title">
+							<span class="dot" v-if="n.status==='UNREAD'"></span>
+							<span class="text">{{ n.title }}</span>
+						</div>
+						<div class="item-content" v-if="n.content">{{ n.content }}</div>
+						<div class="item-foot">
+							<span class="time">{{ formatTime(n.createdAt) }}</span>
+							<div class="ops" @click.stop>
+								<el-button link size="large" type="primary" @click="markRead(n)" :disabled="n.status==='READ'">标记已读</el-button>
+							</div>
+						</div>
+					</div>
+					<div v-if="!notifications.length && !notifyLoading" class="notify-empty">暂无消息</div>
+				</el-scrollbar>
+			</div>
+		</el-drawer>
 	</div>
 </template>
 
@@ -65,8 +98,9 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { absUrl } from '../utils/http';
+import { API_BASE } from '../config';
 import { ElMessageBox } from 'element-plus';
-import { HomeFilled, ShoppingCart, Tickets, UserFilled, SwitchButton } from '@element-plus/icons-vue';
+import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell } from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -75,6 +109,18 @@ const pageTitle = computed(()=> String((route.meta as any)?.title || ''));
 const userName = computed(()=>{
 	try { return JSON.parse(localStorage.getItem('user')||'{}')?.name || '用户'; } catch { return '用户'; }
 });
+const avatarUrl = ref<string | null>(null);
+
+function formatAvatar(url?: string | null){
+	try{
+		const s = String(url||'').trim();
+		if (s) return absUrl(s);
+		// 未设置头像则给一个内置默认图（走后端静态 /uploads 路径）
+		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	}catch{
+		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	}
+}
 
 function isActive(path: string){
 	if (path === '/orders') return route.path.startsWith('/orders');
@@ -136,6 +182,73 @@ function closeTab(name:string){
 	}
 }
 
+// 通知：未读与 WS + 抽屉
+const unreadCount = ref<number>(0);
+const unreadCountText = computed(()=> unreadCount.value>99 ? '99+' : String(unreadCount.value));
+let ws: WebSocket | null = null;
+async function refreshUnread(){
+    try{
+        const token = localStorage.getItem('token')||'';
+        const res = await fetch(`${API_BASE}/notification/unread-count`, { headers: { Authorization: `Bearer ${token}` } });
+        const j:any = await res.json();
+        unreadCount.value = Number(j?.count||0);
+    }catch{ unreadCount.value = 0; }
+}
+function connectWS(){
+    try{
+        const url = new URL(API_BASE);
+        const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        const token = localStorage.getItem('token')||'';
+        const wsUrl = `${proto}//${url.host}/ws?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = async (ev)=>{
+            try{
+                const msg = JSON.parse(ev.data||'{}');
+                if (msg?.type === 'notification'){
+                    unreadCount.value += 1;
+                    const { ElNotification } = await import('element-plus');
+                    const ui:any = msg?.data?.ui || {};
+                    ElNotification({ title: String(msg.data?.title||'新消息'), message: String(msg.data?.content||''), position: ui?.position || 'top-right', type: ui?.type || 'info', duration: typeof ui?.duration==='number' ? ui.duration : 4500 });
+                }
+            }catch{}
+        };
+        ws.onclose = ()=>{ ws=null; setTimeout(connectWS, 2000); };
+    }catch{}
+}
+function openNotifyDrawer(){ notifyDrawer.value = true; reloadNotifications(); }
+function formatTime(t:string){ try{ const d=new Date(t); const p=(n:number)=> String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }catch{ return t; } }
+
+type N = { id:number; title:string; content?:string|null; linkPath?:string|null; status:'UNREAD'|'READ'; createdAt:string };
+const notifyDrawer = ref(false);
+const notifyLoading = ref(false);
+const notifications = ref<N[]>([]);
+async function reloadNotifications(){
+    notifyLoading.value = true;
+    try{
+        const token = localStorage.getItem('token')||'';
+        const res = await fetch(`${API_BASE}/notification/list`, { headers: { Authorization: `Bearer ${token}` } });
+        const arr:any[] = await res.json();
+        notifications.value = Array.isArray(arr)? arr: [];
+    }catch{ notifications.value = []; }
+    finally{ notifyLoading.value = false; }
+}
+async function markRead(n:N){
+    try{
+        const token = localStorage.getItem('token')||'';
+        await fetch(`${API_BASE}/notification/mark-read`, { method:'POST', headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: n.id }) });
+        if (n.status==='UNREAD'){ n.status='READ'; unreadCount.value = Math.max(0, unreadCount.value-1); }
+    }catch{}
+}
+async function markAllRead(){
+    try{
+        const token = localStorage.getItem('token')||'';
+        await fetch(`${API_BASE}/notification/mark-read-all`, { method:'POST', headers: { Authorization: `Bearer ${token}` } });
+        notifications.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; });
+        refreshUnread();
+    }catch{}
+}
+function openNotification(n:N){ if (n.linkPath){ try{ router.push(n.linkPath); }catch{} } if (n.status==='UNREAD'){ markRead(n); } }
+
 function handleSetTab(ev: any){
 	try{
 		const d = ev?.detail || {};
@@ -147,11 +260,15 @@ function handleSetTab(ev: any){
 	}catch{}
 }
 onMounted(()=>{
+	try{ const u = JSON.parse(localStorage.getItem('user')||'{}'); avatarUrl.value = u?.avatarUrl ?? null; }catch{}
 	addOrActivateCurrent();
 	window.addEventListener('pos-set-tab', handleSetTab as any);
+    refreshUnread();
+    connectWS();
 });
 onBeforeUnmount(()=>{
 	window.removeEventListener('pos-set-tab', handleSetTab as any);
+    try{ ws?.close(); }catch{} ws=null;
 });
 watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 </script>
@@ -169,14 +286,38 @@ watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 .route-tabs :deep(.el-tabs__nav){ user-select:none; }
 .page-body{ flex:1; overflow:auto; padding:12px; }
 .user{ display:flex; align-items:center; gap:8px; }
-.user-trigger{ display:flex; align-items:center; gap:6px; cursor:pointer; }
-.name{ font-size:14px; color:#303133; }
+.user-trigger{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:9999px; background:#f6f8fb; border:1px solid #ebeef5; transition: background .15s ease, border-color .15s ease; }
+.user-trigger:hover{ background:#f1f5ff; border-color:#e5efff; }
+.user-avatar :deep(img){ border-radius:50%; }
+.name{ font-size:14px; color:#303133; max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+.notify-bell{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; cursor:pointer; border-radius:10px; }
+.notify-bell:hover{ background:#f6f8fb; }
+.notify-bell :deep(.el-icon){ font-size:22px; color:#606266; }
+.notify-bell:hover :deep(.el-icon){ color:#409eff; }
+.bell-badge :deep(.el-badge__content){
+    transform: translate(9px, -9px);
+    height:18px; min-width:20px; padding:0 6px;
+    border-radius:9999px; line-height:18px; font-size:12px; font-weight:700;
+    box-shadow: 0 0 0 2px #fff;
+}
 @media (max-width: 960px){
 	.sidebar{ width:76px; }
 	.menu-item{ padding:12px 6px; }
 	.menu-item .label{ font-size:11px; }
 	.topbar{ height:52px; }
 }
+/* 抽屉列表样式（触屏适配更大触点） */
+.notify-drawer{ display:flex; flex-direction:column; height:100%; }
+.notify-drawer__header{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px 8px; border-bottom:1px solid #ebeef5; }
+.notify-drawer__header .title{ font-weight:700; font-size:16px; }
+.notify-list{ padding:10px; }
+.notify-item{ padding:14px 12px 10px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:10px; }
+.notify-item[data-unread="true"]{ background:#f6f8fb; border-color:#dbeafe; }
+.notify-item .item-title{ display:flex; align-items:center; gap:8px; font-weight:700; color:#303133; font-size:14px; }
+.notify-item .item-title .dot{ width:8px; height:8px; border-radius:50%; background:#ff4d4f; display:inline-block; }
+.notify-item .item-content{ color:#606266; margin-top:8px; font-size:13px; line-height:1.5; }
+.notify-item .item-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:8px; color:#909399; font-size:12px; }
+.notify-empty{ padding: 28px 8px; text-align:center; color:#909399; }
 </style>
 
 

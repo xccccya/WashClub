@@ -1,12 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class OrderFulfillmentService {
     constructor(
         private readonly prisma: PrismaService,
-        private readonly wxship?: WechatShippingService
+        private readonly wxship: WechatShippingService,
+        private readonly notifier: NotificationService
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -180,6 +182,12 @@ export class OrderFulfillmentService {
         
         await this.writeTimeline({ orderId: id, event: 'FULFILLMENT', value: 'DONE', operatorUserId });
         await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'FULFILLED', operatorUserId });
+        // 通知：服务订单服务结束
+        try{
+            const ord:any = await this.prisma.order.findUnique({ where: { id }, select: { id:true, no:true, memberId:true, updatedAt:true } });
+            const endAt = (()=>{ try{ const d = ord?.updatedAt ? new Date(ord.updatedAt as any) : new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{return '';} })();
+            await this.notifier.sendByTemplate('SERVICE_DONE', { no: ord?.no, id, endAt }, { kind:'MEMBER', memberId: Number(ord?.memberId||0) }, { title:'服务已完成', content:`订单 ${ord?.no||''} 服务已完成。` }, `/pages/order/detail?id=${id}`);
+        }catch{}
         
         // 若存在最近的"重新服务"售后，服务完成后自动完结
         await this.completeLatestAftersalesByOrderAndType(id, 'RE_SERVICE', operatorUserId ?? null);

@@ -7,6 +7,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as dns from 'node:dns';
 // 不引入额外依赖：使用轻量的原始文本采集中间件处理 v2 XML 回调
+import { NotificationGateway } from './notification/notification.gateway.js';
+import { NotificationService } from './notification/notification.service.js';
 
 async function bootstrap() {
 	// 优先使用 IPv4，避免部分环境 IPv6 连接失败导致 fetch 错误
@@ -41,7 +43,10 @@ async function bootstrap() {
 	app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
 	const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-	await app.listen(port);
+	const server = await app.listen(port);
+	try { (app.get(NotificationGateway) as any)?.attachServer?.(server); } catch {}
+	// 确保通知服务实例化：初始化 BullMQ Worker 与 Redis Pub/Sub 订阅
+	try { app.get(NotificationService); } catch {}
 	// eslint-disable-next-line no-console
 	console.log(`系统自检成功，API 已启动，监听端口：http://localhost:${port}。欢迎使用巨科汽车美容会员系统，祝您使用愉快！`);
 }

@@ -6,16 +6,18 @@ import { WechatShippingService } from './wechat-shipping.service.js';
 import { OrderRewardsService } from './order-rewards.service.js';
 import { WashCardService } from '../member/washcard.service.js';
 import { GroupCardService } from '../group/card.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class OrderPaymentService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly wxpay: WxpayService,
-        private readonly wxship?: WechatShippingService,
-        private readonly rewards?: OrderRewardsService,
-        private readonly washcards?: WashCardService,
-        private readonly groupCards?: GroupCardService
+        private readonly wxship: WechatShippingService,
+        private readonly rewards: OrderRewardsService,
+        private readonly washcards: WashCardService,
+        private readonly groupCards: GroupCardService,
+        private readonly notifier: NotificationService
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -210,6 +212,31 @@ export class OrderPaymentService {
             return { ok: true, settlement: settlementAuto, usedCardType, requiredTimes: timesNeeded, deducted: payAmountOld, plan } as any;
         });
 
+        // 通知：洗车卡支付划扣（仅订单支付场景）
+        try{
+            const ord:any = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id:true, no:true, memberId:true } });
+            const plan = Array.isArray((res as any)?.plan) ? (res as any).plan as Array<{ type:'GROUP'|'MEMBER'; cardId:number; used:number }> : [];
+            const memberCardIds = plan.filter(p=>p.type==='MEMBER').map(p=>p.cardId);
+            const groupCardIds = plan.filter(p=>p.type==='GROUP').map(p=>p.cardId);
+            const [memberCards, groupCards] = await Promise.all([
+                memberCardIds.length ? this.prisma.washCard.findMany({ where: { id: { in: memberCardIds } }, select: { id:true, name:true, cardNo:true } }) : Promise.resolve([]),
+                groupCardIds.length ? this.prisma.groupWashCard.findMany({ where: { id: { in: groupCardIds } }, select: { id:true, name:true, cardNo:true } }) : Promise.resolve([]),
+            ]);
+            const allCards = [...memberCards, ...groupCards];
+            const cardNames = allCards.map(c=>c.name || '').filter(Boolean).join('、');
+            const cardNos = allCards.map(c=>c.cardNo || '').filter(Boolean).join('、');
+            const times = Number(((res as any)?.requiredTimes)||0);
+            const amount = Number(((res as any)?.deducted)||0);
+            const amountStr = amount.toFixed(2);
+            await this.notifier.sendByTemplate(
+                'WASH_CARD_PAY_DEDUCT',
+                { no: ord?.no, times, cardName: cardNames, cardNo: cardNos, amount: amountStr },
+                { kind:'MEMBER', memberId: Number(ord?.memberId||0) },
+                { title:'洗车卡支付划扣成功', content:`订单 ${ord?.no||''} 使用洗车卡划扣 ${times} 次，抵扣￥${amountStr}` },
+                `/pages/order/detail?id=${ord?.id||0}`
+            );
+        }catch{}
+
         return res;
     }
 
@@ -403,6 +430,14 @@ export class OrderPaymentService {
         const updated: any = await this.prisma.order.findUnique({ where: { id: order.id } });
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
+
+        // 通知：订单支付成功（会员）
+        try{
+            const title = `订单已支付`; const content = `您的订单 ${updated?.no||''} 支付成功。`;
+            const amount = Number(updated?.payAmount || 0).toFixed(2);
+            const paidAtStr = (()=>{ try{ const d = updated?.paidAt ? new Date(updated.paidAt as any) : new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{return '';} })();
+            await this.notifier.sendByTemplate('ORDER_PAID', { no: updated?.no, id: updated?.id, amount, paidAt: paidAtStr }, { kind: 'MEMBER', memberId: Number(updated?.memberId||0) }, { title, content }, `/pages/order/detail?id=${updated?.id||0}`);
+        }catch{}
         
         // 集团充值场景：FK + 挂载 groupId -> 入账集团余额并跳过个人奖励/卡发放
         const isGroupRecharge = updated && updated.type === 'FK' && !!updated.groupId;

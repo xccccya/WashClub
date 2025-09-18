@@ -382,18 +382,30 @@ async function onSelectImage(file: any){
 	}catch{ ElMessage.error('识别失败'); }
 }
 
-onMounted(() => { fetchList(); try{ window.dispatchEvent(new CustomEvent('pos-set-tab', { detail: { path: '/orders', title: '订单列表' } })); }catch{} });
+onMounted(() => {
+    try{
+        const q = router.currentRoute.value.query || {} as any;
+        const s = String(q.scene||''); if (s) scene.value = s;
+        const t = String(q.type||''); if (t) type.value = t;
+        const ps = String(q.payStatus||''); if (ps) payStatus.value = ps;
+        const start = String(q.start||''); const end = String(q.end||'');
+        if (start && end) createdAtRange.value = [start, end] as any;
+    }catch{}
+    fetchList();
+    try{ window.dispatchEvent(new CustomEvent('pos-set-tab', { detail: { path: '/orders', title: '订单列表' } })); }catch{}
+});
 </script>
 
 <style scoped>
 .pos-orders{ display:flex; flex-direction: column; gap:12px; }
-.toolbar{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px; }
-.sticky-toolbar{ position: sticky; top: 0; z-index: 9; background: rgba(255,255,255,0.85); backdrop-filter: blur(6px); border-bottom:1px solid #ebeef5; }
+/* 筛选卡片：透明背景 + 圆角 + 边框，取消吸顶 */
+.toolbar{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px; border:1px solid var(--el-border-color); border-radius:12px; background: transparent; box-shadow: 0 2px 10px rgba(0,0,0,.03); }
+.sticky-toolbar{ position: static; top: auto; z-index: auto; background: transparent; backdrop-filter: none; border-bottom:none; }
 .filter-input{ width:320px; }
 .filter-select{ width:160px; }
 .filter-select.wide{ width:200px; }
 .filter-date{ width:360px; }
-.table-scroll{ overflow:auto; overscroll-behavior: contain; touch-action: pan-y; }
+.table-scroll{ overflow:auto; overscroll-behavior: contain; touch-action: pan-y; border-radius:12px; border:1px solid var(--el-border-color); box-shadow: 0 2px 10px rgba(0,0,0,.04); }
 .orders-table :deep(.cell-flex){ display:flex; align-items:center; gap:6px; }
 .orders-table :deep(.col-type .cell){ overflow: visible; text-overflow: clip; }
 .link{ color: var(--app-primary); cursor: pointer; text-decoration: underline; }

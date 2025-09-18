@@ -124,7 +124,7 @@
 		<el-table :data="data?.items||[]" border size="small" style="width: 100%">
 			<el-table-column label="图片" width="80">
 				<template #default="{ row }">
-					<img v-if="row.imageUrl" :src="row.imageUrl" style="width:48px;height:48px;object-fit:cover;" />
+					<img v-if="row.imageUrl" :src="absUrl(row.imageUrl)" style="width:48px;height:48px;object-fit:cover;" />
 					<span v-else>-</span>
 				</template>
 			</el-table-column>
@@ -227,6 +227,7 @@ function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
+import { absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
 

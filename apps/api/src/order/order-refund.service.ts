@@ -3,13 +3,15 @@ import { Prisma, PayMethod, RefundStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
 import { WxpayService } from './wxpay.service.js';
 import { OrderRewardsService } from './order-rewards.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class OrderRefundService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly wxpay: WxpayService,
-        private readonly rewards?: OrderRewardsService
+        private readonly rewards: OrderRewardsService,
+        private readonly notifier: NotificationService
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -206,6 +208,17 @@ export class OrderRefundService {
                 await this.prisma.member.update({ where: { id: ord1.memberId }, data: { totalPaidAmount: { decrement: delta as any } } as any });
             }
         } catch { }
+        
+        // 发送退款到账通知（内部退款）
+        try{
+            const ord:any = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id:true, no:true, memberId:true, refundedAmount:true } });
+            if (ord && ord.refundedAmount) {
+                const amount = Number(ord.refundedAmount || 0).toFixed(2);
+                const arrivedAt = (()=>{ try{ const d = new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{return '';} })();
+                await this.notifier.sendByTemplate('REFUND_ARRIVED', { no: ord?.no, id: ord?.id, amount, arrivedAt }, { kind:'MEMBER', memberId: Number(ord?.memberId||0) }, { title:'退款到账', content:`订单 ${ord?.no||''} 退款已到账。` }, `/pages/order/detail?id=${ord?.id||0}`);
+            }
+        }catch{}
+        
         return updated;
     }
 
@@ -793,7 +806,7 @@ export class OrderRefundService {
         // 幂等：若已是目标状态，直接返回当前记录
         if (rec.status === status) return rec;
         
-        return this.prisma.refundRecord.update({
+        const updated = await this.prisma.refundRecord.update({
             where: { id: rec.id },
             data: {
                 status: status as any,
@@ -801,6 +814,15 @@ export class OrderRefundService {
                 failedReason: failedReason || undefined
             }
         });
+        try{
+            if (status === 'SUCCESS'){
+                const ord:any = await this.prisma.order.findUnique({ where: { id: updated.orderId }, select: { id:true, no:true, memberId:true } });
+                const amount = Number(rec?.amount || 0).toFixed(2);
+                const arrivedAt = (()=>{ try{ const d = new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{return '';} })();
+                await this.notifier.sendByTemplate('REFUND_ARRIVED', { no: ord?.no, id: ord?.id, amount, arrivedAt }, { kind:'MEMBER', memberId: Number(ord?.memberId||0) }, { title:'退款到账', content:`订单 ${ord?.no||''} 退款已到账。` }, `/pages/order/detail?id=${ord?.id||0}`);
+            }
+        }catch{}
+        return updated;
     }
 
     // 完成指定订单的最新退款型售后（用于渠道退款回调）

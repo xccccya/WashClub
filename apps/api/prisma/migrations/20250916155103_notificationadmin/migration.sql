@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `NotificationTemplate` ADD COLUMN `channel` VARCHAR(191) NOT NULL DEFAULT 'MEMBER',
+    ADD COLUMN `uiDuration` INTEGER NULL,
+    ADD COLUMN `uiPosition` VARCHAR(191) NULL,
+    ADD COLUMN `uiType` VARCHAR(191) NULL;

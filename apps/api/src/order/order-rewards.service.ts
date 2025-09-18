@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class OrderRewardsService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(private readonly prisma: PrismaService, private readonly notifier: NotificationService) {}
 
     // 成长值扣减：按每元成长值比例，对退款金额进行等比例扣减，确保累计扣减与累计入账一致
     async deductGrowthForRefund(orderId: number, refundAmountYuan: number, operatorUserId?: number | null, opts?: { finalizeAll?: boolean }) {
@@ -136,7 +137,7 @@ export class OrderRewardsService {
             let orderNo: string | undefined;
             try { const ord = await this.prisma.order.findUnique({ where: { id: orderId }, select: { no: true } }); orderNo = ord?.no; } catch { }
             for (const log of addLogs) {
-                const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId } });
+                const card = await this.prisma.washCard.findUnique({ where: { id: log.cardId }, select: { id:true, name:true, cardNo:true, ownerMemberId:true, remainingTimes:true, totalTimes:true } });
                 if (!card) continue;
                 const canDeduct = Math.min(card.remainingTimes, Math.abs(log.change));
                 const before = card.remainingTimes;
@@ -144,6 +145,18 @@ export class OrderRewardsService {
                 await this.prisma.washCard.update({ where: { id: card.id }, data: { totalTimes: Math.max(0, card.totalTimes - canDeduct), remainingTimes: afterRemain } });
                 const mark = ctx?.outRefundNo ? `退款单号：${ctx.outRefundNo}` : (ctx?.wechatRefundId ? `微信退款ID：${ctx.wechatRefundId}` : `订单号：${orderNo || orderId}`);
                 await this.prisma.washCardLog.create({ data: { cardId: card.id, action: 'DEDUCT' as any, reason: 'REFUND_DEDUCT' as any, change: -canDeduct, beforeRemaining: before, afterRemaining: afterRemain, remark: `退款回收（${mark}）`, operatorUserId: operatorUserId ?? null, purchaseOrderId: orderId } as any });
+                // 通知：洗车卡退款回收
+                try{
+                    if (card.ownerMemberId) {
+                        await this.notifier.sendByTemplate(
+                            'WASH_CARD_DEDUCT',
+                            { cardName: card.name, cardNo: card.cardNo, times: canDeduct, reason: '退款回收' },
+                            { kind:'MEMBER', memberId: card.ownerMemberId },
+                            { title:'洗车卡退款回收', content:`您的洗车卡 ${card.name||''}（${card.cardNo||''}）因退款回收 ${canDeduct} 次。` },
+                            `/pages/washcard/detail?id=${card.id}`
+                        );
+                    }
+                }catch{}
             }
         }
 

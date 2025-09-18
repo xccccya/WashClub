@@ -87,7 +87,7 @@
 									</el-button>
 								</template>
 								<template v-else>
-									<el-button size="large" type="primary" @click="openFkDialog">
+									<el-button size="large" type="primary" @click="openFkDialog" :disabled="identity==='member' && !selectedMember">
 										<el-icon><CreditCard /></el-icon> 无商品收款
 									</el-button>
 								</template>
@@ -1001,7 +1001,10 @@ const fkDialog = reactive({ visible: false, amount: 0 as number, remark: '' });
 const orderKindForDialog = computed(()=> (settleDialog as any).isFk ? 'FK' : orderKind.value);
 const dialogSubtotal = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : subtotal.value);
 const dialogPayAmount = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : payAmount.value);
-function openFkDialog(){ fkDialog.visible = true; fkDialog.amount = 0; fkDialog.remark=''; }
+function openFkDialog(){ 
+    if (identity.value==='member' && !selectedMember.value){ ElMessage.error('请选择会员后再进行无商品收款'); return; }
+    fkDialog.visible = true; fkDialog.amount = 0; fkDialog.remark=''; 
+}
 async function confirmFkCollect(){
     try{
         const amt = Math.max(0, Number(fkDialog.amount||0));

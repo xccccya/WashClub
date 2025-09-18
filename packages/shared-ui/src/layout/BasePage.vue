@@ -15,10 +15,12 @@ defineProps<{ title: string }>();
 
 <style scoped>
 .base-page {
+	/* 占满父容器高度，避免使用 100vh 导致平板地址栏裁切问题 */
+	height: 100%;
 	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	height: 100vh;
+	min-height: 0;
 	overflow: hidden;
 }
 .base-page__header {
@@ -31,7 +33,8 @@ defineProps<{ title: string }>();
 }
 .base-page__content {
 	flex: 1 1 auto;
-	min-height: 0; /* 允许子元素内滚动 */
+	min-height: 0;
+	/* 由内部模块自行控制滚动（如表格/面板），此处保持隐藏防止双滚动 */
 	overflow: hidden;
 }
 </style>

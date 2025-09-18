@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { JwtService } from '@nestjs/jwt';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class WashCardService {
-    constructor(private prisma: PrismaService, private jwt: JwtService) {}
+    constructor(private prisma: PrismaService, private jwt: JwtService, private notifier: NotificationService) {}
 
     private async generateUniqueCardNo(tx: PrismaService | any): Promise<string> {
         // 生成8位数字卡号，确保唯一
@@ -119,7 +120,7 @@ export class WashCardService {
 
     async deductTimes(cardId: number, count: number, reason: 'SERVICE_DEDUCT' | 'REFUND_DEDUCT' | 'BACKEND_DEDUCT', opts?: { vehicleId?: number | null; operatorUserId?: number | null; serviceOrderId?: number | null; refundRecordId?: number | null; remark?: string | null }) {
         if (!Number.isFinite(count) || count <= 0) throw new BadRequestException('划扣次数必须为正整数');
-        return this.prisma.$transaction(async (tx) => {
+        const updated = await this.prisma.$transaction(async (tx) => {
             const card = await tx.washCard.findUnique({ where: { id: cardId } });
             if (!card) throw new BadRequestException('洗车卡不存在');
             if (card.remainingTimes < count) throw new BadRequestException('剩余次数不足');
@@ -143,6 +144,40 @@ export class WashCardService {
             });
             return updated;
         });
+
+        // 发送洗车卡划扣通知（非支付场景：后台划扣/服务划扣/退款回收）
+        try{
+            const card = await this.prisma.washCard.findUnique({ where: { id: cardId }, select: { ownerMemberId: true, name: true, cardNo: true, id: true } });
+            if (card) {
+                if (reason === 'BACKEND_DEDUCT') {
+                    await this.notifier.sendByTemplate(
+                        'WASH_CARD_DEDUCT',
+                        { cardName: card.name, cardNo: card.cardNo, times: count, reason: '后台划扣' },
+                        { kind:'MEMBER', memberId: card.ownerMemberId },
+                        { title:'洗车卡划扣通知', content:`您的洗车卡 ${card.name||''}（${card.cardNo||''}）已被后台划扣 ${count} 次。` },
+                        `/pages/washcard/detail?id=${card.id}`
+                    );
+                } else if (reason === 'SERVICE_DEDUCT') {
+                    await this.notifier.sendByTemplate(
+                        'WASH_CARD_DEDUCT',
+                        { cardName: card.name, cardNo: card.cardNo, times: count, reason: '服务划扣' },
+                        { kind:'MEMBER', memberId: card.ownerMemberId },
+                        { title:'洗车卡服务划扣', content:`您的洗车卡 ${card.name||''}（${card.cardNo||''}）服务划扣 ${count} 次。` },
+                        `/pages/washcard/detail?id=${card.id}`
+                    );
+                } else if (reason === 'REFUND_DEDUCT') {
+                    await this.notifier.sendByTemplate(
+                        'WASH_CARD_DEDUCT',
+                        { cardName: card.name, cardNo: card.cardNo, times: count, reason: '退款回收' },
+                        { kind:'MEMBER', memberId: card.ownerMemberId },
+                        { title:'洗车卡退款回收', content:`您的洗车卡 ${card.name||''}（${card.cardNo||''}）因退款回收 ${count} 次。` },
+                        `/pages/washcard/detail?id=${card.id}`
+                    );
+                }
+            }
+        }catch{}
+
+        return updated;
     }
 
     // 共享管理

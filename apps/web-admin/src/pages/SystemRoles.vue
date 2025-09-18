@@ -112,6 +112,7 @@ const menuGroups = computed<MenuGroup[]>(() => {
     orders: { key: 'orders', name: '订单管理', children: [] },
     coupon: { key: 'coupon', name: '卡券管理', children: [] },
     content: { key: 'content', name: '内容管理', children: [] },
+    notification: { key: 'notification', name: '消息通知', children: [] },
     system: { key: 'system', name: '系统设置', children: [] },
   };
   menus.value.forEach(m => {
@@ -134,6 +135,8 @@ const menuGroups = computed<MenuGroup[]>(() => {
       groups.coupon.children.push(m);
     } else if (m.key.startsWith('content-')) {
       groups.content.children.push(m);
+    } else if (m.key.startsWith('notification-')) {
+      groups.notification.children.push(m);
     } else if (m.key.startsWith('system-')) {
       groups.system.children.push(m);
     } else if (m.key === 'member-washcards') {
@@ -141,7 +144,7 @@ const menuGroups = computed<MenuGroup[]>(() => {
     }
   });
   // 保持固定顺序
-  return [groups.members, groups.groups, groups.vehicles, groups.store, groups.orders, groups.coupon, groups.content, groups.system];
+  return [groups.members, groups.groups, groups.vehicles, groups.store, groups.orders, groups.coupon, groups.content, groups.notification, groups.system];
 });
 
 function isGroupChecked(g: MenuGroup){

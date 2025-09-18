@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import * as crypto from 'node:crypto';
+import { AssetService } from '../file/asset.service.js';
 
 export type AdminMenuKey =
 	| 'members'
@@ -37,12 +38,13 @@ export type AdminMenuKey =
 	| 'coupons'
 	| 'member-coupons'
 	| 'coupon-logs'
+	| 'notification-templates'
 	// 预留：运营统计概览
 	| 'dashboard-metrics';
 
 @Injectable()
 export class AdminRoleService {
-	constructor(private prisma: PrismaService) {}
+	constructor(private prisma: PrismaService, private assets: AssetService) {}
 
 	listRoles() {
 		return this.prisma.adminRole.findMany({ orderBy: { id: 'asc' } });
@@ -77,18 +79,22 @@ export class AdminRoleService {
 
 	private hash(raw: string) { return crypto.createHash('sha256').update(raw).digest('hex'); }
 
-	createAdmin(data: { phone: string; name?: string; password: string; roleId: number }) {
+	createAdmin(data: { phone: string; name?: string; password: string; roleId: number; avatarUrl?: string | null }) {
 		return this.prisma.$transaction(async (tx) => {
 			const exists = await tx.user.findUnique({ where: { phone: data.phone } });
 			if (exists) throw new BadRequestException('手机号已存在');
-			return tx.user.create({ data: { phone: data.phone, name: data.name, password: this.hash(data.password), roleId: data.roleId, role: 'staff' } });
+			let avatarUrl: string | null = null;
+			try { const ss = await tx.siteSetting.findFirst().catch(()=>null); avatarUrl = (data.avatarUrl ?? ss?.defaultMemberAvatarUrl ?? null) as any; } catch {}
+			const created = await tx.user.create({ data: ({ phone: data.phone, name: data.name, password: this.hash(data.password), roleId: data.roleId, role: 'staff', avatarUrl } as any) });
+			try { await this.syncBindings('User', String(created.id), 'avatarUrl', (created as any).avatarUrl ? [(created as any).avatarUrl] : []); } catch {}
+			return created;
 		});
 	}
 
-	updateAdmin(id: number, data: { phone?: string; name?: string; password?: string; roleId?: number | null }) {
+	updateAdmin(id: number, data: { phone?: string; name?: string; password?: string; roleId?: number | null; avatarUrl?: string | null }) {
 		const payload: any = { ...data };
 		if (data.password) payload.password = this.hash(data.password);
-		return this.prisma.user.update({ where: { id }, data: payload });
+		return (this.prisma.user.update({ where: { id }, data: payload as any }) as any).then(async (u:any)=>{ try { await this.syncBindings('User', String(u.id), 'avatarUrl', (u as any).avatarUrl ? [(u as any).avatarUrl] : []); } catch {} return u; });
 	}
 
 	removeAdmin(id: number) {
@@ -110,15 +116,13 @@ export class AdminRoleService {
 			{ key: 'member-points', name: '积分管理', path: '/member-points' },
 			{ key: 'member-levels', name: '会员等级', path: '/member-levels' },
 			{ key: 'member-categories', name: '会员分类', path: '/member-categories' },
-			{ key: 'member-addresses', name: '收货地址', path: '/member-addresses' },
-			{ key: 'member-vehicles', name: '会员车辆', path: '/member-vehicles' },
-			{ key: 'member-washcards', name: '洗车计次卡', path: '/member-washcards' },
 			{ key: 'member-tags', name: '会员标签', path: '/member-tags' },
 			{ key: 'system-roles', name: '后台角色', path: '/system/roles' },
 			{ key: 'system-admins', name: '后台管理员', path: '/system/admins' },
 			{ key: 'system-files', name: '文件管理', path: '/system/files' },
 			{ key: 'system-sms', name: '短信管理', path: '/system/sms' },
 			{ key: 'system-employees', name: '员工配置', path: '/system/employees' },
+			{ key: 'notification-templates', name: '通知配置', path: '/notification/templates' },
 			{ key: 'service-queue', name: '服务队列', path: '/service-queue' },
 			{ key: 'content-notices', name: '滚动通知', path: '/content/notices' },
 			{ key: 'content-banners', name: '广告横幅', path: '/content/banners' },
@@ -135,6 +139,37 @@ export class AdminRoleService {
 			{ key: 'coupon-logs', name: '卡券流水', path: '/coupon/logs' },
 			{ key: 'dashboard-metrics', name: '运营概览', path: '/dashboard' },
 		];
+	}
+
+	// ===== 文件绑定辅助 =====
+	private async syncBindings(tableName: string, rowId: string, fieldName: string, urls: string[]) {
+		try {
+			const desired = new Set<string>(await this.getAssetIdsFromUrls(urls));
+			const existing: any[] = await (this.prisma as any).fileBinding.findMany({ where: { tableName, rowId: String(rowId), fieldName } });
+			for (const b of existing) {
+				if (!desired.has(String(b.fileId))) {
+					try { await this.assets.unbindReference(String(b.fileId), String(b.id)); } catch {}
+				}
+			}
+			for (const fid of desired) {
+				const ok = existing.find((b: any) => String(b.fileId) === fid);
+				if (!ok) { try { await this.assets.bindReference(String(fid), { tableName, rowId: String(rowId), fieldName }); } catch {} }
+			}
+		} catch {}
+	}
+	private async getAssetIdsFromUrls(urls: string[]): Promise<string[]> {
+		const set = new Set<string>();
+		for (const u of urls) {
+			if (!u || typeof u !== 'string') continue;
+			const s = String(u).trim();
+			if (!s) continue;
+			set.add(s);
+			try { if (/^https?:\/\//i.test(s)) { const rel = new URL(s).pathname; if (rel) set.add(rel); } } catch {}
+		}
+		const arr = Array.from(set);
+		if (arr.length === 0) return [];
+		const rows = await (this.prisma as any).fileAsset.findMany({ where: { url: { in: arr } }, select: { id: true, url: true } });
+		return Array.isArray(rows) ? rows.map((r: any) => String(r.id)) : [];
 	}
 }
 

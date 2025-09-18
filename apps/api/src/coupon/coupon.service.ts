@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class CouponService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(private readonly prisma: PrismaService, private readonly notifier: NotificationService) {}
 
     private async writeFlow(params: { action: 'ISSUE'|'CLAIM'|'USE'|'RESTORE'|'REVOKE'|'EXPIRE'|'ADJUST'; memberId?: number|null; orderId?: number|null; couponId?: number|null; memberCouponId?: number|null; count?: number; remark?: string|null; snapshot?: any; operatorUserId?: number|null }){
         try{
@@ -121,6 +122,19 @@ export class CouponService {
         if (payload.endAt !== undefined) data.endAt = payload.endAt;
         const updated = await (this.prisma as any).memberCoupon.update({ where: { id }, data });
         try{ await this.writeFlow({ action: 'ADJUST', memberId: updated.memberId, couponId: updated.couponId, memberCouponId: updated.id, remark: '调整有效期', snapshot: { startAt: updated.startAt, endAt: updated.endAt } }); }catch{}
+        // 重新调度"券将过期"通知
+        try{
+            if (updated.endAt) {
+                const delay = new Date(updated.endAt).getTime() - Date.now() - 24*60*60*1000;
+                // 如果距离到期不足24小时（delay <= 0），立即推送通知
+                // 如果距离到期超过24小时（delay > 0），调度延时通知
+                if (delay <= 0) {
+                    await this.notifier.scheduleCouponWillExpire(updated.memberId, updated.id, '优惠券即将到期', `您有优惠券即将到期：${updated.name||''}`, '/pages/coupon/mine', 0);
+                } else {
+                    await this.notifier.scheduleCouponWillExpire(updated.memberId, updated.id, '优惠券即将到期', `您有优惠券即将到期：${updated.name||''}`, '/pages/coupon/mine', delay);
+                }
+            }
+        }catch{}
         return updated; }
 
     async deleteMemberCoupon(id: number){
@@ -165,11 +179,31 @@ export class CouponService {
             else { payload.startAt = null; payload.endAt = null; }
             return payload; };
         const items = Array.from({ length: count }).map(() => buildPayload());
+        const issuedIds: number[] = [];
         await this.prisma.$transaction(async (tx)=>{
             if (coupon.issueTotal != null) { const reCount = await (tx as any).memberCoupon.count({ where: { couponId } }); if (reCount + count > Number(coupon.issueTotal)) throw new Error('发行数量不足'); }
             if (coupon.perMemberLimit != null) { const reOwned = await (tx as any).memberCoupon.count({ where: { couponId, memberId } }); if (reOwned + count > Number(coupon.perMemberLimit)) throw new Error('超过每人限领次数'); }
-            await (tx as any).memberCoupon.createMany({ data: items }); });
+            await (tx as any).memberCoupon.createMany({ data: items });
+            const latest = await (tx as any).memberCoupon.findMany({ where: { memberId, couponId }, orderBy: { id: 'desc' }, take: count, select: { id:true, endAt:true, name:true } });
+            for (const it of latest) issuedIds.push(it.id);
+        });
         await this.writeFlow({ action: params.action === 'CLAIM' ? 'CLAIM' : 'ISSUE', memberId, couponId, count, remark: params.action === 'CLAIM' ? '小程序领取' : '后台发放', snapshot: { couponId, couponName: coupon.name, count } });
+        // 调度"券将过期"通知（T-24h）
+        try{
+            for (const mcId of issuedIds){
+                const mc:any = await (this.prisma as any).memberCoupon.findUnique({ where: { id: mcId }, select: { id:true, endAt:true, name:true } });
+                const endAt = mc?.endAt ? new Date(mc.endAt as any) : null;
+                if (!endAt) continue;
+                const delay = endAt.getTime() - Date.now() - 24*60*60*1000;
+                // 如果距离到期不足24小时（delay <= 0），立即推送通知
+                // 如果距离到期超过24小时（delay > 0），调度延时通知
+                if (delay <= 0) {
+                    await this.notifier.scheduleCouponWillExpire(memberId, mcId, '优惠券即将到期', `您有优惠券即将到期：${mc?.name||''}`, '/pages/coupon/mine', 0);
+                } else {
+                    await this.notifier.scheduleCouponWillExpire(memberId, mcId, '优惠券即将到期', `您有优惠券即将到期：${mc?.name||''}`, '/pages/coupon/mine', delay);
+                }
+            }
+        }catch{}
         return { ok: true, issued: count }; }
 
     async claimForMember(params: { couponId: number; memberId: number }){
