@@ -39,7 +39,8 @@
 		<!-- 我的爱车 -->
 		<view class="card car-card" @tap="onTapCarCard">
 			<view class="card-title">我的爱车</view>
-			<view v-if="loggedIn" class="plate-row" @tap.stop="onTapCarManage">
+			<!-- 已登录且有车辆：展示默认车辆并可进入管理 -->
+			<view v-if="loggedIn && hasCar" class="plate-row" @tap.stop="onTapCarManage">
 				<view class="plate-left">
 					<image v-if="brandImage" :src="abs(brandImage)" class="brand-logo" mode="aspectFit" />
 					<view class="plate-info">
@@ -52,6 +53,15 @@
 					<view class="plus-h" />
 				</view>
 			</view>
+			<!-- 已登录但暂无车辆：展示空态并引导添加 -->
+			<view v-else-if="loggedIn" class="plate-row" @tap.stop="onTapAddCar">
+				<text class="empty-text">暂无车辆，点击添加</text>
+				<view class="add-btn">
+					<view class="plus-v" />
+					<view class="plus-h" />
+				</view>
+			</view>
+			<!-- 未登录：引导登录查看爱车 -->
 			<view v-else class="plate-row">
 				<text class="login-text">点击登录以查看爱车</text>
 			</view>
@@ -113,6 +123,7 @@ const timeGreeting = ref('你好');
 const greetAffix = ref('欢迎回到巨科汽车美容');
 const plateNo = ref('-');
 const loggedIn = ref(false);
+const hasCar = ref(false);
 const washCard = ref<any|null>(null);
 const servingCars = ref(0);
 const waitingCars = ref(0);
@@ -180,6 +191,7 @@ async function loadDefaultPlate(){
 		brand.value = def?.brand || '';
 		series.value = def?.series || '';
 		brandImage.value = def?.brandImage || '';
+		hasCar.value = !!def;
 	} catch { plateNo.value = '-'; }
 }
 
@@ -396,6 +408,7 @@ async function loadQueueSummary(){
 }
 .brand-series { margin-top: 6rpx; font-size: 24rpx; color:#6b7280; }
 .login-text { font-size: 28rpx; color: #6b7280; }
+.empty-text { font-size: 28rpx; color: #6b7280; }
 .home-wash-card { margin-bottom: 24rpx; }
 .add-btn {
 	width: 72rpx;

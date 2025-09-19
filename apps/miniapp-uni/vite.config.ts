@@ -1,13 +1,78 @@
 import UniPlugin from '@dcloudio/vite-plugin-uni';
+import { marked } from 'marked';
 import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import fs from 'node:fs';
 
 export default defineConfig(({ mode }) => {
 	const uni = (UniPlugin as any)?.default ? (UniPlugin as any).default : (UniPlugin as any);
 	const __dirname = dirname(fileURLToPath(import.meta.url));
 	const env = loadEnv(mode, __dirname, ['VITE_']);
 	const isH5 = process.env.UNI_PLATFORM === 'h5';
+
+	// 读取小程序版本与 uni-app 依赖版本，用于页面展示
+	let manifestVersion = '';
+	let uniDepVersion = '';
+	let marketingSystemVersion = '';
+	let changelogMd = '';
+	let changelogHtml = '';
+	try {
+		const manifestPath = resolve(__dirname, './src/manifest.json');
+		const m = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as any;
+		manifestVersion = String(m?.versionName || '');
+	} catch {}
+	try {
+		const candidates = [
+			resolve(__dirname, '../../unichlog.md'),
+			resolve(__dirname, '../unichlog.md'),
+			resolve(__dirname, '../../../unichlog.md')
+		];
+		for (const p of candidates) {
+			try {
+				if (fs.existsSync(p)) { changelogMd = String(fs.readFileSync(p, 'utf-8') || ''); break; }
+			} catch {}
+		}
+	} catch {}
+
+	// 预先在构建期将 MD 转为 HTML，确保小程序端无需运行时解析
+	try {
+		if (changelogMd && typeof changelogMd === 'string') {
+			marked.setOptions({ gfm: true, breaks: true });
+			const html = marked.parse(changelogMd);
+			changelogHtml = typeof html === 'string' ? html : '';
+		}
+	} catch {}
+
+	// 将生成的 HTML 输出为资源文件，便于各平台通过 raw 导入
+	try {
+		const assetsDir = resolve(__dirname, './src/assets');
+		const outHtmlPath = resolve(assetsDir, 'changelog.html');
+		const outTsPath = resolve(assetsDir, 'changelog.ts');
+		if (!fs.existsSync(assetsDir)) { fs.mkdirSync(assetsDir, { recursive: true }); }
+		const content = changelogHtml && changelogHtml.trim().length ? changelogHtml : '<p>暂无更新日志</p>';
+		fs.writeFileSync(outHtmlPath, content, 'utf-8');
+		// 生成 TS 导出，避免小程序端 define 注入异常时的兜底
+		const tsExport = `// 该文件由 vite.config.ts 自动生成\nexport const CHANGELOG_HTML = ${JSON.stringify(content)};\nexport default CHANGELOG_HTML;\n`;
+		fs.writeFileSync(outTsPath, tsExport, 'utf-8');
+	} catch {}
+	try {
+		const pkgPath = resolve(__dirname, './package.json');
+		const p = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as any;
+		uniDepVersion = String(p?.dependencies?.['@dcloudio/uni-app'] || '');
+		marketingSystemVersion = String(p?.version || '');
+	} catch {}
+
+	// 小程序端：在所有 chunk 顶部注入极简 Intl polyfill，确保 vendor 先执行也可用
+	function injectIntlPolyfill() {
+		const banner = `;(function(){try{var g=typeof globalThis!=='undefined'?globalThis:(typeof wx!=='undefined'?wx:Function('return this')());if(!g.Intl||!g.Intl.NumberFormat){g.Intl=g.Intl||{};g.Intl.NumberFormat=function(l,o){o=o||{};var s=String(o.style||'decimal');var c=String(o.currency||'CNY');var m=typeof o.maximumFractionDigits==='number'?Math.max(0,Math.min(20,o.maximumFractionDigits)):2;return{format:function(v){var n=Number(v);if(!isFinite(n))return'';var sign=n<0?'-':'';var a=Math.abs(n);var f=a.toFixed(m);var p=f.split('.');var i=p[0];var frac=p[1]?'.'+p[1]:'';var w=i.replace(/\\B(?=(\\d{3})+(?!\\d))/g,',');if(s==='currency'&&String(c).toUpperCase()==='CNY'){return sign+'￥'+w+frac;}return sign+w+frac;}}};}try{(0,Function)('var g=this;try{if(typeof Intl==="undefined") Intl=g.Intl;}catch(e){}').call(g);}catch(_){} }catch(_){}})();`;
+		return {
+			name: 'inject-intl-polyfill',
+			apply: 'build',
+			enforce: 'pre' as const,
+			renderChunk(code: string){ try { return { code: banner + '\n' + code, map: null }; } catch { return null; } },
+		};
+	}
 
 	// 修复部分构建产物里出现的无效裸模块路径（例如 "..-..-..-node_modules-xxx.js" 未以 ./ 开头）
 	function fixBareSanitizedImports() {
@@ -72,7 +137,7 @@ export default defineConfig(({ mode }) => {
 	}
 
 	return {
-		plugins: [uni(), isH5 ? fixBareSanitizedImports() : undefined].filter(Boolean) as any,
+		plugins: [uni(), isH5 ? fixBareSanitizedImports() : injectIntlPolyfill()].filter(Boolean) as any,
 		base: isH5 ? '/h5/' : '/', // 关键：H5 走子路径
 		define: {
 			'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
@@ -82,6 +147,14 @@ export default defineConfig(({ mode }) => {
 			'import.meta.env.VITE_STORE_LOCATION': JSON.stringify(env.VITE_STORE_LOCATION || process.env.VITE_STORE_LOCATION || ''),
 			'globalThis.__VITE_API_BASE__': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
 			__APP_VITE_API_BASE__: JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
+			// 注入版本常量，供运行时展示
+			__APP_MANIFEST_VERSION__: JSON.stringify(manifestVersion),
+			__UNI_APP_DEP_VERSION__: JSON.stringify(uniDepVersion),
+			__MARKETING_SYSTEM_VERSION__: JSON.stringify(marketingSystemVersion),
+			__APP_CHANGELOG_MD__: JSON.stringify(changelogMd),
+			__APP_CHANGELOG_HTML__: JSON.stringify(changelogHtml),
+			'globalThis.__APP_CHANGELOG_MD__': JSON.stringify(changelogMd),
+			'globalThis.__APP_CHANGELOG_HTML__': JSON.stringify(changelogHtml),
 		},
 		server: { port: 5175, host: true, strictPort: true, open: true },
 		build: isH5 ? {

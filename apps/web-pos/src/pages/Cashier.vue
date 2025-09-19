@@ -101,10 +101,10 @@
 			<el-dialog v-model="skuDialog.visible" title="选择规格" width="520px">
 				<template v-if="skuDialog.product">
 					<div class="sku-list">
-						<div v-for="s in skuDialog.product.skus" :key="s.id" class="sku-row" @click="chooseSku(s)">
+						<div v-for="s in skuDialog.product.skus" :key="s.id" class="sku-row" :class="{ 'no-stock': skuDialog.product?.type==='SERVICE' }" @click="chooseSku(s)">
 							<div class="sku-name">{{ s.name }}</div>
 							<div class="sku-price">¥{{ Number(s.price||0).toFixed(2) }}</div>
-							<div class="sku-stock" :class="{ zero: Number(s.stockQuantity||0)===0 }">库存：{{ s.stockQuantity ?? 0 }}</div>
+							<div v-if="skuDialog.product?.type!=='SERVICE'" class="sku-stock" :class="{ zero: Number(s.stockQuantity||0)===0 }">库存：{{ s.stockQuantity ?? 0 }}</div>
 						</div>
 					</div>
 				</template>
@@ -157,8 +157,8 @@
 				:model="settleDialog"
 				:order-kind="orderKindForDialog"
 				:subtotal="dialogSubtotal"
-				:pay-amount="dialogPayAmount"
-				:pay-amount-cap="dialogPayAmount"
+                :pay-amount="dialogPayAmount"
+                :pay-amount-cap="dialogPayAmountCap"
 				:coupon-discount-est="couponDiscountEst"
 				:coupon-over="couponOver"
 				:member-discount-applied="memberDiscountApplied"
@@ -905,7 +905,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
         }
     }catch(e:any){ ElMessage.error(String(e?.message||'创建订单失败')); return null; }
 }
-async function createServiceOrderAndEnqueue(){ if (!payAfterService.value) return; if (!settleDialog.queueTypeId){ ElMessage.error('请选择队列类型'); return; } const pids = settleDialog.serviceProductIds.length ? settleDialog.serviceProductIds : serviceProductsInCart.value.map(it=> Number(it.productId)); if (!pids.length){ ElMessage.error('请选择服务商品'); return; } let vehicleIdResolved: number|undefined; if (identity.value==='guest'){ if (guestVehicleId.value) vehicleIdResolved = guestVehicleId.value; else { if (!plateNumber.value){ ElMessage.error('请输入车牌号'); return; } const v = await ensureVehicleForPlate(plateNumber.value, null); if (!v?.id){ ElMessage.error('创建/获取车辆失败'); return; } vehicleIdResolved = v.id; } } else { if (!selectedMember.value){ ElMessage.error('请选择会员'); return; } if (!memberVehicleId.value){ ElMessage.error('请选择会员车辆'); return; } vehicleIdResolved = Number(memberVehicleId.value); } const body:any = { queueTypeId: settleDialog.queueTypeId, productIds: pids, vehicleId: vehicleIdResolved, plateNumber: vehicleIdResolved? undefined : plateNumber.value || undefined, userRemark: null }; try{ if ((settleDialog as any).groupId) body.groupId = Number((settleDialog as any).groupId); }catch{} await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建服务订单并入队'); }
+async function createServiceOrderAndEnqueue(){ if (!payAfterService.value) return; if (!settleDialog.queueTypeId){ ElMessage.error('请选择队列类型'); return; } const svcItems = serviceProductsInCart.value.map(it=> ({ productId: Number(it.productId), skuId: (it.skuId!=null? Number(it.skuId): undefined), quantity: Math.max(1, Number(it.quantity||1)) })); const items = svcItems.filter(it=> Number.isFinite(it.productId) && it.productId>0); if (!items.length){ ElMessage.error('清单中没有服务商品'); return; } let vehicleIdResolved: number|undefined; if (identity.value==='guest'){ if (guestVehicleId.value) vehicleIdResolved = guestVehicleId.value; else { if (!plateNumber.value){ ElMessage.error('请输入车牌号'); return; } const v = await ensureVehicleForPlate(plateNumber.value, null); if (!v?.id){ ElMessage.error('创建/获取车辆失败'); return; } vehicleIdResolved = v.id; } } else { if (!selectedMember.value){ ElMessage.error('请选择会员'); return; } if (!memberVehicleId.value){ ElMessage.error('请选择会员车辆'); return; } vehicleIdResolved = Number(memberVehicleId.value); } const body:any = { queueTypeId: settleDialog.queueTypeId, items, vehicleId: vehicleIdResolved, plateNumber: vehicleIdResolved? undefined : plateNumber.value || undefined, userRemark: null }; try{ if ((settleDialog as any).groupId) body.groupId = Number((settleDialog as any).groupId); }catch{} try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) body.cashierDiscountAmount = Number(v.toFixed(2)); }catch{} await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建服务订单并入队'); }
 
 // ============ 挂单/取单（8 槽） ============
 const hangDrawer = ref(false);
@@ -1001,6 +1001,13 @@ const fkDialog = reactive({ visible: false, amount: 0 as number, remark: '' });
 const orderKindForDialog = computed(()=> (settleDialog as any).isFk ? 'FK' : orderKind.value);
 const dialogSubtotal = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : subtotal.value);
 const dialogPayAmount = computed(()=> (settleDialog as any).isFk ? Math.max(0, Number(((settleDialog as any).fkAmount||0))) : payAmount.value);
+// 结算弹窗内用于钳制“收银立减”的上限：按去除其他优惠后的应收基数（不含收银立减）
+const dialogPayAmountCap = computed(()=>{
+    if ((settleDialog as any).isFk) return Math.max(0, Number(((settleDialog as any).fkAmount||0)));
+    const baseAfterMdPts = Math.max(0, Number((subtotal.value - discountTotal.value).toFixed(2)));
+    const afterCoupon = Math.max(0, baseAfterMdPts - Number(couponDiscountEst.value||0));
+    return Number(afterCoupon.toFixed(2));
+});
 function openFkDialog(){ 
     if (identity.value==='member' && !selectedMember.value){ ElMessage.error('请选择会员后再进行无商品收款'); return; }
     fkDialog.visible = true; fkDialog.amount = 0; fkDialog.remark=''; 
@@ -1033,7 +1040,7 @@ async function confirmFkCollect(){
 .products{ flex:1 1 auto; min-height: 200px; }
 .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
 .prod{ background:#fff; border:1px solid var(--el-border-color); border-radius:8px; overflow:hidden; cursor:pointer; user-select:none; position:relative; }
-.thumb{ position:relative; width:100%; padding-top: 70%; background:#fafafa; display:flex; align-items:center; justify-content:center; }
+.thumb{ position:relative; width:100%; padding-top: 100%; background:#fafafa; display:flex; align-items:center; justify-content:center; }
 .thumb img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .noimg{ position:absolute; color:#999; }
 .badges{ position:absolute; left:6px; top:6px; display:flex; gap:4px; flex-wrap:wrap; }

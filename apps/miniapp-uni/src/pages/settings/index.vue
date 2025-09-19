@@ -43,8 +43,11 @@
 			</view>
 		</view>
 
-		<!-- 底部保存按钮 -->
+
+
+		<!-- 底部操作区：关于我们其上，保存其下 -->
 		<view class="footer" :style="{ bottom: (bottomInsetPx + 24) + 'px' }">
+			<view class="about-btn" @tap="goAbout"><text class="about-text">关于我们</text></view>
 			<view class="save-btn" @tap="saveChanges">保存</view>
 		</view>
 
@@ -166,6 +169,10 @@ function goBack(){
 		if (pages.length > 1) { uni.navigateBack(); return; }
 		uni.reLaunch({ url: '/pages/me/index' });
 	} catch { uni.reLaunch({ url: '/pages/me/index' }); }
+}
+
+function goAbout(){
+	try { uni.navigateTo({ url: '/pages/about/index' }); } catch {}
 }
 
 function onTapAvatar(){
@@ -369,7 +376,9 @@ function onH5CodeInput(e: any){ h5Code.value = e?.detail?.value || ''; }
 
 /* 底部保存按钮 */
 .footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 12rpx 24rpx; background: transparent; box-sizing: border-box; }
+.about-btn { text-align:center; padding: 22rpx 0; border-radius: 999rpx; background: #fff; border: 2rpx solid #ffd6e7; color: #e11d48; margin-bottom: 12rpx; }
 .save-btn { text-align:center; padding: 24rpx 0; border-radius: 16rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); color:#0b1220; font-weight: 700; box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06); }
+.about-text { font-size: 28rpx; }
 
 /* 返回按钮 */
 .nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }

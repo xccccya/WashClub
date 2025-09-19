@@ -168,7 +168,7 @@ function onProductClick(p:any){
 .prod:active{ transform: scale(0.98); }
 .prod.highlight{ box-shadow: 0 8px 20px rgba(64,158,255,.25); transform: scale(1.02); }
 .prod.highlight::after{ content:''; position:absolute; inset:0; border:2px solid var(--el-color-primary); border-radius:12px; pointer-events:none; box-shadow: 0 0 0 0 rgba(0,0,0,0); z-index:1; }
-.thumb{ position:relative; width:100%; padding-top: 70%; background:#fafafa; display:flex; align-items:center; justify-content:center; }
+.thumb{ position:relative; width:100%; padding-top: 100%; background:#fafafa; display:flex; align-items:center; justify-content:center; }
 .thumb img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .noimg{ position:absolute; color:#999; }
 .badges{ position:absolute; left:6px; top:6px; display:flex; gap:4px; flex-wrap:wrap; }

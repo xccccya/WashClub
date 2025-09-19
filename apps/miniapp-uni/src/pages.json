@@ -83,6 +83,11 @@
 		}
 		,
 		{
+			"path": "pages/about/index",
+			"style": { "navigationBarTitleText": "关于我们" }
+		}
+		,
+		{
 			"path": "pages/vehicle/list",
 			"style": { "navigationBarTitleText": "车辆管理" }
 		}

@@ -265,6 +265,10 @@ async function save(){
 		if (codes.some((c: string)=>!c)) { ElMessage.error('请填写每个 SKU 的编码'); return; }
 		const dup = codes.find((c:string, i:number)=> codes.indexOf(c)!==i); if (dup){ ElMessage.error(`SKU 编码重复：${dup}`); return; }
 	}
+	// 处理商品介绍中的 base64 图片：上传为文件URL并替换
+	if (typeof form.value.description === 'string' && form.value.description.includes('src="data:')) {
+		try { form.value.description = await processDescHtmlReplaceDataImages(form.value.description); } catch {}
+	}
 	// 主图保存为 imageUrl
 	form.value.imageUrl = formImages.value[0] || '';
     form.value.imagesJson = formImages.value.slice();
@@ -336,6 +340,51 @@ async function initQuill(){
 		},
 		theme: 'snow'
 	});
+	// 粘贴与拖拽图片：拦截 dataURL，上传为 URL 并插入
+	try {
+		const root = quillInstance.root as HTMLElement;
+		root.addEventListener('paste', async (e: any) => {
+			try{
+				const items: DataTransferItemList | undefined = e?.clipboardData?.items;
+				if (!items) return;
+				const files: File[] = [];
+				for (let i=0;i<items.length;i++){ const it = items[i]; if (it && it.kind==='file' && /^image\//i.test(it.type)) { const f = it.getAsFile(); if (f) files.push(f); } }
+				if (!files.length) return;
+				e.preventDefault();
+				const range = quillInstance.getSelection(true);
+				for (const file of files){
+					const url = await uploadImageFile(file, 'product-desc');
+					if (url) quillInstance.insertEmbed(range ? range.index : 0, 'image', url, 'user');
+				}
+			}catch{}
+		});
+		root.addEventListener('drop', async (e: any) => {
+			try{
+			const fileList = (e?.dataTransfer?.files as FileList | null);
+			const files: File[] = fileList ? Array.from(fileList) : [];
+			const imageFiles: File[] = files.filter((f: File)=>/^image\//i.test(f.type));
+			if (!imageFiles.length) return;
+				e.preventDefault();
+				const range = quillInstance.getSelection(true);
+			for (const file of imageFiles){
+					const url = await uploadImageFile(file, 'product-desc');
+					if (url) quillInstance.insertEmbed(range ? range.index : 0, 'image', url, 'user');
+				}
+			}catch{}
+		});
+		// 兜底：当富文本里出现 data:image 的 <img>，延迟扫描并替换
+		setTimeout(async ()=>{
+			try{
+				const html = quillInstance.root.innerHTML || '';
+				if (html.includes('src="data:')){
+					const replaced = await processDescHtmlReplaceDataImages(html);
+					if (replaced && replaced !== html) {
+						quillInstance.clipboard.dangerouslyPasteHTML(replaced);
+					}
+				}
+			}catch{}
+		}, 0);
+	}catch{}
 	try { quillInstance.clipboard.dangerouslyPasteHTML(form.value.description || ''); } catch {}
 	quillInstance.on('text-change', ()=>{ try { form.value.description = quillInstance.root.innerHTML || ''; } catch {} });
 }
@@ -354,9 +403,55 @@ watch([show, formTab], async ([s, tab])=>{
 
 onBeforeUnmount(()=>{ quillInstance = null; });
 
+// 上传图片工具：返回绝对URL
+async function uploadImageFile(file: File, source: string): Promise<string>{
+	try{
+		const fd = new FormData();
+		fd.append('file', file);
+		fd.append('dir', 'public');
+		fd.append('source', source);
+		const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
+		const j = await res.json(); const url = j?.url ? (j.url.startsWith('http')? j.url : absUrl(j.url)) : '';
+		return url || '';
+	}catch{ return ''; }
+}
+
+// 将 HTML 内的 data:image base64 图片提取上传并替换为 URL
+async function processDescHtmlReplaceDataImages(html: string): Promise<string>{
+	try{
+		const imgs = Array.from(html.matchAll(/<img\b[^>]*src=["'](data:[^"']+)["'][^>]*>/gi));
+		if (!imgs.length) return html;
+		let out = html;
+		for (const m of imgs){
+			const dataUrl = m[1];
+			if (!/^data:image\//i.test(dataUrl)) continue;
+			const blob = dataURLToBlob(dataUrl);
+			if (!blob) continue;
+			const file = new File([blob], `image_${Date.now()}.png`, { type: blob.type || 'image/png' });
+			const url = await uploadImageFile(file, 'product-desc');
+			if (url) {
+				out = out.replace(dataUrl, url);
+			}
+		}
+		return out;
+	}catch{ return html; }
+}
+
+function dataURLToBlob(dataUrl: string): Blob | null {
+	try{
+		const arr = dataUrl.split(','); if (arr.length < 2) return null;
+		const mimeMatch = arr[0].match(/data:([^;]+);/i); const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+		const bstr = atob(arr[1]);
+		let n = bstr.length; const u8arr = new Uint8Array(n);
+		while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+		return new Blob([u8arr], { type: mime });
+	}catch{ return null; }
+}
+
 // 表单内多图上传
 async function onImagesChange(e:any){
-	const files: File[] = Array.from(e.target.files || []);
+	const fileList = (e?.target as HTMLInputElement)?.files as FileList | null;
+	const files: File[] = fileList ? Array.from(fileList) : [];
 	for (const file of files){
 		const fd = new FormData(); 
 		fd.append('file', file); 

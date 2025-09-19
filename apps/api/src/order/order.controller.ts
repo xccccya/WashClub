@@ -255,6 +255,22 @@ export class OrderController {
         return this.payment.markPaid({ orderId: id, method: body.method, paidAt, operatorUserId });
     }
 
+    // 管理后台：调整未支付订单的收银立减金额（元）
+    @Post(':id/adjust-cashier-discount')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders')
+    async adjustCashierDiscount(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { amount: number },
+        @Headers('authorization') authHeader?: string,
+    ){
+        const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        if (!operatorUserId) throw new BadRequestException('缺少管理员身份');
+        const amt = Number((body as any)?.amount ?? 0);
+        if (!Number.isFinite(amt) || amt < 0) throw new BadRequestException('金额需为不小于0的数值');
+        return this.orders.adjustCashierDiscount(id, amt, operatorUserId);
+    }
+
     // 管理后台：洗车卡划扣支付（自动识别集团/个人卡）
     @Post(':id/pay/wash-card')
     @UseGuards(AdminGuard)

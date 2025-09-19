@@ -177,7 +177,7 @@ const cartCount = ref<number>(0);
 
 // 图集：高度自适应与懒加载骨架
 const sysInfo = uni.getSystemInfoSync?.() as any;
-const galleryHeight = Math.floor((sysInfo?.windowWidth || 375) * 0.75);
+const galleryHeight = Math.floor(sysInfo?.windowWidth || 375);
 const imgLoaded = ref<boolean[]>([]);
 function onImgLoad(idx:number){ const arr = imgLoaded.value.slice(); arr[idx] = true; imgLoaded.value = arr; }
 

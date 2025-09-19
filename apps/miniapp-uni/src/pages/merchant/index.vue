@@ -118,7 +118,25 @@ const greetText = computed(()=>{
 function baseLabel(b: 'yesterday'|'prev7'|'prev30'|'lastMonth'){ return b==='yesterday' ? '昨日' : b==='prev7' ? '前七日' : b==='prev30' ? '前一月' : '昨月'; }
 function fmtRate(r: number|null|undefined){ if (r==null) return '—'; return `${(r*100).toFixed(1)}%`; }
 function arrow(r: number|null|undefined){ if (r==null) return '→'; return r>0?'↑':(r<0?'↓':'→'); }
-function formatCurrency(n?: number){ if (n==null) return '-'; return new Intl.NumberFormat('zh-CN',{ style:'currency', currency:'CNY', maximumFractionDigits:2 }).format(n); }
+function formatCurrency(n?: number){
+  if (n==null) return '-';
+  try {
+    // @ts-ignore
+    if (typeof Intl !== 'undefined' && (Intl as any).NumberFormat) {
+      return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 2 }).format(n as number);
+    }
+  } catch {}
+  const v = Number(n);
+  if (!isFinite(v)) return '-';
+  const sign = v < 0 ? '-' : '';
+  const abs = Math.abs(v);
+  const fixed = abs.toFixed(2);
+  const parts = fixed.split('.');
+  const intPart = parts[0];
+  const fracPart = parts[1] ? '.' + parts[1] : '';
+  const withSep = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return sign + '￥' + withSep + fracPart;
+}
 
 async function fetchOverview(){
   loadingOverview.value = true;

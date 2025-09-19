@@ -115,6 +115,12 @@
 						<el-option label="收钱吧" value="SHOUQIANBA" />
 						<el-option label="线下其他" value="OFFLINE" />
 					</el-select>
+					<div v-if="orderForPay" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+						<div style="flex:0 0 auto; color:#606266;">收银立减</div>
+						<el-input-number v-model="cashierDiscountInput" :min="0" :max="payAmountCap" :step="0.01" :precision="2" :controls="false" size="small" style="width: 140px;" @change="onManualDiscountChange" />
+						<div style="flex:1; color:#909399; font-size:12px;">最多可减至 0 元；0 元仅支持内部支付</div>
+					</div>
+					<div v-if="orderForPay" style="margin-top:6px; text-align:right; color:#303133;">应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
 						<el-button type="primary" @click="doMarkPaid">确认支付</el-button>
@@ -132,9 +138,13 @@
 					<video ref="videoRef" style="display:none; width:0; height:0;" playsinline muted></video>
 					<canvas ref="canvasRef" style="display:none;"></canvas>
 					<div style="color:#909399;font-size:12px; margin-top:6px;">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
+					<div v-if="orderForPay" style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; color:#303133;">
+						<div>应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
+						<div v-if="payAmountAfterManual<=0" style="color:#f56c6c; font-size:12px;">零元订单不支持微信付款码</div>
+					</div>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" :loading="wxPayLoading" @click="doWxMicropay">发起付款码支付</el-button>
+						<el-button type="primary" :loading="wxPayLoading" :disabled="payAmountAfterManual<=0" @click="doWxMicropay">发起付款码支付</el-button>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="洗车卡划扣" name="wash">
@@ -256,8 +266,18 @@ const payTab = ref<'manual'|'wx'|'wash'>('manual');
 const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
-function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; wxAuthCode.value=''; showPay.value = true; }
-async function doMarkPaid(){ if (!currentOrderId.value) return; try { await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+// 收银立减
+const orderForPay = ref<any>(null);
+const cashierDiscountInput = ref<number>(0);
+const payAmountCap = computed(()=>{
+    try{ const o:any = orderForPay.value; if(!o) return 0; const total=Number(o.totalAmount||0); const discount=Number(o.discountAmount||0); const cashierPrev=Number(o.cashierDiscountAmount||0); return Math.max(0, Number((total - (discount - cashierPrev)).toFixed(2))); }catch{ return 0; }
+});
+const payAmountAfterManual = computed(()=>{
+    try{ const o:any=orderForPay.value; if(!o) return 0; const shipping=Number(o.shippingFee||0); const points=Number(o.pointsAmount||0); const manual=Math.max(0, Number(cashierDiscountInput.value||0)); const base=payAmountCap.value; return Math.max(0, Number((base - manual + shipping - points).toFixed(2))); }catch{ return 0; }
+});
+function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value||0); if(!Number.isFinite(v)||v<0) v=0; const cap=Number(payAmountCap.value||0); cashierDiscountInput.value=Number(Math.min(cap, v).toFixed(2)); }catch{} }
+function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; wxAuthCode.value=''; orderForPay.value = row || null; cashierDiscountInput.value = Math.max(0, Number((row as any)?.cashierDiscountAmount||0)) || 0; showPay.value = true; }
+async function doMarkPaid(){ if (!currentOrderId.value) return; try { try{ await http(`/orders/${currentOrderId.value}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 async function doWxMicropay(){
 	if (!currentOrderId.value) return;
@@ -265,6 +285,7 @@ async function doWxMicropay(){
 	if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
 	try{
 		wxPayLoading.value = true;
+		try{ await http(`/orders/${currentOrderId.value}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{}
 		await http(`/orders/${currentOrderId.value}/pay/wx-micropay`, { method:'POST', body: { authCode: code } });
 		ElMessage.success('付款成功，已标记订单为已支付');
 		showPay.value = false; wxAuthCode.value = '';

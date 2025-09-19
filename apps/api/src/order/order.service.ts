@@ -481,8 +481,8 @@ export class OrderService {
             // 收银立减：仅由管理员代客/收银端使用；不能大于当前应付口径
             let cashierDiscountFinal = new Prisma.Decimal(0);
             if (cashierDiscountManual > 0) {
-                // 仅管理员代客或后台允许手动优惠；普通小程序下单时忽略
-                const allowManualDiscount = !!proxyAdminUserId; // 代客下单/后台
+                // 仅管理员代客或后台/收银台内部允许手动优惠；普通小程序下单时忽略
+                const allowManualDiscount = !!proxyAdminUserId || !!(params as any)?._posInternalDiscountAllowed; // 代客下单/后台 或 POS 内部
                 if (allowManualDiscount) {
                     const beforeManual = total.minus(discountTotal);
                     const req = new Prisma.Decimal(cashierDiscountManual as any);
@@ -493,8 +493,9 @@ export class OrderService {
 
             const shipping = new Prisma.Decimal(shippingFee as any);
             const payAmount = total.minus(discountTotal).plus(shipping).minus(new Prisma.Decimal((pointsAmountCalcFen / 100) as any));
-            // POS 需求：若为代客下单，允许 0 元订单（仅内部支付方式）。否则保持原 0.01 兜底。
-            const minPay = !!proxyAdminUserId ? new Prisma.Decimal(0 as any) : new Prisma.Decimal(0.01 as any);
+            // POS 需求：若为代客下单或 POS 内部标记，允许 0 元订单（仅内部支付方式）。否则保持原 0.01 兜底。
+            const allowZeroPay = !!proxyAdminUserId || !!(params as any)?._posInternalDiscountAllowed;
+            const minPay = allowZeroPay ? new Prisma.Decimal(0 as any) : new Prisma.Decimal(0.01 as any);
             const payAmountAdjusted = payAmount.lessThan(minPay) ? minPay : payAmount;
 
             // 预生成订单号，便于库存预占日志记录
@@ -929,6 +930,48 @@ export class OrderService {
             orderBy: [{ id: 'desc' }],
             include: { items: true, member: true, afterSalesRequests: true }
         });
+    }
+
+    // 管理后台：调整未支付订单的收银立减金额（单位：元，>=0）
+    async adjustCashierDiscount(orderId: number, amount: number, operatorUserId?: number | null){
+        const id = Number(orderId||0);
+        if (!Number.isFinite(id) || id<=0) throw new Error('订单ID无效');
+        const req = Math.max(0, Number(amount||0));
+        const order: any = await this.prisma.order.findUnique({ where: { id }, select: {
+            id: true,
+            payStatus: true,
+            totalAmount: true,
+            discountAmount: true,
+            memberDiscountAmount: true,
+            cashierDiscountAmount: true,
+            shippingFee: true,
+            pointsAmount: true,
+        } });
+        if (!order) throw new Error('订单不存在');
+        if (String(order.payStatus||'').toUpperCase() !== 'UNPAID') throw new Error('仅未支付订单可调整收银立减');
+        const total = new Prisma.Decimal(order.totalAmount as any);
+        const discount = new Prisma.Decimal(order.discountAmount as any);
+        const cashierPrev = new Prisma.Decimal(order.cashierDiscountAmount as any);
+        const shipping = new Prisma.Decimal(order.shippingFee as any);
+        const pointsAmt = new Prisma.Decimal(order.pointsAmount as any);
+        // 立减上限：不含收银立减的应收基数（不含运费，含券/会员等折扣）
+        const discountBeforeCashier = discount.minus(cashierPrev);
+        const baseBeforeCashier = total.minus(discountBeforeCashier);
+        let allow = baseBeforeCashier;
+        if (allow.lessThan(0)) allow = new Prisma.Decimal(0);
+        const want = new Prisma.Decimal(req as any);
+        const cashierFinal = want.greaterThan(allow) ? (allow as any) : want;
+        // 新的折扣总额与应收
+        const discountNew = discountBeforeCashier.plus(cashierFinal);
+        let payAmount = total.minus(discountNew).plus(shipping).minus(pointsAmt);
+        if (payAmount.lessThan(0)) payAmount = new Prisma.Decimal(0 as any);
+        const updated = await this.prisma.order.update({ where: { id }, data: {
+            cashierDiscountAmount: cashierFinal as any,
+            discountAmount: discountNew as any,
+            payAmount: payAmount as any,
+        } });
+        try { await this.writeTimeline({ orderId: id, event: 'NOTE', value: 'CASHIER_DISCOUNT_ADJUST', remark: `调整为：${cashierFinal.toFixed(2)}`, operatorUserId: operatorUserId ?? null }); } catch {}
+        return { ok: true, id: updated.id, cashierDiscountAmount: Number(cashierFinal), payAmount: Number(payAmount) } as any;
     }
 }
 

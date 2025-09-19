@@ -119,13 +119,7 @@
 				<div class="row" v-if="payAfterService">
 					<div class="label">队列类型</div>
 					<el-select v-model="model.queueTypeId" filterable placeholder="选择队列类型">
-						<el-option v-for="qt in queueTypes" :key="qt.id" :label="qt.name" :value="qt.id" />
-					</el-select>
-				</div>
-				<div class="row" v-if="payAfterService">
-					<div class="label">服务商品</div>
-					<el-select v-model="model.serviceProductIds" multiple filterable placeholder="选择可入队的服务商品">
-						<el-option v-for="it in serviceProductsInCart" :key="it.productId" :label="it.name" :value="it.productId" />
+						<el-option v-for="qt in queueTypes" :key="qt.id" :label="qt.name" :value="qt.id" :disabled="!isQueueTypeCompatible(qt)" />
 					</el-select>
 				</div>
 			</template>
@@ -262,6 +256,35 @@ function onManualDiscountChange(){
     (model as any).value.cashierDiscountAmount = Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
   }catch{}
 }
+
+// 队列类型与当前清单中的服务商品兼容性：所有服务商品必须被该队列类型允许
+function getAllowedProductIdsOfQueueType(qt: any): Set<number> {
+  try{
+    const arr = Array.isArray(qt?.products) ? qt.products : [];
+    const ids = arr.map((x:any)=> Number(x?.productId || x?.product?.id || 0)).filter((n:number)=> n>0);
+    return new Set<number>(ids);
+  }catch{ return new Set<number>(); }
+}
+function isQueueTypeCompatible(qt: any): boolean {
+  try{
+    const allowed = getAllowedProductIdsOfQueueType(qt);
+    const cart = Array.isArray(serviceProductsInCart.value) ? serviceProductsInCart.value : [];
+    if (!cart.length) return false;
+    return cart.every((it:any)=> allowed.has(Number(it?.productId||0)));
+  }catch{ return false; }
+}
+
+// 清单或队列类型变化时，若当前已选队列不兼容则清空
+watch([queueTypes, serviceProductsInCart], ()=>{
+  try{
+    const id = Number((model as any).value?.queueTypeId||0);
+    if (!id) return;
+    const qt = (queueTypes.value||[]).find((q:any)=> Number(q?.id||0)===id);
+    if (!qt || !isQueueTypeCompatible(qt)) {
+      (model as any).value.queueTypeId = undefined;
+    }
+  }catch{}
+});
 
 // 当上限变化（如选券/改积分/改清单）时，自动钳制已填的立减金额
 watch(payAmountCap, (cap)=>{

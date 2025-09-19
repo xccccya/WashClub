@@ -1,5 +1,8 @@
 // #ifdef MP-WEIXIN
 export {};
+// 对于 TS 编译环境下的全局 wx 声明
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const wx: any;
 
 (function(){
 	try{
@@ -64,6 +67,53 @@ export {};
 				return { language, version, SDKVersion, enableDebug };
 			};
 		}
+
+		// 强化版 Intl polyfill：确保在不同全局对象上可用，并尽量提供标识符 Intl
+		try {
+			// 收集可能的全局根对象
+			// @ts-ignore
+			const roots: any[] = [];
+			// @ts-ignore
+			if (typeof globalThis !== 'undefined') roots.push(globalThis as any);
+			// @ts-ignore
+			if (typeof global !== 'undefined') roots.push(global as any);
+			roots.push((wx as any));
+			try { roots.push(Function('return this')()); } catch {}
+
+			const ensureIntl = (root: any) => {
+				if (!root) return;
+				root.Intl = root.Intl || {};
+				if (!root.Intl.NumberFormat) {
+					root.Intl.NumberFormat = function(locales?: string | string[], options?: any){
+						const loc = Array.isArray(locales) ? (locales[0] || 'zh-CN') : (locales || 'zh-CN');
+						const opts = options || {};
+						const style = String(opts.style || 'decimal');
+						const currency = String(opts.currency || 'CNY');
+						const maximumFractionDigits = (typeof opts.maximumFractionDigits === 'number') ? Math.max(0, Math.min(20, opts.maximumFractionDigits)) : 2;
+						return {
+							format(value: number){
+								const n = Number(value);
+								if (!isFinite(n)) return '';
+								const sign = n < 0 ? '-' : '';
+								const abs = Math.abs(n);
+								const fixed = abs.toFixed(maximumFractionDigits);
+								const parts = fixed.split('.');
+								const intPart = parts[0];
+								const fracPart = parts[1] ? '.' + parts[1] : '';
+								const withSep = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+								if (style === 'currency' && String(currency).toUpperCase() === 'CNY') {
+									return sign + '￥' + withSep + fracPart;
+								}
+								return sign + withSep + fracPart;
+							}
+						};
+					};
+				}
+			};
+			for (const r of roots) { try { ensureIntl(r); } catch {} }
+			// 尝试创建可直接通过标识符访问的 Intl（某些沙箱需要赋值语句）
+			try { Function('try{ if (typeof Intl==="undefined") Intl = this.Intl; }catch(e){}').call(roots[0] || {}); } catch {}
+		}catch{}
 	}catch{}
 })();
 // #endif

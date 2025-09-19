@@ -855,7 +855,7 @@ model Product {
   specsDefinitionJson Json?
   sortWeight          Int              @default(0)
   enabled             Boolean          @default(true)
-  description         String?
+  description         String?          @db.LongText
   // 扩展项
   pointsDeductible    Boolean          @default(false)
   memberDiscount      Boolean          @default(false)

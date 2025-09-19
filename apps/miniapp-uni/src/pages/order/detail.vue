@@ -797,6 +797,7 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='RECEIVED') return '用户已确认收货';
 		if (v==='VIRTUAL_CARD_ISSUED') return '系统发放卡券完成';
 		if (v==='WECHAT_MICROPAY') return '微信付款码支付';
+		if (v==='CASHIER_DISCOUNT_ADJUST') return '收银立减调整';
 		if (v==='GROUP_RECHARGE_CREDIT') return '集团余额充值入账';
 		if (v==='GROUP_RECHARGE_REFUND_DEBIT') return '集团充值退款出账';
 		if (v==='GROUP_BALANCE_PAY') return '集团余额支付';

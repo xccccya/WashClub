@@ -55,11 +55,12 @@ export class QueueController {
     @ApiOperation({ summary: '创建服务订单并入队（先服务后付）' })
     async createServiceOrderAndEnqueue(@Body() body: any, @Headers('authorization') authHeader?: string) {
         const queueTypeId = Number(body?.queueTypeId || 0);
-        const productIds = Array.isArray(body?.productIds) ? body.productIds.map((n: any)=>Number(n)).filter((n: any)=>Number.isFinite(n)) : [];
+        const incomingItemsRaw = Array.isArray(body?.items) ? body.items : null;
+        const productIdsByLegacy = Array.isArray(body?.productIds) ? body.productIds.map((n: any)=>Number(n)).filter((n: any)=>Number.isFinite(n)) : [];
         const plateNumber = String(body?.plateNumber || '').trim();
         const vehicleId = body?.vehicleId ? Number(body.vehicleId) : null;
         if (!queueTypeId) throw new BadRequestException('缺少队列类型');
-        if (!productIds.length) throw new BadRequestException('至少选择一个服务商品');
+        if ((!incomingItemsRaw || incomingItemsRaw.length===0) && productIdsByLegacy.length===0) throw new BadRequestException('至少选择一个服务商品');
         if (!vehicleId && !plateNumber) throw new BadRequestException('缺少车辆标识');
 
         // 读取队列类型与允许商品
@@ -69,7 +70,12 @@ export class QueueController {
         });
         if (!qtype || !qtype.enabled) throw new BadRequestException('队列类型无效或未启用');
         const allowed = new Set<number>((qtype.products||[]).map((p: any)=>p.productId));
-        if (productIds.some((pid)=>!allowed.has(pid))) throw new BadRequestException('所选商品不在该队列类型可用范围');
+        // 归一化 items：兼容旧版 productIds，仅数量=1
+        const incomingItems: Array<{ productId: number; skuId?: number|null; quantity?: number }>= (incomingItemsRaw && Array.isArray(incomingItemsRaw))
+            ? incomingItemsRaw.map((x:any)=>({ productId: Number(x?.productId||0), skuId: x?.skuId!=null?Number(x.skuId):undefined, quantity: Number(x?.quantity||1) }))
+            : productIdsByLegacy.map((pid:number)=>({ productId: pid, skuId: undefined, quantity: 1 }));
+        if (incomingItems.some(it=>!Number.isFinite(it.productId) || it.productId<=0)) throw new BadRequestException('存在无效商品');
+        if (incomingItems.some(it=>!allowed.has(Number(it.productId)))) throw new BadRequestException('所选商品不在该队列类型可用范围');
 
         // 解析车辆/游客与归属
         let v: any = null;
@@ -119,9 +125,24 @@ export class QueueController {
             }
         }
 
-        // 读取商品快照
-        const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
-        const items = products.map((p)=>({ productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, specsText: null, barcode: p.barcode ?? null, price: p.price || 0, discount: 0, quantity: 1 }));
+        // 读取商品&SKU快照并构造订单项（支持多规格服务商品）
+        const pidSet = Array.from(new Set(incomingItems.map(it=>Number(it.productId))));
+        const products = await this.prisma.product.findMany({ where: { id: { in: pidSet } }, include: { skus: true } });
+        const prodMap = new Map<number, any>(products.map((p:any)=>[p.id, p]));
+        const items = incomingItems.map((it)=>{
+            const p = prodMap.get(Number(it.productId));
+            if (!p) throw new BadRequestException(`商品不存在：${it.productId}`);
+            const qty = Math.max(1, Number(it.quantity||1));
+            if (String(p.specType||'') === 'MULTI') {
+                const sid = Number(it.skuId||0);
+                if (!Number.isFinite(sid) || sid<=0) throw new BadRequestException(`多规格商品缺少SKU：${p.name}`);
+                const sku = (Array.isArray(p.skus)?p.skus:[]).find((s:any)=>Number(s.id)===sid);
+                if (!sku) throw new BadRequestException(`未找到SKU：${p.name}`);
+                return { productId: p.id, skuId: sku.id, name: p.name, imageUrl: sku.imageUrl || p.imageUrl || null, specsText: sku.name, barcode: sku.barcode || p.barcode || null, price: sku.price || 0, discount: 0, quantity: qty };
+            } else {
+                return { productId: p.id, skuId: null, name: p.name, imageUrl: p.imageUrl ?? null, specsText: null, barcode: p.barcode ?? null, price: p.price || 0, discount: 0, quantity: qty };
+            }
+        });
 
         // 创建服务订单（先服务后付）
         // 代客识别：从管理员令牌中提取操作者
@@ -145,7 +166,9 @@ export class QueueController {
 
         const gidEnv = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
         const isGuestOrder = guest || (!!gidEnv && Number(memberId) === gidEnv);
-        const ord = await this.orders.createOrder({ type: 'SERVICE' as any, memberId: Number(memberId), vehicleId: resolvedVehicleId, groupId: groupId ?? null, items, payAfterService: true, userRemark: body?.userRemark, _isGuestOrder: isGuestOrder, _proxyAdminUserId: proxyAdminUserId, _proxyAdminSnapshot: proxyAdminSnapshot } as any);
+        const cashierDiscountAmount = Number(body?.cashierDiscountAmount || 0);
+        // 兜底：若未识别到管理员身份但确有收银立减，视为 POS 内部请求，允许手动立减
+        const ord = await this.orders.createOrder({ type: 'SERVICE' as any, memberId: Number(memberId), vehicleId: resolvedVehicleId, groupId: groupId ?? null, items, payAfterService: true, userRemark: body?.userRemark, cashierDiscountAmount: Number.isFinite(cashierDiscountAmount) ? cashierDiscountAmount : 0, _isGuestOrder: isGuestOrder, _proxyAdminUserId: proxyAdminUserId, _proxyAdminSnapshot: proxyAdminSnapshot, _posInternalDiscountAllowed: (!proxyAdminUserId && Number.isFinite(cashierDiscountAmount) && cashierDiscountAmount > 0) } as any);
 
         // 创建队列项（使用队列类型的步骤快照）
         const created = await (this.prisma as any).$transaction(async (tx: any) => {

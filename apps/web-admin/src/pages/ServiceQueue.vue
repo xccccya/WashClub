@@ -105,6 +105,22 @@
 						<el-option label="收钱吧" value="SHOUQIANBA" />
 						<el-option label="线下其他" value="OFFLINE" />
 					</el-select>
+					<div v-if="orderForPay" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+						<div style="flex:0 0 auto; color:#606266;">收银立减</div>
+						<el-input-number
+							v-model="cashierDiscountInput"
+							:min="0"
+							:max="payAmountCap"
+							:step="0.01"
+							:precision="2"
+							:controls="false"
+							size="small"
+							style="width: 140px;"
+							@change="onManualDiscountChange"
+						/>
+						<div style="flex:1; color:#909399; font-size:12px;">最多可减至 0 元；0 元仅支持内部支付</div>
+					</div>
+					<div v-if="orderForPay" style="margin-top:6px; text-align:right; color:#303133;">应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
 						<el-button type="primary" @click="doMarkPaid">确认支付</el-button>
@@ -119,9 +135,13 @@
 						</el-upload>
 					</div>
 					<div style="color:#909399;font-size:12px; margin-top:6px;">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
+					<div v-if="orderForPay" style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; color:#303133;">
+						<div>应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
+						<div v-if="payAmountAfterManual<=0" style="color:#f56c6c; font-size:12px;">零元订单不支持微信付款码</div>
+					</div>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" :loading="wxPayLoading" @click="doWxMicropay">发起付款码支付</el-button>
+						<el-button type="primary" :loading="wxPayLoading" :disabled="payAmountAfterManual<=0" @click="doWxMicropay">发起付款码支付</el-button>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="洗车卡划扣" name="wash">
@@ -265,8 +285,13 @@
 										<div v-else style="width:48px;height:48px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#bbb;">无</div>
 									</template>
 								</el-table-column>
-								<el-table-column prop="name" label="商品" min-width="260" />
-								<el-table-column prop="price" label="价格" width="120" />
+                                <el-table-column prop="name" label="商品" min-width="260" />
+                                <el-table-column label="价格/区间" width="160">
+                                    <template #default="{ row }">
+                                        <template v-if="String(row?.specType||'')==='MULTI'">{{ skuPriceHint(row) }}</template>
+                                        <template v-else>{{ row.price }}</template>
+                                    </template>
+                                </el-table-column>
 								<el-table-column prop="enabled" label="状态" width="100">
 									<template #default="{ row }"><el-tag :type="row.enabled ? 'success':'info'">{{ row.enabled?'启用':'停用' }}</el-tag></template>
 								</el-table-column>
@@ -394,32 +419,59 @@
 					<el-button type="primary" @click="wizardStep=2">下一步</el-button>
 				</div>
 			</div>
-			<div v-show="wizardStep===2">
-				<el-alert type="info" :closable="false" style="margin-bottom:8px;" title="仅可选择该队列类型允许的服务商品" />
-				<el-table :data="wizardAllowedProducts" size="small" height="300" @selection-change="onWizardSelectionChange">
-					<el-table-column label="图片" width="72">
-						<template #default="{ row }">
-							<img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #eee;" />
-							<div v-else style="width:48px;height:48px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#bbb;">无</div>
-						</template>
-					</el-table-column>
-					<el-table-column type="selection" width="50" />
-					<el-table-column prop="name" label="商品" min-width="260" />
-					<el-table-column prop="price" label="价格" width="120" />
-				</el-table>
-				<div style="display:flex; justify-content:space-between; margin-top:12px;">
-					<el-button @click="wizardStep=1">上一步</el-button>
-					<div>
-						<el-button @click="wizardDrawer=false">取消</el-button>
-						<el-button type="primary" @click="wizardStep=3">下一步</el-button>
-					</div>
-				</div>
-			</div>
-			<div v-show="wizardStep===3">
+            <div v-show="wizardStep===2">
+                <el-alert type="info" :closable="false" style="margin-bottom:8px;" title="仅可选择该队列类型允许的服务商品" />
+                <el-table :data="wizardAllowedProducts" size="small" height="300" @selection-change="onWizardSelectionChange">
+                    <el-table-column label="图片" width="72">
+                        <template #default="{ row }">
+                            <img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #eee;" />
+                            <div v-else style="width:48px;height:48px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#bbb;">无</div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column type="selection" width="50" />
+                    <el-table-column prop="name" label="商品" min-width="220" />
+                    <el-table-column label="规格" min-width="240">
+                        <template #default="{ row }">
+                            <template v-if="String(row?.specType||'')==='MULTI'">
+                                <el-select v-model="wizardSkuByProduct[row.id]" placeholder="请选择规格" style="width:220px;">
+                                    <el-option v-for="s in (row.skus||[])" :key="s.id" :label="skuLabel(s)" :value="s.id" :disabled="s.enabled===false" />
+                                </el-select>
+                            </template>
+                            <template v-else>-</template>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="price" label="价格/区间" width="140">
+                        <template #default="{ row }">
+                            <template v-if="String(row?.specType||'')==='MULTI'">
+                                <span>{{ skuPriceHint(row) }}</span>
+                            </template>
+                            <template v-else>{{ row.price }}</template>
+                        </template>
+                    </el-table-column>
+                </el-table>
+                <div style="display:flex; justify-content:space-between; margin-top:12px;">
+                    <el-button @click="wizardStep=1">上一步</el-button>
+                    <div>
+                        <el-button @click="wizardDrawer=false">取消</el-button>
+                        <el-button type="primary" @click="wizardStep=3">下一步</el-button>
+                    </div>
+                </div>
+            </div>
+            <div v-show="wizardStep===3">
 				<el-descriptions title="确认信息" :column="1" border>
 					<el-descriptions-item label="车牌">{{ selectedPlate }}</el-descriptions-item>
 					<el-descriptions-item label="队列类型">{{ (queueTypes.find(t=>t.id===wizardQueueTypeId)||{} as any).name || '-' }}</el-descriptions-item>
-					<el-descriptions-item label="服务商品">{{ wizardSelectedProductNames.join('、') || '-' }}</el-descriptions-item>
+                    <el-descriptions-item label="服务商品">
+                        <template v-if="wizardSelectedProductIds.length">
+                            <div v-for="pid in wizardSelectedProductIds" :key="pid">
+                                <span>{{ (wizardAllowedProducts.find(p=>p.id===pid)||{} as any).name || '-' }}</span>
+                                <template v-if="wizardSkuByProduct[pid]">
+                                    <span style="margin-left:6px; color:#909399;">（{{ skuNameById(pid, wizardSkuByProduct[pid]!) }}）</span>
+                                </template>
+                            </div>
+                        </template>
+                        <template v-else>-</template>
+                    </el-descriptions-item>
 				</el-descriptions>
 				<div style="display:flex; justify-content:space-between; margin-top:12px;">
 					<el-button @click="wizardStep=2">上一步</el-button>
@@ -673,7 +725,7 @@ async function saveSteps(){ if (!activeType.value) return; savingSteps.value=tru
 // 可用商品
 const productKeyword = ref('');
 const showDisabled = ref(false);
-type Product = { id:number; name:string; price:number; enabled:boolean; type:string; imageUrl?: string | null };
+type Product = { id:number; name:string; price:number; enabled:boolean; type:string; imageUrl?: string | null; specType?: string; skus?: Array<{ id:number; name:string; price:number; enabled?: boolean }> };
 const serviceProducts = ref<Product[]>([]);
 const selectedProductIds = ref<number[]>([]);
 const savingRowId = ref<number|null>(null);
@@ -721,6 +773,7 @@ const wizardStep = ref(0);
 const wizardQueueTypeId = ref<number|undefined>(undefined);
 const wizardAllowedProducts = ref<Product[]>([]);
 const wizardSelectedProductIds = ref<number[]>([]);
+const wizardSkuByProduct = ref<Record<number, number|undefined>>({});
 const wizardSelectedProductNames = computed(()=>{ const map = new Map<number, Product>(wizardAllowedProducts.value.map(p=>[p.id, p] as any)); return (wizardSelectedProductIds.value||[]).map(id=>map.get(id)?.name||'').filter(Boolean); });
 function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; }
 async function nextWizardFromVehicle(){
@@ -735,9 +788,10 @@ watch(wizardQueueTypeId, async (val)=>{
     const t = queueTypes.value.find(t=>t.id===val);
     const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId));
     if (!ids.size) { wizardAllowedProducts.value = []; return; }
-    const list = await http<Product[]>(`/store/products`, { method: 'GET', query: { type: 'SERVICE' } as any });
+    const list = await http<any[]>(`/store/products`, { method: 'GET', query: { type: 'SERVICE' } as any });
     wizardAllowedProducts.value = (list||[]).filter(p=>ids.has(p.id));
     wizardSelectedProductIds.value = [];
+    wizardSkuByProduct.value = {};
 });
 const submittingOrder = ref(false);
 async function submitCreateOrderAndEnqueue(){
@@ -745,7 +799,16 @@ async function submitCreateOrderAndEnqueue(){
     if (!wizardSelectedProductIds.value.length) { ElMessage.error('请选择服务商品'); return; }
     submittingOrder.value = true;
     try {
-        const body: any = { queueTypeId: wizardQueueTypeId.value, productIds: wizardSelectedProductIds.value };
+        // 构造 items，支持多规格
+        const items = wizardSelectedProductIds.value.map(pid=>({ productId: pid, skuId: wizardSkuByProduct.value[pid] || null }));
+        // 校验多规格商品必须选择 SKU
+        for (const p of wizardAllowedProducts.value) {
+            if (String((p as any)?.specType||'')==='MULTI' && wizardSelectedProductIds.value.includes(p.id)){
+                const sid = wizardSkuByProduct.value[p.id];
+                if (!sid) { ElMessage.error(`请选择规格：${p.name}`); submittingOrder.value=false; return; }
+            }
+        }
+        const body: any = { queueTypeId: wizardQueueTypeId.value, items };
         if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
         if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
         const res = await http<any>('/queue/create-service-order-and-enqueue', { method: 'POST', body });
@@ -767,6 +830,10 @@ function onWizardSelectionChange(rows: any[]){
     wizardSelectedProductIds.value = Array.isArray(rows) ? rows.map((r:any)=>r.id) : [];
 }
 
+function skuLabel(s: any){ try{ const p = Number(s?.price||0); return p>0 ? `${s?.name||''}（￥${p.toFixed(2)}）` : String(s?.name||''); }catch{ return String(s?.name||''); } }
+function skuPriceHint(row: any){ try{ const arr = Array.isArray(row?.skus)?row.skus:[]; if(!arr.length) return '-'; const prices = arr.map((x:any)=>Number(x?.price||0)).filter((n:number)=>Number.isFinite(n)); if(!prices.length) return '-'; const min = Math.min(...prices); const max = Math.max(...prices); return min===max ? `￥${min.toFixed(2)}` : `￥${min.toFixed(2)} ~ ￥${max.toFixed(2)}`; }catch{ return '-'; } }
+function skuNameById(pid: number, sid: number){ try{ const p = wizardAllowedProducts.value.find(x=>x.id===pid) as any; const s = (p?.skus||[]).find((y:any)=>Number(y.id)===Number(sid)); return s?.name || '-'; }catch{ return '-'; } }
+
 // 订单支付复用弹窗
 const showPay = ref(false);
 const currentOrderId = ref<number|null>(null);
@@ -779,6 +846,38 @@ const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
 let mediaStream: MediaStream | null = null;
 let scanTimer: any = null;
+// 收银立减
+const orderForPay = ref<any>(null);
+const cashierDiscountInput = ref<number>(0);
+const payAmountCap = computed(()=>{
+    try{
+        const o:any = orderForPay.value; if (!o) return 0;
+        const total = Number(o.totalAmount||0);
+        const discount = Number(o.discountAmount||0);
+        const cashierPrev = Number(o.cashierDiscountAmount||0);
+        const base = Math.max(0, Number((total - (discount - cashierPrev)).toFixed(2)));
+        return base;
+    }catch{ return 0; }
+});
+const payAmountAfterManual = computed(()=>{
+    try{
+        const o:any = orderForPay.value; if (!o) return 0;
+        const shipping = Number(o.shippingFee||0);
+        const points = Number(o.pointsAmount||0);
+        const manual = Math.max(0, Number(cashierDiscountInput.value||0));
+        const baseBeforeCashier = payAmountCap.value;
+        const pay = Math.max(0, Number((baseBeforeCashier - manual + shipping - points).toFixed(2)));
+        return pay;
+    }catch{ return 0; }
+});
+function onManualDiscountChange(){
+    try{
+        let v = Number(cashierDiscountInput.value||0);
+        if (!Number.isFinite(v) || v < 0) v = 0;
+        const cap = Number(payAmountCap.value||0);
+        cashierDiscountInput.value = Number(Math.min(cap, v).toFixed(2));
+    }catch{}
+}
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const canGroupBalance = ref(false);
 const groupPayLoading = ref(false);
@@ -789,12 +888,12 @@ async function openPay(row:any){
     canGroupBalance.value = false;
     try{
         const id = currentOrderId.value;
-        if (id){ const ord:any = await http(`/orders/${id}`); canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; }
-    }catch{ canGroupBalance.value = false; }
+        if (id){ const ord:any = await http(`/orders/${id}`); orderForPay.value = ord||null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; }
+    }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value = false; }
     showPay.value = true;
 }
-async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } await http(`/orders/${id}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; await http(`/orders/${id}/pay/wx-micropay`, { method:'POST', body: { authCode: code } }); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
+async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${id}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${id}/pay/wx-micropay`, { method:'POST', body: { authCode: code } }); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
 async function doWashDeduct(){ try{ const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const ord:any = await http(`/orders/${id}`); if (String(ord?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; } const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value; const ret:any = await http(`/orders/${id}/pay/wash-card`, { method:'POST', body: { prefer } }); const plan = Array.isArray(ret?.plan)?ret.plan:[]; const times = Number(ret?.requiredTimes||0); ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`); showPay.value=false; await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); } }
 async function doGroupBalance(){
     try{
