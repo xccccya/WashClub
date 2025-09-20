@@ -7,7 +7,7 @@
 
 		<!-- 品牌卡片 -->
 		<view class="card gradient-card brand-card">
-			<image class="logo" src="/static/icons/LOGO1.png" mode="aspectFit" />
+			<image class="logo" src="https://car.weiyuanjuke.cn/LOGO1.png" mode="aspectFit" />
 			<view class="app-name">巨科汽车美容会员小程序</view>
 			<view class="slogan">由巨科科技自研-汽车美容会员营销系统强力驱动。</view>
 		</view>
