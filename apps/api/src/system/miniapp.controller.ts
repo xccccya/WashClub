@@ -8,9 +8,11 @@ type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth' | 'lastMonth';
 
 function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
   const now = new Date();
+  const startOfToday = new Date(now); startOfToday.setHours(0,0,0,0);
+  const startOfTomorrow = new Date(startOfToday); startOfTomorrow.setDate(startOfTomorrow.getDate()+1);
   switch (range) {
-    case 'last7': return { start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), end: now };
-    case 'last30': return { start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
+    case 'last7': { const start = new Date(startOfTomorrow); start.setDate(start.getDate()-7); return { start, end: startOfTomorrow }; }
+    case 'last30': { const start = new Date(startOfTomorrow); start.setDate(start.getDate()-30); return { start, end: startOfTomorrow }; }
     case 'thisMonth': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       const endMonth = now.getMonth() + 1;
@@ -25,23 +27,20 @@ function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
       return { start: firstOfLastMonth, end: firstOfThisMonth };
     }
     case 'today':
-    default: {
-      const start = new Date(now); start.setHours(0,0,0,0);
-      const end = new Date(start); end.setDate(end.getDate() + 1);
-      return { start, end };
-    }
+    default: { return { start: startOfToday, end: startOfTomorrow }; }
   }
 }
 
 function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; base: 'yesterday'|'prev7'|'prev30'|'lastMonth' } {
   const now = new Date();
+  const startOfToday = new Date(now); startOfToday.setHours(0,0,0,0);
   switch (range) {
-    case 'last7': { const end = new Date(now.getTime() - 7*24*60*60*1000); const start = new Date(end.getTime() - 7*24*60*60*1000); return { start, end, base: 'prev7' }; }
-    case 'last30': { const end = new Date(now.getTime() - 30*24*60*60*1000); const start = new Date(end.getTime() - 30*24*60*60*1000); return { start, end, base: 'prev30' }; }
+    case 'last7': { const end = new Date(startOfToday); const start = new Date(end); start.setDate(start.getDate()-7); return { start, end, base: 'prev7' }; }
+    case 'last30': { const end = new Date(startOfToday); const start = new Date(end); start.setDate(start.getDate()-30); return { start, end, base: 'prev30' }; }
     case 'thisMonth': { const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0,0); const firstOfLast = new Date(firstOfThis); firstOfLast.setMonth(firstOfLast.getMonth()-1); return { start: firstOfLast, end: firstOfThis, base: 'lastMonth' }; }
     case 'lastMonth': { const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0,0); const firstOfLast = new Date(firstOfThis); firstOfLast.setMonth(firstOfLast.getMonth()-1); const firstOfPrev = new Date(firstOfLast); firstOfPrev.setMonth(firstOfPrev.getMonth()-1); return { start: firstOfPrev, end: firstOfLast, base: 'lastMonth' }; }
     case 'today':
-    default: { const startOfToday = new Date(now); startOfToday.setHours(0,0,0,0); const startOfYesterday = new Date(startOfToday); startOfYesterday.setDate(startOfYesterday.getDate()-1); return { start: startOfYesterday, end: startOfToday, base: 'yesterday' }; }
+    default: { const startOfYesterday = new Date(startOfToday); startOfYesterday.setDate(startOfYesterday.getDate()-1); return { start: startOfYesterday, end: startOfToday, base: 'yesterday' }; }
   }
 }
 

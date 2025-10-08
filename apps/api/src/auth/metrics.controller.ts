@@ -9,15 +9,20 @@ type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth';
 
 function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
     const now = new Date();
-    const end = new Date(now);
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
     switch (range) {
         case 'last7': {
-            const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            return { start, end };
+            const start = new Date(startOfTomorrow);
+            start.setDate(start.getDate() - 7);
+            return { start, end: startOfTomorrow };
         }
         case 'last30': {
-            const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            return { start, end };
+            const start = new Date(startOfTomorrow);
+            start.setDate(start.getDate() - 30);
+            return { start, end: startOfTomorrow };
         }
         case 'thisMonth': {
             const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -30,10 +35,8 @@ function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
         }
         case 'today':
         default: {
-            const start = new Date(now);
-            start.setHours(0, 0, 0, 0);
-            const endDt = new Date(start);
-            endDt.setDate(endDt.getDate() + 1);
+            const start = startOfToday;
+            const endDt = startOfTomorrow;
             return { start, end: endDt };
         }
     }
@@ -41,15 +44,19 @@ function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
 
 function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; base: 'yesterday'|'prev7'|'prev30'|'lastMonth' } {
     const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
     switch (range) {
         case 'last7': {
-            const end = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const end = new Date(startOfToday);
+            const start = new Date(end);
+            start.setDate(start.getDate() - 7);
             return { start, end, base: 'prev7' };
         }
         case 'last30': {
-            const end = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const end = new Date(startOfToday);
+            const start = new Date(end);
+            start.setDate(start.getDate() - 30);
             return { start, end, base: 'prev30' };
         }
         case 'thisMonth': {
@@ -60,8 +67,6 @@ function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; ba
         }
         case 'today':
         default: {
-            const startOfToday = new Date(now);
-            startOfToday.setHours(0, 0, 0, 0);
             const startOfYesterday = new Date(startOfToday);
             startOfYesterday.setDate(startOfYesterday.getDate() - 1);
             return { start: startOfYesterday, end: startOfToday, base: 'yesterday' };
@@ -313,9 +318,14 @@ export class MetricsController {
         @Query('start') startStr?: string,
         @Query('end') endStr?: string,
     ) {
-        const now = new Date();
-        const end = endStr ? new Date(endStr) : now;
-        const start = startStr ? new Date(startStr) : new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        let start: Date; let end: Date;
+        if (startStr || endStr) {
+            const now = new Date();
+            end = endStr ? new Date(endStr) : new Date(now);
+            start = startStr ? new Date(startStr) : new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        } else {
+            ({ start, end } = getRange('last7'));
+        }
         if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('时间参数无效');
         const rows: Array<{ d: Date; amt: Prisma.Decimal | number | null }> = await this.prisma.$queryRaw(
             Prisma.sql`
@@ -327,7 +337,7 @@ export class MetricsController {
             rev AS (
               SELECT DATE(o.paidAt) AS d, SUM(o.payAmount) AS amt
               FROM \`Order\` o
-              WHERE o.payStatus='PAID' AND o.paidAt BETWEEN ${start} AND ${end}
+              WHERE o.payStatus='PAID' AND o.paidAt >= ${start} AND o.paidAt < ${end}
               GROUP BY DATE(o.paidAt)
             )
             SELECT dd.d AS d, COALESCE(rev.amt, 0) AS amt
@@ -502,8 +512,13 @@ export class MetricsController {
         @Query('categoryId') categoryIdStr?: string,
     ) {
         const now = new Date();
-        const end = endStr ? new Date(endStr) : now;
-        const start = startStr ? new Date(startStr) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        let start: Date; let end: Date;
+        if (startStr || endStr) {
+            end = endStr ? new Date(endStr) : new Date(now);
+            start = startStr ? new Date(startStr) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else {
+            ({ start, end } = getRange('last7'));
+        }
         const limit = Math.max(1, Math.min(100, Number(limitStr || 10)));
         if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('时间参数无效');
         const categoryId = categoryIdStr ? Number(categoryIdStr) : null;
@@ -512,7 +527,7 @@ export class MetricsController {
             Prisma.sql`
             SELECT p.id AS id, p.name AS name, SUM(oi.quantity) AS qty
             FROM OrderItem oi
-            JOIN \`Order\` o ON o.id = oi.orderId AND o.payStatus = 'PAID' AND o.paidAt BETWEEN ${start} AND ${end}
+            JOIN \`Order\` o ON o.id = oi.orderId AND o.payStatus = 'PAID' AND o.paidAt >= ${start} AND o.paidAt < ${end}
             JOIN Product p ON p.id = oi.productId
             ${whereCategory}
             GROUP BY p.id, p.name
