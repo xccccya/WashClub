@@ -341,7 +341,7 @@ export class MetricsController {
             WITH RECURSIVE dd AS (
               SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
               UNION ALL
-              SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+              SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
             ),
             rev AS (
               SELECT DATE(o.paidAt) AS d, SUM(o.payAmount) AS amt
@@ -373,7 +373,7 @@ export class MetricsController {
                 WITH RECURSIVE dd AS (
                   SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 oc AS (
                   SELECT DATE(paidAt) AS d, COUNT(1) AS c
@@ -395,7 +395,7 @@ export class MetricsController {
                 WITH RECURSIVE dd AS (
                   SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 pay AS (
                   SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
@@ -426,7 +426,7 @@ export class MetricsController {
                 WITH RECURSIVE dd AS (
                   SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 wc1 AS (
                   SELECT DATE(l.createdAt) AS d, SUM(ABS(l.\`change\`)) AS t
@@ -466,7 +466,7 @@ export class MetricsController {
                 WITH RECURSIVE dd AS (
                   SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 sales AS (
                   SELECT DATE(o.paidAt) AS d, SUM(oi.quantity) AS qty

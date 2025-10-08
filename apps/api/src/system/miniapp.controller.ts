@@ -186,7 +186,7 @@ export class SystemMiniappEmployeeController {
     const rows = await this.prisma.$queryRaw(Prisma.sql`
       WITH RECURSIVE dd AS (
         SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
-        UNION ALL SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
+        UNION ALL SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
       ),
       pay AS (
         SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
