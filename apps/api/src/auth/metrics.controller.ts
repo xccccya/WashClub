@@ -334,12 +334,14 @@ export class MetricsController {
             ({ start, end } = getRange('last7'));
         }
         if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('时间参数无效');
+        const sDateStr = formatLocalDate(start);
+        const eDateStr = formatLocalDate(end);
         const rows: Array<{ d: Date; amt: Prisma.Decimal | number | null }> = await this.prisma.$queryRaw(
             Prisma.sql`
             WITH RECURSIVE dd AS (
-              SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
+              SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
               UNION ALL
-              SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+              SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
             ),
             rev AS (
               SELECT DATE(o.paidAt) AS d, SUM(o.payAmount) AS amt
@@ -363,13 +365,15 @@ export class MetricsController {
         @Query('range') rangeKey?: RangeKey,
     ) {
         const { start, end } = getRange(rangeKey || 'last7');
+        const sDateStr = formatLocalDate(start);
+        const eDateStr = formatLocalDate(end);
         if (metric === 'orders') {
             const rows: Array<{ d: Date; c: number }> = await this.prisma.$queryRaw(
                 Prisma.sql`
                 WITH RECURSIVE dd AS (
-                  SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
+                  SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 oc AS (
                   SELECT DATE(paidAt) AS d, COUNT(1) AS c
@@ -389,9 +393,9 @@ export class MetricsController {
             const rows: Array<{ d: Date; amt: number }> = await this.prisma.$queryRaw(
                 Prisma.sql`
                 WITH RECURSIVE dd AS (
-                  SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
+                  SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 pay AS (
                   SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
@@ -420,9 +424,9 @@ export class MetricsController {
             const rows: Array<{ d: Date; t: number }> = await this.prisma.$queryRaw(
                 Prisma.sql`
                 WITH RECURSIVE dd AS (
-                  SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
+                  SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 wc1 AS (
                   SELECT DATE(l.createdAt) AS d, SUM(ABS(l.\`change\`)) AS t
@@ -460,9 +464,9 @@ export class MetricsController {
             const rows: Array<{ d: Date; v: number }> = await this.prisma.$queryRaw(
                 Prisma.sql`
                 WITH RECURSIVE dd AS (
-                  SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
+                  SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
                   UNION ALL
-                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+                  SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
                 ),
                 sales AS (
                   SELECT DATE(o.paidAt) AS d, SUM(oi.quantity) AS qty

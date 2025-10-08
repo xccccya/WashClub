@@ -181,10 +181,12 @@ export class SystemMiniappEmployeeController {
     }
     if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new BadRequestException('时间参数无效');
 
+    const sDateStr = formatLocalDate(start);
+    const eDateStr = formatLocalDate(end);
     const rows = await this.prisma.$queryRaw(Prisma.sql`
       WITH RECURSIVE dd AS (
-        SELECT CAST(${Prisma.sql`${start}`} AS DATE) AS d
-        UNION ALL SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < CAST(${Prisma.sql`${end}`} AS DATE)
+        SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
+        UNION ALL SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE d < DATE(${Prisma.sql`${eDateStr}`})
       ),
       pay AS (
         SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
