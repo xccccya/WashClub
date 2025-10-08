@@ -84,6 +84,13 @@ function calcRate(curr: number, prev: number): number | null {
     return (c - p) / p;
 }
 
+function formatLocalDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+}
+
 @ApiTags('system')
 @Controller('system')
 @UseGuards(AdminGuard)
@@ -345,7 +352,7 @@ export class MetricsController {
             ORDER BY dd.d;
             `
         );
-        return rows.map(r => ({ date: new Date(r.d).toISOString().slice(0,10), amount: Number(r.amt || 0) }));
+        return rows.map(r => ({ date: formatLocalDate(new Date(r.d)), amount: Number(r.amt || 0) }));
     }
 
     @Get('metrics/series')
@@ -375,7 +382,7 @@ export class MetricsController {
                 ORDER BY dd.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: new Date(r.d).toISOString().slice(0,10), value: Number(r.c || 0) })) };
+            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.c || 0) })) };
         }
         if (metric === 'payments') {
             // 净支付：每日支付总额 - 每日退款成功总额
@@ -407,7 +414,7 @@ export class MetricsController {
                 SELECT net.d AS d, CASE WHEN net.amt < 0 THEN 0 ELSE net.amt END AS amt FROM net ORDER BY net.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: new Date(r.d).toISOString().slice(0,10), value: Number(r.amt || 0) })) };
+            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.amt || 0) })) };
         }
         if (metric === 'washcard') {
             const rows: Array<{ d: Date; t: number }> = await this.prisma.$queryRaw(
@@ -446,7 +453,7 @@ export class MetricsController {
                 ORDER BY dd.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: new Date(r.d).toISOString().slice(0,10), value: Number(r.t || 0) })) };
+            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.t || 0) })) };
         }
         if (metric === 'washcount') {
             // 洗车数量(总) = 洗车服务销量(排除用卡结算) + 洗车卡划扣(个人+集团)
@@ -497,7 +504,7 @@ export class MetricsController {
                 SELECT agg.d AS d, agg.v AS v FROM agg ORDER BY agg.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: new Date(r.d).toISOString().slice(0,10), value: Number(r.v || 0) })) };
+            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.v || 0) })) };
         }
         return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: [] };
     }

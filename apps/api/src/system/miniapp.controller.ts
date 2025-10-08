@@ -49,6 +49,13 @@ function calcRate(curr: number, prev: number): number | null {
   if (p === 0) return c === 0 ? 0 : null; return (c - p) / p;
 }
 
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const da = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${da}`;
+}
+
 @ApiTags('MiniappEmployee')
 @Controller('system/miniapp')
 export class SystemMiniappEmployeeController {
@@ -216,7 +223,7 @@ export class SystemMiniappEmployeeController {
       ORDER BY dd.d DESC;
     `) as unknown as Array<{ d: Date; netPay: number; wcTimes: number; washCount: number }>;
 
-    const items = rows.map(r => ({ date: new Date(r.d).toISOString().slice(0,10), payAmount: Number((r as any).netPay || 0), washcardDeductTimes: Number((r as any).wcTimes || 0), washCount: Number((r as any).washCount || 0) }));
+    const items = rows.map(r => ({ date: formatLocalDate(new Date(r.d)), payAmount: Number((r as any).netPay || 0), washcardDeductTimes: Number((r as any).wcTimes || 0), washCount: Number((r as any).washCount || 0) }));
     const total = items.reduce((acc, it) => ({ payAmount: acc.payAmount + it.payAmount, washcardDeductTimes: acc.washcardDeductTimes + it.washcardDeductTimes, washCount: acc.washCount + it.washCount }), { payAmount: 0, washcardDeductTimes: 0, washCount: 0 });
     return { range: rangeKey || (startStr||endStr ? undefined : 'last7'), startAt: start.toISOString(), endAt: end.toISOString(), total, items } as any;
   }
