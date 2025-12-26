@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import 'element-plus/dist/index.css';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
@@ -92,5 +93,5 @@ const app = createApp(App);
 Object.entries(ElementPlusIconsVue).forEach(([name, component]) => {
 	app.component(name, component as any);
 });
-app.use(router).use(ElementPlus, { size: 'large', zIndex: 3000 }).mount('#app');
+app.use(router).use(ElementPlus, { size: 'large', zIndex: 3000, locale: zhCn }).mount('#app');
 

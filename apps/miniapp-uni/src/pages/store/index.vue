@@ -4,8 +4,13 @@
 
 		<!-- 顶部店铺信息 -->
 		<view class="card store-header">
-			<text class="store-name">{{ storeName }}</text>
-			<text class="store-distance" @tap="manualRefresh" @click="manualRefresh">{{ distanceText }}</text>
+			<view class="store-row">
+				<text class="store-name">{{ storeName }}</text>
+				<text class="store-distance" @tap="manualRefresh" @click="manualRefresh">{{ distanceText }}</text>
+			</view>
+			<view class="store-sub">
+				<text class="biz-hours-sub">营业时间 {{ bizHoursStart }} - {{ bizHoursEnd }}</text>
+			</view>
 		</view>
 
 		<!-- 顶部滚动公告（保留API对接） -->
@@ -92,6 +97,18 @@ const { topSpacerHeight } = useSafeArea();
 const storeName = ref('巨科汽车美容（威远店）');
 const distanceText = ref('距离计算中…');
 const lastLocateAt = ref<number>(0);
+
+// 营业时间展示
+const bizHoursStart = ref<string>('09:00');
+const bizHoursEnd = ref<string>('18:00');
+async function loadBizHours(){
+  try{
+    const http = createHttp();
+    const j:any = await http('/system/public/business-status', { method:'GET' });
+    bizHoursStart.value = String(j?.hours?.start||'09:00');
+    bizHoursEnd.value = String(j?.hours?.end||'18:00');
+  }catch{}
+}
 
 function readEnv(key: string): string{
 	try {
@@ -333,6 +350,7 @@ onShow(async () => {
 		const active = await http<any>('/content/notices/active', { method: 'GET', query: { type: 'store' } });
 		noticeStore.value = active?.content || '';
 	} catch {}
+	await loadBizHours();
 	await fetchCategories();
 	await fetchProducts();
 	// 计算到店距离：5分钟缓存
@@ -404,9 +422,12 @@ async function addToCartFromList(p:any){
 .card { background:#ffffff; border-radius:24rpx; padding:24rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); margin-bottom:24rpx; }
 
 /* 顶部店铺信息 */
-.store-header { display:flex; align-items:center; justify-content: space-between; }
-.store-name { font-size:30rpx; font-weight:600; color:#111827; }
-.store-distance { font-size:24rpx; color:#6b7280; }
+.store-header { display:flex; flex-direction: column; align-items: stretch; }
+.store-row { display:flex; align-items:flex-start; justify-content: space-between; gap: 12rpx; margin-bottom: 4rpx; }
+.store-name { font-size:30rpx; font-weight:600; color:#111827; max-width: 70%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.store-distance { font-size:24rpx; color:#374151; white-space: nowrap; font-weight:600; }
+.store-sub { display:flex; align-items:center; justify-content:flex-start; }
+.biz-hours-sub { font-size:22rpx; color:#6b7280; }
 
 /* 公告 */
 .notice-card { padding: 16rpx 24rpx; }

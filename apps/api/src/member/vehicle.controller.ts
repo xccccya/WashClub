@@ -1,6 +1,9 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VehicleService } from './vehicle.service.js';
+import { UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 
 @ApiTags('vehicle')
 @Controller('vehicle')
@@ -132,6 +135,23 @@ export class VehicleController {
     @ApiOperation({ summary: '将游客车辆绑定到会员' })
     bindMember(@Param('id') id: string, @Param('memberId') memberId: string) {
         return this.service.bindGuestVehicle(Number(id), Number(memberId));
+    }
+
+    // 一键换绑（管理员）：支持跨集团换绑；需二次确认与备注
+    @Post(':id/rebind')
+    @UseGuards(AdminGuard)
+    @RequirePerm('vehicles' as any)
+    @ApiOperation({ summary: '一键换绑车辆（管理员）' })
+    async adminRebind(
+        @Param('id') id: string,
+        @Body() body: { toMemberId?: number | null; toGroupId?: number | null; remark?: string | null; confirm?: boolean },
+        @Headers('authorization') authHeader?: string,
+    ){
+        if (!body?.confirm) throw new (require('@nestjs/common').BadRequestException)('请勾选二次确认');
+        const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+        let operatorUserId: number | null = null;
+        try{ const jwt = require('@nestjs/jwt'); const srv = new (jwt.JwtService)({ secret: process.env.JWT_SECRET || 'dev_secret' }); const dec:any = srv.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
+        return (this.service as any).adminRebindVehicle(Number(id), { toMemberId: Number((body as any)?.toMemberId||0) || null, toGroupId: Number((body as any)?.toGroupId||0) || null, remark: (body as any)?.remark || null, operatorUserId });
     }
 
     // 我的车辆（会员端）

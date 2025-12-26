@@ -117,6 +117,40 @@
 								<el-icon><Bell /></el-icon>
 							</el-badge>
 						</el-button>
+						<!-- 营业状态：按钮+弹出设置 -->
+						<el-popover placement="bottom-end" trigger="click" :width="320" :show-arrow="false" :teleported="true">
+							<template #reference>
+								<el-button class="status-btn" text :title="`营业状态：${businessLabel}`" aria-label="营业状态">
+									<span class="dot" :data-type="businessType"></span>
+									<span class="status-text">{{ businessLabel }}</span>
+								</el-button>
+							</template>
+							<div class="biz-panel">
+								<div class="row">
+									<span>当前状态</span>
+									<el-tag :type="businessType==='OPEN' ? 'success' : (businessType==='BUSY' ? 'warning' : businessType==='PAUSED' ? 'danger' : 'info')">{{ businessLabel }}</el-tag>
+								</div>
+								<div class="row">
+									<span>营业时间</span>
+									<div style="display:flex; align-items:center; gap:8px;">
+										<el-time-select v-model="hoursStart" start="00:00" step="00:15" end="23:45" placeholder="开始" style="width:112px;" />
+										<span style="color:#999;">-</span>
+										<el-time-select v-model="hoursEnd" start="00:00" step="00:15" end="23:45" placeholder="结束" style="width:112px;" />
+									</div>
+								</div>
+								<div class="row">
+									<span>手动状态</span>
+									<div class="toggles">
+										<el-switch v-model="busyEnabled" :active-text="'忙碌'" :inactive-text="'—'" @change="onToggleBusy" />
+										<el-switch v-model="pausedEnabled" :active-text="'暂停营业'" :inactive-text="'—'" @change="onTogglePaused" />
+									</div>
+								</div>
+								<div class="row" style="justify-content:flex-end; gap:8px;">
+									<el-button size="small" @click="reloadBusiness">刷新</el-button>
+									<el-button size="small" type="primary" :loading="savingBiz" @click="saveBusiness">保存</el-button>
+								</div>
+							</div>
+						</el-popover>
 					</div>
 					<div class="user">
 						<el-dropdown>
@@ -251,6 +285,38 @@ const tabs = ref<{ path:string; title:string }[]>([{ path:'/dashboard', title:'�
 const breadcrumbList = ref<string[]>(['首页']);
 const siteTitle = ref<string>('');
 const siteLogo = ref<string>('');
+
+// 营业状态
+type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
+const businessType = ref<BizStatus>('REST');
+const businessLabel = ref<string>('休息中');
+const hoursStart = ref<string>('09:00');
+const hoursEnd = ref<string>('18:00');
+const busyEnabled = ref<boolean>(false);
+const pausedEnabled = ref<boolean>(false);
+const savingBiz = ref(false);
+function onToggleBusy(){ if (busyEnabled.value) pausedEnabled.value = false; }
+function onTogglePaused(){ if (pausedEnabled.value) busyEnabled.value = false; }
+async function reloadBusiness(){
+    try{
+        const j:any = await http('/system/public/business-status', { method:'GET' });
+        hoursStart.value = String(j?.hours?.start||'09:00');
+        hoursEnd.value = String(j?.hours?.end||'18:00');
+        busyEnabled.value = !!j?.busyEnabled;
+        pausedEnabled.value = !!j?.pausedEnabled;
+        businessType.value = (j?.status||'REST') as BizStatus;
+        businessLabel.value = String(j?.label||'休息中');
+    }catch{}
+}
+async function saveBusiness(){
+    try{
+        savingBiz.value = true;
+        await http('/system/site-setting', { method:'POST', body: { businessHoursJson: { start: hoursStart.value, end: hoursEnd.value }, busyEnabled: busyEnabled.value, pausedEnabled: pausedEnabled.value } });
+        await reloadBusiness();
+        ElMessage.success('营业设置已保存');
+    }catch(e:any){ ElMessage.error(String(e?.message||'保存失败')); }
+    finally{ savingBiz.value = false; }
+}
 
 const nick = ref('');
 const permissions = ref<string[]>([]);
@@ -484,8 +550,9 @@ onMounted(()=>{
 	addTabByRoute();
     refreshUnread();
     connectWS();
-	// 读取公共站点设置
-	http('/system/public/site-setting', { method:'GET' }).then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }).catch(()=>{});
+		// 读取公共站点设置 + 营业状态
+		http('/system/public/site-setting', { method:'GET' }).then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }).catch(()=>{});
+		reloadBusiness();
 	// 初始化主题
 	try {
 		const t = localStorage.getItem('theme'); if (t==='dark'||t==='light') theme.value = t as any;
@@ -533,6 +600,16 @@ watch(()=>router.currentRoute.value.fullPath, ()=>{
 .icon { width: 18px; height: 18px; display:block; }
 .icon-btn :deep(.el-icon){ font-size:18px; color: var(--el-text-color-regular); }
 .icon-btn:hover :deep(.el-icon){ color: var(--el-color-primary); }
+.status-btn{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:9999px; border:1px solid var(--el-border-color); background:#fff; }
+.status-btn .status-text{ font-weight:600; color: var(--el-text-color-primary); font-size:12px; }
+.status-btn .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+.status-btn .dot[data-type="OPEN"]{ background:#22c55e; }
+.status-btn .dot[data-type="REST"]{ background:#94a3b8; }
+.status-btn .dot[data-type="BUSY"]{ background:#f59e0b; }
+.status-btn .dot[data-type="PAUSED"]{ background:#ef4444; }
+.biz-panel{ display:flex; flex-direction:column; gap:10px; }
+.biz-panel .row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.biz-panel .toggles{ display:flex; align-items:center; gap:12px; }
 .user { display:flex; align-items:center; gap:8px; }
 .user-trigger{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:9999px; background: var(--el-fill-color-light); border:1px solid var(--el-border-color); transition: background .15s ease, border-color .15s ease; }
 .user-trigger:hover{ background: var(--el-fill-color); border-color: color-mix(in oklab, var(--el-border-color), transparent 60%); }

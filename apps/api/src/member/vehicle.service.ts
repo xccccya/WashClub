@@ -174,6 +174,26 @@ export class VehicleService {
             if (e && (e.code === 'P2002' || /Unique constraint failed/i.test(String(e?.message || '')))) {
                 const existing = await this.prisma.vehicle.findUnique({ where: { plateNumber: payload.plateNumber } });
                 if (!existing) throw e;
+                // 放宽规则：若为游客车辆（未绑定会员且未直绑集团），允许当前会员直接认领并更新车辆信息
+                if (existing.memberId == null && existing.groupId == null) {
+                    const updated = await this.prisma.$transaction(async (tx) => {
+                        // 若本会员尚无车辆，则将本次认领设为默认车辆
+                        const count = await tx.vehicle.count({ where: { memberId: mid } });
+                        const makeDefault = count === 0 || !!payload.isDefault;
+                        if (makeDefault) {
+                            await tx.vehicle.updateMany({ where: { memberId: mid, isDefault: true } as any, data: { isDefault: false } as any });
+                        }
+                        const updated = await tx.vehicle.update({ where: { id: existing.id }, data: { ...payload, memberId: mid, isDefault: makeDefault } as any });
+                        return updated;
+                    });
+                    try {
+                        const bid = (input as any)?.brandId as number | undefined;
+                        const sid = (input as any)?.seriesId as number | undefined;
+                        if (bid || sid) await this.populateVehicleImages(updated.id, bid, sid);
+                        await this.syncVehicleBindings(updated.id);
+                    } catch {}
+                    return updated;
+                }
                 if (existing.memberId !== mid) throw new BadRequestException('该车牌已被其他会员绑定');
                 // 同一会员重复创建：改为更新现有车辆
                 const updated = await this.updateVehicle(existing.id, input);
@@ -272,6 +292,46 @@ export class VehicleService {
             await tx.vehicle.updateMany({ where: { memberId: v.memberId, isDefault: true } as any, data: { isDefault: false } as any });
             return tx.vehicle.update({ where: { id: vehicleId }, data: { isDefault: true } as any });
         });
+    }
+
+    // 管理员一键换绑车辆：允许 from 任意 -> toMember 或 toGroup（二选一），记录审计
+    async adminRebindVehicle(vehicleId: number, opts: { toMemberId?: number | null; toGroupId?: number | null; remark?: string | null; operatorUserId?: number | null }){
+        const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+        if (!v) throw new BadRequestException('车辆不存在');
+        const toMemberId = (opts?.toMemberId ?? null) as number | null;
+        const toGroupId = (opts?.toGroupId ?? null) as number | null;
+        if (!!toMemberId === !!toGroupId) throw new BadRequestException('目标主体必须二选一：会员或集团');
+
+        // 校验目标存在
+        if (toMemberId) {
+            const m = await this.prisma.member.findUnique({ where: { id: toMemberId }, select: { id: true } });
+            if (!m) throw new BadRequestException('目标会员不存在');
+        }
+        if (toGroupId) {
+            const g = await this.prisma.group.findUnique({ where: { id: toGroupId }, select: { id: true } });
+            if (!g) throw new BadRequestException('目标集团不存在');
+        }
+
+        // 执行换绑（事务内）
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const before = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+            const res = await tx.vehicle.update({ where: { id: vehicleId }, data: { memberId: toMemberId ?? null, groupId: toGroupId ?? null, isDefault: !!toMemberId && (await tx.vehicle.count({ where: { memberId: toMemberId } }))===0 ? true : (before?.memberId===toMemberId ? before?.isDefault : false) } as any });
+            // 审计日志
+            try{
+                await (tx as any).vehicleRebindLog.create({ data: {
+                    vehicleId,
+                    fromMemberId: before?.memberId ?? null,
+                    fromGroupId: before?.groupId ?? null,
+                    toMemberId: toMemberId ?? null,
+                    toGroupId: toGroupId ?? null,
+                    operatorUserId: opts?.operatorUserId ?? null,
+                    remark: (opts?.remark || '').slice(0, 200) || null,
+                } });
+            }catch{}
+            return res;
+        });
+        try{ await this.syncVehicleBindings(vehicleId); }catch{}
+        return updated;
     }
 
     async searchByPlateLike(keyword: string, limit = 15) {

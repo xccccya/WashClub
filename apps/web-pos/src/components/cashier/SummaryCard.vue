@@ -39,10 +39,7 @@
 			</div>
 		</div>
 		</transition>
-		<div class="sc-row" v-if="orderKind==='SERVICE'">
-			<div class="sc-label">先服务后付</div>
-			<div class="sc-content"><el-switch :model-value="payAfterService" @change="(v: any)=>emit('update:payAfterService', !!v)" /></div>
-		</div>
+		
 		<div class="sc-row">
 			<div class="sc-label">优惠</div>
 			<div class="sc-content sc-benefit">
@@ -68,7 +65,6 @@ const props = defineProps<{
 	memberVehicleId?: number|undefined;
 	guestVehicleId?: number|undefined;
 	plateNumber: string;
-	payAfterService: boolean;
 	couponDiscountEst?: number;
 	memberDiscountApplied: number;
 	pointsAmountYuan: number;
@@ -78,7 +74,6 @@ const emit = defineEmits<{
 	(e:'update:memberKeyword', v:string): void;
 	(e:'update:memberVehicleId', v:number|undefined): void;
 	(e:'update:plateNumber', v:string): void;
-	(e:'update:payAfterService', v:boolean): void;
 	(e:'clear-member'): void;
 	(e:'plate-confirm'): void;
 	(e:'quick-plate'): void;

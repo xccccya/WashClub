@@ -52,10 +52,10 @@
 				<el-table-column label="状态" width="120">
 					<template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag></template>
 				</el-table-column>
-				<el-table-column label="支付状态" width="200">
+				<el-table-column label="支付状态" width="130">
 					<template #default="{ row }">
 						<div class="cell-flex">
-							<el-tag :type="payStatusTagType(row.payStatus)">{{ payStatusLabel(row.payStatus) }}</el-tag>
+							<el-tag v-if="!(row.payStatus==='UNPAID' && remainSeconds(row)>0)" :type="payStatusTagType(row.payStatus)">{{ payStatusLabel(row.payStatus) }}</el-tag>
 							<el-tag v-if="row.payStatus==='UNPAID' && remainSeconds(row)>0" type="warning" effect="light">倒计时 {{ formatRemain(remainSeconds(row)) }}</el-tag>
 						</div>
 					</template>
@@ -64,10 +64,10 @@
 					<template #default="{ row }">{{ payMethodLabel(row.payMethod) }}</template>
 				</el-table-column>
 				<el-table-column prop="totalAmount" label="订单总额" width="140" align="right">
-					<template #default="{ row }">¥ {{ money(row.totalAmount) }}</template>
+					<template #default="{ row }"><span class="money money--total"><span class="unit">¥</span>{{ money(row.totalAmount) }}</span></template>
 				</el-table-column>
 				<el-table-column prop="payAmount" label="支付金额" width="140" align="right">
-					<template #default="{ row }">¥ {{ money(row.payAmount) }}</template>
+					<template #default="{ row }"><span class="money money--pay"><span class="unit">¥</span>{{ money(row.payAmount) }}</span></template>
 				</el-table-column>
 				<el-table-column prop="createdAt" label="下单时间" width="200">
 					<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
@@ -79,17 +79,37 @@
 					<template #default="{ row }">
 						<span>UID: {{ row.member?.uid || '-' }} / ID: {{ row.memberId }}</span>
 						<br />
-						<span>{{ row.member?.name || '-' }}（{{ row.member?.phone || '-' }}）</span>
+						<span>{{ row.member?.name || '-' }}（<span v-if="row.member?.phone">****<span class="phone-tail">{{ last4(row.member?.phone) }}</span></span><span v-else>-</span>）</span>
 					</template>
 				</el-table-column>
 				<el-table-column prop="remark" label="备注" min-width="200" :show-overflow-tooltip="true" />
-				<el-table-column label="操作" width="360" fixed="right">
+				<el-table-column label="操作" width="180" fixed="right">
 					<template #default="{ row }">
-						<el-button text class="icon-btn large-hit" title="查看" @click="open(row.id)"><el-icon><View /></el-icon></el-button>
-						<el-button v-if="row.payStatus==='UNPAID' && !row.deletedAt" size="large" type="success" @click="openPay(row)"><el-icon style="margin-right:4px;"><Wallet /></el-icon>标记支付</el-button>
-						<el-button v-if="row.payStatus==='PAID' && !row.deletedAt" size="large" type="warning" @click="openRefund(row)"><el-icon style="margin-right:4px;"><Money /></el-icon>退款</el-button>
-						<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)"><template #reference><el-button text class="icon-btn danger large-hit" title="删除"><el-icon><Delete /></el-icon></el-button></template></el-popconfirm>
-						<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="large" type="warning">恢复</el-button></template></el-popconfirm>
+						<div class="op-actions">
+							<el-button text class="icon-btn large-hit" @click="open(row.id)"><el-icon><View /></el-icon></el-button>
+							<el-dropdown trigger="click" placement="bottom-end">
+								<span class="dropdown-ref"><el-button text class="icon-btn large-hit"><el-icon><MoreFilled /></el-icon></el-button></span>
+								<template #dropdown>
+									<el-dropdown-menu>
+										<el-dropdown-item v-if="row.payStatus==='UNPAID' && !row.deletedAt" @click="openPay(row)"><el-icon style="margin-right:6px;"><Wallet /></el-icon>标记支付</el-dropdown-item>
+										<el-dropdown-item v-if="row.payStatus==='PAID' && !row.deletedAt" @click="openRefund(row)"><el-icon style="margin-right:6px;"><Money /></el-icon>退款</el-dropdown-item>
+										<el-dropdown-item v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='PENDING' && !row.deletedAt" @click="openShip(row)"><el-icon style="margin-right:6px;"><Promotion /></el-icon>发货</el-dropdown-item>
+										<el-dropdown-item v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && !row.deletedAt" @click="receive(row.id)"><el-icon style="margin-right:6px;"><Finished /></el-icon>确认收货</el-dropdown-item>
+										<el-dropdown-item v-if="row.type==='SP' && row.payStatus==='PAID' && row.fulfillmentStatus==='SHIPPED' && row.payMethod==='WECHAT_JSAPI' && !row.deletedAt" @click="openEditTracking(row)"><el-icon style="margin-right:6px;"><EditPen /></el-icon>修改物流单号</el-dropdown-item>
+										<el-dropdown-item v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='PENDING') && !row.deletedAt" @click="startService(row.id)"><el-icon style="margin-right:6px;"><Timer /></el-icon>开始服务</el-dropdown-item>
+										<el-dropdown-item v-if="row.type==='SERVICE' && row.payStatus==='PAID' && (row.fulfillmentStatus==='IN_SERVICE' || row.fulfillmentStatus==='PENDING') && !row.deletedAt" @click="finishService(row.id)"><el-icon style="margin-right:6px;"><SuccessFilled /></el-icon>结束服务</el-dropdown-item>
+										<el-dropdown-item v-if="canWriteoff() && !row.deletedAt" @click="writeoff(row)"><el-icon style="margin-right:6px;"><Delete /></el-icon>作废/红冲</el-dropdown-item>
+										<el-dropdown-item v-if="row.deletedAt" @click="restore(row.id)">恢复</el-dropdown-item>
+									</el-dropdown-menu>
+								</template>
+							</el-dropdown>
+							<el-popconfirm v-if="!row.deletedAt" title="确认删除（软删除）？" @confirm="close(row.id)">
+								<template #reference>
+									<span class="popconfirm-ref"><el-button text class="icon-btn danger large-hit"><el-icon><Delete /></el-icon></el-button></span>
+								</template>
+							</el-popconfirm>
+							<el-popconfirm v-else title="确认恢复该订单？" @confirm="restore(row.id)"><template #reference><el-button size="large" type="warning">恢复</el-button></template></el-popconfirm>
+						</div>
 					</template>
 				</el-table-column>
 			</el-table>
@@ -98,8 +118,8 @@
 			<el-pagination
 				v-model:current-page="currentPage"
 				v-model:page-size="pageSize"
-				:page-sizes="[10, 20, 30, 50]"
-				layout="total, sizes, prev, pager, next"
+				:page-sizes="[10, 20, 30, 50, 100]"
+				layout="total, sizes, prev, pager, next, jumper"
 				:total="list.length"
 				@size-change="onSizeChange"
 				@current-change="onPageChange"
@@ -147,8 +167,26 @@
 						<el-button type="primary" :loading="wxPayLoading" :disabled="payAmountAfterManual<=0" @click="doWxMicropay">发起付款码支付</el-button>
 					</div>
 				</el-tab-pane>
-				<el-tab-pane label="洗车卡划扣" name="wash">
-					<div style="color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; margin-bottom:8px;">
+                <el-tab-pane label="洗车卡划扣" name="wash">
+                    <el-form label-width="92px" style="margin-bottom:8px;">
+                        <el-form-item label="付款会员">
+                            <div style="display:flex; gap:6px; width:100%;">
+                                <el-input v-model="payerMemberKeyword" placeholder="手机号/昵称（可留空自动）" clearable />
+                                <el-button @click="searchPayerMember">搜索</el-button>
+                            </div>
+                        </el-form-item>
+                        <el-form-item v-if="payerMemberList.length" label="选择会员">
+                            <el-select v-model="payerMemberId" placeholder="选择付款会员" filterable style="width:100%;">
+                                <el-option v-for="m in payerMemberList" :key="m.id" :label="memberLabel(m)" :value="m.id" />
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item v-if="payerMemberId" label="选择卡片">
+                            <el-select v-model="payerCardId" placeholder="选择指定卡（可留空自动在该会员名下选择）" style="width:100%;">
+                                <el-option v-for="c in payerCards" :key="c.key" :label="c.label" :value="c.value" />
+                            </el-select>
+                        </el-form-item>
+                    </el-form>
+                    <div style="color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; margin-bottom:8px;">
 						系统会自动识别本订单中标记为"计为洗车(次)"的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。
 					</div>
 					<el-radio-group v-model="washPrefer" size="small">
@@ -187,11 +225,12 @@
 </template>
 
 <script setup lang="ts" name="Orders">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
 import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { MoreFilled } from '@element-plus/icons-vue';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 
 const router = useRouter();
@@ -203,9 +242,11 @@ const scene = ref<string | ''>('');
 const status = ref<string | ''>('');
 const payStatus = ref<string | ''>('');
 const createdAtRange = ref<[string, string] | null>(null);
+const nowTick = ref(0);
+let tickTimer: any = null;
 
 const currentPage = ref(1);
-const pageSize = ref(20);
+const pageSize = ref(10);
 const paged = computed(()=>{
 	const start = (currentPage.value - 1) * pageSize.value;
 	return list.value.slice(start, start + pageSize.value);
@@ -224,6 +265,18 @@ function payStatusLabel(v?: string){ if(v==='UNPAID') return '未支付'; if(v==
 function payStatusTagType(v?: string){ if(v==='UNPAID') return 'info'; if(v==='PAID') return 'success'; if(v==='REFUNDED') return 'warning'; if(v==='CANCELLED') return 'danger'; return undefined as any; }
 function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; if(v==='WASH_CARD') return '洗车卡结算'; if(v==='GROUP_BALANCE') return '集团余额支付'; return v; }
 function money(v:any){ const n = Number(v||0); return Number.isFinite(n) ? n.toFixed(2) : '0.00'; }
+function last4(p?: string){ try{ const s=String(p||''); return s.slice(-4); }catch{ return ''; } }
+
+// 复用后台的权限判断（作废/红冲）
+function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
+
+// 履约/物流操作（POS 端仅触发后台接口，与后台一致）
+async function openShip(row:any){ try{ await http(`/orders/${row.id}/ship`, { method:'POST', body:{ noExpress: true } }); ElMessage.success('已标记为无需快递发货'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); } }
+async function receive(id:number){ try { await http(`/orders/${id}/receive`, { method:'POST' }); ElMessage.success('已收货'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function openEditTracking(row:any){ try{ await ElMessageBox.alert('请在后台修改物流单号；POS 暂不支持此操作', '提示'); }catch{} }
+async function startService(id:number){ try { await http(`/orders/${id}/start-service`, { method:'POST' }); ElMessage.success('已开始服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function finishService(id:number){ try { await http(`/orders/${id}/finish-service`, { method:'POST' }); ElMessage.success('已结束服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function writeoff(row:any){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; await http(`/orders/${row.id}/void`, { method:'POST', body: { reason: 'POS作废/红冲' } }); ElMessage.success('操作成功'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 async function fetchList(){
 	const start = createdAtRange.value?.[0];
@@ -245,7 +298,14 @@ function openByNo(no:string){ router.push(`/orders/no/${encodeURIComponent(no)}`
 async function close(id:number){ try { await http(`/orders/${id}/close`, { method:'POST' }); ElMessage.success('已关闭'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'关闭失败')); } }
 async function restore(id:number){ try { await http(`/orders/${id}/restore`, { method:'POST' }); ElMessage.success('已恢复'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'恢复失败')); } }
 function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; fetchList(); }
-function remainSeconds(row:any): number { try{ const exp:any = row?.paymentExpireAt || null; if(!exp) return 0; const t = new Date(exp).getTime(); return Math.max(0, Math.floor((t - Date.now())/1000)); }catch{ return 0; } }
+function remainSeconds(row:any): number {
+    try{
+        const exp:any = row?.paymentExpireAt || null; if(!exp) return 0;
+        const t = new Date(exp).getTime();
+        const now = Date.now() + nowTick.value * 0; // 依赖 nowTick 触发视图更新
+        return Math.max(0, Math.floor((t - now)/1000));
+    }catch{ return 0; }
+}
 function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
 
@@ -268,6 +328,29 @@ const wxPayLoading = ref(false);
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 // 收银立减
 const orderForPay = ref<any>(null);
+// 手动选择付款会员/卡
+const payerMemberKeyword = ref('');
+const payerMemberList = ref<Array<{ id:number; name?:string; phone?:string }>>([]);
+const payerMemberId = ref<number|null>(null);
+const payerCards = ref<Array<{ key:string; value:number; label:string }>>([]);
+const payerCardId = ref<number|null>(null);
+function memberLabel(m:any){ return `${m.name||'-'}（****${String(m.phone||'').slice(-4)}）#${m.id}`; }
+async function searchPayerMember(){
+    const q = String(payerMemberKeyword.value||'').trim(); if (!q){ payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null; return; }
+    try{
+        const res:any = await http('/member/list', { query: { keyword: q, page: 1, pageSize: 20 } });
+        payerMemberList.value = Array.isArray(res?.items) ? res.items.map((x:any)=>({ id:x.id, name:x.name, phone:x.phone })) : [];
+    }catch{ payerMemberList.value=[]; }
+}
+watchEffect(async ()=>{
+    payerCards.value = []; payerCardId.value = null;
+    const mid = payerMemberId.value; if (!mid) return;
+    try{
+        const res:any = await http('/wash-card/list', { query: { page: 1, pageSize: 50, memberId: String(mid) } });
+        const items = Array.isArray(res?.items) ? res.items : [];
+        payerCards.value = items.map((c:any)=>({ key: `M-${c.id}`, value: c.id, label: `[会员卡] ${c.name||''}（余${c.remainingTimes||0}）#${c.cardNo}` }));
+    }catch{ payerCards.value = []; }
+});
 const cashierDiscountInput = ref<number>(0);
 const payAmountCap = computed(()=>{
     try{ const o:any = orderForPay.value; if(!o) return 0; const total=Number(o.totalAmount||0); const discount=Number(o.discountAmount||0); const cashierPrev=Number(o.cashierDiscountAmount||0); return Math.max(0, Number((total - (discount - cashierPrev)).toFixed(2))); }catch{ return 0; }
@@ -299,8 +382,11 @@ async function doWashDeduct(){
 	try{
 		const detail:any = await http(`/orders/${currentOrderId.value}`);
 		if (String(detail?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; }
-		const prefer = washPrefer.value === 'AUTO' ? undefined : washPrefer.value;
-		const ret:any = await http(`/orders/${currentOrderId.value}/pay/wash-card`, { method:'POST', body: { prefer } });
+        const prefer = washPrefer.value === 'AUTO' ? undefined : washPrefer.value;
+        const body:any = { prefer };
+        if (payerMemberId.value){ body.payerMemberId = payerMemberId.value; }
+        if (payerCardId.value){ body.payerCardId = payerCardId.value; }
+        const ret:any = await http(`/orders/${currentOrderId.value}/pay/wash-card`, { method:'POST', body });
 		const plan = Array.isArray(ret?.plan)?ret.plan:[];
 		const times = Number(ret?.requiredTimes||0);
 		ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`);
@@ -413,7 +499,13 @@ onMounted(() => {
         if (start && end) createdAtRange.value = [start, end] as any;
     }catch{}
     fetchList();
+    try{ if (tickTimer) clearInterval(tickTimer); }catch{}
+    tickTimer = setInterval(()=>{ nowTick.value++; }, 1000);
     try{ window.dispatchEvent(new CustomEvent('pos-set-tab', { detail: { path: '/orders', title: '订单列表' } })); }catch{}
+});
+
+onUnmounted(()=>{
+    try{ if (tickTimer){ clearInterval(tickTimer); tickTimer=null; } }catch{}
 });
 </script>
 
@@ -432,6 +524,13 @@ onMounted(() => {
 .link{ color: var(--app-primary); cursor: pointer; text-decoration: underline; }
 .link.deleted{ color: #909399; text-decoration: line-through; }
 .pager-bar{ display:flex; justify-content:flex-end; padding:8px 4px 0; background: transparent; }
+.money{ font-variant-numeric: tabular-nums; }
+.money .unit{ margin-right:2px; color:#909399; font-size:12px; }
+.money--total{ color:#303133; font-weight:600; }
+.money--pay{ color: var(--el-color-success); font-weight:700; }
+.phone-tail{ font-weight:700; letter-spacing:0.5px; }
+.dropdown-ref{ display:inline-flex; }
+.popconfirm-ref{ display:inline-flex; }
 
 /* 12.7 寸横屏优化 */
 :root{ --pos-base-font: 15px; }
@@ -439,6 +538,9 @@ onMounted(() => {
 .orders-table :deep(.el-table__row){ height: 56px; }
 .orders-table :deep(.el-table__cell){ padding: 12px 10px; }
 .icon-btn.large-hit{ padding: 10px; }
+.op-actions{ display:flex; align-items:center; gap:12px; }
+.op-actions .icon-btn.large-hit{ padding: 12px; font-size:18px; }
+.op-actions :deep(.el-icon){ font-size: 20px; }
 .row-unpaid :deep(.el-table__cell){ background: #fff7ed; }
 .row-deleted :deep(.el-table__cell){ color:#a8abb2; text-decoration: line-through; }
 </style>

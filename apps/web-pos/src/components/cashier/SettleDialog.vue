@@ -114,16 +114,7 @@
 					<div class="hint" v-else-if="!computedMemberDiscountAllowed">所选优惠券不可与会员折扣同享</div>
 				</div>
 			</template>
-			<template v-if="orderKind==='SERVICE'">
-				<el-alert v-if="payAfterService" type="info" show-icon :closable="false" title="先服务后付：可入队，支付完成后或服务完成时再结算" />
-				<div class="row" v-if="payAfterService">
-					<div class="label">队列类型</div>
-					<el-select v-model="model.queueTypeId" filterable placeholder="选择队列类型">
-						<el-option v-for="qt in queueTypes" :key="qt.id" :label="qt.name" :value="qt.id" :disabled="!isQueueTypeCompatible(qt)" />
-					</el-select>
-				</div>
-			</template>
-			<el-tabs v-if="!(orderKind==='SERVICE' && payAfterService)" v-model="model.tab" type="border-card">
+			<el-tabs v-model="model.tab" type="border-card">
 				<el-tab-pane label="微信付款码" name="wx">
 					<div class="pay-section">
 						<el-input v-model="model.wxAuthCode" placeholder="请扫描顾客微信付款码或手动输入授权码" />
@@ -153,13 +144,7 @@
 			</el-tabs>
 		</div>
 		<template #footer>
-			<template v-if="orderKind==='SERVICE' && payAfterService">
-				<el-button @click="visibleLocal=false">取消</el-button>
-				<el-button type="primary" :loading="model.loading" @click="$emit('confirm-enqueue')">确认入队</el-button>
-			</template>
-			<template v-else>
-				<el-button @click="visibleLocal=false">关闭</el-button>
-			</template>
+			<el-button @click="visibleLocal=false">关闭</el-button>
 		</template>
 	</el-dialog>
 </template>
@@ -189,10 +174,7 @@ const props = defineProps<{
 	pointsAllowedByCoupons: boolean;
 	enableMemberDiscount: boolean;
 	supportsMemberDiscount?: boolean;
-	serviceProductsInCart: any[];
-	queueTypes: any[];
 	addrDisplay: (a:any)=>string;
-	payAfterService?: boolean;
 	pointsAvailable?: number;
 }>();
 const emit = defineEmits<{ 
@@ -203,7 +185,6 @@ const emit = defineEmits<{
 	(e:'confirm-manual'): void;
 	(e:'confirm-wx'): void;
 	(e:'confirm-wash'): void;
-	(e:'confirm-enqueue'): void;
 	(e:'open-create-member-address'): void;
 	(e:'open-manage-member-address'): void;
 	(e:'normalize-used-points'): void;
@@ -219,8 +200,6 @@ function onCouponsChange(v:any){ emit('update:selectedCouponIds', Array.isArray(
 function onUsedPointsChange(v:any){ emit('update:usedPoints', Number(v||0)); emit('normalize-used-points'); }
 
 const addrDisplay = props.addrDisplay;
-const queueTypes = computed(()=> props.queueTypes);
-const serviceProductsInCart = computed(()=> props.serviceProductsInCart);
 const orderKind = computed(()=> props.orderKind);
 const subtotal = computed(()=> props.subtotal);
 const couponDiscountEst = computed(()=> props.couponDiscountEst);
@@ -242,7 +221,6 @@ const pointsStep = computed(()=> props.pointsStep);
 const supportsPoints = computed(()=> props.supportsPoints);
 const pointsAllowedByCoupons = computed(()=> props.pointsAllowedByCoupons);
 const enableMemberDiscount = computed(()=> props.enableMemberDiscount);
-const payAfterService = computed(()=> !!props.payAfterService);
 const pointsAvailable = computed(()=> Number(props.pointsAvailable||0));
 
 // 钳制手动立减：不得小于0，不得超过当前应收
@@ -257,34 +235,7 @@ function onManualDiscountChange(){
   }catch{}
 }
 
-// 队列类型与当前清单中的服务商品兼容性：所有服务商品必须被该队列类型允许
-function getAllowedProductIdsOfQueueType(qt: any): Set<number> {
-  try{
-    const arr = Array.isArray(qt?.products) ? qt.products : [];
-    const ids = arr.map((x:any)=> Number(x?.productId || x?.product?.id || 0)).filter((n:number)=> n>0);
-    return new Set<number>(ids);
-  }catch{ return new Set<number>(); }
-}
-function isQueueTypeCompatible(qt: any): boolean {
-  try{
-    const allowed = getAllowedProductIdsOfQueueType(qt);
-    const cart = Array.isArray(serviceProductsInCart.value) ? serviceProductsInCart.value : [];
-    if (!cart.length) return false;
-    return cart.every((it:any)=> allowed.has(Number(it?.productId||0)));
-  }catch{ return false; }
-}
-
-// 清单或队列类型变化时，若当前已选队列不兼容则清空
-watch([queueTypes, serviceProductsInCart], ()=>{
-  try{
-    const id = Number((model as any).value?.queueTypeId||0);
-    if (!id) return;
-    const qt = (queueTypes.value||[]).find((q:any)=> Number(q?.id||0)===id);
-    if (!qt || !isQueueTypeCompatible(qt)) {
-      (model as any).value.queueTypeId = undefined;
-    }
-  }catch{}
-});
+// 已移除先服务后付与入队逻辑
 
 // 当上限变化（如选券/改积分/改清单）时，自动钳制已填的立减金额
 watch(payAmountCap, (cap)=>{

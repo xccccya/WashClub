@@ -7,11 +7,17 @@
 				<text class="marquee-text">{{ noticeHome }}</text>
 			</view>
 		</view>
-		<!-- 顶部欢迎卡片：问候 + 天气 + 洗车建议 -->
+		<!-- 顶部欢迎卡片：问候 + 天气 + 洗车建议 + 营业状态 -->
 		<view class="card header-card">
-			<view class="greet-col">
-				<text class="greeting">Hi～{{ userName }}，{{ timeGreeting }}！</text>
-				<text class="greet-sub" v-if="greetAffix">{{ greetAffix }}</text>
+			<view class="header-top">
+				<view class="greet-col">
+					<text class="greeting">Hi～{{ userName }}，{{ timeGreeting }}！</text>
+					<text class="greet-sub" v-if="greetAffix">{{ greetAffix }}</text>
+				</view>
+				<view class="biz-badge" :data-type="businessType">
+					<text class="dot"></text>
+					<text class="text">{{ businessLabel }}</text>
+				</view>
 			</view>
 			<view class="weather-box" @tap="onTapWeather">
 				<view class="weather-row">
@@ -74,25 +80,31 @@
 
 		<!-- 排队信息 -->
 		<view class="card queue-card">
-			<view class="queue-head">
-				<view class="queue-title-row">
-					<text class="card-title">排队信息</text>
-					<view class="queue-status" :class="estimatedWaitMinutes > 0 ? 'busy' : 'free'">
-						<text>{{ estimatedWaitMinutes > 0 ? '排队中' : '无需等待' }}</text>
+			<!-- 休息/暂停：展示运营文案 -->
+			<view v-if="businessType==='REST'" class="queue-tips">店铺打烊，欢迎明天再来～</view>
+			<view v-else-if="businessType==='PAUSED'" class="queue-tips" style="color:#7f1d1d;background:#fef2f2;border-color:#fecaca;">暂时停业，敬请谅解</view>
+			<!-- 正常/忙碌：展示排队数据 -->
+			<view v-else>
+				<view class="queue-head">
+					<view class="queue-title-row">
+						<text class="card-title">排队信息</text>
+						<view class="queue-status" :class="waitingCars > 0 ? 'busy' : 'free'">
+							<text>{{ waitingCars > 0 ? '排队中' : '无需等待' }}</text>
+						</view>
 					</view>
+					<view class="queue-detail-link" @tap="onTapQueueDetail">查看详情 ›</view>
 				</view>
-				<view class="queue-detail-link" @tap="onTapQueueDetail">查看详情 ›</view>
+				<view class="queue-metrics">
+					<view class="metric"><text class="label">服务中</text><text class="value">{{ servingCars }}</text></view>
+					<view class="metric"><text class="label">等待中</text><text class="value">{{ waitingCars }}</text></view>
+					<view class="eta-tag">最快预计 {{ estimatedWaitMinutes }} 分钟</view>
+				</view>
+				<view v-if="estimatedWaitMinutes > 0" class="queue-progress">
+					<view class="queue-progress-bar"><view class="queue-progress-inner" :style="{ width: waitTimePercent + '%' }" /></view>
+					<text class="queue-progress-text">最快预计：{{ estimatedWaitMinutes }} 分钟</text>
+				</view>
+				<view v-else class="queue-tips">现在无需等待，欢迎直接前往服务</view>
 			</view>
-			<view class="queue-metrics">
-				<view class="metric"><text class="label">服务中</text><text class="value">{{ servingCars }}</text></view>
-				<view class="metric"><text class="label">等待中</text><text class="value">{{ waitingCars }}</text></view>
-				<view class="eta-tag">预计 {{ estimatedWaitMinutes }} 分钟</view>
-			</view>
-			<view v-if="estimatedWaitMinutes > 0" class="queue-progress">
-				<view class="queue-progress-bar"><view class="queue-progress-inner" :style="{ width: waitTimePercent + '%' }" /></view>
-				<text class="queue-progress-text">预计等待：{{ estimatedWaitMinutes }} 分钟</text>
-			</view>
-			<view v-else class="queue-tips">现在无需等待，欢迎直接前往服务</view>
 		</view>
 
 		<!-- 广告横幅（最多展示3条，3秒切换；无启用横幅则隐藏） -->
@@ -145,6 +157,19 @@ const liveWeather = ref<any|null>(null);
 const forecastWeather = ref<any|null>(null);
 const washAdvice = ref('');
 const washAdviceLevel = ref<'good'|'fair'|'bad'|''>('');
+
+// 营业状态（展示）
+type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
+const businessType = ref<BizStatus>('REST');
+const businessLabel = ref<string>('休息中');
+async function loadBusiness(){
+  try{
+    const http = createHttp();
+    const j:any = await http('/system/public/business-status', { method:'GET' });
+    businessType.value = (j?.status||'REST') as BizStatus;
+    businessLabel.value = String(j?.label||'休息中');
+  }catch{}
+}
 
 // 更精确的预计等待时间：基于工位并行模型(E:外观, I:内饰)
 const estimatedWaitMinutes = ref(0);
@@ -206,7 +231,7 @@ onShow(async ()=>{
 	} catch {}
 });
 // #endif
-onShow(async ()=>{ await loadDefaultPlate(); await loadWashCardSummary(); await loadQueueSummary(); });
+onShow(async ()=>{ await loadBusiness(); await loadDefaultPlate(); await loadWashCardSummary(); await loadQueueSummary(); });
 
 onShow(async ()=>{
 	await loadGreeting();
@@ -232,22 +257,88 @@ function pickTimeGreeting(date = new Date()){ const h = date.getHours(); if (h <
 async function loadGreeting(){ try { const u = uni.getStorageSync('user') || {}; const name = (u?.name || u?.nickname || '').trim(); userName.value = name || '朋友'; timeGreeting.value = pickTimeGreeting(); const affixes = ['今天也要元气满满','一路顺风，注意安全','生活要有仪式感','愿你今日好心情']; greetAffix.value = affixes[Math.floor(Math.random()*affixes.length)]; } catch { userName.value = '朋友'; timeGreeting.value = pickTimeGreeting(); greetAffix.value = '欢迎回来'; } }
 
 function buildWashAdvice(live: any, forecast: any){
-	const w = (live?.weather || '').toString();
+	const nowWeather = String(live?.weather || '').trim();
 	const temp = Number(live?.temperature ?? NaN);
 	const humidity = Number(live?.humidity ?? NaN);
-	// 未来3天是否有雨
-	const casts = forecast?.casts || [];
-	const willRain = casts.some((c: any)=>/雨|雪/.test((c?.dayweather||'') + (c?.nightweather||'')));
-	// 规则：
-	// - 未来有雨 或 当前降水类天气：不建议
-	// - 高湿度(>85%)且多云/阴：一般
-	// - 温度适中(5~32℃)且晴/多云且未来无雨：推荐
-	// - 其余：一般
-	if (/雨|雪|雷|雾|霾/.test(w) || willRain) { washAdviceLevel.value = 'bad'; return '近期有降水，建议暂缓洗车，防止刚洗就脏。'; }
-	if (!isNaN(humidity) && humidity > 85) { washAdviceLevel.value = 'fair'; return '空气湿度较高，若非刚好有需求，可择时再洗。'; }
-	if (!isNaN(temp) && temp >= 5 && temp <= 32 && /晴|多云|阴/.test(w)) { washAdviceLevel.value = 'good'; return '天气稳定，适合洗车，清洁更持久。'; }
-	washAdviceLevel.value = 'fair';
-	return '天气平稳，可按需安排洗车。';
+	const windPowerText = String(live?.windpower ?? ''); // 可能是 "3" 或 "3级"
+	const parseWind = (s:string)=>{ const n = parseInt(String(s).replace(/[^0-9]/g,''), 10); return Number.isFinite(n) ? n : NaN; };
+	const wind = parseWind(windPowerText);
+
+	let score = 80; // 0~100，越高越适合洗车
+	const casts = Array.isArray(forecast?.casts) ? forecast.casts : [];
+
+	// 当前降水/能见度类天气影响
+	if (/暴雪|大雪|中雪|小雪|雨夹雪|冰雹/.test(nowWeather)) score -= 50;
+	else if (/暴雨|大雨|雷阵雨|阵雨/.test(nowWeather)) score -= 45;
+	else if (/中雨/.test(nowWeather)) score -= 35;
+	else if (/小雨/.test(nowWeather)) score -= 25;
+	if (/沙|尘|雾|霾/.test(nowWeather)) score -= 20;
+
+	// 湿度影响
+	if (!isNaN(humidity)) {
+		if (humidity >= 90) score -= 20; // 极高湿度，干燥慢
+		else if (humidity >= 80) score -= 10; // 偏高
+	}
+
+	// 温度影响
+	if (!isNaN(temp)) {
+		if (temp <= 0) score -= 25; // 可能结冰
+		else if (temp < 5) score -= 15; // 偏低
+		else if (temp > 38) score -= 20; // 炎热
+		else if (temp > 32) score -= 10; // 偏高
+	}
+
+	// 风力影响（≥5级有明显体感与扬尘可能）
+	if (Number.isFinite(wind)) {
+		if (wind >= 7) score -= 20;
+		else if (wind >= 5) score -= 10;
+	}
+
+	// 短期（~36h）与中期（~72h）降水预报权重
+	let heavyRainSoon = false; // 短期强降水
+	let rainWithin36h = false; // 短期任意降水
+	let rainLater = false; // 更晚降水
+	for (let i = 0; i < casts.length; i++) {
+		const c:any = casts[i] || {};
+		const text = String((c?.dayweather||'') + (c?.nightweather||'')).trim();
+		const hasRain = /雨|雪/.test(text);
+		const isHeavy = /(暴雨|大雨|雷阵雨|雨夹雪|暴雪|大雪)/.test(text);
+		if (hasRain) {
+			if (i === 0 || i === 1) { // 约等于未来 0~36 小时
+				rainWithin36h = true;
+				if (isHeavy) heavyRainSoon = true;
+			} else {
+				rainLater = true;
+			}
+		}
+	}
+	if (heavyRainSoon) score -= 35;
+	else if (rainWithin36h) score -= 18;
+	else if (rainLater) score -= 8;
+
+	// 得分映射到等级
+	score = Math.max(0, Math.min(100, Math.round(score)));
+	let level: 'good'|'fair'|'bad';
+	if (score >= 70) level = 'good';
+	else if (score >= 40) level = 'fair';
+	else level = 'bad';
+
+	// 生成提示文案（简洁、面向用户）
+	let advice = '';
+	if (level === 'good') {
+		advice = '天气稳定，适合洗车，清洁效果更持久。';
+		if (rainLater && !rainWithin36h) advice = '短期天气较好，适合洗车，注意两天后可能降水。';
+	} else if (level === 'fair') {
+		advice = '条件一般，可按需安排洗车。';
+		if (rainWithin36h) advice = '未来一天可能有降水，如非刚需可择时洗车。';
+		if (/雾|霾|沙|尘/.test(nowWeather)) advice = '能见度较差且空气质量一般，洗车效果可能受影响。';
+	} else {
+		if (heavyRainSoon || /雨|雪/.test(nowWeather)) advice = '当前或短期有明显降水，建议暂缓洗车。';
+		else if (!isNaN(temp) && temp <= 0) advice = '气温过低可能结冰，建议暂缓洗车。';
+		else advice = '当前条件不佳，建议暂缓洗车或择时进行。';
+	}
+	washAdviceLevel.value = level;
+	return advice;
 }
 
 async function loadWeather(){
@@ -314,8 +405,10 @@ async function loadQueueSummary(){
         if (!candidates.length) {
             estimatedWaitMinutes.value = 0;
         } else {
-            const mins = candidates.map((t:any)=> Number.isFinite(t?.etaForNewCar) ? Number(t.etaForNewCar) : 0);
-            estimatedWaitMinutes.value = Math.max(0, Math.min(...mins));
+            const mins = candidates
+                .map((t:any)=> Number(t?.etaForNewCar))
+                .filter((m:number)=> Number.isFinite(m) && m > 0);
+            estimatedWaitMinutes.value = mins.length ? Math.max(0, Math.min(...mins)) : 0;
         }
     } catch {
         servingCars.value = 0; waitingCars.value = 0; estimatedWaitMinutes.value = 0;
@@ -366,6 +459,18 @@ async function loadQueueSummary(){
 	padding: 28rpx;
 	overflow: hidden;
 }
+.header-top{ width:100%; display:flex; align-items:flex-start; justify-content:space-between; gap: 16rpx; }
+.biz-badge{ display:inline-flex; align-items:center; gap:8rpx; padding: 6rpx 10rpx; border-radius: 999rpx; background:#fff; border:2rpx solid #e5e7eb; }
+.biz-badge .dot{ width: 12rpx; height: 12rpx; border-radius: 50%; }
+.biz-badge .text{ font-size: 22rpx; font-weight: 600; }
+.biz-badge[data-type="OPEN"]{ background:#ecfdf5; border-color:#86efac; color:#065f46; }
+.biz-badge[data-type="OPEN"] .dot{ background:#16a34a; }
+.biz-badge[data-type="REST"]{ background:#f1f5f9; border-color:#cbd5e1; color:#334155; }
+.biz-badge[data-type="REST"] .dot{ background:#64748b; }
+.biz-badge[data-type="BUSY"]{ background:#fff7ed; border-color:#fdba74; color:#7c2d12; }
+.biz-badge[data-type="BUSY"] .dot{ background:#f59e0b; }
+.biz-badge[data-type="PAUSED"]{ background:#fef2f2; border-color:#fecaca; color:#7f1d1d; }
+.biz-badge[data-type="PAUSED"] .dot{ background:#ef4444; }
 .greet-col { display:flex; flex-direction: column; gap: 8rpx; }
 .greeting { font-size: 30rpx; font-weight: 600; }
 .greet-sub { font-size: 24rpx; color: #374151; opacity: .9; }

@@ -358,11 +358,134 @@
 			<!-- Step 0: 车辆 -->
 			<div v-show="wizardStep===0" class="wiz-vehicle">
 				<div class="mode-tabs">
+					<el-button size="large" :type="mode==='smart'?'primary':'default'" @click="mode='smart'">智能选择</el-button>
 					<el-button size="large" :type="mode==='member'?'primary':'default'" @click="mode='member'">会员车辆</el-button>
 					<el-button size="large" :type="mode==='existing'?'primary':'default'" @click="mode='existing'">现有车辆</el-button>
 					<el-button size="large" :type="mode==='guest'?'primary':'default'" @click="mode='guest'">游客车辆</el-button>
 				</div>
 				<el-form :model="form" label-width="120px" class="wiz-form">
+					<!-- 智能选择：统一入口，支持现有车辆选择或快速新建（会员/游客） -->
+					<template v-if="mode==='smart'">
+						<el-form-item label="车牌号" required>
+							<div class="inline-kb-row">
+								<el-autocomplete
+									ref="existingAutoRef"
+									v-model="form.plateNumber"
+									:fetch-suggestions="querySearchPlate"
+									placeholder="输入车牌支持模糊搜索"
+									popper-class="existing-plate-popper"
+									:teleported="true"
+									:fit-input-width="true"
+									value-key="plateNumber"
+									:debounce="0"
+									highlight-first-item
+									trigger-on-focus
+									@focus="triggerExistingAuto"
+									@select="onSelectExistingVehicle"
+									style="width:100%"
+								/>
+								<el-button class="kb-btn" @mousedown.prevent @click="openExistingKb">车牌键盘</el-button>
+								<!-- 无遮罩键盘：锚定到按钮旁 -->
+								<el-popover
+									:visible="existingKbVisible && (mode==='existing' || mode==='smart')"
+									placement="bottom-start"
+									:width="Math.min(640, Math.max(520, windowW*0.9))"
+									:show-arrow="false"
+									@after-leave="existingKbVisible=false"
+								>
+									<PlateKeyboard @press="onKbPressExisting" @delete="onKbDeleteExisting" @confirm="existingKbVisible=false" />
+									<template #reference>
+										<span></span>
+									</template>
+								</el-popover>
+							</div>
+							<small v-if="!form.vehicleId && form.plateNumber" class="muted" style="display:block;margin-top:6px;">未从下拉中选择现有车辆时，将按新建车辆处理</small>
+						</el-form-item>
+						<!-- 若未选择现有车辆，则展示新建路径与表单 -->
+						<template v-if="!form.vehicleId">
+							<el-card shadow="never">
+								<template #header>
+									<div class="card-head">
+										<span>新建车辆</span>
+										<el-tooltip placement="top" effect="dark" content="智能选择：输入车牌可联想并用键盘；选择下拉项即使用现有车辆；未选择则按下方新建方式创建（绑定会员需先选会员，均需选择车辆主类）；如选择品牌/车系，将随单保存并展示品牌图。">
+											<el-icon class="help-icon"><QuestionFilled /></el-icon>
+										</el-tooltip>
+									</div>
+								</template>
+								<el-form-item label="新建方式">
+									<el-radio-group v-model="smartCreateMode" size="small">
+										<el-radio-button label="member">绑定到会员</el-radio-button>
+										<el-radio-button label="guest">新增游客车辆</el-radio-button>
+									</el-radio-group>
+								</el-form-item>
+                                <template v-if="smartCreateMode==='member'">
+                                    <el-form-item label="选择会员" required>
+                                        <el-select v-model="form.memberId" placeholder="请选择会员" filterable style="width:100%" @change="onMemberChange">
+                                            <el-option v-for="m in memberOptions" :key="m.id" :label="`${m.name}（${m.phone}）`" :value="m.id" />
+                                        </el-select>
+                                    </el-form-item>
+                                </template>
+								<!-- 通用车辆信息（与游客车辆一致），用于新建车辆 -->
+								<el-form-item label="VIN"><el-input v-model="form.vin" placeholder="17位 VIN（可选）" /></el-form-item>
+								<el-form-item label="车辆品牌">
+								<div style="width:100%">
+									<div class="letter-bar" v-if="brandsLoaded">
+											<span :class="['letter', selectedLetter===null?'active':'']" @click="selectLetter(null)">全部</span>
+											<span v-for="ch in brandLetters" :key="ch" :class="['letter', selectedLetter===ch?'active':'']" @click="selectLetter(ch)">{{ ch }}</span>
+									</div>
+									<template v-if="brandLoading">
+										<el-skeleton :rows="1" animated />
+									</template>
+									<template v-else-if="brandsLoaded && !brandOptions.length">
+										<el-empty description="暂无品牌数据" />
+									</template>
+									<template v-else>
+										<el-select :key="brandSelectKey" ref="brandSelectRef" v-model="form.brandId" filterable placeholder="选择品牌（可搜索）" style="width:100%" :loading="brandLoading" @change="onBrandChange" @visible-change="onBrandDropdownVisible">
+											<template #prefix>
+												<img v-if="currentBrand?.img" :src="formatBrandImg(currentBrand.img)" class="brand-logo prefix" />
+											</template>
+											<el-option v-for="b in brandOptions" :key="b.brand_id" :label="`${b.main_brand_name}-${b.brand_name}`" :value="b.brand_id">
+												<div class="brand-option">
+													<img v-if="b.img" :src="formatBrandImg(b.img)" class="brand-logo" />
+													<span class="brand-text">{{ b.main_brand_name }}-{{ b.brand_name }}</span>
+												</div>
+											</el-option>
+										</el-select>
+									</template>
+								</div>
+								</el-form-item>
+							<el-form-item label="车辆车系">
+								<template v-if="seriesLoading">
+									<el-skeleton :rows="1" animated />
+								</template>
+								<template v-else-if="form.brandId && !seriesOptions.length">
+									<el-empty description="暂无车系数据" />
+								</template>
+								<template v-else>
+									<el-select v-model="form.seriesId" filterable placeholder="选择车系（可搜索）" style="width:100%" :disabled="!form.brandId" :loading="seriesLoading" @change="onSeriesChange">
+										<el-option v-for="s in seriesOptions" :key="s.series_id" :label="s.series_name" :value="s.series_id" />
+									</el-select>
+								</template>
+							</el-form-item>
+								<el-form-item label="车辆主类" required>
+									<el-select v-model="form.typeMain" placeholder="请选择车辆主类" style="width:100%" :disabled="lockTypeBySeries">
+										<el-option v-for="t in typeMainOptions" :key="t" :label="t" :value="t" />
+									</el-select>
+									<small v-if="lockTypeBySeries" class="muted ml8">已根据车系自动选择</small>
+								</el-form-item>
+								<el-form-item label="车辆子类">
+									<el-select v-model="form.typeSub" placeholder="可选" clearable style="width:100%" :disabled="lockTypeBySeries">
+										<el-option v-for="t in typeSubOptions(form.typeMain)" :key="t" :label="t" :value="t" />
+									</el-select>
+								</el-form-item>
+								<el-form-item label="车辆颜色">
+									<el-select v-model="form.color" placeholder="可选" clearable style="width:100%">
+										<el-option v-for="c in colorOptionsList" :key="c" :label="c" :value="c" />
+									</el-select>
+								</el-form-item>
+							</el-card>
+						</template>
+					</template>
 					<el-form-item v-if="mode==='member'" label="选择会员">
 						<el-select v-model="form.memberId" placeholder="请选择会员" filterable style="width:100%" @change="onMemberChange">
 							<el-option v-for="m in memberOptions" :key="m.id" :label="`${m.name}（${m.phone}）`" :value="m.id" />
@@ -395,7 +518,7 @@
 								<el-button class="kb-btn" @mousedown.prevent @click="openExistingKb">车牌键盘</el-button>
 								<!-- 无遮罩键盘：锚定到按钮旁 -->
 								<el-popover
-									:visible="existingKbVisible && mode==='existing'"
+								:visible="existingKbVisible && (mode==='existing' || mode==='smart')"
 									placement="bottom-start"
 									:width="Math.min(640, Math.max(520, windowW*0.9))"
 									:show-arrow="false"
@@ -508,7 +631,12 @@
 			<!-- Step 3: 确认 -->
             <div v-show="wizardStep===3" class="wiz-confirm">
                 <el-descriptions title="确认信息" :column="1" border>
-                    <el-descriptions-item label="车牌">{{ selectedPlate }}</el-descriptions-item>
+                    <el-descriptions-item label="车辆">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <img v-if="currentBrand?.img" :src="formatBrandImg(currentBrand.img)" class="brand-img" />
+                            <span>{{ selectedPlate }}</span>
+                        </div>
+                    </el-descriptions-item>
                     <el-descriptions-item label="队列类型">{{ (queueTypes.find(t=>t.id===wizardQueueTypeId)||{} as any).name || '-' }}</el-descriptions-item>
                     <el-descriptions-item label="服务商品">
                         <template v-if="wizardSelectedProductIds.length">
@@ -946,20 +1074,41 @@ const wizardAllowedProducts = ref<Product[]>([]);
 const wizardSelectedProductIds = ref<number[]>([]);
 const wizardSkuByProduct = ref<Record<number, number|undefined>>({});
 const wizardSelectedProductNames = computed(()=>{ const map = new Map<number, Product>(wizardAllowedProducts.value.map(p=>[p.id, p] as any)); return (wizardSelectedProductIds.value||[]).map(id=>map.get(id)?.name||'').filter(Boolean); });
-function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; if (mode.value === 'guest') { ensureBrandsLoaded(); } }
+function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; if (mode.value === 'guest') { ensureBrandsLoaded(); } }
 function onWizardSelectionChange(rows:any[]){ wizardSelectedProductIds.value = rows.map(r=>r.id); }
 
 // 车辆模式与表单
 type MemberOption = { id:number; name:string; phone:string };
 const memberOptions = ref<MemberOption[]>([]);
 const memberVehicles = ref<Array<{ id:number; plateNumber:string; brand?:string; series?:string }>>([]);
-type Mode = 'member' | 'existing' | 'guest';
-const mode = ref<Mode>('member');
+type Mode = 'smart' | 'member' | 'existing' | 'guest';
+const mode = ref<Mode>('smart');
 const form = ref<any>({ memberId: undefined, vehicleId: undefined, plateNumber: '', vin: '', brandId: undefined as number | undefined, seriesId: undefined as number | undefined, typeMain: '', typeSub: '', color: '', existingVehicle: null as any, brandName: '', seriesName: '' });
+// 统一重置车辆相关状态，避免后续创建沿用历史数据
+function resetVehicleForm(){
+	try{
+		form.value = { memberId: undefined, vehicleId: undefined, plateNumber: '', vin: '', brandId: undefined, seriesId: undefined, typeMain: '', typeSub: '', color: '', existingVehicle: null, brandName: '', seriesName: '' } as any;
+		memberVehicles.value = [];
+		currentBrand.value = null;
+		seriesOptions.value = [];
+		lockTypeBySeries.value = false;
+		// 智能选择默认“绑定到会员”
+		smartCreateMode.value = 'member';
+	}catch{}
+}
+// 智能选择：新建路径（member | guest）——默认改为“绑定到会员”
+const smartCreateMode = ref<'member'|'guest'>('member');
+// 当选择会员时自动对齐到“绑定到会员”；不在无会员时强制改回“游客”
+watch(()=>form.value.memberId, ()=>{
+    try{
+        if (mode.value !== 'smart') return;
+        if (form.value.memberId) smartCreateMode.value = 'member';
+    }catch{}
+});
 type PlateSearchItem = { id:number; plateNumber:string; brand?:string; series?:string; memberId?:number|null; memberName?:string; memberPhone?:string };
 async function querySearchPlate(queryString: string, cb: (items: PlateSearchItem[])=>void){ const kw = String(queryString || '').trim(); if (!kw) { cb([]); return; } try { const res = await http<PlateSearchItem[]>(`/vehicle/search`, { method: 'GET', query: { q: kw, limit: 15 } }); cb(res || []); } catch { cb([]); } }
 function onSelectExistingVehicle(item: PlateSearchItem){ form.value.plateNumber = item.plateNumber; form.value.vehicleId = item.id; form.value.existingVehicle = item; }
-async function onMemberChange(){ memberVehicles.value = []; if (!form.value.memberId) return; const res = await http<any[]>(`/vehicle/member/${form.value.memberId}`, { method: 'GET' }); memberVehicles.value = res || []; }
+async function onMemberChange(){ memberVehicles.value = []; form.value.vehicleId = undefined; if (!form.value.memberId) return; const res = await http<any[]>(`/vehicle/member/${form.value.memberId}`, { method: 'GET' }); memberVehicles.value = res || []; }
 async function fetchMemberOptions(){ try{ const res = await http<{ items: MemberOption[] }>(`/member/list`, { method: 'GET', query: { page: 1, pageSize: 500 } }); memberOptions.value = res?.items || []; } catch { memberOptions.value = []; } }
 
 // 品牌/车系联动（游客车辆）
@@ -999,18 +1148,61 @@ async function ensureBrandsLoaded(){
 }
 
 // 移除进入游客模式/打开向导时的预加载，保持懒加载
-watch(mode, (val)=>{ if (val === 'guest') { /* no-op: 懒加载 */ } });
+// 切换模式时清理跨模式残留，避免误用上一辆车数据
+watch(mode, (m)=>{
+	try{
+		// 清理现有车辆选中状态
+		form.value.vehicleId = undefined;
+		form.value.existingVehicle = null;
+		// 非智能/现有模式不保留车牌文本
+		if (m !== 'existing' && m !== 'smart') {
+			form.value.plateNumber = '';
+		}
+		// 非会员模式清理会员相关
+		if (m !== 'member'){
+			form.value.memberId = undefined;
+			memberVehicles.value = [];
+		}
+		// 非游客模式清理游客扩展字段
+		if (m !== 'guest'){
+			form.value.vin = '';
+			form.value.brandId = undefined;
+			form.value.seriesId = undefined;
+			form.value.typeMain = '';
+			form.value.typeSub = '';
+			form.value.color = '';
+			form.value.brandName = '';
+			form.value.seriesName = '';
+			currentBrand.value = null;
+			seriesOptions.value = [];
+			lockTypeBySeries.value = false;
+		}
+	}catch{}
+});
 watch(wizardDrawer, (open)=>{ if (open && mode.value === 'guest') { /* no-op */ } });
 
-const selectedPlate = computed(()=>{ if (mode.value === 'member') { const v = memberVehicles.value.find(v=>v.id === form.value.vehicleId); if (v?.plateNumber) return v.plateNumber; } if (mode.value === 'existing' && form.value.existingVehicle?.plateNumber) return form.value.existingVehicle.plateNumber; return form.value.plateNumber || '-'; });
+const selectedPlate = computed(()=>{ if (mode.value === 'member') { const v = memberVehicles.value.find(v=>v.id === form.value.vehicleId); if (v?.plateNumber) return v.plateNumber; } if ((mode.value === 'existing' || mode.value==='smart') && form.value.existingVehicle?.plateNumber) return form.value.existingVehicle.plateNumber; return form.value.plateNumber || '-'; });
 async function nextWizardFromVehicle(){
+    // 智能模式：优先使用已选择车辆；否则根据新建路径校验
+    if (mode.value === 'smart'){
+        const plate = String(form.value.plateNumber||'').trim();
+        if (!plate && !form.value.vehicleId) { ElMessage.error('请输入或选择车牌'); return; }
+        if (!form.value.vehicleId){
+            if (smartCreateMode.value === 'member'){
+                if (!form.value.memberId){ ElMessage.error('请选择会员'); return; }
+                if (!form.value.typeMain){ ElMessage.error('请选择车辆主类'); return; }
+            } else {
+                if (!form.value.typeMain){ ElMessage.error('请选择车辆主类'); return; }
+            }
+        }
+        wizardStep.value=1; return;
+    }
     if (mode.value === 'member') {
         if (!form.value.vehicleId) { ElMessage.error('请选择会员车辆'); return; }
     }
     if (mode.value === 'existing') {
         const plate = String(form.value.plateNumber||'').trim();
         if (!plate && !form.value.vehicleId) { ElMessage.error('请输入或选择车牌'); return; }
-        // 若未通过下拉选择具体车辆，则根据车牌校验是否存在该车辆
         if (!form.value.vehicleId && plate) {
             try{
                 const res = await http<PlateSearchItem[]>(`/vehicle/search`, { method:'GET', query: { q: plate, limit: 20 } });
@@ -1039,7 +1231,26 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
         for (const p of wizardAllowedProducts.value){ if (String((p as any)?.specType||'')==='MULTI' && wizardSelectedProductIds.value.includes(p.id)){ const sid = wizardSkuByProduct.value[p.id]; if (!sid){ ElMessage.error(`请选择规格：${p.name}`); submittingOrder.value=false; return; } } }
         const items = wizardSelectedProductIds.value.map(pid=>({ productId: pid, skuId: wizardSkuByProduct.value[pid] || null }));
         const body:any = { queueTypeId: wizardQueueTypeId.value, items };
-        if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber; if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined }); await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建订单并入队'); wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
+        // 智能模式处理：若未选vehicleId，按路径决定
+        if (mode.value === 'smart'){
+            if (form.value.vehicleId){
+                body.vehicleId = form.value.vehicleId;
+            } else if (smartCreateMode.value === 'member'){
+                // 先创建会员车辆，再使用 vehicleId
+                const payload:any = { plateNumber: String(form.value.plateNumber||'').trim(), vin: form.value.vin||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined };
+                const created:any = await http(`/vehicle/member/${form.value.memberId}`, { method:'POST', body: payload });
+                body.vehicleId = Number(created?.id||0) || undefined;
+                if (!body.vehicleId) { ElMessage.error('创建会员车辆失败'); return; }
+            } else {
+                // 游客车辆：随入队接口一起创建（保持图片填充：传 brandId/seriesId）
+                body.plateNumber = String(form.value.plateNumber||'').trim();
+                Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
+            }
+        } else {
+            if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
+            if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
+        }
+        await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
 
 function skuLabel(s: any){ try{ const p = Number(s?.price||0); return p>0 ? `${s?.name||''}（￥${p.toFixed(2)}）` : String(s?.name||''); }catch{ return String(s?.name||''); } }
 function skuPriceHint(row: any){ try{ const arr = Array.isArray(row?.skus)?row.skus:[]; if(!arr.length) return '-'; const prices = arr.map((x:any)=>Number(x?.price||0)).filter((n:number)=>Number.isFinite(n)); if(!prices.length) return '-'; const min = Math.min(...prices); const max = Math.max(...prices); return min===max ? `￥${min.toFixed(2)}` : `￥${min.toFixed(2)} ~ ￥${max.toFixed(2)}`; }catch{ return '-'; } }
@@ -1047,11 +1258,11 @@ function skuNameById(pid: number, sid: number){ try{ const p = wizardAllowedProd
 
 let pollTimer: any = null;
 onMounted(()=>{ fetchList(); fetchEta(); fetchMemberOptions(); if (!queueTypes.value.length) loadQueueTypes(); pollTimer = setInterval(()=>{ fetchList(); fetchEta(); }, 8000); window.addEventListener('resize', onResize); nextTick().then(()=>measureOpsWidth());
-    // 监听车牌变更以主动触发现有车辆自动完成建议弹出（包括物理键盘与车牌键盘逐字输入）
+    // 监听车牌变更以主动触发联想建议（支持智能/现有车辆；包括物理键盘与车牌键盘逐字输入）
     watch(()=>form.value.plateNumber, async (val)=>{
         try{
             const s = String(val||'').trim();
-            if (mode.value !== 'existing') return;
+            if (mode.value !== 'existing' && mode.value !== 'smart') return;
             await nextTick();
             const comp:any = existingAutoRef.value;
             const input = comp?.inputRef?.input || (comp?.$el?.querySelector('input') as HTMLInputElement | null);
@@ -1067,6 +1278,19 @@ onMounted(()=>{ fetchList(); fetchEta(); fetchMemberOptions(); if (!queueTypes.v
 onUnmounted(()=>{ try{ if (pollTimer) clearInterval(pollTimer); } catch{} pollTimer = null; try{ window.removeEventListener('resize', onResize); }catch{} });
 watch(list, async ()=>{ await nextTick(); measureOpsWidth(); });
 watch(filtered, async ()=>{ await nextTick(); measureOpsWidth(); });
+
+// 当车牌与已选车辆不一致或被清空时，清理 vehicleId/existingVehicle 以恢复“新建车辆”入口
+watch(()=>form.value.plateNumber, (val)=>{
+    try{
+        const s = String(val||'').trim();
+        const exist = form.value.existingVehicle?.plateNumber;
+        if (!s){ form.value.vehicleId = undefined; form.value.existingVehicle = null; return; }
+        if (exist && String(exist||'').toUpperCase() !== s.toUpperCase()){
+            form.value.vehicleId = undefined;
+            form.value.existingVehicle = null;
+        }
+    }catch{}
+});
 
 // 抽屉关闭前提示未保存修改
 async function onBeforeCloseConfigDrawer(done: () => void){

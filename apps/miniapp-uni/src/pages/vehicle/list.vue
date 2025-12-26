@@ -41,10 +41,7 @@ const list = ref<Vehicle[]>([]);
 const loading = ref(false);
 
 function navigate(url: string){
-	// #ifdef H5
-	if (typeof window !== 'undefined') { window.location.hash = url.startsWith('/') ? `#${url}` : `#/${url}`; return; }
-	// #endif
-	uni.navigateTo({ url });
+    uni.navigateTo({ url });
 }
 
 function goBack(){
@@ -92,7 +89,7 @@ async function onSetDefault(v: Vehicle){
 onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) fetchList(); });
 </script>
 
-<style>
+<style scoped>
 .page { min-height: 100vh; padding: 24rpx; background: #f8fafc; box-sizing: border-box; }
 .header { display:flex; align-items:center; justify-content: space-between; margin-bottom: 20rpx; }
 .title { font-size: 32rpx; font-weight: 700; }

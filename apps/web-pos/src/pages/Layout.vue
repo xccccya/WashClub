@@ -35,6 +35,40 @@
 					</template>
 				</div>
 				<div class="user">
+					<!-- 营业状态按钮 -->
+					<el-popover placement="bottom-end" trigger="click" :width="320" :show-arrow="false" :teleported="true">
+						<template #reference>
+							<el-button class="status-btn" text :title="`营业状态：${businessLabel}`" aria-label="营业状态">
+								<span class="dot" :data-type="businessType"></span>
+								<span class="status-text">{{ businessLabel }}</span>
+							</el-button>
+						</template>
+						<div class="biz-panel">
+							<div class="row">
+								<span>当前状态</span>
+								<el-tag :type="businessType==='OPEN' ? 'success' : (businessType==='BUSY' ? 'warning' : businessType==='PAUSED' ? 'danger' : 'info')">{{ businessLabel }}</el-tag>
+							</div>
+							<div class="row">
+								<span>营业时间</span>
+								<div style="display:flex; align-items:center; gap:8px;">
+									<el-time-select v-model="hoursStart" start="00:00" step="00:15" end="23:45" placeholder="开始" style="width:112px;" />
+									<span style="color:#999;">-</span>
+									<el-time-select v-model="hoursEnd" start="00:00" step="00:15" end="23:45" placeholder="结束" style="width:112px;" />
+								</div>
+							</div>
+							<div class="row">
+								<span>手动状态</span>
+								<div class="toggles">
+									<el-switch v-model="busyEnabled" :active-text="'忙碌'" :inactive-text="'—'" @change="onToggleBusy" />
+									<el-switch v-model="pausedEnabled" :active-text="'暂停营业'" :inactive-text="'—'" @change="onTogglePaused" />
+								</div>
+							</div>
+							<div class="row" style="justify-content:flex-end; gap:8px;">
+								<el-button size="large" @click="reloadBusiness">刷新</el-button>
+								<el-button size="large" type="primary" :loading="savingBiz" @click="saveBusiness">保存</el-button>
+							</div>
+						</div>
+					</el-popover>
 					<div class="notify-bell" title="消息通知" @click="openNotifyDrawer">
 						<el-badge :value="unreadCountText" :hidden="unreadCount===0" class="bell-badge">
 							<el-icon><Bell /></el-icon>
@@ -110,6 +144,38 @@ const userName = computed(()=>{
 	try { return JSON.parse(localStorage.getItem('user')||'{}')?.name || '用户'; } catch { return '用户'; }
 });
 const avatarUrl = ref<string | null>(null);
+// 营业状态
+type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
+const businessType = ref<BizStatus>('REST');
+const businessLabel = ref<string>('休息中');
+const hoursStart = ref<string>('09:00');
+const hoursEnd = ref<string>('18:00');
+const busyEnabled = ref<boolean>(false);
+const pausedEnabled = ref<boolean>(false);
+const savingBiz = ref(false);
+function onToggleBusy(){ if (busyEnabled.value) pausedEnabled.value = false; }
+function onTogglePaused(){ if (pausedEnabled.value) busyEnabled.value = false; }
+async function reloadBusiness(){
+    try{
+        const res = await fetch(`${API_BASE}/system/public/business-status`);
+        const j:any = await res.json();
+        hoursStart.value = String(j?.hours?.start||'09:00');
+        hoursEnd.value = String(j?.hours?.end||'18:00');
+        busyEnabled.value = !!j?.busyEnabled;
+        pausedEnabled.value = !!j?.pausedEnabled;
+        businessType.value = (j?.status||'REST') as BizStatus;
+        businessLabel.value = String(j?.label||'休息中');
+    }catch{}
+}
+async function saveBusiness(){
+    try{
+        savingBiz.value = true;
+        const token = localStorage.getItem('token')||'';
+        await fetch(`${API_BASE}/system/site-setting`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ businessHoursJson: { start: hoursStart.value, end: hoursEnd.value }, busyEnabled: busyEnabled.value, pausedEnabled: pausedEnabled.value }) });
+        await reloadBusiness();
+    }catch{}
+    finally{ savingBiz.value = false; }
+}
 
 function formatAvatar(url?: string | null){
 	try{
@@ -263,6 +329,7 @@ onMounted(()=>{
 	try{ const u = JSON.parse(localStorage.getItem('user')||'{}'); avatarUrl.value = u?.avatarUrl ?? null; }catch{}
 	addOrActivateCurrent();
 	window.addEventListener('pos-set-tab', handleSetTab as any);
+    reloadBusiness();
     refreshUnread();
     connectWS();
 });
@@ -294,6 +361,16 @@ watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 .notify-bell:hover{ background:#f6f8fb; }
 .notify-bell :deep(.el-icon){ font-size:22px; color:#606266; }
 .notify-bell:hover :deep(.el-icon){ color:#409eff; }
+.status-btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:9999px; border:1px solid #ebeef5; background:#fff; }
+.status-btn .status-text{ font-weight:700; color:#303133; font-size:13px; }
+.status-btn .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+.status-btn .dot[data-type="OPEN"]{ background:#22c55e; }
+.status-btn .dot[data-type="REST"]{ background:#94a3b8; }
+.status-btn .dot[data-type="BUSY"]{ background:#f59e0b; }
+.status-btn .dot[data-type="PAUSED"]{ background:#ef4444; }
+.biz-panel{ display:flex; flex-direction:column; gap:12px; }
+.biz-panel .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.biz-panel .toggles{ display:flex; align-items:center; gap:14px; }
 .bell-badge :deep(.el-badge__content){
     transform: translate(9px, -9px);
     height:18px; min-width:20px; padding:0 6px;

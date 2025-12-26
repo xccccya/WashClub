@@ -266,7 +266,11 @@ function chooseSeries(s: SeriesItem){
 }
 
 function goBack(){
-	try { uni.navigateBack(); } catch {}
+	try {
+		const pages = getCurrentPages?.() || [];
+		if (pages.length > 1) { uni.navigateBack(); return; }
+		uni.reLaunch({ url: '/pages/vehicle/list' });
+	} catch { uni.reLaunch({ url: '/pages/vehicle/list' }); }
 }
 
 function mapScaleToType(scale: string): { main: string; sub: string }{
@@ -280,7 +284,7 @@ function mapScaleToType(scale: string): { main: string; sub: string }{
 }
 </script>
 
-<style>
+<style scoped>
 .page { min-height: 100vh; padding: 24rpx; background: #f8fafc; box-sizing: border-box; }
 .card { background:#fff; border-radius: 20rpx; padding: 20rpx; box-shadow: 0 6rpx 20rpx rgba(0,0,0,0.06); margin-bottom: 20rpx; }
 .group-title { font-weight: 700; margin-bottom: 12rpx; }

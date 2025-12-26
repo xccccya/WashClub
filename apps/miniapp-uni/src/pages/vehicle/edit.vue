@@ -242,7 +242,10 @@ async function onSubmit(){
 		const payload: any = { plateNumber: plate.value.trim(), typeMain: typeMain.value, typeSub: typeSub.value || undefined, color: color.value || undefined, vin: vin.value || undefined, brand: brandName.value || undefined, series: seriesName.value || undefined, brandId: brandId.value || undefined, seriesId: seriesId.value || undefined };
 		await http(`/vehicle/${id.value}`, { method: 'PUT', body: payload });
 		uni.showToast({ title:'已保存', icon:'success' });
-		setTimeout(()=>uni.navigateBack(), 300);
+		setTimeout(()=>{
+			try { uni.navigateBack(); return; } catch {}
+			try { const pages = getCurrentPages?.() || []; if (!pages || pages.length <= 1) uni.reLaunch({ url: '/pages/vehicle/list' }); } catch { uni.reLaunch({ url: '/pages/vehicle/list' }); }
+		}, 300);
 	} catch (e:any) { uni.showToast({ title: String(e?.message||'保存失败').slice(0,30), icon:'none' }); }
 	finally { try { uni.hideLoading(); } catch {}; saving.value = false; }
 }
@@ -251,11 +254,15 @@ onLoad((q:any)=>{ id.value = Number(q?.id || 0); });
 onShow(()=>{ checkAuthAndRefresh({ redirectIfExpired: true }); if (id.value) loadDetail(); });
 
 function goBack(){
-	try { uni.navigateBack(); } catch {}
+	try {
+		const pages = getCurrentPages?.() || [];
+		if (pages.length > 1) { uni.navigateBack(); return; }
+		uni.reLaunch({ url: '/pages/vehicle/list' });
+	} catch { uni.reLaunch({ url: '/pages/vehicle/list' }); }
 }
 </script>
 
-<style>
+<style scoped>
 .page { min-height: 100vh; padding: 24rpx; background: #f8fafc; box-sizing: border-box; }
 .card { background:#fff; border-radius: 20rpx; padding: 20rpx; box-shadow: 0 6rpx 20rpx rgba(0,0,0,0.06); margin-bottom: 20rpx; }
 .group-title { font-weight: 700; margin-bottom: 12rpx; }

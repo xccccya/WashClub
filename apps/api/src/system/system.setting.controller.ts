@@ -18,7 +18,7 @@ export class SystemSettingController {
     @ApiOperation({ summary: '公共-获取站点基础设置' })
     async getPublicSetting() {
         const ss = await this.prisma.siteSetting.findFirst().catch(() => null);
-        return ss || { title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null } as any;
+        return ss || { title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null, businessHoursJson: { start: '09:00', end: '18:00' }, busyEnabled: false, pausedEnabled: false } as any;
     }
 
     // 公共：获取必应每日壁纸直链（由服务端代理获取 JSON，避免浏览器 CORS）
@@ -46,14 +46,14 @@ export class SystemSettingController {
     @ApiOperation({ summary: '获取站点基础设置' })
     async getSetting() {
         const ss = await this.prisma.siteSetting.findFirst().catch(() => null);
-        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null, growthPerYuan: 1 } as any;
+        return ss || { id: 1, title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null, growthPerYuan: 1, businessHoursJson: { start: '09:00', end: '18:00' }, busyEnabled: false, pausedEnabled: false } as any;
     }
 
     @Post('site-setting')
     @UseGuards(AdminGuard)
     @RequirePerm('system-basic')
     @ApiOperation({ summary: '保存站点基础设置' })
-    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null; growthPerYuan?: number }) {
+    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null; growthPerYuan?: number; businessHoursJson?: { start?: string; end?: string } | null; busyEnabled?: boolean; pausedEnabled?: boolean }) {
         const payload: any = {
             title: (body.title || 'WashClub 管理后台').slice(0, 60),
             logoUrl: body.logoUrl ?? null,
@@ -61,6 +61,8 @@ export class SystemSettingController {
             bgImageUrl: body.bgImageUrl ?? null,
             defaultMemberAvatarUrl: body.defaultMemberAvatarUrl ?? null,
             growthPerYuan: Math.max(1, Math.floor(Number(body?.growthPerYuan ?? 1))),
+            businessHoursJson: normalizeBusinessHours(body?.businessHoursJson),
+            ...normalizeManualStatus(body?.busyEnabled, body?.pausedEnabled),
         };
         const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
         let saved: any;
@@ -77,6 +79,18 @@ export class SystemSettingController {
             await this.syncBindings('SiteSetting', id, 'defaultMemberAvatarUrl', saved.defaultMemberAvatarUrl ? [saved.defaultMemberAvatarUrl] : []);
         } catch {}
         return saved;
+    }
+
+    // 计算当前营业状态（公共接口）
+    @Get('public/business-status')
+    @ApiOperation({ summary: '公共-获取当前营业状态' })
+    async getPublicBusinessStatus() {
+        const ss: any = await this.prisma.siteSetting.findFirst().catch(() => null) || { businessHoursJson: { start: '09:00', end: '18:00' }, busyEnabled: false, pausedEnabled: false };
+        const hours = normalizeBusinessHours(ss?.businessHoursJson);
+        const flags = normalizeManualStatus(ss?.busyEnabled, ss?.pausedEnabled);
+        const now = new Date();
+        const status = computeBusinessStatus(hours, flags, now);
+        return { now: now.toISOString(), hours, ...flags, status, label: statusLabel(status) };
     }
 
     private async getAssetIdsFromUrls(urls: string[]): Promise<string[]> {
@@ -172,6 +186,53 @@ export class SystemSettingController {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(fallback);
     }
+
+    // =========================
+    // 工具方法（文件内局部）
+    // =========================
+}
+
+function normalizeBusinessHours(input: any): { start: string; end: string } {
+    try {
+        const s = String(input?.start || '09:00').slice(0,5);
+        const e = String(input?.end || '18:00').slice(0,5);
+        const ok = (v:string)=> /^\d{2}:\d{2}$/.test(v);
+        const start = ok(s) ? s : '09:00';
+        const end = ok(e) ? e : '18:00';
+        return { start, end };
+    } catch { return { start: '09:00', end: '18:00' }; }
+}
+
+function normalizeManualStatus(busy?: any, paused?: any): { busyEnabled: boolean; pausedEnabled: boolean } {
+    const b = !!busy; const p = !!paused;
+    if (p) return { busyEnabled: false, pausedEnabled: true };
+    if (b) return { busyEnabled: true, pausedEnabled: false };
+    return { busyEnabled: false, pausedEnabled: false };
+}
+
+type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
+function statusLabel(s: BizStatus): string {
+    if (s==='OPEN') return '营业中';
+    if (s==='REST') return '休息中';
+    if (s==='BUSY') return '忙碌';
+    return '暂停营业';
+}
+
+function computeBusinessStatus(hours: { start:string; end:string }, flags: { busyEnabled:boolean; pausedEnabled:boolean }, now: Date): BizStatus {
+    if (flags.pausedEnabled) return 'PAUSED';
+    if (flags.busyEnabled) return 'BUSY';
+    // 自动：根据时间判断营业/休息；支持跨天营业（end < start）
+    const [sh, sm] = hours.start.split(':').map(n=>parseInt(n,10));
+    const [eh, em] = hours.end.split(':').map(n=>parseInt(n,10));
+    const t = now.getHours()*60 + now.getMinutes();
+    const startMin = (isFinite(sh)?sh:9)*60 + (isFinite(sm)?sm:0);
+    const endMin = (isFinite(eh)?eh:18)*60 + (isFinite(em)?em:0);
+    if (endMin === startMin) return 'REST'; // 0 营业时长视为休息
+    if (endMin > startMin) {
+        return (t >= startMin && t < endMin) ? 'OPEN' : 'REST';
+    }
+    // 跨天：如 20:00 - 02:00
+    return (t >= startMin || t < endMin) ? 'OPEN' : 'REST';
 }
 
 

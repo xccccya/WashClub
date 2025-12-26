@@ -41,12 +41,12 @@
 									:member-vehicle-id="memberVehicleId"
 									:guest-vehicle-id="guestVehicleId"
 									:plate-number="plateNumber"
-									:pay-after-service="payAfterService"
+								
 									:coupon-discount-est="couponDiscountEst"
 									:member-discount-applied="memberDiscountApplied"
 									:points-amount-yuan="pointsAmountYuan"
 									@update:identity="(v: any)=>identity=v as any"
-									@update:payAfterService="(v: any)=>payAfterService=v"
+								
 									@update:memberKeyword="(v: any)=>memberKeyword=v"
 									@pick-member="onPickMember"
 									@clear-member="clearMember"
@@ -175,18 +175,15 @@
 				:points-allowed-by-coupons="pointsAllowedByCoupons"
 				:enable-member-discount="enableMemberDiscount"
 				:supports-member-discount="supportsMemberDiscount"
-				:service-products-in-cart="serviceProductsInCart"
-				:queue-types="queueTypes"
 				:addr-display="addrDisplay"
-				:pay-after-service="payAfterService"
-				:points-available="pointsAvailable"
-				@confirm-enqueue="onConfirmEnqueue"
+					:points-available="pointsAvailable"
+					
 				@update:selected-coupon-ids="onSelectedCouponIdsChange"
 				@update:used-points="onUsedPointsChangeTpl"
 				@update:enable-member-discount="onEnableMemberDiscountChange"
 				@confirm-manual="confirmSettleManual"
 				@confirm-wx="confirmSettleWx"
-				@confirm-wash="confirmSettleWash"
+					@confirm-wash="confirmSettleWash"
 				@open-create-member-address="openCreateMemberAddress"
 				@open-manage-member-address="openManageMemberAddress"
 				@normalize-used-points="normalizeUsedPoints"
@@ -398,7 +395,6 @@ watch(selectedMember, async(val)=>{
 
 const plateNumber = ref('');
 let settingPlateProgrammatically = false;
-const payAfterService = ref(true);
 const identity = ref<'guest'|'member'>('guest');
 const GUEST_MEMBER_ID_CONST = resolveGuestMemberId();
 const memberVehicles = ref<Array<{ id:number; plateNumber:string }>>([]);
@@ -782,15 +778,13 @@ async function submitServiceOrder(){
     try{
         const items = cartItems.value.map(it=>({ productId: it.productId ?? null, skuId: it.skuId ?? null, name: it.name, imageUrl: it.imageUrl ?? null, specsText: it.specsText ?? null, barcode: it.barcode ?? null, price: it.price, discount: 0, quantity: it.quantity }));
         const memberIdResolved = identity.value==='member' && selectedMember.value ? Number(selectedMember.value.id) : (GUEST_MEMBER_ID_CONST || await ensureGuestMemberId());
-        const payload:any = { type: 'SERVICE', memberId: memberIdResolved, items, userRemark: null, vehicleId: vehicleIdResolved, payAfterService: !!payAfterService.value } as any;
+        const payload:any = { type: 'SERVICE', memberId: memberIdResolved, items, userRemark: null, vehicleId: vehicleIdResolved, payAfterService: false } as any;
         try{ if ((settleDialog as any).groupId) payload.groupId = Number((settleDialog as any).groupId); }catch{}
         const res:any = await http('/orders', { method:'POST', body: payload });
         if (res?.id){
             ElMessage.success('服务订单已创建');
-            if (!payAfterService.value) {
-                // 新策略：非先付服务单立即在结算弹窗内完成支付
-                settleDialog.visible = true; settleDialog.isService = true; settleDialog.createdOrderId = Number(res.id); settleDialog.tab = 'wx';
-            }
+            // 服务订单：创建后立即在结算弹窗内完成支付
+            settleDialog.visible = true; settleDialog.isService = true; settleDialog.createdOrderId = Number(res.id); settleDialog.tab = 'wx';
         }
         clearCart(); plateNumber.value=''; guestVehicleId.value=undefined; guestVehicleKeyword.value='';
     } catch(e:any){ ElMessage.error(String(e?.message||'创建失败')); }
@@ -801,10 +795,7 @@ async function submitProductOrder(){ if (orderKind.value!=='SP') return; if (!ca
     settleDialog.createdOrderId = null; settleDialog.isService=false; settleDialog.tab='wx'; settleDialog.manualMethod='CASH'; settleDialog.wxAuthCode=''; settleDialog.visible=true; }
 
 // ============ 统一结算弹窗（新增） ============
-const queueTypes = ref<any[]>([]);
-const settleDialog = reactive({ visible:false, tab:'wx' as 'manual'|'wx'|'wash', manualMethod:'CASH' as 'CASH'|'OFFLINE'|'SHOUQIANBA', wxAuthCode:'', loading:false, isService:false, isFk:false, fkAmount: 0 as number, createdOrderId: null as number|null, queueTypeId: undefined as number|undefined, serviceProductIds: [] as number[], washPrefer:'AUTO' as 'AUTO'|'MEMBER'|'GROUP', delivery: 'PICKUP' as 'EXPRESS'|'PICKUP', shippingAddressId: undefined as number|undefined, memberAddresses: [] as any[], showMemberAddrForm: false, addrForm: { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' }, groupId: undefined as number|undefined, groupName: '' as string, cashierDiscountAmount: 0 as number });
-const serviceProductsInCart = computed(()=> cartItems.value.filter(it=> it.productType==='SERVICE' && Number(it.productId||0)>0));
-async function loadQueueTypes(){ try{ queueTypes.value = await http<any[]>('/queue-types', { method:'GET' }).catch(()=>[]); }catch{ queueTypes.value = []; } }
+const settleDialog = reactive({ visible:false, tab:'wx' as 'manual'|'wx'|'wash', manualMethod:'CASH' as 'CASH'|'OFFLINE'|'SHOUQIANBA', wxAuthCode:'', loading:false, isService:false, isFk:false, fkAmount: 0 as number, createdOrderId: null as number|null, washPrefer:'AUTO' as 'AUTO'|'MEMBER'|'GROUP', delivery: 'PICKUP' as 'EXPRESS'|'PICKUP', shippingAddressId: undefined as number|undefined, memberAddresses: [] as any[], showMemberAddrForm: false, addrForm: { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' }, groupId: undefined as number|undefined, groupName: '' as string, cashierDiscountAmount: 0 as number });
 function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visible=true; settleDialog.isService = (orderKind.value==='SERVICE'); settleDialog.createdOrderId=null; settleDialog.tab='wx'; settleDialog.manualMethod='CASH'; settleDialog.wxAuthCode='';
     // 配送方式默认与限制：优先自提，其次快递；仅在自提不可用时选择快递
     settleDialog.delivery = hasPhysicalInCart.value ? 'PICKUP' : 'PICKUP';
@@ -825,16 +816,16 @@ function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visi
     (settleDialog as any).cashierDiscountAmount = 0;
     (settleDialog as any).isFk = false; (settleDialog as any).fkAmount = 0;
     settleDialog.shippingAddressId = undefined; settleDialog.memberAddresses = []; settleDialog.showMemberAddrForm=false; settleDialog.addrForm = { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' };
-    if (orderKind.value==='SERVICE' && payAfterService.value){ loadQueueTypes(); }
+    
     if (orderKind.value==='SP' && identity.value==='member' && selectedMember.value && hasPhysicalInCart.value){ loadMemberAddresses(Number(selectedMember.value.id)); }
     // 打开时确保已加载券详情，保证弹窗中的预计显示正确
     try{ ensureCouponDetailsLoaded(); }catch{}
 }
-async function confirmSettleManual(){ try{ if (orderKind.value==='SERVICE' && payAfterService.value){ await createServiceOrderAndEnqueue(); settleDialog.visible=false; clearCart(); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/manual`, { method:'POST', body:{ method: settleDialog.manualMethod } }); ElMessage.success('支付已标记'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
-async function confirmSettleWx(){ try{ if (orderKind.value==='SERVICE' && payAfterService.value){ await createServiceOrderAndEnqueue(); settleDialog.visible=false; clearCart(); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } const code = String(settleDialog.wxAuthCode||'').trim(); if (!code){ ElMessage.error('请输入授权码'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/wx-micropay`, { method:'POST', body:{ authCode: code } }); ElMessage.success('微信付款成功'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
-async function confirmSettleWash(){ try{ if (orderKind.value!=='SERVICE'){ ElMessage.error('仅服务订单支持划扣'); return; } if (payAfterService.value){ await createServiceOrderAndEnqueue(); settleDialog.visible=false; clearCart(); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; const prefer = settleDialog.washPrefer==='AUTO' ? undefined : (settleDialog.washPrefer as any); await http(`/orders/${oid}/pay/wash-card`, { method:'POST', body:{ prefer } }); ElMessage.success('洗车卡划扣成功'); settleDialog.visible=false; clearCart(); } catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleManual(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/manual`, { method:'POST', body:{ method: settleDialog.manualMethod } }); ElMessage.success('支付已标记'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleWx(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } const code = String(settleDialog.wxAuthCode||'').trim(); if (!code){ ElMessage.error('请输入授权码'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/wx-micropay`, { method:'POST', body:{ authCode: code } }); ElMessage.success('微信付款成功'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleWash(){ try{ if (orderKind.value!=='SERVICE'){ ElMessage.error('仅服务订单支持划扣'); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; const prefer = settleDialog.washPrefer==='AUTO' ? undefined : (settleDialog.washPrefer as any); await http(`/orders/${oid}/pay/wash-card`, { method:'POST', body:{ prefer } }); ElMessage.success('洗车卡划扣成功'); settleDialog.visible=false; clearCart(); } catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); } finally { settleDialog.loading=false; } }
 
-function onConfirmEnqueue(){ createServiceOrderAndEnqueue().then(()=>{ try{ settleDialog.visible=false; clearCart(); }catch{} }); }
+ 
 
 // 在结算弹窗内按需创建订单（SP 或 非先付的服务单）
 async function ensureOrderForSettle(): Promise<number|null>{
@@ -879,7 +870,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
             if (res?.id){ settleDialog.createdOrderId = Number(res.id); return Number(res.id); }
             return null;
         } else {
-            // 服务单（非先服务后付）
+            // 服务单（仅支持立即收款）
             let vehicleIdResolved: number|undefined;
             if (identity.value==='guest'){
                 if (guestVehicleId.value){ vehicleIdResolved = guestVehicleId.value; }
@@ -905,7 +896,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
         }
     }catch(e:any){ ElMessage.error(String(e?.message||'创建订单失败')); return null; }
 }
-async function createServiceOrderAndEnqueue(){ if (!payAfterService.value) return; if (!settleDialog.queueTypeId){ ElMessage.error('请选择队列类型'); return; } const svcItems = serviceProductsInCart.value.map(it=> ({ productId: Number(it.productId), skuId: (it.skuId!=null? Number(it.skuId): undefined), quantity: Math.max(1, Number(it.quantity||1)) })); const items = svcItems.filter(it=> Number.isFinite(it.productId) && it.productId>0); if (!items.length){ ElMessage.error('清单中没有服务商品'); return; } let vehicleIdResolved: number|undefined; if (identity.value==='guest'){ if (guestVehicleId.value) vehicleIdResolved = guestVehicleId.value; else { if (!plateNumber.value){ ElMessage.error('请输入车牌号'); return; } const v = await ensureVehicleForPlate(plateNumber.value, null); if (!v?.id){ ElMessage.error('创建/获取车辆失败'); return; } vehicleIdResolved = v.id; } } else { if (!selectedMember.value){ ElMessage.error('请选择会员'); return; } if (!memberVehicleId.value){ ElMessage.error('请选择会员车辆'); return; } vehicleIdResolved = Number(memberVehicleId.value); } const body:any = { queueTypeId: settleDialog.queueTypeId, items, vehicleId: vehicleIdResolved, plateNumber: vehicleIdResolved? undefined : plateNumber.value || undefined, userRemark: null }; try{ if ((settleDialog as any).groupId) body.groupId = Number((settleDialog as any).groupId); }catch{} try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) body.cashierDiscountAmount = Number(v.toFixed(2)); }catch{} await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建服务订单并入队'); }
+// 已移除先服务后付的排队与入队逻辑
 
 // ============ 挂单/取单（8 槽） ============
 const hangDrawer = ref(false);
@@ -915,14 +906,14 @@ function loadHangFromStorage(){ try{ const raw = localStorage.getItem(HANG_KEY);
 function saveHangToStorage(){ try{ localStorage.setItem(HANG_KEY, JSON.stringify(hangSlots.value)); }catch{} }
 function openHangDrawer(){ hangDrawer.value = true; }
 function snapshotSummary(): string { const kind = orderKind.value==='SERVICE' ? '服务' : '商品'; const count = cartItems.value.reduce((s,it)=> s+Number(it.quantity||0), 0); return `${kind}｜${count}件｜应收¥${payAmount.value.toFixed(2)}`; }
-function saveToHang(){ ElMessageBox.prompt('为挂单填写名称或标签（如 皖A88XX/张三）', '挂单', { inputPlaceholder:'例如：张三-黑AT8888', inputPattern:/^.{1,20}$/ , inputErrorMessage:'1~20个字符' }).then(({ value }: any)=>{ const idx = hangSlots.value.findIndex(s=> !s); const slotIdx = idx>=0 ? idx : 0; hangSlots.value[slotIdx] = { label: String(value||'挂单'), orderKind: orderKind.value, items: cartItems.value, member: selectedMember.value, plateNumber: plateNumber.value, coupons: selectedCouponIds.value, usedPoints: usedPoints.value, enableMemberDiscount: enableMemberDiscount.value, summary: snapshotSummary(), payAfterService: payAfterService.value, // 扩展快照字段
-		identity: identity.value, guestVehicleId: guestVehicleId.value, memberVehicleId: memberVehicleId.value, delivery: settleDialog.delivery, shippingAddressId: settleDialog.shippingAddressId, queueTypeId: settleDialog.queueTypeId, serviceProductIds: settleDialog.serviceProductIds };
+function saveToHang(){ ElMessageBox.prompt('为挂单填写名称或标签（如 皖A88XX/张三）', '挂单', { inputPlaceholder:'例如：张三-黑AT8888', inputPattern:/^.{1,20}$/ , inputErrorMessage:'1~20个字符' }).then(({ value }: any)=>{ const idx = hangSlots.value.findIndex(s=> !s); const slotIdx = idx>=0 ? idx : 0; hangSlots.value[slotIdx] = { label: String(value||'挂单'), orderKind: orderKind.value, items: cartItems.value, member: selectedMember.value, plateNumber: plateNumber.value, coupons: selectedCouponIds.value, usedPoints: usedPoints.value, enableMemberDiscount: enableMemberDiscount.value, summary: snapshotSummary(),
+		identity: identity.value, guestVehicleId: guestVehicleId.value, memberVehicleId: memberVehicleId.value, delivery: settleDialog.delivery, shippingAddressId: settleDialog.shippingAddressId };
 	saveHangToStorage(); ElMessage.success(`已挂单：${value}`); }).catch(()=>{}); }
-function loadFromHang(idx: number){ const s = hangSlots.value[idx]; if (!s) return; orderKind.value = s.orderKind || 'SERVICE'; cartItems.value = Array.isArray(s.items) ? s.items : []; selectedMember.value = s.member || null; identity.value = s.identity || (selectedMember.value ? 'member' : 'guest'); plateNumber.value = s.plateNumber || ''; selectedCouponIds.value = Array.isArray(s.coupons) ? s.coupons : []; usedPoints.value = Number(s.usedPoints||0); enableMemberDiscount.value = !!s.enableMemberDiscount; payAfterService.value = !!s.payAfterService; // 恢复扩展字段
-	guestVehicleId.value = s.guestVehicleId; memberVehicleId.value = s.memberVehicleId; settleDialog.delivery = s.delivery || (hasPhysicalInCart.value ? 'EXPRESS' : 'PICKUP'); settleDialog.shippingAddressId = s.shippingAddressId; settleDialog.queueTypeId = s.queueTypeId; settleDialog.serviceProductIds = Array.isArray(s.serviceProductIds) ? s.serviceProductIds : []; recompute(); ElMessage.success(s.label ? `已取单：${s.label}` : `已取单 ${idx+1}`); }
+function loadFromHang(idx: number){ const s = hangSlots.value[idx]; if (!s) return; orderKind.value = s.orderKind || 'SERVICE'; cartItems.value = Array.isArray(s.items) ? s.items : []; selectedMember.value = s.member || null; identity.value = s.identity || (selectedMember.value ? 'member' : 'guest'); plateNumber.value = s.plateNumber || ''; selectedCouponIds.value = Array.isArray(s.coupons) ? s.coupons : []; usedPoints.value = Number(s.usedPoints||0); enableMemberDiscount.value = !!s.enableMemberDiscount; 
+		guestVehicleId.value = s.guestVehicleId; memberVehicleId.value = s.memberVehicleId; settleDialog.delivery = s.delivery || (hasPhysicalInCart.value ? 'EXPRESS' : 'PICKUP'); settleDialog.shippingAddressId = s.shippingAddressId; recompute(); ElMessage.success(s.label ? `已取单：${s.label}` : `已取单 ${idx+1}`); }
 function clearHang(idx: number){ hangSlots.value[idx] = null; saveHangToStorage(); }
 
-function resetAll(){ orderKind.value = 'SERVICE'; activeCategoryId.value = undefined; keyword.value = ''; showOnlyEnabled.value = true; clearCart(); selectedMember.value = null; plateNumber.value = ''; selectedCouponIds.value = []; usedPoints.value = 0; enableMemberDiscount.value = true; payAfterService.value = true; loadCategories(); loadProducts(); }
+function resetAll(){ orderKind.value = 'SERVICE'; activeCategoryId.value = undefined; keyword.value = ''; showOnlyEnabled.value = true; clearCart(); selectedMember.value = null; plateNumber.value = ''; selectedCouponIds.value = []; usedPoints.value = 0; enableMemberDiscount.value = true; loadCategories(); loadProducts(); }
 
 onMounted(async ()=>{ loadHangFromStorage(); await Promise.all([loadCategories(), loadProducts()]); window.addEventListener('keydown', onGlobalKeydown); });
 onBeforeUnmount(()=>{ try{ window.removeEventListener('keydown', onGlobalKeydown); }catch{} });

@@ -275,8 +275,12 @@ export class OrderController {
     @Post(':id/pay/wash-card')
     @UseGuards(AdminGuard)
     @RequirePerm('orders')
-    async payByWashCard(@Param('id', ParseIntPipe) id: number, @Body() body: { prefer?: 'GROUP'|'MEMBER' }, @Headers('authorization') authHeader?: string){
+    async payByWashCard(@Param('id', ParseIntPipe) id: number, @Body() body: { prefer?: 'GROUP'|'MEMBER'; payerMemberId?: number | null; payerCardId?: number | null }, @Headers('authorization') authHeader?: string){
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
+        // 若指定付款会员与卡，则走手动指定流程
+        if (body?.payerMemberId || body?.payerCardId) {
+            return (this.payment as any).markPaidByWashCardManual({ orderId: id, payerMemberId: Number((body as any)?.payerMemberId||0) || null, payerCardId: Number((body as any)?.payerCardId||0) || null, prefer: body?.prefer, operatorUserId });
+        }
         return this.payment.markPaidByWashCard({ orderId: id, prefer: body?.prefer, operatorUserId });
     }
 
