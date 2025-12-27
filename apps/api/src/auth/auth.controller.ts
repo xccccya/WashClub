@@ -1,8 +1,9 @@
-import { Body, Controller, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Post, BadRequestException, Get, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { IsNotEmpty, IsString, MinLength, IsInt, IsIn, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
+import { AdminGuard } from './admin.guard.js';
 
 class LoginDto {
 	@ApiProperty({ description: '手机号', example: '13800138000' })
@@ -191,6 +192,13 @@ export class AuthController {
 	@ApiOperation({ summary: '管理员更换头像' })
 	updateAdminAvatar(@Body() dto: UpdateAdminAvatarDto) {
 		return this.service.updateAdminAvatar(Number(dto.userId), dto.avatarUrl ?? null);
+	}
+
+	@Get('admin/me')
+	@UseGuards(AdminGuard)
+	@ApiOperation({ summary: '管理员登录态校验（验签）' })
+	adminMe(@Req() req: any) {
+		return req.user || null;
 	}
 }
 

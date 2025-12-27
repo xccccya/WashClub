@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as crypto from 'node:crypto';
 import { PrismaService } from '../prisma.service.js';
 import { AssetService } from '../file/asset.service.js';
 import { resolveGuestMemberIdEnv } from '../env.js';
+import { hashPassword } from '../auth/password.js';
 
 @Injectable()
 export class MemberService {
@@ -168,7 +168,7 @@ export class MemberService {
 				const exists = await tx.member.findUnique({ where: { uid } }).catch(() => null);
 				if (!exists) break;
 			}
-			const password = data.password ? crypto.createHash('sha256').update(data.password).digest('hex') : undefined;
+			const password = data.password ? await hashPassword(data.password) : undefined;
 			// 禁止手动添加系统标签；仅允许非系统标签通过手动方式添加
 			const inputTagIds = Array.isArray(data.tagIds) ? data.tagIds : [];
 			const systemTags = await tx.memberTag.findMany({ where: { id: { in: inputTagIds }, isSystem: true }, select: { id: true } });
@@ -197,7 +197,7 @@ export class MemberService {
 			if (Array.from(nameTrim).length > 10) throw new BadRequestException('昵称长度不可超过10个字符');
 			updateData.name = nameTrim;
 		}
-		if (data.password) updateData.password = crypto.createHash('sha256').update(data.password).digest('hex');
+		if (data.password) updateData.password = await hashPassword(data.password);
 		if (data.tagIds) {
 			const desiredTagIds: number[] = Array.isArray(data.tagIds) ? data.tagIds : [];
 			// 拦截系统标签：不允许手动传入系统标签
@@ -228,8 +228,8 @@ export class MemberService {
 		}
 	}
 
-	setPassword(id: number, password: string) {
-		const hashed = crypto.createHash('sha256').update(password).digest('hex');
+	async setPassword(id: number, password: string) {
+		const hashed = await hashPassword(password);
 		return this.prisma.member.update({ where: { id }, data: { password: hashed } });
 	}
 

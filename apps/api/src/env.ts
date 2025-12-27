@@ -10,6 +10,7 @@ const ENV_GUEST_MEMBER_ID = 'GUEST_MEMBER_ID' as const;
 const ENV_GUEST_MEMBER_ID_LEGACY = 'GUESS_MEMBER_ID' as const;
 const ENV_JWT_SECRET = 'JWT_SECRET' as const;
 const ENV_JWT_EXPIRES_IN = 'JWT_EXPIRES_IN' as const;
+const ENV_BCRYPT_SALT_ROUNDS = 'BCRYPT_SALT_ROUNDS' as const;
 
 const warned = new Set<string>();
 function warnOnce(key: string, message: string) {
@@ -55,6 +56,24 @@ export function resolveJwtSecretEnv(): string {
  */
 export function resolveJwtExpiresInEnv(): string {
 	return getEnvTrimmed(ENV_JWT_EXPIRES_IN) ?? '7d';
+}
+
+/**
+ * bcrypt cost factor（可选），默认 10。
+ * - 数值越大越安全但越耗时；建议 10~12
+ */
+export function resolveBcryptSaltRoundsEnv(): number {
+	const raw = getEnvTrimmed(ENV_BCRYPT_SALT_ROUNDS);
+	if (!raw) return 10;
+	const n = Number(raw);
+	// bcryptjs 支持 4~31，但实际线上不建议过大；这里做一个温和约束避免误配导致 CPU 打满
+	if (!Number.isFinite(n) || !Number.isInteger(n)) {
+		throw new Error(`[env] ${ENV_BCRYPT_SALT_ROUNDS} 必须为整数（例如 10）`);
+	}
+	if (n < 8 || n > 15) {
+		throw new Error(`[env] ${ENV_BCRYPT_SALT_ROUNDS} 建议配置在 8~15 之间（当前=${raw}）`);
+	}
+	return n;
 }
 
 /**

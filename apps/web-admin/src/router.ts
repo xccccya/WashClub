@@ -36,6 +36,7 @@ import GroupCards from './pages/GroupCards.vue';
 import GroupBalance from './pages/GroupBalance.vue';
 import SystemEmployees from './pages/SystemEmployees.vue';
 import NotificationTemplates from './pages/NotificationTemplates.vue';
+import { API_BASE } from './config';
 
 const router = createRouter({
 	history: createWebHistory('/admin'),
@@ -90,53 +91,74 @@ const router = createRouter({
 });
 
 function isValidAdminToken(token?: string): boolean {
-	if (!token) return false;
-	try {
-		const payloadRaw = (token.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/');
-		const payload = JSON.parse(atob(payloadRaw)||'{}');
-		const exp = Number(payload?.exp || 0);
-		const type = String(payload?.type||'');
-		if (type !== 'admin') return false;
-		if (exp && Date.now()/1000 > exp - 5) return false;
-		return true;
-	} catch { return false; }
+	return !!token;
 }
 
-router.beforeEach((to, _from, next) => {
-	const token = localStorage.getItem('token');
-	// 已登录状态下访问登录页，自动跳首页
-	if (to.path === '/login' && isValidAdminToken(token || undefined)) {
-		return next('/');
-	}
-	if (to.meta.requiresAuth) {
-		if (!token) return next('/login');
-		try {
-			const payloadRaw = (token.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/');
-			const payload = JSON.parse(atob(payloadRaw)||'{}');
-			const exp = Number(payload?.exp || 0);
-			const type = String(payload?.type||'');
-			if (type !== 'admin') {
-				localStorage.removeItem('token');
-				localStorage.removeItem('user');
-				return next('/login');
-			}
-			if (exp && Date.now()/1000 > exp - 5) {
-				localStorage.removeItem('token');
-				localStorage.removeItem('user');
-				return next('/login');
-			}
-		} catch {}
-	}
-	const userStr = localStorage.getItem('user') || '{}';
-	let allow = true;
+type AdminMe = {
+	id: number;
+	role?: string;
+	roleId?: number | null;
+	phone?: string;
+	name?: string;
+	avatarUrl?: string | null;
+	permissions?: string[];
+};
+
+let _lastToken = '';
+let _lastOk = false;
+let _lastAt = 0;
+let _lastUser: AdminMe | null = null;
+
+async function fetchAdminMe(token: string): Promise<AdminMe | null> {
 	try {
-		const u = JSON.parse(userStr);
-		const perm: string | undefined = (to.meta as any)?.perm;
-		if (perm && u && u.permissions && !u.permissions.includes('*')) {
-			allow = u.permissions.includes(perm);
+		const res = await fetch(`${API_BASE}/auth/admin/me`, {
+			method: 'GET',
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (!res.ok) return null;
+		return (await res.json()) as AdminMe;
+	} catch {
+		return null;
+	}
+}
+
+async function ensureAdminSession(token: string): Promise<AdminMe | null> {
+	const now = Date.now();
+	// 30s 内同一个 token 复用校验结果，避免每次路由跳转都打接口
+	if (token === _lastToken && now - _lastAt < 30_000) return _lastOk ? _lastUser : null;
+	_lastToken = token;
+	_lastAt = now;
+	const u = await fetchAdminMe(token);
+	_lastOk = !!u;
+	_lastUser = u;
+	if (u) {
+		try { localStorage.setItem('user', JSON.stringify(u || {})); } catch {}
+	}
+	return u;
+}
+
+router.beforeEach(async (to, _from, next) => {
+	const token = localStorage.getItem('token') || '';
+	// 已登录状态下访问登录页：以服务端验签为准
+	if (to.path === '/login' && isValidAdminToken(token || undefined)) {
+		const u = await ensureAdminSession(token);
+		if (u) return next('/');
+	}
+
+	if ((to.meta as any)?.requiresAuth) {
+		if (!token) return next('/login');
+		const u = await ensureAdminSession(token);
+		if (!u) {
+			try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch {}
+			return next('/login');
 		}
-	} catch {}
-	return allow ? next() : next('/');
+		// 权限校验：使用后端返回的 permissions（避免依赖未验签的 JWT payload）
+		const perm: string | undefined = (to.meta as any)?.perm;
+		if (perm && Array.isArray(u.permissions) && !u.permissions.includes('*')) {
+			return u.permissions.includes(perm) ? next() : next('/');
+		}
+	}
+	return next();
 });
 
 router.afterEach((to) => {

@@ -8,6 +8,7 @@ import App from './App.vue';
 import Login from './pages/Login.vue';
 import Home from './pages/Home.vue';
 import Layout from './pages/Layout.vue';
+import { API_BASE } from './config';
 
 // 全局 passive 事件补丁：减少 Chrome 对触控滚动阻塞的告警
 (function(){
@@ -30,16 +31,49 @@ import Layout from './pages/Layout.vue';
 })();
 
 function isValidAdminToken(token?: string): boolean {
-	if (!token) return false;
+	return !!token;
+}
+
+type AdminMe = {
+	id: number;
+	role?: string;
+	roleId?: number | null;
+	phone?: string;
+	name?: string;
+	avatarUrl?: string | null;
+	permissions?: string[];
+};
+
+let _lastToken = '';
+let _lastOk = false;
+let _lastAt = 0;
+let _lastUser: AdminMe | null = null;
+
+async function fetchAdminMe(token: string): Promise<AdminMe | null> {
 	try {
-		const payloadRaw = (token.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/');
-		const payload = JSON.parse(atob(payloadRaw)||'{}');
-		const exp = Number(payload?.exp || 0);
-		const type = String(payload?.type||'');
-		if (type !== 'admin') return false;
-		if (exp && Date.now()/1000 > exp - 5) return false;
-		return true;
-	} catch { return false; }
+		const res = await fetch(`${API_BASE}/auth/admin/me`, {
+			method: 'GET',
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (!res.ok) return null;
+		return (await res.json()) as AdminMe;
+	} catch {
+		return null;
+	}
+}
+
+async function ensureAdminSession(token: string): Promise<AdminMe | null> {
+	const now = Date.now();
+	if (token === _lastToken && now - _lastAt < 30_000) return _lastOk ? _lastUser : null;
+	_lastToken = token;
+	_lastAt = now;
+	const u = await fetchAdminMe(token);
+	_lastOk = !!u;
+	_lastUser = u;
+	if (u) {
+		try { localStorage.setItem('user', JSON.stringify(u || {})); } catch {}
+	}
+	return u;
 }
 
 const router = createRouter({
@@ -63,28 +97,24 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
-	const token = localStorage.getItem('token');
+	const token = localStorage.getItem('token') || '';
 	if (to.path === '/login' && isValidAdminToken(token || undefined)) {
-		return next('/');
+		ensureAdminSession(token).then((u) => {
+			if (u) return next('/');
+			return next();
+		});
+		return;
 	}
 	if (to.meta.requiresAuth) {
 		if (!token) return next('/login');
-		try {
-			const payloadRaw = (token.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/');
-			const payload = JSON.parse(atob(payloadRaw)||'{}');
-			const exp = Number(payload?.exp || 0);
-			const type = String(payload?.type||'');
-			if (type !== 'admin') {
-				localStorage.removeItem('token');
-				localStorage.removeItem('user');
+		ensureAdminSession(token).then((u) => {
+			if (!u) {
+				try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch {}
 				return next('/login');
 			}
-			if (exp && Date.now()/1000 > exp - 5) {
-				localStorage.removeItem('token');
-				localStorage.removeItem('user');
-				return next('/login');
-			}
-		} catch {}
+			return next();
+		});
+		return;
 	}
 	return next();
 });

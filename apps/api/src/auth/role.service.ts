@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
-import * as crypto from 'node:crypto';
 import { AssetService } from '../file/asset.service.js';
+import { hashPassword } from './password.js';
 
 export type AdminMenuKey =
 	| 'members'
@@ -77,24 +77,25 @@ export class AdminRoleService {
 		return this.prisma.user.findMany({ orderBy: { id: 'asc' }, include: { roleRef: true } });
 	}
 
-	private hash(raw: string) { return crypto.createHash('sha256').update(raw).digest('hex'); }
-
-	createAdmin(data: { phone: string; name?: string; password: string; roleId: number; avatarUrl?: string | null }) {
+	async createAdmin(data: { phone: string; name?: string; password: string; roleId: number; avatarUrl?: string | null }) {
 		return this.prisma.$transaction(async (tx) => {
 			const exists = await tx.user.findUnique({ where: { phone: data.phone } });
 			if (exists) throw new BadRequestException('手机号已存在');
 			let avatarUrl: string | null = null;
 			try { const ss = await tx.siteSetting.findFirst().catch(()=>null); avatarUrl = (data.avatarUrl ?? ss?.defaultMemberAvatarUrl ?? null) as any; } catch {}
-			const created = await tx.user.create({ data: ({ phone: data.phone, name: data.name, password: this.hash(data.password), roleId: data.roleId, role: 'staff', avatarUrl } as any) });
+			const hashed = await hashPassword(data.password);
+			const created = await tx.user.create({ data: ({ phone: data.phone, name: data.name, password: hashed, roleId: data.roleId, role: 'staff', avatarUrl } as any) });
 			try { await this.syncBindings('User', String(created.id), 'avatarUrl', (created as any).avatarUrl ? [(created as any).avatarUrl] : []); } catch {}
 			return created;
 		});
 	}
 
-	updateAdmin(id: number, data: { phone?: string; name?: string; password?: string; roleId?: number | null; avatarUrl?: string | null }) {
+	async updateAdmin(id: number, data: { phone?: string; name?: string; password?: string; roleId?: number | null; avatarUrl?: string | null }) {
 		const payload: any = { ...data };
-		if (data.password) payload.password = this.hash(data.password);
-		return (this.prisma.user.update({ where: { id }, data: payload as any }) as any).then(async (u:any)=>{ try { await this.syncBindings('User', String(u.id), 'avatarUrl', (u as any).avatarUrl ? [(u as any).avatarUrl] : []); } catch {} return u; });
+		if (data.password) payload.password = await hashPassword(data.password);
+		const u: any = await (this.prisma.user.update({ where: { id }, data: payload as any }) as any);
+		try { await this.syncBindings('User', String(u.id), 'avatarUrl', (u as any).avatarUrl ? [(u as any).avatarUrl] : []); } catch {}
+		return u;
 	}
 
 	removeAdmin(id: number) {

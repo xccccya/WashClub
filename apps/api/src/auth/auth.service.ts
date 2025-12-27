@@ -3,15 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { SmsService } from './sms.service.js';
 import { WechatTokenService } from './wechat-token.service.js';
-import * as crypto from 'node:crypto';
+import { hashPassword, verifyPassword } from './password.js';
 
 @Injectable()
 export class AuthService {
 	constructor(private prisma: PrismaService, private jwt: JwtService, private sms: SmsService, private wechatToken: WechatTokenService) {}
-
-	private hashPassword(raw: string) {
-		return crypto.createHash('sha256').update(raw).digest('hex');
-	}
 
 	// ====== WeChat MiniApp One-Tap Login Support ======
 
@@ -184,8 +180,15 @@ export class AuthService {
 		const invalidMsg = '账号或密码错误，请检查后重试';
 		const user = await this.prisma.user.findUnique({ where: { phone }, include: { roleRef: true } });
 		if (!user) throw new UnauthorizedException(invalidMsg);
-		const hashed = this.hashPassword(password);
-		if (user.password !== hashed) throw new UnauthorizedException(invalidMsg);
+		const { ok, needsUpgrade } = await verifyPassword(password, user.password);
+		if (!ok) throw new UnauthorizedException(invalidMsg);
+		// 旧 sha256 登录成功后自动升级为 bcrypt（不影响用户体验）
+		if (needsUpgrade) {
+			try {
+				const upgraded = await hashPassword(password);
+				await this.prisma.user.update({ where: { id: user.id }, data: { password: upgraded } });
+			} catch {}
+		}
 		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
 		const permissions = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
 		const expiresIn = '1d';
@@ -199,8 +202,14 @@ export class AuthService {
 	async loginMemberByPassword(phone: string, password: string) {
 		const member = await this.prisma.member.findUnique({ where: { phone } });
 		if (!member || !member.password) throw new UnauthorizedException('会员账号不存在或未设置密码');
-		const hashed = this.hashPassword(password);
-		if (member.password !== hashed) throw new UnauthorizedException('密码错误');
+		const { ok, needsUpgrade } = await verifyPassword(password, member.password);
+		if (!ok) throw new UnauthorizedException('密码错误');
+		if (needsUpgrade) {
+			try {
+				const upgraded = await hashPassword(password);
+				await this.prisma.member.update({ where: { id: member.id }, data: { password: upgraded } });
+			} catch {}
+		}
 		// 正式：令牌 7 天过期
 		const token = await this.jwt.signAsync(
 			{ sub: member.id, type: 'member', phone: member.phone },
@@ -287,7 +296,7 @@ export class AuthService {
 		// 查找会员并更新密码
 		const member = await this.prisma.member.findUnique({ where: { phone } });
 		if (!member) throw new UnauthorizedException('会员账号不存在');
-		const hashed = this.hashPassword(newPassword);
+		const hashed = await hashPassword(newPassword);
 		await this.prisma.member.update({ where: { id: member.id }, data: { password: hashed } });
 		return { ok: true };
 	}
@@ -327,9 +336,10 @@ export class AuthService {
 	async updateAdminPassword(userId: number, oldPassword: string, newPassword: string) {
 		const user = await this.prisma.user.findUnique({ where: { id: userId } });
 		if (!user) throw new UnauthorizedException('账户不存在');
-		const oldHashed = this.hashPassword(oldPassword);
-		if (user.password !== oldHashed) throw new UnauthorizedException('旧密码不正确');
-		const newHashed = this.hashPassword(newPassword);
+		if (!newPassword || String(newPassword).length < 6) throw new BadRequestException('新密码至少6位');
+		const { ok } = await verifyPassword(oldPassword, user.password);
+		if (!ok) throw new UnauthorizedException('旧密码不正确');
+		const newHashed = await hashPassword(newPassword);
 		await this.prisma.user.update({ where: { id: userId }, data: { password: newHashed } });
 		return { ok: true };
 	}

@@ -23,16 +23,24 @@ export class AdminGuard implements CanActivate {
 		const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { roleRef: true } });
 		if (!user) throw new UnauthorizedException('账户不存在');
 		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
+		const permissions: string[] = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
 		// 权限校验
 		const requiredPerm = this.reflector.getAllAndOverride<string | undefined>(PERM_KEY, [context.getHandler(), context.getClass()]);
 		if (requiredPerm) {
-			const perms: string[] = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
-			if (!(perms.includes('*') || perms.includes(requiredPerm))) {
+			if (!(permissions.includes('*') || permissions.includes(requiredPerm))) {
 				throw new ForbiddenException('无权限');
 			}
 		}
 		// 注入 request.user 便于后续使用
-		req.user = { id: user.id, roleId: user.roleId, role: user.role };
+		req.user = {
+			id: user.id,
+			roleId: user.roleId,
+			role: user.role,
+			phone: user.phone,
+			name: user.name ?? '',
+			avatarUrl: (user as any).avatarUrl ?? null,
+			permissions,
+		};
 		return true;
 	}
 }
