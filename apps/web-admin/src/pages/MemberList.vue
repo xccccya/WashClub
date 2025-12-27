@@ -205,18 +205,28 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, User, Edit, List, Delete, Refresh } from '@element-plus/icons-vue';
-
-const http = createHttpClient({
-	baseUrl: API_BASE,
-	getToken: () => localStorage.getItem('token') || undefined,
-});
+import {
+	memberCategoryControllerList,
+	memberControllerAdjustGrowth,
+	memberControllerCreate,
+	memberControllerGetGuestOrderOwner,
+	memberControllerGetGrowthLogsByMember,
+	memberControllerList,
+	memberControllerRemove,
+	memberControllerSetPassword,
+	memberControllerSyncGuestOrderOwner,
+	memberControllerUpdate,
+	memberLevelControllerList,
+	memberTagControllerCreate,
+	memberTagControllerList,
+	systemSettingControllerGetPublicSetting,
+} from '@wash/api-client';
 
 type Level = { id: number; name: string; weight: number };
 const levels = ref<Level[]>([]);
@@ -250,8 +260,8 @@ function isGuestOrderOwner(m: Member){
 }
 const guestOwnerInfo = ref<{ guestMemberId: number|null; exists?: boolean; tagged?: boolean }|null>(null);
 const syncingGuest = ref(false);
-async function loadGuestOwnerInfo(){ try{ guestOwnerInfo.value = await http('/member/_guest-owner', { method:'GET' }); }catch{ guestOwnerInfo.value = null; } }
-async function refreshGuestOwner(){ try{ syncingGuest.value = true; await http('/member/_sync-guest-owner', { method:'POST' }); await loadGuestOwnerInfo(); await fetchList(); ElMessage.success('已刷新游客占位账号'); }catch(e:any){ ElMessage.error(String(e?.message||'刷新失败')); } finally { syncingGuest.value = false; } }
+async function loadGuestOwnerInfo(){ try{ guestOwnerInfo.value = (await memberControllerGetGuestOrderOwner() as any) || null; }catch{ guestOwnerInfo.value = null; } }
+async function refreshGuestOwner(){ try{ syncingGuest.value = true; await memberControllerSyncGuestOrderOwner(); await loadGuestOwnerInfo(); await fetchList(); ElMessage.success('已刷新游客占位账号'); }catch(e:any){ ElMessage.error(String(e?.message||'刷新失败')); } finally { syncingGuest.value = false; } }
 
 const rules = {
 	name: [
@@ -288,8 +298,8 @@ async function openGrowthLogs(m: Member){
     growthLogs.value = [];
     growthMemberId = m.id;
     try{
-        const list = await http<any[]>(`/member/${m.id}/growth-logs`, { method: 'GET', query: { limit: 100 } });
-        growthLogs.value = Array.isArray(list) ? list : [];
+        const rows = (await memberControllerGetGrowthLogsByMember(String(m.id), { limit: 100 } as any) as any) as any[];
+        growthLogs.value = Array.isArray(rows) ? rows : [];
     } finally {
         growthLoading.value = false;
     }
@@ -314,7 +324,7 @@ async function saveAdjust(){
     // 二次确认
     const ok = await new Promise<boolean>(resolve=>{ const h=(window as any).confirm || ((msg:string)=>window.confirm(msg)); try{ resolve(!!h(`确认${delta>0?'增加':'扣减'}成长值 ${Math.abs(delta)} ？`)); }catch{ resolve(true); } });
     if (!ok) return;
-    await http(`/member/${growthMemberId}/growth-adjust`, { method:'POST', body: { delta, remark } });
+    await memberControllerAdjustGrowth(String(growthMemberId), { delta, remark } as any);
     ElMessage.success('已调整'); adjustDialog.value = false; openGrowthLogs({ id: growthMemberId } as any); fetchList();
 }
 
@@ -334,10 +344,10 @@ function formatTime(v?: string | null) {
 	}
 }
 
-async function fetchLevels(){ levels.value = await http<Level[]>('/member-level', { method: 'GET' }); }
-async function fetchCategories(){ categories.value = await http<Category[]>('/member-category', { method: 'GET' }); }
+async function fetchLevels(){ levels.value = (await memberLevelControllerList() as any) as Level[]; }
+async function fetchCategories(){ categories.value = (await memberCategoryControllerList() as any) as Category[]; }
 async function fetchTags(){
-	const all = await http<Tag[]>('/member-tag', { method: 'GET' });
+	const all = (await memberTagControllerList() as any) as Tag[];
 	// 前端在选择时隐藏系统默认标签，避免误选
 	tagOptions.value = all.filter(t => !t.isSystem);
 }
@@ -345,12 +355,9 @@ async function fetchTags(){
 async function fetchList() {
 	loading.value = true;
 	try {
-		const res = await http<{ items: Member[]; total: number; page: number; pageSize: number }>(
-			'/member/list',
-			{ method: 'GET', query: { keyword: keyword.value, page: page.value, pageSize: pageSize.value } },
-		);
-		list.value = res.items;
-		total.value = res.total;
+		const res = (await memberControllerList({ keyword: keyword.value, page: page.value, pageSize: pageSize.value } as any) as any) as { items: Member[]; total: number; page: number; pageSize: number };
+		list.value = Array.isArray(res?.items) ? res.items : [];
+		total.value = Number(res?.total || 0);
 	} finally {
 		loading.value = false;
 	}
@@ -379,7 +386,7 @@ function openResetPwd(item: Member){ if (isGroupOrderOwner(item)) { ElMessage.wa
 
 async function onResetPwdSave(){
 	if (!pwdForm.value.password || pwdForm.value.password !== pwdForm.value.password2) { ElMessage.error('两次密码不一致'); return; }
-	await http(`/member/${pwdForm.value.id}/password`, { method: 'PUT', body: { password: pwdForm.value.password } });
+	await memberControllerSetPassword(String(pwdForm.value.id), { password: pwdForm.value.password } as any);
 	pwdDialog.value = false; ElMessage.success('密码已更新');
 }
 
@@ -396,7 +403,7 @@ async function onResetPwdSave(){
 			if (!name) continue;
 			const exists = tagOptions.value.find(t => t.name === name);
 			if (exists) { tagIdsNumeric.push(exists.id); continue; }
-			const created = await http<Tag>('/member-tag', { method: 'POST', body: { name } });
+			const created = (await memberTagControllerCreate({ name } as any) as any) as Tag;
 			tagOptions.value.push(created);
 			tagIdsNumeric.push(created.id);
 		}
@@ -404,9 +411,9 @@ async function onResetPwdSave(){
 		if (form.value.avatarUrl !== undefined) payload.avatarUrl = form.value.avatarUrl;
 		if (!current.value?.id && form.value.password) payload.password = form.value.password;
 			if (current.value?.id) {
-				await http(`/member/${current.value.id}`, { method: 'PUT', body: payload });
+				await memberControllerUpdate(String(current.value.id), payload as any);
 			} else {
-				await http('/member/create', { method: 'POST', body: payload });
+				await memberControllerCreate(payload as any);
 			}
 			dialogVisible.value = false;
 			ElMessage.success('已保存');
@@ -434,7 +441,7 @@ function clearDelTimer(){ if (delTimer) { clearInterval(delTimer); delTimer = nu
 async function onDeleteConfirm(){
 	if (!delTarget.value) return;
 	if (isGroupOrderOwner(delTarget.value)) { ElMessage.warning('集团订单占位会员禁止删除'); delDialog.value=false; return; }
-	await http(`/member/${delTarget.value.id}`, { method: 'DELETE' });
+	await memberControllerRemove(String(delTarget.value.id));
 	ElMessage.success('已删除');
 	delDialog.value = false; delTarget.value = null; fetchList();
 }
@@ -443,10 +450,9 @@ onMounted(()=>{ ensureSiteSetting(); fetchLevels(); fetchCategories(); fetchTags
 
 // 读取站点默认头像，避免写死默认图
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
-async function ensureSiteSetting(){ if (siteSetting.value) return; try { siteSetting.value = await http('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
+async function ensureSiteSetting(){ if (siteSetting.value) return; try { siteSetting.value = (await systemSettingControllerGetPublicSetting() as any) || null; } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 function toAbsUrl(path?: string | null) { if (!path) return ''; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
 function formatAvatar(url?: string | null){ const candidate = url || siteSetting.value?.defaultMemberAvatarUrl || ''; const u = toAbsUrl(candidate); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); }
-const authHeaders = computed(()=>({ Authorization: `Bearer ${localStorage.getItem('token')||''}` }));
 async function uploadAvatar(o:any){ 
 	const fd=new FormData(); 
 	fd.append('file', o.file); 

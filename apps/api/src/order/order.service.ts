@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service.js';
 import { NotificationService } from '../notification/notification.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 import { AssetService } from '../file/asset.service.js';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 @Injectable()
 export class OrderService {
@@ -156,7 +157,7 @@ export class OrderService {
             }
             
             // 游客订单：禁止使用优惠券
-            const guestEnvId = Number(process.env.GUEST_MEMBER_ID || (process.env as any)?.GUESS_MEMBER_ID || 0);
+            const guestEnvId = resolveGuestMemberIdEnv();
             const guestMode = isGuestOrderFlag === true || (Number(memberId) === guestEnvId && guestEnvId > 0);
             // 优惠券校验与折扣（兼容旧单券 memberCouponId；新增多券 memberCouponIds）
             let memberCoupon: any = null;

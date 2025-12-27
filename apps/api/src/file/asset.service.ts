@@ -8,7 +8,7 @@ import { UploadResult, ListQuery, ListResult, FileAsset, isImageFile } from './f
 import crypto from 'node:crypto';
 import { extname, join } from 'node:path';
 import sharp from 'sharp';
-import { existsSync, unlinkSync } from 'node:fs';
+import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
 
 // 类型定义已移至 file.types.ts
 
@@ -373,7 +373,7 @@ export class AssetService {
 			// 确保目标目录存在
 			const targetDir = join(targetAbs, '..');
 			if (!existsSync(targetDir)) {
-				require('fs').mkdirSync(targetDir, { recursive: true });
+				mkdirSync(targetDir, { recursive: true });
 			}
 			
 			// 使用 Sharp 生成缩略图，添加更详细的错误处理

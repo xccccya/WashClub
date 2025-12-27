@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Headers, Req, Res, BadRequestException, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Headers, Req, Res, BadRequestException, UseGuards, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { OrderService } from './order.service.js';
 import { OrderPaymentService } from './order-payment.service.js';
@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { WxpayService } from './wxpay.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 @ApiTags('Order')
 @Controller('orders')
@@ -36,7 +37,7 @@ export class OrderController {
             let memberId = Number(body?.memberId || 0);
             let isGuestOrder = false;
             if (!Number.isFinite(memberId) || memberId <= 0) {
-                const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+                const gid = resolveGuestMemberIdEnv();
                 if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
                 // 校验该会员是否存在
                 const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
@@ -44,7 +45,7 @@ export class OrderController {
                 memberId = gid;
                 isGuestOrder = true;
             } else {
-                const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+                const gid = resolveGuestMemberIdEnv();
                 if (gid && memberId === gid) isGuestOrder = true;
             }
 
@@ -91,7 +92,7 @@ export class OrderController {
         let memberId = Number((body as any)?.memberId || 0);
         let isGuestOrder = false;
         if (!Number.isFinite(memberId) || memberId <= 0) {
-            const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+            const gid = resolveGuestMemberIdEnv();
             if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID');
             const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
             if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效');
@@ -345,10 +346,10 @@ export class OrderController {
                 const within15Min = createdAt && (Date.now() - createdAt.getTime()) <= 15 * 60 * 1000;
                 if (!within15Min) {
                     // 前端统一文案：服务已开始/完成，订单不可取消，如需帮助请联系门店
-                    throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                    throw new ConflictException('服务已开始/完成，订单不可取消，如需帮助请联系门店');
                 }
             } catch { /* 忽略解析错误，按不可取消处理 */
-                throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                throw new ConflictException('服务已开始/完成，订单不可取消，如需帮助请联系门店');
             }
             // 校验队列状态：只允许“未开始”（无 currentTaskIndex 或 <0，且未 finished）时取消
             try {
@@ -357,17 +358,17 @@ export class OrderController {
                     const started = typeof qi.currentTaskIndex === 'number' && qi.currentTaskIndex >= 0;
                     const finished = !!qi.finishedAt;
                     if (started || finished || String(qi.status||'') === 'SERVING' || String(qi.status||'') === 'COMPLETED') {
-                        throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                        throw new ConflictException('服务已开始/完成，订单不可取消，如需帮助请联系门店');
                     }
                 }
                 // 若无队列项，但订单履约已非 PENDING，也视为已开始
                 const fs = String(order.fulfillmentStatus||'').toUpperCase();
                 if (fs !== 'PENDING') {
-                    throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                    throw new ConflictException('服务已开始/完成，订单不可取消，如需帮助请联系门店');
                 }
             } catch (e) {
                 if ((e as any)?.name === 'ConflictException') throw e;
-                throw new (require('@nestjs/common').ConflictException)('服务已开始/完成，订单不可取消，如需帮助请联系门店');
+                throw new ConflictException('服务已开始/完成，订单不可取消，如需帮助请联系门店');
             }
         }
         // 关单：按是否存在JSAPI预下单做兜底，这里直接调用关单接口（多次调用幂等）

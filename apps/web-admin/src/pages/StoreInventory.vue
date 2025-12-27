@@ -98,12 +98,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
+import { storeCategoryControllerList, storeInventoryControllerAdjust, storeInventoryControllerLogs, storeProductControllerList } from '@wash/api-client';
 
 const categories = ref<any[]>([]);
 const products = ref<any[]>([]);
@@ -139,9 +136,13 @@ function reasonLabel(r?: string){
 }
 function formatTime(t:any){ try{ return new Date(t).toLocaleString(); }catch{ return t||'-'; } }
 
-async function fetchCategories(){ categories.value = await http('/store/categories'); }
-async function fetchProducts(){ if(!categoryId.value){ products.value=[]; return; } products.value = (await http('/store/products', { query: { categoryId: String(categoryId.value), enabled: 'true' } }))
-    .filter((p:any)=> p.type !== 'SERVICE'); }
+async function fetchCategories(){ categories.value = (await storeCategoryControllerList({} as any) as any) || []; }
+async function fetchProducts(){
+	if(!categoryId.value){ products.value=[]; return; }
+	const res:any = await storeProductControllerList({ categoryId: String(categoryId.value), enabled: 'true' } as any);
+	products.value = (Array.isArray(res) ? res : (res?.items || res?.data?.items || res?.data || []))
+		.filter((p:any)=> p?.type !== 'SERVICE');
+}
 
 function onCategoryChange(){ productId.value = undefined; skuId.value = undefined; products.value=[]; skus.value=[]; logs.value=[]; total.value=0; fetchProducts(); }
 function onProductChange(){
@@ -157,7 +158,7 @@ async function fetchLogs(){
     const query:any = { productId: String(productId.value), page: String(page.value), pageSize: String(pageSize.value) };
     if (selectedProduct.value?.specType==='MULTI' && skuId.value) query.skuId = String(skuId.value);
     if (filterReason.value) query.reason = filterReason.value;
-    const res = await http('/store/inventory/logs', { query });
+    const res = await storeInventoryControllerLogs(query as any);
     logs.value = Array.isArray(res?.items) ? res.items : [];
     total.value = Number(res?.total || 0);
 }
@@ -172,7 +173,7 @@ async function doAdjust(){
 	// 入库/出库：只允许正数；调整允许正负
 	if (reason.value !== 'ADJUSTMENT' && change.value < 0) { ElMessage.error('入库/出库仅填写正数数量'); return; }
 	if (p.specType==='MULTI' && !skuId.value) { ElMessage.error('多规格商品请先选择SKU'); return; }
-	await http('/store/inventory/adjust', { method:'POST', body: { productId: productId.value, skuId: skuId.value || undefined, change: change.value, reason: reason.value, remark: remark.value } });
+	await storeInventoryControllerAdjust({ productId: productId.value, skuId: skuId.value || undefined, change: change.value, reason: reason.value, remark: remark.value } as any);
 	ElMessage.success('已完成库存调整');
 	// 刷新商品数据以更新库存显示
 	await fetchProducts();

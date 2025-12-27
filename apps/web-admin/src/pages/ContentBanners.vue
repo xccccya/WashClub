@@ -61,13 +61,16 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	adBannerControllerCreate,
+	adBannerControllerList,
+	adBannerControllerRemove,
+	adBannerControllerSetEnable,
+	adBannerControllerUpdate,
+} from '@wash/api-client';
 import { absUrl } from '../utils/http';
 import FileInput from './_components/FileInput.vue';
 import { ElMessage } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Banner = { id: number; title?: string|null; imageUrl: string; enabled: boolean; jumpEnabled: boolean; linkPath?: string|null; weight: number };
 const filterEnabled = ref('');
@@ -78,8 +81,9 @@ const form = ref<{ id?: number; title?: string; imageUrl: string; enabled: boole
 
 async function fetchList(){
     const query: any = {};
-    if (filterEnabled.value !== '') query.enabled = filterEnabled.value;
-    banners.value = await http<Banner[]>('/content/banners', { method: 'GET', query });
+    if (filterEnabled.value !== '') query.enabled = (filterEnabled.value === 'true');
+    // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+    banners.value = (await adBannerControllerList(query) as unknown) as Banner[];
 }
 
 function openCreate(){ current.value = null; form.value = { imageUrl: '', enabled: false, jumpEnabled: false, weight: 0 }; dialogVisible.value = true; }
@@ -89,9 +93,9 @@ async function onSave(){
     if (!form.value.imageUrl) { ElMessage.error('请上传横幅图片'); return; }
     try {
         if (current.value?.id) {
-            await http(`/content/banners/${current.value.id}`, { method: 'PUT', body: { title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } });
+            await adBannerControllerUpdate(String(current.value.id), { title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } as any);
         } else {
-            await http('/content/banners', { method: 'POST', body: { title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } });
+            await adBannerControllerCreate({ title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } as any);
         }
         dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
     } catch (e:any) {
@@ -102,7 +106,7 @@ async function onSave(){
 
 async function toggleEnable(row: Banner){
     try {
-        await http(`/content/banners/${row.id}/enable`, { method: 'POST', body: { enabled: !row.enabled } });
+        await adBannerControllerSetEnable(String(row.id), { enabled: !row.enabled } as any);
         ElMessage.success('已更新');
         fetchList();
     } catch (e:any) {
@@ -110,7 +114,7 @@ async function toggleEnable(row: Banner){
     }
 }
 async function remove(row: Banner){
-    try { await http(`/content/banners/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); }
+    try { await adBannerControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchList(); }
     catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); }
 }
 

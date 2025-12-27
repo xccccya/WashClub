@@ -36,7 +36,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { orderControllerCreateReview } from '@wash/api-client';
 import { useSafeArea } from '../../utils/safe-area';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -54,7 +55,6 @@ async function chooseImages(){
     try{
         const r:any = await new Promise((resolve)=> uni.chooseImage({ count: 6, success: resolve, fail: ()=>resolve(null) }));
         if (!r || !Array.isArray(r.tempFilePaths)) return;
-        const http = createHttp();
         const joinUrl = (base:string, pathStr:string) => {
             if (!pathStr) return '';
             if (/^https?:\/\//i.test(pathStr)) return pathStr;
@@ -91,8 +91,7 @@ async function chooseImages(){
 async function submit(){
     try{
         const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
-        const http = createHttp();
-        await http(`/orders/${orderId.value}/review`, { method:'POST', body: { rating: rating.value, content: content.value, images: images.value } });
+        await orderControllerCreateReview(Number(orderId.value||0), { body: { rating: rating.value, content: content.value, images: images.value } } as any);
         uni.showToast({ title:'已提交', icon:'success' });
         setTimeout(()=>{ uni.reLaunch({ url: '/pages/order/index' }); }, 600);
     }catch{ uni.showToast({ title:'提交失败，请稍后再试', icon:'none' }); }

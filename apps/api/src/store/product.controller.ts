@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } 
 import { ApiTags } from '@nestjs/swagger';
 import { StoreService } from './store.service.js';
 import { FileService } from '../file/file.service.js';
+import { StoreProductCreateDto, StoreProductUpdateDto } from './product.dto.js';
 
 @ApiTags('StoreProduct')
 @Controller('store/products')
@@ -19,17 +20,17 @@ export class StoreProductController {
     get(@Param('id', ParseIntPipe) id: number) { return this.store.getProduct(id); }
 
     @Post('')
-    create(@Body() body: any) { return this.store.createProduct(body); }
+    create(@Body() body: StoreProductCreateDto) { return this.store.createProduct(body); }
 
     @Put(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: any) { return this.store.updateProduct(id, body); }
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: StoreProductUpdateDto) { return this.store.updateProduct(id, body); }
 
     @Delete(':id')
     remove(@Param('id', ParseIntPipe) id: number) { return this.store.deleteProduct(id); }
 
     // 复用已有文件上传用于商品图片
     @Post(':id/upload-image')
-    async uploadImage(){
+    async uploadImage(@Param('id', ParseIntPipe) _id: number){
         // 控制器层仅占位，文件上传由全局 /assets/upload 提供
         return { message: '请使用 /assets/upload 上传文件后，将返回的 url 保存到 product.imageUrl 或 sku.imageUrl' };
     }

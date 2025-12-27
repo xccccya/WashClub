@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { GroupMemberService } from './member.service.js';
+import { GroupAddMembersDto, GroupSetAdminDto } from './group.dto.js';
 
 @ApiTags('GroupMember')
 @Controller('group/:id/members')
@@ -19,7 +20,7 @@ export class GroupMemberController {
   @Post('')
   @RequirePerm('group')
   @ApiOperation({ summary: '添加成员（可批量）' })
-  add(@Param('id', ParseIntPipe) id: number, @Body() body: { memberIds: number[] }) {
+  add(@Param('id', ParseIntPipe) id: number, @Body() body: GroupAddMembersDto) {
     const ids = Array.isArray(body?.memberIds) ? body.memberIds.map((v) => Number(v)).filter((v) => Number.isFinite(v)) : [];
     if (ids.length === 0) throw new BadRequestException('缺少成员');
     return this.service.addMembers(id, ids);
@@ -33,7 +34,7 @@ export class GroupMemberController {
 
   @Patch(':memberId/admin')
   @RequirePerm('group')
-  setAdmin(@Param('id', ParseIntPipe) id: number, @Param('memberId', ParseIntPipe) memberId: number, @Body() body: { isAdmin: boolean }) {
+  setAdmin(@Param('id', ParseIntPipe) id: number, @Param('memberId', ParseIntPipe) memberId: number, @Body() body: GroupSetAdminDto) {
     return this.service.setAdmin(id, memberId, !!body?.isAdmin);
   }
 }

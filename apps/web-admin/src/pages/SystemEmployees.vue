@@ -80,12 +80,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	systemEmployeeControllerCreate,
+	systemEmployeeControllerList,
+	systemEmployeeControllerLookupMember,
+	systemEmployeeControllerRemove,
+	systemEmployeeControllerUpdate,
+} from '@wash/api-client';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Edit, Delete, User } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type MemberPreview = { id: number; name: string; phone: string };
 type Employee = { id: number; memberId: number; name?: string|null; title?: string|null; enabled: boolean; member?: { id: number; name: string; phone: string } };
@@ -108,7 +111,13 @@ const memberPreview = ref<MemberPreview | null>(null);
 async function fetchList(){
   loading.value = true;
   try {
-    const resp = await http<any>('/system/employees/list', { method: 'GET', query: { page: page.value, pageSize: pageSize.value, keyword: keyword.value || undefined, enabled: enabled.value == null ? undefined : String(enabled.value) } });
+    // 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（对象含 items/total）使用
+    const resp = (await systemEmployeeControllerList({
+      page: page.value,
+      pageSize: pageSize.value,
+      keyword: keyword.value || undefined,
+      enabled: enabled.value == null ? undefined : String(enabled.value),
+    } as any) as unknown) as any;
     items.value = resp?.items || [];
     total.value = resp?.total || 0;
   } catch(e:any){ ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '加载失败'); }
@@ -121,7 +130,7 @@ function openEdit(row: Employee){ current.value = row; form.value = { id: row.id
 async function lookupMember(){
   try {
     if (!memberPhone.value) { ElMessage.warning('请输入手机号'); return; }
-    const res = await http<MemberPreview>('/system/employees/lookup-member-by-phone', { method: 'GET', query: { phone: memberPhone.value } });
+    const res = (await systemEmployeeControllerLookupMember({ phone: memberPhone.value } as any) as unknown) as MemberPreview;
     if (!res) { ElMessage.warning('未找到会员'); memberPreview.value=null; return; }
     memberPreview.value = res;
   } catch(e:any){ ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '查询失败'); }
@@ -130,24 +139,24 @@ async function lookupMember(){
 async function onSave(){
   try{
     if (current.value?.id) {
-      await http(`/system/employees/${current.value.id}`, { method: 'PUT', body: { name: form.value.name ?? null, title: form.value.title ?? null, enabled: !!form.value.enabled } });
+      await systemEmployeeControllerUpdate(String(current.value.id), { name: form.value.name ?? null, title: form.value.title ?? null, enabled: !!form.value.enabled } as any);
     } else {
       if (!memberPreview.value?.id) { ElMessage.warning('请先查询并选择会员'); return; }
-      await http('/system/employees', { method: 'POST', body: { memberId: memberPreview.value.id, name: form.value.name ?? null, title: form.value.title ?? null, enabled: !!form.value.enabled } });
+      await systemEmployeeControllerCreate({ memberId: memberPreview.value.id, name: form.value.name ?? null, title: form.value.title ?? null, enabled: !!form.value.enabled } as any);
     }
     dialogVisible.value=false; ElMessage.success('已保存'); fetchList();
   } catch(e:any){ ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '保存失败'); }
 }
 
 async function onToggleEnabled(row: Employee){
-  try{ await http(`/system/employees/${row.id}`, { method: 'PUT', body: { enabled: !!row.enabled } }); ElMessage.success(row.enabled ? '已启用' : '已禁用'); }
+  try{ await systemEmployeeControllerUpdate(String(row.id), { enabled: !!row.enabled } as any); ElMessage.success(row.enabled ? '已启用' : '已禁用'); }
   catch(e:any){ ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '更新失败'); fetchList(); }
 }
 
 async function remove(row: Employee){
   try{
     await ElMessageBox.confirm('确认删除该员工？', '提示', { type: 'warning' });
-    await http(`/system/employees/${row.id}`, { method: 'DELETE' });
+    await systemEmployeeControllerRemove(String(row.id));
     ElMessage.success('已删除');
     fetchList();
   }catch(e:any){ if (e !== 'cancel') ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '删除失败'); }

@@ -91,15 +91,20 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberLevelControllerCreate,
+	memberLevelControllerGetGrowthConfig,
+	memberLevelControllerList,
+	memberLevelControllerRemove,
+	memberLevelControllerSaveGrowthConfig,
+	memberLevelControllerUpdate,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import FileInput from './_components/FileInput.vue';
 import { absUrl as abs } from '../utils/http';
 import { ElIcon } from 'element-plus';
 import { CirclePlus, SetUp, Edit, Delete } from '@element-plus/icons-vue';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 function absUrl(u?: string | null){ return abs(u); }
 
 type Level = { id: number; name: string; level: number; requiredGrowth: number; description?: string|null; iconUrl?: string|null; pointsMultiplier: number; payDiscountPercent: number; isDefault?: boolean };
@@ -111,31 +116,34 @@ const form = ref<Partial<Level>>({ name: '', level: 1, requiredGrowth: 0, points
 const growthVisible = ref(false);
 const growthForm = ref<{ growthPerYuan: number }>({ growthPerYuan: 1 });
 
-async function fetchLevels(){ levels.value = await http<Level[]>('/member-level', { method: 'GET' }); }
+async function fetchLevels(){
+	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+	levels.value = (await memberLevelControllerList() as unknown) as Level[];
+}
 
 function openCreate(){ current.value = null; form.value = { name: '', level: 1, requiredGrowth: 0, pointsMultiplier: 1, payDiscountPercent: 0, description: '', isDefault: false }; dialogVisible.value = true; }
 function openEdit(row: Level){ current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function openGrowthConfig(){
-  const res = await http<{ growthPerYuan: number }>('/member-level/_growth-config', { method: 'GET' });
+  const res = (await memberLevelControllerGetGrowthConfig() as unknown) as { growthPerYuan: number };
   growthForm.value.growthPerYuan = Number(res?.growthPerYuan || 1);
   growthVisible.value = true;
 }
 async function saveGrowthConfig(){
-  await http('/member-level/_growth-config', { method: 'POST', body: growthForm.value });
+  await memberLevelControllerSaveGrowthConfig({ ...(growthForm.value as any) } as any);
   ElMessage.success('已保存');
   growthVisible.value = false;
 }
 
 async function onSave(){
 	try {
-		if (current.value?.id) await http(`/member-level/${current.value.id}`, { method: 'PUT', body: form.value });
-		else await http('/member-level', { method: 'POST', body: form.value });
+		if (current.value?.id) await memberLevelControllerUpdate(String(current.value.id), { ...(form.value as any) } as any);
+		else await memberLevelControllerCreate({ ...(form.value as any) } as any);
 		dialogVisible.value = false; ElMessage.success('已保存'); fetchLevels();
 	} catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Level){ try { await http(`/member-level/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchLevels(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(row: Level){ try { await memberLevelControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchLevels(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchLevels);
 </script>

@@ -227,14 +227,12 @@
 <script setup lang="ts" name="Orders">
 import { ref, onMounted, onUnmounted, computed, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { MoreFilled } from '@element-plus/icons-vue';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { memberControllerList, orderControllerGet, orderControllerAdjustCashierDiscount, orderControllerMarkPaid, orderControllerWechatMicropay, orderControllerPayByWashCard, orderControllerWriteoff, orderControllerWechatRefund, orderControllerList, orderControllerReceive, orderControllerStartService, orderControllerFinishService, orderControllerShip, orderControllerClose, orderControllerRestore, washCardControllerAdminList } from '@wash/api-client';
 
 const router = useRouter();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const list = ref<any[]>([]);
 const keyword = ref('');
 const type = ref<string | ''>('');
@@ -271,17 +269,17 @@ function last4(p?: string){ try{ const s=String(p||''); return s.slice(-4); }cat
 function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
 
 // 履约/物流操作（POS 端仅触发后台接口，与后台一致）
-async function openShip(row:any){ try{ await http(`/orders/${row.id}/ship`, { method:'POST', body:{ noExpress: true } }); ElMessage.success('已标记为无需快递发货'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); } }
-async function receive(id:number){ try { await http(`/orders/${id}/receive`, { method:'POST' }); ElMessage.success('已收货'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function openShip(row:any){ try{ await orderControllerShip(Number(row?.id||0), { body:{ noExpress: true } } as any); ElMessage.success('已标记为无需快递发货'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); } }
+async function receive(id:number){ try { await orderControllerReceive(Number(id)); ElMessage.success('已收货'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 async function openEditTracking(row:any){ try{ await ElMessageBox.alert('请在后台修改物流单号；POS 暂不支持此操作', '提示'); }catch{} }
-async function startService(id:number){ try { await http(`/orders/${id}/start-service`, { method:'POST' }); ElMessage.success('已开始服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function finishService(id:number){ try { await http(`/orders/${id}/finish-service`, { method:'POST' }); ElMessage.success('已结束服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function writeoff(row:any){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; await http(`/orders/${row.id}/void`, { method:'POST', body: { reason: 'POS作废/红冲' } }); ElMessage.success('操作成功'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function startService(id:number){ try { await orderControllerStartService(Number(id)); ElMessage.success('已开始服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function finishService(id:number){ try { await orderControllerFinishService(Number(id)); ElMessage.success('已结束服务'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function writeoff(row:any){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; await orderControllerWriteoff(Number(row?.id||0), { body: { reason: 'POS作废/红冲' } } as any); ElMessage.success('操作成功'); await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 async function fetchList(){
 	const start = createdAtRange.value?.[0];
 	const end = createdAtRange.value?.[1];
-	list.value = await http('/orders', { query: {
+	list.value = await (orderControllerList({
 		keyword: keyword.value || undefined,
 		type: type.value || undefined,
 		scene: scene.value || undefined,
@@ -290,13 +288,13 @@ async function fetchList(){
 		includeDeleted: true,
 		start: start || undefined,
 		end: end || undefined,
-	} });
+	} as any) as any);
 	currentPage.value = 1;
 }
 function open(id:number){ router.push(`/orders/${id}`); }
 function openByNo(no:string){ router.push(`/orders/no/${encodeURIComponent(no)}`); }
-async function close(id:number){ try { await http(`/orders/${id}/close`, { method:'POST' }); ElMessage.success('已关闭'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'关闭失败')); } }
-async function restore(id:number){ try { await http(`/orders/${id}/restore`, { method:'POST' }); ElMessage.success('已恢复'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'恢复失败')); } }
+async function close(id:number){ try { await orderControllerClose(Number(id)); ElMessage.success('已关闭'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'关闭失败')); } }
+async function restore(id:number){ try { await orderControllerRestore(Number(id)); ElMessage.success('已恢复'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'恢复失败')); } }
 function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; fetchList(); }
 function remainSeconds(row:any): number {
     try{
@@ -338,7 +336,7 @@ function memberLabel(m:any){ return `${m.name||'-'}（****${String(m.phone||'').
 async function searchPayerMember(){
     const q = String(payerMemberKeyword.value||'').trim(); if (!q){ payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null; return; }
     try{
-        const res:any = await http('/member/list', { query: { keyword: q, page: 1, pageSize: 20 } });
+        const res:any = await memberControllerList({ keyword: q, page: 1, pageSize: 20 } as any);
         payerMemberList.value = Array.isArray(res?.items) ? res.items.map((x:any)=>({ id:x.id, name:x.name, phone:x.phone })) : [];
     }catch{ payerMemberList.value=[]; }
 }
@@ -346,7 +344,7 @@ watchEffect(async ()=>{
     payerCards.value = []; payerCardId.value = null;
     const mid = payerMemberId.value; if (!mid) return;
     try{
-        const res:any = await http('/wash-card/list', { query: { page: 1, pageSize: 50, memberId: String(mid) } });
+        const res:any = await washCardControllerAdminList({ page: 1, pageSize: 50, memberId: String(mid) } as any);
         const items = Array.isArray(res?.items) ? res.items : [];
         payerCards.value = items.map((c:any)=>({ key: `M-${c.id}`, value: c.id, label: `[会员卡] ${c.name||''}（余${c.remainingTimes||0}）#${c.cardNo}` }));
     }catch{ payerCards.value = []; }
@@ -360,7 +358,7 @@ const payAmountAfterManual = computed(()=>{
 });
 function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value||0); if(!Number.isFinite(v)||v<0) v=0; const cap=Number(payAmountCap.value||0); cashierDiscountInput.value=Number(Math.min(cap, v).toFixed(2)); }catch{} }
 function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; wxAuthCode.value=''; orderForPay.value = row || null; cashierDiscountInput.value = Math.max(0, Number((row as any)?.cashierDiscountAmount||0)) || 0; showPay.value = true; }
-async function doMarkPaid(){ if (!currentOrderId.value) return; try { try{ await http(`/orders/${currentOrderId.value}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${currentOrderId.value}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function doMarkPaid(){ if (!currentOrderId.value) return; try { try{ await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerMarkPaid(Number(currentOrderId.value), { body: { method: payMethod.value } } as any); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 async function doWxMicropay(){
 	if (!currentOrderId.value) return;
@@ -368,8 +366,8 @@ async function doWxMicropay(){
 	if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
 	try{
 		wxPayLoading.value = true;
-		try{ await http(`/orders/${currentOrderId.value}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{}
-		await http(`/orders/${currentOrderId.value}/pay/wx-micropay`, { method:'POST', body: { authCode: code } });
+		try{ await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+		await orderControllerWechatMicropay(Number(currentOrderId.value), { body: { authCode: code } } as any);
 		ElMessage.success('付款成功，已标记订单为已支付');
 		showPay.value = false; wxAuthCode.value = '';
 		await fetchList();
@@ -380,13 +378,13 @@ async function doWxMicropay(){
 async function doWashDeduct(){
 	if (!currentOrderId.value) return;
 	try{
-		const detail:any = await http(`/orders/${currentOrderId.value}`);
+		const detail:any = await (orderControllerGet(Number(currentOrderId.value)) as any);
 		if (String(detail?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; }
         const prefer = washPrefer.value === 'AUTO' ? undefined : washPrefer.value;
         const body:any = { prefer };
         if (payerMemberId.value){ body.payerMemberId = payerMemberId.value; }
         if (payerCardId.value){ body.payerCardId = payerCardId.value; }
-        const ret:any = await http(`/orders/${currentOrderId.value}/pay/wash-card`, { method:'POST', body });
+        const ret:any = await orderControllerPayByWashCard(Number(currentOrderId.value), { body } as any);
 		const plan = Array.isArray(ret?.plan)?ret.plan:[];
 		const times = Number(ret?.requiredTimes||0);
 		ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`);
@@ -415,10 +413,10 @@ async function doRefund(){
 			if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
 			amount = v;
 		}
-		const resAny: any = await http(`/orders/${row.id}/refund`, { method:'POST', body: { reason: refundReason.value || undefined, amount } });
+		const resAny: any = await orderControllerWechatRefund(Number(row.id), { body: { reason: refundReason.value || undefined, amount } } as any);
 		if (resAny && resAny.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error((resAny && resAny.error) || '退款申请失败'); }
 	} else {
-		const res = await http(`/orders/${row.id}/refund`, { method:'POST', body: { reason: refundReason.value || undefined } });
+		const res = await orderControllerWechatRefund(Number(row.id), { body: { reason: refundReason.value || undefined } } as any);
 		if ((res as any)?.id){ ElMessage.success('已退款'); }
 	}
 	showRefund.value = false; await fetchList();

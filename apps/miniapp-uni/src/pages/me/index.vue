@@ -142,10 +142,20 @@
 <script setup lang="ts">
 declare function getCurrentPages(): any[];
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE, checkAuthAndRefresh, createHttp } from '../../utils/auth';
+import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import WashCard from '../../components/WashCard.vue';
+import {
+	memberControllerGetPointsStats,
+	memberControllerMe,
+	memberControllerSetActive,
+	memberControllerUpdate,
+	notificationControllerUnreadCount,
+	orderControllerList,
+	systemMiniappEmployeeControllerMyEmployeeProfile,
+	systemSettingControllerGetPublicSetting,
+	washCardControllerMyList,
+} from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
 const isEmployee = ref(false);
@@ -166,10 +176,9 @@ const uid = ref<number | null>(null);
 const avatarUrl = ref<string>('');
 // 站点默认头像（动态读取）
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
-async function ensureSiteSetting(){ if (siteSetting.value) return; try { const httpS = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') }); siteSetting.value = await httpS('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
+async function ensureSiteSetting(){ if (siteSetting.value) return; try { siteSetting.value = (await systemSettingControllerGetPublicSetting() as unknown) as any; } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 // 基址由 utils/auth 统一提供
 const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : '');
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const isLoggedIn = computed(() => !!token.value);
 
 // 积分统计
@@ -177,8 +186,7 @@ const pointsStats = ref<{ currentPoints:number; monthUsed:number; monthGained:nu
 async function loadPoints(){
     try{
         const t = uni.getStorageSync('token'); if (!t) { pointsStats.value = { currentPoints: 0, monthUsed: 0, monthGained: 0 }; return; }
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        const s:any = await http('/member/me/points-stats', { method:'GET' });
+        const s:any = await memberControllerGetPointsStats({} as any);
         pointsStats.value = { currentPoints: Number(s?.currentPoints||0), monthUsed: Number(s?.monthUsed||0), monthGained: Number(s?.monthGained||0) };
     }catch{ pointsStats.value = { currentPoints: 0, monthUsed: 0, monthGained: 0 }; }
 }
@@ -248,8 +256,7 @@ function handleAuthChanged(){ loadAuthFromStorage();
     try {
         const t = uni.getStorageSync('token');
         if (t) {
-            const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-            http('/member/me/profile', { method: 'GET' }).then((profile:any)=>{
+            memberControllerMe({} as any).then((profile:any)=>{
                 if (profile) {
                     uni.setStorageSync('user', profile);
                     nickname.value = profile?.name || nickname.value;
@@ -272,8 +279,7 @@ onMounted(() => {
 	try {
 		const t = uni.getStorageSync('token');
 		if (t) {
-			const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-			http('/member/me/profile', { method: 'GET' }).then((profile:any)=>{
+			memberControllerMe({} as any).then((profile:any)=>{
 				if (profile) {
 					uni.setStorageSync('user', profile);
 					nickname.value = profile?.name || nickname.value;
@@ -286,7 +292,7 @@ onMounted(() => {
 					currentRequired.value = Number(profile?.currentRequiredGrowth || 0);
 				}
 			}).catch(()=>{});
-			try { http('/member/me/active', { method:'POST' }).catch(()=>{}); } catch {}
+			try { memberControllerSetActive({} as any).catch(()=>{}); } catch {}
 		}
 	} catch {}
 	try { uni.$on?.('auth:changed', handleAuthChanged); } catch {}
@@ -348,7 +354,7 @@ function onChooseWeixinAvatar(e: any) {
                 const url = data?.url || '';
                 if (!url) { uni.showToast({ title: '上传失败', icon: 'none' }); return; }
                 const userObj:any = uni.getStorageSync('user') || {};
-                await http(`/member/${userObj?.id}`, { method: 'PUT', body: { avatarUrl: url } });
+                await memberControllerUpdate(String(userObj?.id || ''), { avatarUrl: url } as any);
                 avatarUrl.value = toAbs(url);
                 try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
                 uni.showToast({ title: '已更新头像', icon: 'success' });
@@ -388,7 +394,7 @@ function onTapAvatar(){
 									const url = data?.url || '';
 									if (!url) { uni.showToast({ title:'上传失败', icon:'none' }); return; }
 									const userObj:any = uni.getStorageSync('user') || {};
-									await http(`/member/${userObj?.id}`, { method: 'PUT', body: { avatarUrl: url } });
+									await memberControllerUpdate(String(userObj?.id || ''), { avatarUrl: url } as any);
 									avatarUrl.value = toAbs(url);
 									try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = toAbs(url); uni.setStorageSync('user', u); } catch {}
 									uni.showToast({ title: '已更新头像', icon: 'success' });
@@ -415,7 +421,18 @@ function goOrdersWith(main:'all'|'product'|'service', filter:'待支付'|'待收
 
 function onTapProfile() { if (!isLoggedIn.value) navigate('/pages/login/index'); }
 
-async function loadCard(){ try { const t = uni.getStorageSync('token'); if (!t) { card.value = null; return; } const http = createHttp(); const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' }); const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null; card.value = def || null; } catch { card.value = null; } }
+async function loadCard(){
+	try {
+		const t = uni.getStorageSync('token');
+		if (!t) { card.value = null; return; }
+		const cards = (await washCardControllerMyList({} as any)) as any;
+		const arr:any[] = (cards as any) || [];
+		const def = Array.isArray(arr) ? (arr.find(c=>c.isDefault) || arr[0]) : null;
+		card.value = def || null;
+	} catch {
+		card.value = null;
+	}
+}
 
 function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index' | '/pages/login/index' | '/pages/washcard/index' | '/pages/order/index' | '/pages/address/index' | '/pages/coupon/index' | '/pages/group/index') {
 	const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/order/index' || url === '/pages/me/index';
@@ -443,8 +460,7 @@ async function checkEmployee(){
     try{
         const t = uni.getStorageSync('token');
         if (!t) { isEmployee.value = false; return; }
-        const http = createHttp();
-        const r = await http<any>('/system/miniapp/employee/profile', { method: 'GET' });
+        const r:any = await systemMiniappEmployeeControllerMyEmployeeProfile({} as any);
         // 更严格：仅当后端明确返回 enabled === true 才视为员工
         isEmployee.value = r?.enabled === true;
     }catch{ isEmployee.value = false; }
@@ -456,13 +472,12 @@ async function loadOrderBadges(){
     try{
         const t = uni.getStorageSync('token');
         if (!t) { unpaidCount.value=0; pendingReceiptCount.value=0; pendingServiceCount.value=0; return; }
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
         // 仅拉取当前会员的订单，避免统计到其他用户
         const userObj:any = uni.getStorageSync('user') || {};
         const memberIdNum = Number(userObj?.id) || 0;
         const q:any = { memberId: memberIdNum > 0 ? memberIdNum : undefined };
-        const list:any[] = await http('/orders', { method:'GET', query: q });
-        const orders = Array.isArray(list) ? list : [];
+        const list:any = await (orderControllerList(q as any) as any);
+        const orders:any[] = Array.isArray(list) ? list : [];
         let unpaid=0, preceipt=0, pservice=0;
         for (const o of orders){
             // 待支付
@@ -492,8 +507,7 @@ async function loadGroupFlag(){
 	try {
 		const t = uni.getStorageSync('token');
 		if (!t) { hasGroup.value = false; return; }
-		const http = createHttp();
-		const me: any = await http('/member/me/profile', { method: 'GET' });
+		const me: any = await memberControllerMe({} as any);
 		// 后端已补充 groupId/group 字段
 		hasGroup.value = !!(me?.groupId || me?.group?.id);
 		try{ const u = uni.getStorageSync('user') || {}; u.groupId = me?.groupId || (me?.group?.id || null); u.group = me?.group || null; uni.setStorageSync('user', u); }catch{}
@@ -515,8 +529,7 @@ async function refreshUnread(){
             unreadCount.value = 0;
             return;
         }
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        const r:any = await http('/notification/unread-count', { method: 'GET' });
+        const r:any = await notificationControllerUnreadCount();
         unreadCount.value = Number(r?.count||0);
     }catch{ unreadCount.value = 0; }
 }

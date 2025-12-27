@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { GroupVehicleService } from './vehicle.service.js';
+import { GroupVehicleCreateDto } from './group.dto.js';
 
 @ApiTags('GroupVehicle')
 @Controller('group/:id/vehicles')
@@ -26,7 +27,7 @@ export class GroupVehicleController {
   @Post('')
   @RequirePerm('group-vehicles' as any)
   @ApiOperation({ summary: '为集团新增车辆（直绑集团）' })
-  create(@Param('id', ParseIntPipe) id: number, @Body() body: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; brandId?: number | null; seriesId?: number | null }) {
+  create(@Param('id', ParseIntPipe) id: number, @Body() body: GroupVehicleCreateDto) {
     if (!body?.plateNumber) throw new BadRequestException('缺少车牌号');
     if (!body?.typeMain) throw new BadRequestException('缺少车辆主类型');
     return this.service.create(id, body);

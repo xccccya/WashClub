@@ -172,21 +172,28 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
 import FileInput from './_components/FileInput.vue';
-import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import MemberSelector from './_components/MemberSelector.vue';
+import {
+	couponControllerCreate,
+	couponControllerGet,
+	couponControllerIssue,
+	couponControllerList,
+	couponControllerRemove,
+	couponControllerUpdate,
+	couponGroupControllerList,
+	storeProductControllerList,
+} from '@wash/api-client';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const groups = ref<any[]>([]);
 const list = ref<any[]>([]);
 const query = ref<{ groupId?: number; type?: 'COUPON'|'WASH_CARD'|'GROUP_WASH_CARD' } >({});
 const productOptions = ref<any[]>([]);
 
-async function fetchGroups(){ groups.value = await http('/coupon/groups'); }
-async function fetchList(){ list.value = await http('/coupons', { query: { groupId: query.value.groupId, type: query.value.type } }); }
-async function fetchProducts(){ productOptions.value = await http('/store/products', { query: { enabled: true } }); }
+async function fetchGroups(){ groups.value = ((await couponGroupControllerList() as any) || []) as any[]; }
+async function fetchList(){ list.value = ((await couponControllerList({ groupId: query.value.groupId, type: query.value.type } as any) as any) || []) as any[]; }
+async function fetchProducts(){ productOptions.value = ((await storeProductControllerList({ enabled: true } as any) as any) || []) as any[]; }
 
 const show = ref(false);
 const form = ref<any>({ id: 0, type: 'COUPON', name: '', groupId: undefined, enabled: true, expiryType: 'PERMANENT', startAt: '', endAt: '', validDays: undefined, imageUrl: '', description: '', adminRemark: '', faceValue: undefined, perMemberLimit: undefined, minOrderAmount: undefined, applyScope: 'ALL', applicableProductIds: [], ruleKind: 'none', ruleAmount: undefined, rulePercent: undefined, ruleCap: undefined, ruleApplyBase: 'auto', ruleMinSubtotal: undefined, ruleJsonText: '', allowMiniappClaim: false, allowCombine: false, allowStackWithPoints: true, allowStackWithMemberDiscount: true, totalTimes: 0 });
@@ -200,14 +207,25 @@ const issueCount = ref(1);
 const issuing = ref(false);
 
 function openIssue(row:any){ issueCouponId.value = row.id; issueMemberIds.value = []; issueCount.value = 1; issueShow.value = true; }
-async function doIssue(){ if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; } issuing.value = true; try{ for (const mid of issueMemberIds.value){ await http(`/coupons/${issueCouponId.value}/issue`, { method:'POST', body: { memberId: mid, count: issueCount.value } }); } issueShow.value = false; ElMessage.success('已发放'); } catch(e:any){ ElMessage.error(String(e?.message||e||'发放失败')); } finally { issuing.value = false; } }
+async function doIssue(){
+	if (!issueCouponId.value || issueMemberIds.value.length === 0) { ElMessage.error('请选择会员'); return; }
+	issuing.value = true;
+	try{
+		for (const mid of issueMemberIds.value){
+			await couponControllerIssue(issueCouponId.value, { memberId: mid, count: issueCount.value } as any);
+		}
+		issueShow.value = false;
+		ElMessage.success('已发放');
+	} catch(e:any){ ElMessage.error(String(e?.message||e||'发放失败')); }
+	finally { issuing.value = false; }
+}
 
 function openCreate(){ form.value = { id: 0, type: 'COUPON', name: '', groupId: undefined, enabled: true, expiryType: 'PERMANENT', startAt: '', endAt: '', validDays: undefined, imageUrl: '', description: '', adminRemark: '', faceValue: undefined, issueTotal: undefined, perMemberLimit: undefined, minOrderAmount: undefined, applyScope: 'ALL', applicableProductIds: [], ruleKind: 'none', ruleAmount: undefined, rulePercent: undefined, ruleCap: undefined, ruleApplyBase: 'auto', ruleMinSubtotal: undefined, ruleJsonText: '', allowMiniappClaim: false, allowCombine: false, allowStackWithPoints: true, allowStackWithMemberDiscount: true, totalTimes: 0, }; range.value=''; show.value = true; }
 function openEdit(row:any){ form.value = { id: row.id, type: row.type, name: row.name, groupId: row.groupId, enabled: row.enabled, expiryType: (row.type==='WASH_CARD' || row.type==='GROUP_WASH_CARD') ? (row.expiryType==='FIXED' ? 'AFTER_RECEIVE' : (row.expiryType||'PERMANENT')) : (row.expiryType || 'PERMANENT'), startAt: row.startAt, endAt: row.endAt, validDays: row.validDays, imageUrl: row.imageUrl || '', description: row.description || '', adminRemark: row.adminRemark || '', faceValue: row.faceValue, issueTotal: row.issueTotal, perMemberLimit: row.perMemberLimit, minOrderAmount: row.minOrderAmount, applyScope: row.applyScope || 'ALL', applicableProductIds: Array.isArray(row.applicableProducts) ? row.applicableProducts.map((x:any)=>x.productId) : [], ruleKind: (row.ruleJson && row.ruleJson.kind) ? row.ruleJson.kind : 'none', ruleAmount: (row.ruleJson && row.ruleJson.amount!=null) ? Number(row.ruleJson.amount) : undefined, rulePercent: (row.ruleJson && (row.ruleJson.percent!=null||row.ruleJson.amount!=null) && row.ruleJson.kind==='percent') ? Number(row.ruleJson.percent ?? row.ruleJson.amount) : undefined, ruleCap: (row.ruleJson && row.ruleJson.cap!=null) ? Number(row.ruleJson.cap) : undefined, ruleApplyBase: (row.ruleJson && row.ruleJson.applyBase) ? row.ruleJson.applyBase : 'auto', ruleMinSubtotal: (row.ruleJson && row.ruleJson.minSubtotal!=null) ? Number(row.ruleJson.minSubtotal) : undefined, ruleJsonText: row.ruleJson ? JSON.stringify(row.ruleJson) : '', allowMiniappClaim: !!row.allowMiniappClaim, allowCombine: !!row.allowCombine, allowStackWithPoints: row.allowStackWithPoints !== false, allowStackWithMemberDiscount: row.allowStackWithMemberDiscount !== false, totalTimes: row.totalTimes, }; if (row.startAt && row.endAt) range.value = [new Date(row.startAt), new Date(row.endAt)]; else range.value = '' as any; show.value = true; }
 
 const viewShow = ref(false);
 const view = ref<any>(null);
-async function openView(row:any){ view.value = await http(`/coupons/${row.id}`); viewShow.value = true; }
+async function openView(row:any){ view.value = (await couponControllerGet(Number(row.id)) as any) as any; viewShow.value = true; }
 
 watch(range, (v)=>{ if (Array.isArray(v)) { form.value.startAt = v[0]; form.value.endAt = v[1]; } else { form.value.startAt=''; form.value.endAt=''; } });
 
@@ -219,9 +237,14 @@ async function save(){ if (!form.value.name) { ElMessage.error('请输入名称'
 		if (payload.ruleJson) { payload.faceValue = null; payload.minOrderAmount = null; } else { payload.faceValue = form.value.faceValue ?? null; payload.minOrderAmount = form.value.minOrderAmount ?? null; }
 		payload.issueTotal = form.value.issueTotal ?? null; payload.perMemberLimit = form.value.perMemberLimit ?? null; payload.applyScope = form.value.applyScope; if (form.value.applyScope==='SPECIFIED'){ if (!Array.isArray(form.value.applicableProductIds) || form.value.applicableProductIds.length===0){ ElMessage.error('请选择至少一个指定商品'); return; } payload.applicableProductIds = form.value.applicableProductIds; } else { payload.applicableProductIds = []; } payload.allowMiniappClaim = !!form.value.allowMiniappClaim; payload.allowCombine = !!form.value.allowCombine; payload.allowStackWithPoints = form.value.allowStackWithPoints !== false; payload.allowStackWithMemberDiscount = form.value.allowStackWithMemberDiscount !== false; }
 	else { payload.totalTimes = form.value.totalTimes || 0; }
-	try { if (form.value.id) await http(`/coupons/${form.value.id}`, { method:'PUT', body: payload }); else await http('/coupons', { method:'POST', body: payload }); show.value = false; ElMessage.success('已保存'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); } }
+	try {
+		if (form.value.id) await couponControllerUpdate(Number(form.value.id), payload as any);
+		else await couponControllerCreate(payload as any);
+		show.value = false; ElMessage.success('已保存'); await fetchList();
+	} catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
+}
 
-async function remove(id:number){ try { await http(`/coupons/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(id:number){ try { await couponControllerRemove(id); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 // 已用统一 FileInput 替代原生 input 上传
 

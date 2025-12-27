@@ -161,13 +161,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberControllerGet,
+	memberControllerList,
+	memberPointsControllerAdjust,
+	memberPointsControllerGetConfig,
+	memberPointsControllerListLogs,
+	memberPointsControllerSave,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { Setting, EditPen, Search, View } from '@element-plus/icons-vue';
 import router from '../router';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 const q = ref<{ memberId?: string; source?: string }>({});
 const loading = ref(false);
@@ -177,10 +181,11 @@ const memberMap = ref<Map<number, { id:number; name?:string; phone?:string }>>(n
 async function fetchLogs(){
   loading.value = true;
   try{
-    const rows = await http<any[]>('/member-points/logs', { method:'GET', query: { memberId: q.value.memberId, source: q.value.source } });
+    // 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+    const rows = (await memberPointsControllerListLogs({ memberId: q.value.memberId, source: q.value.source } as any) as unknown) as any[];
     logs.value = rows;
     const ids = Array.from(new Set((rows||[]).map((r:any)=> Number(r.memberId||0)).filter((n:number)=>n>0)));
-    const pending = ids.map(async (id:number)=>{ try{ const m:any = await http(`/member/${id}`, { method:'GET' }); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{} });
+    const pending = ids.map(async (id:number)=>{ try{ const m:any = await (memberControllerGet(String(id)) as any); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{} });
     await Promise.all(pending);
   } finally { loading.value = false; }
 }
@@ -190,7 +195,7 @@ const cfg = ref<{ pointsPerFen:number; pointsFenPerPoint:number; pointsMaxDeduct
 
 async function openConfig(){
   try{
-    const res:any = await http('/member-points/config', { method:'GET' });
+    const res:any = (await memberPointsControllerGetConfig() as unknown) as any;
     const fenPerPoint = Number(res?.pointsFenPerPoint || 0);
     const maxFen = Number(res?.pointsMaxDeductFenPerOrder || 0);
     // 允许配置为 0（关闭消费得积分），因此不能用 || 1 作为回退
@@ -209,7 +214,7 @@ async function saveConfig(){
       pointsFenPerPoint: (cfg.value.pointsFenPerPointYuan || 0) * 100,
       pointsMaxDeductFenPerOrder: (cfg.value.pointsMaxDeductYuan || 0) * 100,
     };
-    await http('/member-points/config', { method:'POST', body: payload });
+    await memberPointsControllerSave(payload as any);
     ElMessage.success('已保存'); cfgVisible.value=false;
   }catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
@@ -222,13 +227,13 @@ const memberLoading = ref(false);
 async function remoteSearchMembers(keyword: string){
   memberLoading.value = true;
   try{
-    const res:any = await http('/member/list', { method:'GET', query:{ page: 1, pageSize: 20, keyword } });
+    const res:any = (await memberControllerList({ page: 1, pageSize: 20, keyword } as any) as unknown) as any;
     memberOptions.value = Array.isArray(res?.items) ? res.items : [];
   } finally { memberLoading.value = false; }
 }
 async function submitAdjust(){
   try{
-    await http('/member-points/adjust', { method:'POST', body: { ...adjust.value, operatorUserId: getUserId() } });
+    await memberPointsControllerAdjust({ ...(adjust.value as any), operatorUserId: getUserId() } as any);
     ElMessage.success('已调整'); adjustVisible.value=false; fetchLogs();
   }catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); }
 }
@@ -260,9 +265,9 @@ const detailStats = ref<{ currentPoints:number; monthUsed:number; monthGained:nu
 async function openDetail(memberId: number){
   try{
     const [m, rows, cfg]: any = await Promise.all([
-      http(`/member/${memberId}`, { method:'GET' }),
-      http<any[]>('/member-points/logs', { method:'GET', query:{ memberId } }),
-      http('/member-points/config', { method:'GET' }),
+      memberControllerGet(String(memberId)) as any,
+      memberPointsControllerListLogs({ memberId: String(memberId) } as any) as any,
+      memberPointsControllerGetConfig() as any,
     ]);
     const logsArr:any[] = Array.isArray(rows) ? rows : [];
     detailMember.value = m || null;

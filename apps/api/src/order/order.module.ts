@@ -19,6 +19,7 @@ import { FileModule } from '../file/file.module.js';
 import { MemberModule } from '../member/member.module.js';
 import { GroupModule } from '../group/group.module.js';
 import { NotificationModule } from '../notification/notification.module.js';
+import { resolveJwtSecretEnv } from '../env.js';
 
 @Module({
     imports: [
@@ -28,7 +29,7 @@ import { NotificationModule } from '../notification/notification.module.js';
         GroupModule,
         NotificationModule,
         JwtModule.register({
-            secret: process.env.JWT_SECRET || 'dev_secret',
+            secret: resolveJwtSecretEnv(),
         })
     ],
     controllers: [OrderController],

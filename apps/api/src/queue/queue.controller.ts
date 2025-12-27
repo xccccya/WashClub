@@ -7,6 +7,7 @@ import { OrderService } from '../order/order.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { GroupService } from '../group/group.service.js';
 import { JwtService } from '@nestjs/jwt';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 @ApiTags('queue')
 @Controller('queue')
@@ -116,7 +117,7 @@ export class QueueController {
                 try { memberId = await this.groups.ensureOrderOwnerMember(groupId); } catch {}
             }
             if (!memberId) {
-                const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+                const gid = resolveGuestMemberIdEnv();
                 if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
                 // 校验 member 是否存在
                 const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
@@ -164,7 +165,7 @@ export class QueueController {
             }
         }catch{}
 
-        const gidEnv = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+        const gidEnv = resolveGuestMemberIdEnv();
         const isGuestOrder = guest || (!!gidEnv && Number(memberId) === gidEnv);
         const cashierDiscountAmount = Number(body?.cashierDiscountAmount || 0);
         // 兜底：若未识别到管理员身份但确有收银立减，视为 POS 内部请求，允许手动立减

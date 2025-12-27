@@ -73,11 +73,10 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { ref, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
+import { memberControllerGetPointsLogs, memberControllerGetPointsStats, memberControllerMe } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 
 const stats = ref<{ currentPoints:number; monthUsed:number; monthGained:number }>({ currentPoints:0, monthUsed:0, monthGained:0 });
 const multiplier = ref<number>(1);
@@ -88,11 +87,11 @@ onMounted(async ()=>{
   await fetchStats(); await fetchLogs(); await fetchProfileLevel();
 });
 
-async function fetchStats(){ try{ const s:any = await http('/member/me/points-stats', { method:'GET' }); stats.value = { currentPoints: Number(s?.currentPoints||0), monthUsed: Number(s?.monthUsed||0), monthGained: Number(s?.monthGained||0) }; }catch{ stats.value = { currentPoints:0, monthUsed:0, monthGained:0 }; } }
-async function fetchLogs(){ try{ const rows:any[] = await http('/member/me/points-logs', { method:'GET', query:{ limit: 100 } }); logs.value = Array.isArray(rows)?rows:[]; }catch{ logs.value = []; } }
+async function fetchStats(){ try{ const s:any = await memberControllerGetPointsStats({} as any); stats.value = { currentPoints: Number(s?.currentPoints||0), monthUsed: Number(s?.monthUsed||0), monthGained: Number(s?.monthGained||0) }; }catch{ stats.value = { currentPoints:0, monthUsed:0, monthGained:0 }; } }
+async function fetchLogs(){ try{ const rows:any[] = (await memberControllerGetPointsLogs({ limit: 100 } as any) as unknown) as any[]; logs.value = Array.isArray(rows)?rows:[]; }catch{ logs.value = []; } }
 async function fetchProfileLevel(){
   try{
-    const p:any = await http('/member/me/profile', { method:'GET' });
+    const p:any = await memberControllerMe({} as any);
     const m = Number(p?.level?.pointsMultiplier || 1);
     multiplier.value = Number.isFinite(m) && m >= 1 ? Math.floor(m) : 1;
   }catch{ multiplier.value = 1; }

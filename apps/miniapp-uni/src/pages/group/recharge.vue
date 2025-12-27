@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp } from '../../utils/auth';
+import { groupMiniappControllerMyGroupRecharge, groupMiniappControllerMyGroupSummary } from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
 
@@ -40,8 +40,7 @@ function goBack(){ try { uni.navigateBack(); } catch {} }
 
 async function loadGroupId(){
   try {
-    const http = createHttp();
-    const summary:any = await http('/group/miniapp/me/summary', { method: 'GET' });
+    const summary:any = await groupMiniappControllerMyGroupSummary({} as any);
     groupId.value = summary?.hasGroup ? summary?.id : null;
   } catch {}
 }
@@ -55,8 +54,7 @@ async function createOrder(){
     if (!/^\d+(\.\d{1,2})?$/.test(raw)) { uni.showToast({ title:'金额格式不正确，最多两位小数', icon:'none' }); return; }
     const a = Number(raw); if (!isFinite(a) || a<=0) { uni.showToast({ title:'金额必须大于0', icon:'none' }); return; }
     if (a > 5000) { uni.showToast({ title:'单次金额不得超过5000', icon:'none' }); return; }
-    const http = createHttp();
-    const r: any = await http(`/group/miniapp/me/recharge`, { method: 'POST', query: { amount: a } });
+    const r: any = await groupMiniappControllerMyGroupRecharge({ amount: a } as any);
     orderNo.value = r?.no || '';
     uni.showToast({ title:'已创建订单', icon:'success' });
     // 跳转到订单详情

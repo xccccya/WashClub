@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { GroupService } from './group.service.js';
+import { GroupCreateDto, GroupUpdateDto } from './group.dto.js';
 
 @ApiTags('Group')
 @Controller('group')
@@ -13,7 +14,7 @@ export class GroupController {
   @Post('')
   @RequirePerm('group')
   @ApiOperation({ summary: '创建集团（含首位管理员）' })
-  create(@Body() body: { name: string; iconUrl?: string | null; firstAdminMemberId: number; remark?: string | null }) {
+  create(@Body() body: GroupCreateDto) {
     if (!body?.name) throw new BadRequestException('缺少名称');
     if (!body?.firstAdminMemberId) throw new BadRequestException('缺少首位管理员');
     return this.service.create({ name: body.name, iconUrl: body.iconUrl ?? null, firstAdminMemberId: Number(body.firstAdminMemberId), remark: body.remark ?? null });
@@ -41,8 +42,8 @@ export class GroupController {
 
   @Patch(':id')
   @RequirePerm('group')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string | null; iconUrl?: string | null; remark?: string | null }) {
-    return this.service.updateBasic(id, { name: body?.name ?? undefined, iconUrl: body?.iconUrl ?? undefined, remark: body?.remark ?? undefined });
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: GroupUpdateDto) {
+    return this.service.updateBasic(id, { name: body?.name, iconUrl: body?.iconUrl, remark: body?.remark });
   }
 
   @Delete(':id')

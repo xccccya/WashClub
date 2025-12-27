@@ -1,8 +1,14 @@
 import { Controller, Get, Post, Body, Query, Param, Headers, BadRequestException, NotFoundException } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
+import {
+	NotificationListQueryDto,
+	NotificationMarkReadDto,
+	NotificationUnreadCountResponseDto,
+	NotificationUpsertTypeSettingDto,
+} from './notification.dto.js';
 
 @ApiTags('notification')
 @Controller('notification')
@@ -30,16 +36,19 @@ export class NotificationController {
 
     @Get('list')
     @ApiOperation({ summary: '拉取我的通知列表（管理员或会员）' })
-    async list(@Headers('authorization') authHeader?: string, @Query('status') status?: 'UNREAD'|'READ', @Query('take') takeStr?: string, @Query('skip') skipStr?: string) {
+    @ApiOkResponse({ description: '通知列表' })
+    async list(@Headers('authorization') authHeader?: string, @Query() query?: NotificationListQueryDto) {
         const { type, sub } = await this.parseAuth(authHeader);
-        const take = Math.max(1, Math.min(200, Number(takeStr||50)));
-        const skip = Math.max(0, Number(skipStr||0));
+        const take = Math.max(1, Math.min(200, Number((query as any)?.take ?? 50)));
+        const skip = Math.max(0, Number((query as any)?.skip ?? 0));
+        const status = (query as any)?.status as ('UNREAD'|'READ'|undefined);
         if (type === 'admin') return this.service.listForAdmin(sub, { status, take, skip });
         return this.service.listForMember(sub, { status, take, skip });
     }
 
     @Get('unread-count')
     @ApiOperation({ summary: '获取未读数' })
+    @ApiOkResponse({ type: NotificationUnreadCountResponseDto })
     async unreadCount(@Headers('authorization') authHeader?: string){
         const { type, sub } = await this.parseAuth(authHeader);
         if (type === 'admin') return { count: await this.service.unreadCountForAdmin(sub) };
@@ -48,7 +57,7 @@ export class NotificationController {
 
     @Post('mark-read')
     @ApiOperation({ summary: '标记为已读' })
-    async markRead(@Headers('authorization') authHeader: string, @Body() dto: { id: number }){
+    async markRead(@Headers('authorization') authHeader: string, @Body() dto: NotificationMarkReadDto){
         const { type, sub } = await this.parseAuth(authHeader);
         const id = Number((dto as any)?.id||0); if (!id) throw new BadRequestException('缺少通知ID');
         if (type === 'admin') return this.service.markRead(id, { kind: 'ADMIN', userId: sub });
@@ -85,7 +94,7 @@ export class NotificationController {
 
     @Post('type-settings/upsert')
     @ApiOperation({ summary: '创建或更新通知类型设置（管理员）' })
-    async upsertTypeSetting(@Headers('authorization') authHeader: string, @Body() dto: { typeKey:string; channel:'MEMBER'|'ADMIN'|'WXAPP'; enabled?:boolean; allowFallback?:boolean; defaultUi?: any }){
+    async upsertTypeSetting(@Headers('authorization') authHeader: string, @Body() dto: NotificationUpsertTypeSettingDto){
         const { type } = await this.parseAuth(authHeader);
         if (type !== 'admin') throw new BadRequestException('无权限');
         const key = String(dto?.typeKey||'').trim(); const ch = String(dto?.channel||'');

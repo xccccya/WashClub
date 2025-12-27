@@ -32,9 +32,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { createHttp } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import { onShow } from '@dcloudio/uni-app';
+import { memberControllerList, washCardControllerAdminAddShare, washCardControllerAdminRemoveShare, washCardControllerAdminShares } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const cardId = ref<number | null>(null);
@@ -46,8 +46,8 @@ async function fetchShares(){
 	if (!cardId.value) return;
 	loading.value = true;
 	try {
-		const http = createHttp();
-		shares.value = await http<any[]>(`/wash-card/${cardId.value}/shares`, { method: 'GET' });
+		const res = (await washCardControllerAdminShares(String(cardId.value))) as any;
+		shares.value = (Array.isArray(res) ? res : []) as any[];
 	} catch { shares.value = []; }
 	finally { loading.value = false; }
 }
@@ -59,12 +59,11 @@ async function addShare(){
 	const p = String(phone.value||'').trim();
 	if (!validPhone(p)) { uni.showToast({ title: '手机号格式不正确', icon: 'none' }); return; }
 	try {
-		const http = createHttp();
 		// 先查会员ID
-		const member = await http<any>(`/member/list?page=1&pageSize=1&keyword=${encodeURIComponent(p)}`, { method: 'GET' });
+		const member = (await memberControllerList({ page: 1, pageSize: 20, keyword: p } as any)) as any;
 		const match = Array.isArray(member?.items) ? member.items.find((x:any)=> x.phone === p) : null;
 		if (!match?.id) { uni.showToast({ title: '未找到该会员', icon: 'none' }); return; }
-		await http(`/wash-card/${cardId.value}/shares`, { method: 'POST', body: { memberId: match.id } as any });
+		await washCardControllerAdminAddShare(String(cardId.value), { body: JSON.stringify({ memberId: match.id }) });
 		uni.showToast({ title: '添加成功', icon: 'success' });
 		phone.value = '';
 		await fetchShares();
@@ -74,8 +73,7 @@ async function addShare(){
 async function removeShare(memberId: number){
 	if (!cardId.value) return;
 	try {
-		const http = createHttp();
-		await http(`/wash-card/${cardId.value}/shares/${memberId}/remove`, { method: 'POST' });
+		await washCardControllerAdminRemoveShare(String(cardId.value), String(memberId));
 		uni.showToast({ title: '已移除', icon: 'success' });
 		await fetchShares();
 	} catch { uni.showToast({ title: '操作失败', icon: 'none' }); }

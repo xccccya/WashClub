@@ -70,11 +70,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { Search } from '@element-plus/icons-vue';
+import { couponControllerListLogs } from '@wash/api-client';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const loading = ref(false);
 const page = ref(1);
 const pageSize = ref(20);
@@ -123,7 +121,12 @@ function getActionTagType(a?: string){
 async function fetchList(){
   loading.value = true;
   try{
-    list.value = await http('/coupons/logs', { query: { page: page.value, pageSize: pageSize.value, memberId: query.value.memberId || undefined, orderId: query.value.orderId || undefined } });
+    list.value = (await couponControllerListLogs({
+      page: page.value,
+      pageSize: pageSize.value,
+      memberId: query.value.memberId || undefined,
+      orderId: query.value.orderId || undefined,
+    } as any) as any) || { total:0, page: page.value, pageSize: pageSize.value, items: [] };
   } finally { loading.value = false; }
 }
 function onPage(p:number){ page.value=p; fetchList(); }

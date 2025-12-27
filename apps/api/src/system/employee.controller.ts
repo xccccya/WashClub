@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.dto.js';
 
 @ApiTags('system')
 @Controller('system/employees')
@@ -48,7 +49,7 @@ export class SystemEmployeeController {
   @Post()
   @ApiOperation({ summary: '新增员工：从现有会员绑定' })
   @RequirePerm('system-employees')
-  async create(@Body() body: { memberId?: number; name?: string|null; title?: string|null; enabled?: boolean }) {
+  async create(@Body() body: CreateEmployeeDto) {
     const memberId = Number(body?.memberId || 0);
     if (!Number.isFinite(memberId) || memberId <= 0) throw new BadRequestException('memberId 无效');
     const mem = await this.prisma.member.findUnique({ where: { id: memberId } });
@@ -62,7 +63,7 @@ export class SystemEmployeeController {
   @Put(':id')
   @ApiOperation({ summary: '编辑员工：姓名/职务/启用状态' })
   @RequirePerm('system-employees')
-  async update(@Param('id') id: string, @Body() body: { name?: string|null; title?: string|null; enabled?: boolean }) {
+  async update(@Param('id') id: string, @Body() body: UpdateEmployeeDto) {
     const eid = Number(id || 0);
     if (!Number.isFinite(eid) || eid <= 0) throw new BadRequestException('ID 无效');
     const updated = await this.prisma.employee.update({ where: { id: eid }, data: { name: (body?.name ?? undefined) as any, title: (body?.title ?? undefined) as any, enabled: body?.enabled ?? undefined } });

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'node:crypto';
 import { PrismaService } from '../prisma.service.js';
 import { AssetService } from '../file/asset.service.js';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 @Injectable()
 export class MemberService {
@@ -34,7 +35,7 @@ export class MemberService {
 
 	// 同步游客订单占位账号：根据 GUEST_MEMBER_ID，将系统标签 GUEST_ORDER_OWNER 切换到该会员
 	async syncGuestOrderOwnerByEnv() {
-		const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+		const gid = resolveGuestMemberIdEnv();
 		if (!gid) throw new BadRequestException('未配置 GUEST_MEMBER_ID');
 		return this.prisma.$transaction(async (tx) => {
 			const m = await tx.member.findUnique({ where: { id: gid }, select: { id: true } });
@@ -55,7 +56,7 @@ export class MemberService {
 
 	// 查询当前游客占位账号（从环境变量读取 ID，并返回是否已贴上系统标签）
 	async getGuestOrderOwnerByEnv() {
-		const gid = Number(process.env.GUEST_MEMBER_ID || (process.env as any).GUESS_MEMBER_ID || 0);
+		const gid = resolveGuestMemberIdEnv();
 		if (!gid) return { guestMemberId: null, tagged: false } as const;
 		const m: any = await this.prisma.member.findUnique({ where: { id: gid }, include: { tags: true } });
 		if (!m) return { guestMemberId: gid, exists: false, tagged: false } as const;

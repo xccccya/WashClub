@@ -393,8 +393,9 @@ cd uniap-ai2
 pnpm install
 
 # 3. 环境配置
-cp apps/api/.env.example apps/api/.env
-# 编辑 .env 文件，配置数据库连接等必要信息
+# 说明：仓库不提交 `.env`（包含敏感信息）。请参考示例文件创建本地配置：
+copy apps/api/env.example apps/api/.env
+# 编辑 apps/api/.env，配置数据库连接等必要信息（尤其是 JWT_SECRET）
 
 # 4. 数据库初始化
 cd apps/api
@@ -451,8 +452,14 @@ pnpm dev
 DATABASE_URL="mysql://user:pass@localhost:3306/jukecar"
 
 # JWT认证
-JWT_SECRET=your_jwt_secret_key
+JWT_SECRET=your_strong_random_jwt_secret  # 强随机字符串（建议 >= 32 字符），禁止使用 dev_secret
 JWT_EXPIRES_IN=7d
+
+# 游客兜底会员（用于“游客下单/游客车辆/队列创建服务单”等场景的会员归属兜底）
+# - 必须是一个真实存在的 Member.id
+# - 标准变量名为 GUEST_MEMBER_ID
+# - 兼容历史拼写 GUESS_MEMBER_ID（将逐步废弃）
+GUEST_MEMBER_ID=1
 
 # 腾讯云短信服务
 TENCENTCLOUD_SECRET_ID=your_secret_id

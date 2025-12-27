@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CouponService } from './coupon.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { UpdateMemberCouponExpiryDto } from './member-coupon.dto.js';
 
 @ApiTags('MemberCoupons')
 @Controller('member-coupons')
@@ -32,7 +33,7 @@ export class MemberCouponAdminController {
     @Put(':id/expiry')
     @ApiOperation({ summary: '修改有效期（开始/结束时间）' })
     @RequirePerm('member-coupons')
-    updateExpiry(@Param('id', ParseIntPipe) id: number, @Body() body: { startAt?: string | null; endAt?: string | null }){
+    updateExpiry(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateMemberCouponExpiryDto){
         const payload: any = {};
         if ('startAt' in (body||{})) payload.startAt = body.startAt ? new Date(body.startAt) : null;
         if ('endAt' in (body||{})) payload.endAt = body.endAt ? new Date(body.endAt) : null;

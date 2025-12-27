@@ -15,13 +15,14 @@ import { GroupVehicleService } from './vehicle.service.js';
 import { GroupBalanceService } from './balance.service.js';
 import { GroupCardService } from './card.service.js';
 import { MemberModule } from '../member/member.module.js';
+import { resolveJwtSecretEnv } from '../env.js';
 
 @Module({
   imports: [
     AuthModule,
     FileModule,
     MemberModule,
-    JwtModule.register({ secret: process.env.JWT_SECRET || 'dev_secret' })
+    JwtModule.register({ secret: resolveJwtSecretEnv() })
   ],
   controllers: [
     GroupController,

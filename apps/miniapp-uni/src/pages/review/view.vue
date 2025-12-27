@@ -38,7 +38,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { createHttp } from '../../utils/auth';
+import { orderControllerGetReview } from '@wash/api-client';
 import { useSafeArea } from '../../utils/safe-area';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -52,8 +52,8 @@ function goBack(){ const pages = getCurrentPages?.() || []; if (pages.length > 1
 
 async function fetchDetail(id: number){
     try{
-        const http = createHttp();
-        detail.value = await http(`/orders/${id}/review`, { method:'GET' });
+        // 直接使用 SDK：底层 createHttpClient 已支持小程序 uni.request + uni storage token
+        detail.value = await (orderControllerGetReview(Number(id)) as any);
     }catch{ detail.value = null; }
 }
 

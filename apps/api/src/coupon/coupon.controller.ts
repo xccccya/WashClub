@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CouponService } from './coupon.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { CouponCreateDto, CouponIssueDto, CouponUpdateDto } from './coupon.dto.js';
 
 @ApiTags('Coupon')
 @Controller('coupons')
@@ -38,11 +39,11 @@ export class CouponController {
     @Post('')
     @ApiOperation({ summary: '创建卡券' })
     @RequirePerm('coupons')
-    create(@Body() body: any){ return this.svc.createCoupon(body); }
+    create(@Body() body: CouponCreateDto){ return this.svc.createCoupon(body); }
     @Put(':id')
     @ApiOperation({ summary: '更新卡券' })
     @RequirePerm('coupons')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: any){ return this.svc.updateCoupon(id, body); }
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: CouponUpdateDto){ return this.svc.updateCoupon(id, body); }
     @Delete(':id')
     @ApiOperation({ summary: '删除卡券' })
     @RequirePerm('coupons')
@@ -52,7 +53,7 @@ export class CouponController {
     @Post(':id/issue')
     @ApiOperation({ summary: '发放优惠券到指定会员' })
     @RequirePerm('coupons')
-    issue(@Param('id', ParseIntPipe) id: number, @Body() body: { memberId: number; count?: number }){
+    issue(@Param('id', ParseIntPipe) id: number, @Body() body: CouponIssueDto){
         return this.svc.issueToMember({ couponId: id, memberId: Number(body.memberId), count: Number(body?.count||1) });
     }
 

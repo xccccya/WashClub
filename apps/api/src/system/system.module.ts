@@ -6,11 +6,12 @@ import { SystemEmployeeController } from './employee.controller.js';
 import { SystemMiniappEmployeeController } from './miniapp.controller.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { FileModule } from '../file/file.module.js';
+import { resolveJwtSecretEnv } from '../env.js';
 
 @Module({
     imports: [
         JwtModule.register({
-            secret: process.env.JWT_SECRET || 'dev_secret',
+            secret: resolveJwtSecretEnv(),
         }),
         FileModule,
     ],

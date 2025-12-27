@@ -406,9 +406,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../../config';
 import { absUrl } from '../../utils/http';
+import { assetControllerList, assetControllerListRef, assetControllerRemove, assetControllerUpdate } from '@wash/api-client';
 import { 
 	Search, Picture, VideoPlay, Headset, Document, UploadFilled, 
 	Grid, List, Select, Close, PriceTag, Delete, Check, Folder, 
@@ -430,7 +430,6 @@ type Asset = {
 const props = defineProps<{ modelValue: boolean; multiple?: boolean; title?: string }>();
 const emit = defineEmits<{ (e:'update:modelValue', v:boolean):void; (e:'picked', files: Asset[]):void }>();
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const visible = computed({ get:()=>props.modelValue, set:(v:boolean)=>emit('update:modelValue', v) });
 const title = computed(()=>props.title);
 const multiple = computed(()=>!!props.multiple);
@@ -468,7 +467,7 @@ function copyHtml(it:any){ copy(`<img src="${abs(it.url)}" alt="${it.filename}" 
 async function fetchList(){
 	try {
 		loading.value = true;
-		const res:any = await http('/assets', { method:'GET', query: { page: page.value, pageSize: pageSize.value, mimeType: mimeFilter.value || undefined, q: search.value || undefined, tag: tagFilter.value || undefined, tags: tagFilters.value.length? tagFilters.value: undefined } });
+		const res:any = await assetControllerList({ page: page.value, pageSize: pageSize.value, mimeType: mimeFilter.value || undefined, q: search.value || undefined, tag: tagFilter.value || undefined, tags: tagFilters.value.length? tagFilters.value: undefined } as any);
 		items.value = Array.isArray(res?.items) ? res.items : [];
 		total.value = Number(res?.total||0);
 		const set = new Set<string>();
@@ -519,21 +518,21 @@ async function saveTags(isBatch = false){
 		savingTags.value = true;
 		const tags = (Array.isArray(tagsInput.value) ? tagsInput.value : String(tagsDraft.value||'').split(',')).map(s=>String(s||'').trim()).filter(Boolean);
 		if (isBatch) {
-			for(const id of selectedIds.value){ await http(`/assets/${id}`, { method:'PATCH', body: { tags } }); }
+			for(const id of selectedIds.value){ await assetControllerUpdate(id, { tags } as any); }
 			batchTagVisible.value = false;
 		} else if (current.value) {
-			await http(`/assets/${current.value.id}`, { method:'PATCH', body: { tags } });
+			await assetControllerUpdate(String(current.value.id), { tags } as any);
 			detailVisible.value = false;
 		}
 		await fetchList();
 	} finally { savingTags.value = false; }
 }
 function openBatchTag(){ tagsDraft.value=''; tagsInput.value = []; batchTagVisible.value = true; }
-async function batchDelete(){ for(const id of selectedIds.value){ await http(`/assets/${id}`, { method:'DELETE' }); } selectedIds.value.clear(); await fetchList(); }
+async function batchDelete(){ for(const id of selectedIds.value){ await assetControllerRemove(id); } selectedIds.value.clear(); await fetchList(); }
 
 // 引用列表
 const refs = ref<any[]>([]);
-async function refreshRefs(){ if (current.value) { try { refs.value = await http(`/assets/${current.value.id}/references`, { method:'GET' }); } catch { refs.value = []; } } }
+async function refreshRefs(){ if (current.value) { try { refs.value = (await assetControllerListRef(String(current.value.id)) as any) || []; } catch { refs.value = []; } } }
 watch(detailVisible, async (v)=>{ if (v && current.value) { await refreshRefs(); } });
 
 // 全选相关功能

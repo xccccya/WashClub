@@ -98,7 +98,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 declare const uni: any;
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp } from '../../utils/auth';
+import { systemMiniappEmployeeControllerDaily, systemMiniappEmployeeControllerOverview } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const overview = ref<any|null>(null);
@@ -140,19 +140,18 @@ function formatCurrency(n?: number){
 
 async function fetchOverview(){
   loadingOverview.value = true;
-  try { overview.value = await (createHttp())('/system/miniapp/employee/overview', { method: 'GET', query: { range: 'today' } }); }
+  try { overview.value = await systemMiniappEmployeeControllerOverview({ range: 'today' } as any) as any; }
   catch{ overview.value = null; }
   finally { loadingOverview.value = false; }
 }
 
 async function fetchDaily(){
   try{
-    const http = createHttp();
     if (range.value === 'custom' && customRange.value && customRange.value.length===2) {
       const s = String(customRange.value[0]);
       const e = String(customRange.value[1]);
       const { startIso, endIso } = toIsoInclusiveRange(s, e);
-      daily.value = await http('/system/miniapp/employee/daily', { method: 'GET', query: { start: startIso, end: endIso } });
+      daily.value = await systemMiniappEmployeeControllerDaily({ start: startIso, end: endIso } as any) as any;
     } else if (range.value === 'last7' || range.value === 'last30' || range.value === 'thisMonth') {
       const today = new Date();
       const endStr = formatDateLocal(today);
@@ -166,10 +165,10 @@ async function fetchDaily(){
         startStr = formatDateLocal(firstDay);
       }
       const { startIso, endIso } = toIsoInclusiveRange(startStr, endStr);
-      daily.value = await http('/system/miniapp/employee/daily', { method: 'GET', query: { start: startIso, end: endIso } });
+      daily.value = await systemMiniappEmployeeControllerDaily({ start: startIso, end: endIso } as any) as any;
     } else {
       // 上月等其他区间交由后端处理
-      daily.value = await http('/system/miniapp/employee/daily', { method: 'GET', query: { range: range.value } });
+      daily.value = await systemMiniappEmployeeControllerDaily({ range: range.value } as any) as any;
     }
     daily.value.items = (daily.value.items||[]).sort((a:any,b:any)=> (a.date < b.date ? 1 : (a.date>b.date?-1:0)));
   } catch{ daily.value = { items: [] }; }
@@ -271,7 +270,6 @@ function formatTzOffset(d: Date){
 async function computeCompare(){
   try{
     if (!displayItems.value.length) { compareTotals.value = null; rates.value = { washCount:null, washcardDeductTimes:null, payAmount:null }; return; }
-    const http = createHttp();
     const start = displayItems.value[displayItems.value.length-1].date;
     const end = displayItems.value[0].date;
     const days = Math.max(1, dateDiffInDays(start, end)+1);
@@ -290,7 +288,7 @@ async function computeCompare(){
     }
 
     const prevIso = toIsoInclusiveRange(baseStart, baseEnd);
-    const baseResp = await http('/system/miniapp/employee/daily', { method: 'GET', query: { start: prevIso.startIso, end: prevIso.endIso } }) as { items?: any[] };
+    const baseResp = await systemMiniappEmployeeControllerDaily({ start: prevIso.startIso, end: prevIso.endIso } as any) as any as { items?: any[] };
     const baseItems = ((baseResp && baseResp.items) ? baseResp.items : []).sort((a:any,b:any)=> (a.date < b.date ? 1 : (a.date>b.date?-1:0)));
     const baseTotal = baseItems.reduce((acc:any, it:any)=>{
       acc.washCount += Number(it.washCount||0);

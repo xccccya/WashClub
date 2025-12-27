@@ -7,6 +7,8 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const uni: any;
 
+import { notificationControllerList, notificationControllerUnreadCount } from '@wash/api-client';
+
 function buildWsUrl(apiBase: string, token: string): string {
   try {
     const u = new URL(apiBase);
@@ -43,19 +45,20 @@ class RealtimeClient {
       if (!task) return;
       task.onOpen?.(()=>{ this.reconnectAttempt = 0; try{ uni.$emit?.('realtime:connected'); }catch{} });
       // 连接成功后拉取未读计数与最近未读列表，提升一致性
-      task.onOpen?.(()=>{
+      task.onOpen?.(async ()=>{
         try{
-          const urlBase = this.apiBase;
           const auth = `Bearer ${this.lastToken}`;
           // 未读计数
-          uni.request({ url: urlBase + '/notification/unread-count', method: 'GET', header: { Authorization: auth }, success: (res:any)=>{
-            const c = Number((res?.data||{}).count||0);
+          try{
+            const r:any = await notificationControllerUnreadCount({ headers: { Authorization: auth } } as any);
+            const c = Number(r?.count||0);
             try{ uni.$emit?.('realtime:unread', { count: c }); }catch{}
-          }});
+          }catch{}
           // 最近未读列表（最多 20 条）
-          uni.request({ url: urlBase + '/notification/list?status=UNREAD&take=20', method: 'GET', header: { Authorization: auth }, success: (res:any)=>{
-            try{ const list:any[] = Array.isArray(res?.data)? res.data: []; uni.$emit?.('realtime:unread-list', list); }catch{}
-          }});
+          try{
+            const list:any[] = (await notificationControllerList({ status: 'UNREAD', take: 20 } as any, { headers: { Authorization: auth } } as any) as any) || [];
+            try{ uni.$emit?.('realtime:unread-list', Array.isArray(list) ? list : []); }catch{}
+          }catch{}
         }catch{}
       });
       task.onMessage?.((evt:any)=>{

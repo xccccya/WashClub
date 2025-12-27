@@ -12,7 +12,7 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:push": "prisma db push",
-    "openapi": "node ./scripts/generate-openapi.mjs",
+    "openapi": "pnpm run build && node ./scripts/generate-openapi.mjs",
     "db:init": "node ./scripts/init-db.mjs",
     "db:seed": "node ./scripts/seed.mjs",
     "db:seed:demo": "node ./scripts/demo-seed.mjs",

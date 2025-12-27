@@ -40,13 +40,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberCategoryControllerCreate,
+	memberCategoryControllerList,
+	memberCategoryControllerRemove,
+	memberCategoryControllerUpdate,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { CirclePlus, Edit, Delete } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Category = { id: number; name: string; weight: number };
 const categories = ref<Category[]>([]);
@@ -54,20 +56,21 @@ const dialogVisible = ref(false);
 const current = ref<Category | null>(null);
 const form = ref<Partial<Category>>({ name: '', weight: 0 });
 
-async function fetchCategories(){ categories.value = await http<Category[]>('/member-category', { method: 'GET' }); }
+async function fetchCategories(){ categories.value = (await memberCategoryControllerList() as any) as Category[]; }
 
 function openCreate(){ current.value = null; form.value = { name: '', weight: 0 }; dialogVisible.value = true; }
 function openEdit(row: Category){ current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function onSave(){
 	try{
-		if (current.value?.id) await http(`/member-category/${current.value.id}`, { method: 'PUT', body: form.value });
-		else await http('/member-category', { method: 'POST', body: form.value });
+		const payload:any = { name: String(form.value?.name || '').trim(), weight: Number(form.value?.weight || 0) };
+		if (current.value?.id) await memberCategoryControllerUpdate(String(current.value.id), payload);
+		else await memberCategoryControllerCreate(payload);
 		dialogVisible.value = false; ElMessage.success('已保存'); fetchCategories();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Category){ try { await http(`/member-category/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchCategories(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(row: Category){ try { await memberCategoryControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchCategories(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchCategories);
 </script>

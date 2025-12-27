@@ -156,8 +156,15 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { http, absUrl } from '../utils/http';
-import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
+import {
+	carDataControllerGetBrands,
+	carDataControllerGetSeries,
+	groupControllerList,
+	groupVehicleControllerCreate,
+	groupVehicleControllerList,
+	groupVehicleControllerRemove,
+} from '@wash/api-client';
 
 const route = useRoute();
 const groupId = ref<number | null>(null);
@@ -201,8 +208,40 @@ const currentBrand = ref<FlatBrand | null>(null);
 function formatBrandImg(url?: string){ if (!url) return ''; return url; }
 function selectLetter(ch: string | null){ selectedLetter.value = ch; applyBrandFilter(); try { brandSelectKey.value++; } catch {} }
 function applyBrandFilter(){ const all = brandOptionsAll.value; brandOptions.value = selectedLetter.value ? all.filter(b => (b.letter||'').toUpperCase() === selectedLetter.value) : all; }
-async function fetchBrands(){ brandLoading.value = true; try { const resp = await fetch(`${API_BASE}/content/car/brands`); const json = await resp.json(); const arr: BrandItem[] = json || []; const flat: FlatBrand[] = []; for (const mb of arr){ for (const b of (mb.brand_list || [])){ flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img }); } } brandOptionsAll.value = flat; applyBrandFilter(); brandsLoaded.value = true; } catch { brandOptionsAll.value = []; brandOptions.value = []; } finally { brandLoading.value = false; } }
-async function fetchSeries(brandId: number){ if (!brandId) { seriesOptions.value = []; return; } seriesLoading.value = true; try { const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`); const json = await resp.json(); const arr: any[] = json || []; seriesOptions.value = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale })); } catch { seriesOptions.value = []; } finally { seriesLoading.value = false; } }
+async function fetchBrands(){
+  brandLoading.value = true;
+  try {
+    // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+    const arr = (await carDataControllerGetBrands() as unknown) as BrandItem[];
+    const flat: FlatBrand[] = [];
+    for (const mb of arr){
+      for (const b of (mb.brand_list || [])){
+        flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img });
+      }
+    }
+    brandOptionsAll.value = flat;
+    applyBrandFilter();
+    brandsLoaded.value = true;
+  } catch {
+    brandOptionsAll.value = [];
+    brandOptions.value = [];
+  } finally {
+    brandLoading.value = false;
+  }
+}
+async function fetchSeries(brandId: number){
+  if (!brandId) { seriesOptions.value = []; return; }
+  seriesLoading.value = true;
+  try {
+    // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+    const arr = (await carDataControllerGetSeries({ brandId } as any) as unknown) as any[];
+    seriesOptions.value = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
+  } catch {
+    seriesOptions.value = [];
+  } finally {
+    seriesLoading.value = false;
+  }
+}
 function onBrandChange(val: number){ const b = brandOptionsAll.value.find(x => x.brand_id === val); form.value.brandName = b?.brand_name || ''; currentBrand.value = b || null; form.value.seriesId = undefined; form.value.seriesName = ''; fetchSeries(val); }
 function onSeriesChange(val: number){ const s = seriesOptions.value.find(x => x.series_id === val); form.value.seriesName = s?.series_name || ''; const scale = (s?.scale || '').toString(); const { main, sub } = mapScaleToType(scale); if (main) form.value.typeMain = main; if (sub) form.value.typeSub = sub; lockTypeBySeries.value = !!val; }
 function onBrandDropdownVisible(visible: boolean){ if (visible && !brandsLoaded.value && !brandLoading.value) fetchBrands(); }
@@ -210,7 +249,7 @@ function mapScaleToType(scale: string): { main: string; sub: string } { const sc
 
 async function load(){
   if(!groupId.value){ items.value=[]; return; }
-  const res:any = await http(`/group/${groupId.value}/vehicles`, { method: 'GET', query: { keyword: keyword.value || undefined, source: source.value, sortBy: sortBy.value, sortOrder: sortOrder.value } });
+  const res:any = await groupVehicleControllerList(Number(groupId.value), { keyword: keyword.value || undefined, source: source.value, sortBy: sortBy.value, sortOrder: sortOrder.value } as any);
   items.value = Array.isArray(res) ? res : [];
 }
 
@@ -231,7 +270,7 @@ async function doCreate(){
     typeSub: form.value.typeSub || undefined,
     color: form.value.color || undefined,
   } as any;
-  await http(`/group/${groupId.value}/vehicles`, { method: 'POST', body: payload });
+  await groupVehicleControllerCreate(Number(groupId.value), payload as any);
   ElMessage.success('创建成功');
   createVisible.value = false;
   form.value = { plateNumber: '', vin: '', brandId: undefined, brandName: '', seriesId: undefined, seriesName: '', typeMain: '', typeSub: '', color: '' };
@@ -240,7 +279,7 @@ async function doCreate(){
 
 async function remove(row: any){
   if(!groupId.value) return;
-  await http(`/group/${groupId.value}/vehicles/${row.id}`, { method: 'DELETE' });
+  await groupVehicleControllerRemove(Number(groupId.value), Number(row.id));
   ElMessage.success('已解绑');
   await load();
 }
@@ -249,7 +288,7 @@ onMounted(()=>{ const q = Number(route.query.groupId||0); if (Number.isFinite(q)
 async function searchGroups(q?: string){
   loadingGroups.value = true;
   try{
-    const res:any = await http('/group', { method:'GET', query: { page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } });
+    const res:any = await groupControllerList({ page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } as any);
     groupOptions.value = Array.isArray(res?.items) ? res.items : [];
     // 若无预设 groupId，自动不选择
   } finally { loadingGroups.value = false; }

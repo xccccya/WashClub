@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberCategoryService } from './category.service.js';
+import { CreateMemberCategoryDto, UpdateMemberCategoryDto } from './category.dto.js';
 
 @ApiTags('member-category')
 @Controller('member-category')
@@ -15,14 +16,14 @@ export class MemberCategoryController {
 
 	@Post()
 	@ApiOperation({ summary: '创建会员分类' })
-	create(@Body() body: { name: string; weight: number }) {
-		return this.service.create(body);
+	create(@Body() body: CreateMemberCategoryDto) {
+		return this.service.create(body as any);
 	}
 
 	@Put(':id')
 	@ApiOperation({ summary: '更新会员分类' })
-	update(@Param('id') id: string, @Body() body: { name?: string; weight?: number }) {
-		return this.service.update(Number(id), body);
+	update(@Param('id') id: string, @Body() body: UpdateMemberCategoryDto) {
+		return this.service.update(Number(id), body as any);
 	}
 
 	@Delete(':id')

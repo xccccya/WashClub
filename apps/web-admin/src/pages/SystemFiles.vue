@@ -478,7 +478,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
+import {
+	assetControllerBulkThumbs,
+	assetControllerCleanup,
+	assetControllerList,
+	assetControllerListRef,
+	assetControllerRemove,
+	assetControllerUpdate,
+} from '@wash/api-client';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
@@ -488,8 +495,6 @@ import {
 	Link, EditPen, View, Check, Folder, DocumentCopy, Connection,
 	FolderOpened
 } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type FileItem = { 
 	id: string; 
@@ -537,17 +542,15 @@ function formatTime(dateInput: string | number){
 async function fetchList(){ 
 	try {
 		loading.value = true;
-		const res:any = await http('/assets', { 
-			method:'GET', 
-			query: { 
-				page: page.value, 
-				pageSize: pageSize.value, 
-				q: keyword.value || undefined, 
-				mimeType: mimeFilter.value || undefined, 
-				tag: tagFilter.value || undefined, 
-				tags: tagFilters.value.length? tagFilters.value: undefined 
-			} 
-		}); 
+		// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（对象含 items/total）使用
+		const res:any = (await assetControllerList({
+			page: page.value,
+			pageSize: pageSize.value,
+			q: keyword.value || undefined,
+			mimeType: mimeFilter.value || undefined,
+			tag: tagFilter.value || undefined,
+			tags: tagFilters.value.length ? tagFilters.value : undefined,
+		} as any) as unknown) as any;
 		files.value = Array.isArray(res?.items)? res.items : []; 
 		total.value = Number(res?.total||0); 
 		buildTags(files.value); 
@@ -587,12 +590,12 @@ async function upload(options:any){
 		ElMessage.error(`上传失败: ${e?.message || e || '网络错误'}`);
 	}
 }
-async function remove(row: FileItem){ try { await http(`/assets/${row.id}`, { method:'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(row: FileItem){ try { await assetControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 function onSel(rows: FileItem[]){ selected.value = new Set(rows.map(r=>r.id)); }
 async function preheat(){ 
 	if (selected.value.size===0) return; 
 	try {
-		await http('/assets/thumbnails/bulk', { method:'POST', body:{ ids: Array.from(selected.value), sizes: [120,240,480] } }); 
+		await assetControllerBulkThumbs({ ids: Array.from(selected.value), sizes: [120,240,480] } as any);
 		ElMessage.success('已预热'); 
 	} catch (e:any) {
 		ElMessage.error(`预热失败: ${e?.message || e || '未知错误'}`);
@@ -601,7 +604,7 @@ async function preheat(){
 async function cleanup(){ 
 	if (selected.value.size===0) return; 
 	try {
-		await http('/assets/thumbnails/cleanup', { method:'POST', body:{ ids: Array.from(selected.value) } }); 
+		await assetControllerCleanup({ ids: Array.from(selected.value) } as any);
 		ElMessage.success('已清理变体'); 
 	} catch (e:any) {
 		ElMessage.error(`清理失败: ${e?.message || e || '未知错误'}`);
@@ -629,10 +632,38 @@ function onFilterChanged(){ page.value = 1; fetchList(); }
 function openDetail(it:any){ current.value = it; tagsDraft.value = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson.join(',') : ''; detailVisible.value = true; refreshRefs(); }
 // 初始化选择器
 watch(detailVisible, (v)=>{ if (v && current.value) { tagsInput.value = Array.isArray((current.value as any).tagsJson) ? (current.value as any).tagsJson : []; } });
-async function refreshRefs(){ if (!current.value) { refs.value = []; return; } try{ refs.value = await http(`/assets/${current.value.id}/references`, { method:'GET' }); } catch { refs.value = []; } }
+async function refreshRefs(){
+	if (!current.value) { refs.value = []; return; }
+	try{
+		refs.value = (await assetControllerListRef(String(current.value.id)) as unknown) as any[];
+	} catch {
+		refs.value = [];
+	}
+}
 function openBatchTag(){ tagsDraft.value=''; batchTagVisible.value = true; }
-async function saveTags(isBatch=false){ try{ savingTags.value = true; const tags = (tagsInput.value && tagsInput.value.length) ? tagsInput.value : tagsDraft.value.split(',').map(s=>s.trim()).filter(Boolean); if (isBatch) { for (const id of selected.value){ await http(`/assets/${id}`, { method:'PATCH', body: { tags } }); } batchTagVisible.value=false; } else if (current.value) { await http(`/assets/${current.value.id}`, { method:'PATCH', body: { tags } }); detailVisible.value=false; } await fetchList(); } finally { savingTags.value=false; } }
-async function batchDelete(){ for (const id of selected.value){ try{ await http(`/assets/${id}`, { method:'DELETE' }); } catch(e:any){ /* ignore single error */ } } selected.value.clear(); await fetchList(); }
+async function saveTags(isBatch=false){
+	try{
+		savingTags.value = true;
+		const tags = (tagsInput.value && tagsInput.value.length) ? tagsInput.value : tagsDraft.value.split(',').map(s=>s.trim()).filter(Boolean);
+		if (isBatch) {
+			for (const id of selected.value){
+				await assetControllerUpdate(String(id), { tags } as any);
+			}
+			batchTagVisible.value=false;
+		} else if (current.value) {
+			await assetControllerUpdate(String(current.value.id), { tags } as any);
+			detailVisible.value=false;
+		}
+		await fetchList();
+	} finally { savingTags.value=false; }
+}
+async function batchDelete(){
+	for (const id of selected.value){
+		try{ await assetControllerRemove(String(id)); } catch(e:any){ /* ignore single error */ }
+	}
+	selected.value.clear();
+	await fetchList();
+}
 
 // 全选相关功能
 function toggleSelectAll() {
@@ -682,7 +713,26 @@ function removeTag(tagToRemove: string) {
 onMounted(async ()=>{ await fetchList(); await fetchAllTags(); });
 
 // 加载所有标签（分页扫描，避免依赖单页）
-async function fetchAllTags(){ try { const seen = new Set<string>(); let p = 1; const ps = 100; while(true){ const r:any = await http('/assets', { method:'GET', query:{ page: p, pageSize: ps } }); const items:any[] = Array.isArray(r?.items)? r.items : []; for(const it of items){ const tags = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson : []; for(const t of tags){ if (t && typeof t === 'string') seen.add(t); } } const tot = Number(r?.total||0); if (p*ps >= tot || items.length===0) break; p++; if (p>50) break; } allTags.value = Array.from(seen).sort(); } catch { /* ignore */ } }
+async function fetchAllTags(){
+	try {
+		const seen = new Set<string>();
+		let p = 1;
+		const ps = 100;
+		while(true){
+			const r:any = (await assetControllerList({ page: p, pageSize: ps } as any) as unknown) as any;
+			const items:any[] = Array.isArray(r?.items)? r.items : [];
+			for(const it of items){
+				const tags = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson : [];
+				for(const t of tags){ if (t && typeof t === 'string') seen.add(t); }
+			}
+			const tot = Number(r?.total||0);
+			if (p*ps >= tot || items.length===0) break;
+			p++;
+			if (p>50) break;
+		}
+		allTags.value = Array.from(seen).sort();
+	} catch { /* ignore */ }
+}
 </script>
 
 <style scoped>

@@ -18,13 +18,11 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../../config';
+import { memberControllerList } from '@wash/api-client';
 
 const props = defineProps<{ selected?: number[] }>();
 const emits = defineEmits<{ (e:'update:selected', v: number[]): void }>();
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const keyword = ref('');
 const loading = ref(false);
 const items = ref<any[]>([]);
@@ -41,7 +39,7 @@ function onPage(p:number){ page.value=p; fetchMembers(); }
 async function fetchMembers(){
     loading.value = true;
     try{
-        const res = await http('/member/list', { method:'GET', query: { keyword: keyword.value, page: page.value, pageSize: pageSize.value } });
+        const res:any = (await memberControllerList({ keyword: keyword.value, page: page.value, pageSize: pageSize.value } as any) as unknown) as any;
         items.value = Array.isArray((res as any)?.items) ? (res as any)?.items : [];
         total.value = Number((res as any)?.total || 0);
     } finally {

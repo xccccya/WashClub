@@ -225,13 +225,20 @@
 <script setup lang="ts" name="OrderDetail">
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { DocumentCopy } from '@element-plus/icons-vue';
+import {
+	orderControllerGet,
+	orderControllerGetByNo,
+	orderControllerQuery,
+	orderControllerQueryRefundV2,
+	orderControllerRetryRefund,
+	orderControllerWechatRefund,
+	orderControllerWriteoff,
+} from '@wash/api-client';
 
 const route = useRoute();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const data = ref<any>(null);
 const showTrace = ref(false);
 const traceList = ref<Array<{ datetime:string; remark:string }>>([]);
@@ -246,8 +253,8 @@ const partialReason = ref<string>('');
 async function fetchDetail(){
 	const idParam = route.params.id as string | undefined;
 	const noParam = route.params.no as string | undefined;
-	if (noParam) data.value = await http(`/orders/by-no/${encodeURIComponent(String(noParam))}`);
-	else if (idParam) data.value = await http(`/orders/${Number(idParam)}`);
+	if (noParam) data.value = await (orderControllerGetByNo(encodeURIComponent(String(noParam))) as any);
+	else if (idParam) data.value = await (orderControllerGet(Number(idParam)) as any);
 	try{
 		const p = route.fullPath;
 		const title = data.value?.no ? `订单 ${data.value.no}` : (data.value?.id ? `订单 #${data.value.id}` : '订单');
@@ -272,10 +279,10 @@ function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const 
 function money(v:any){ const n = Number(v||0); return Number.isFinite(n) ? n.toFixed(2) : '0.00'; }
 
 function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
-async function writeoffThis(){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; const id = Number((data.value?.id)||0); if(!id) return; await http(`/orders/${id}/void`, { method:'POST', body: { reason: '后台作废/红冲' } }); ElMessage.success('操作成功'); await fetchDetail(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function writeoffThis(){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; const id = Number((data.value?.id)||0); if(!id) return; await orderControllerWriteoff(id, { body: { reason: '后台作废/红冲' } } as any); ElMessage.success('操作成功'); await fetchDetail(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 function canQueryRefund(row:any){ try{ if (!row) return false; const st = String(row.status||'').toUpperCase(); const isUnknown = !st || st==='PENDING' || st==='PROCESSING' || st==='FAILED'; const hasOut = !!row.outRefundNo; return hasOut && isUnknown; }catch{ return false; } }
-async function queryRefund(row:any){ try{ if (!row?.outRefundNo){ ElMessage.error('缺少退款单号'); return; } const res:any = await http(`/orders/_refunds/${encodeURIComponent(row.outRefundNo)}/query-v2`, { method:'POST' }); if (res?.ok){ ElMessage.success(`状态：${res.status}`); await fetchDetail(); } else { ElMessage.error('查询失败'); } }catch(e:any){ ElMessage.error(String(e?.message||e||'查询失败')); } }
+async function queryRefund(row:any){ try{ if (!row?.outRefundNo){ ElMessage.error('缺少退款单号'); return; } const res:any = await (orderControllerQueryRefundV2(encodeURIComponent(row.outRefundNo)) as any); if (res?.ok){ ElMessage.success(`状态：${res.status}`); await fetchDetail(); } else { ElMessage.error('查询失败'); } }catch(e:any){ ElMessage.error(String(e?.message||e||'查询失败')); } }
 
 function formatDate(val: string | null | undefined){ if(!val) return '-'; try{ return new Date(val).toLocaleString(); }catch{ return String(val); } }
 function displayType(t?: string){ const v = String(t||'').toUpperCase(); if (!v) return '-'; if (v==='SERVICE') return '服务订单'; if (v==='SP') return '商品订单'; if (v==='FK') return '付款订单'; return '其它'; }
@@ -353,13 +360,13 @@ function flowTagType(a?: string){ switch(String(a||'')){ case 'USE': return 'war
 
 const exchangeShipments = computed(()=>{ try{ const extra:any = (data.value as any)?.shipExpressExtra || {}; const list:any[] = Array.isArray(extra?.exchangeShipments) ? extra.exchangeShipments : []; return list.slice().sort((a:any,b:any)=> new Date(b?.createdAt||0).getTime() - new Date(a?.createdAt||0).getTime()); }catch{ return []; } });
 function canQueryExchangeTrace(ex: any){ return !!(ex && ex.trackingNo); }
-async function openExchangeTrace(ex: any){ if (!ex?.trackingNo) return; showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = ''; try{ const res:any = await http('/orders/_logistics/query', { query: { com: ex?.companyCode || undefined, no: ex?.trackingNo } }); traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || ''); const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : []; const getTime = (it:any)=> it?.datetime || it?.time || ''; const getRemark = (it:any)=> it?.remark || it?.context || ''; rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime()); traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() })); }catch{ traceList.value = []; traceStatusDesc.value = ''; } finally{ loadingTrace.value = false; } }
+async function openExchangeTrace(ex: any){ if (!ex?.trackingNo) return; showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = ''; try{ const res:any = await (orderControllerQuery({ com: ex?.companyCode || undefined, no: ex?.trackingNo } as any) as any); traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || ''); const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : []; const getTime = (it:any)=> it?.datetime || it?.time || ''; const getRemark = (it:any)=> it?.remark || it?.context || ''; rawList.sort((a,b)=> new Date(getTime(b)||0).getTime() - new Date(getTime(a)||0).getTime()); traceList.value = rawList.map(it=>({ datetime: String(getTime(it)||'').trim(), remark: String(getRemark(it)||'').trim() })); }catch{ traceList.value = []; traceStatusDesc.value = ''; } finally{ loadingTrace.value = false; } }
 
 async function openTrace(){
 	if (!data.value?.shipExpressTrackingNo) return;
 	showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = '';
 	try{
-		const res:any = await http('/orders/_logistics/query', { query: { com: data.value?.shipExpressCompanyCode || undefined, no: data.value?.shipExpressTrackingNo } });
+		const res:any = await (orderControllerQuery({ com: data.value?.shipExpressCompanyCode || undefined, no: data.value?.shipExpressTrackingNo } as any) as any);
 		traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
 		const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
 		const getTime = (it:any)=> it?.datetime || it?.time || '';
@@ -376,8 +383,8 @@ async function openTrace(){
 
 const refundableLeft = computed(()=>{ try{ const rr = Array.isArray((data.value?.refundRecords)||[]) ? (data.value?.refundRecords) : []; const successSum = rr.filter((r:any)=> String(r.status||'').toUpperCase()==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0); const payAmt = Number(data.value?.payAmount||0); return Math.max(0, payAmt - successSum); }catch{ return 0; } });
 function openPartialRefund(){ partialAmountText.value = ''; partialReason.value = ''; dialogPartial.value = true; }
-async function submitPartialRefund(){ const raw = (partialAmountText.value||'').trim().replace(',', '.'); if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); return; } const v = Number(raw); if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; } if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; } try{ await http(`/orders/${data.value?.id}/refund`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } }); dialogPartial.value = false; fetchDetail(); }catch{} }
-async function openRetryRefund(){ try{ const rec = (data.value?.refundRecords||[]).find((r:any)=> String(r.status||'').toUpperCase()==='FAILED' || String(r.status||'').toUpperCase()==='PENDING' || !r.status); if (!rec) return; await http(`/orders/_refunds/${rec.id}/retry`, { method:'POST' }); }catch{} }
+async function submitPartialRefund(){ const raw = (partialAmountText.value||'').trim().replace(',', '.'); if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); return; } const v = Number(raw); if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; } if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; } try{ await orderControllerWechatRefund(Number(data.value?.id), { body: { reason: partialReason.value || '部分退款', amount: v } } as any); dialogPartial.value = false; fetchDetail(); }catch{} }
+async function openRetryRefund(){ try{ const rec = (data.value?.refundRecords||[]).find((r:any)=> String(r.status||'').toUpperCase()==='FAILED' || String(r.status||'').toUpperCase()==='PENDING' || !r.status); if (!rec) return; await orderControllerRetryRefund(Number(rec.id||0)); }catch{} }
 
 async function copyNo(no?: string){
 	try{

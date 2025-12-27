@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query, Headers, UnauthorizedException } fr
 import { ApiTags } from '@nestjs/swagger';
 import { StoreService } from './store.service.js';
 import { JwtService } from '@nestjs/jwt';
+import { StoreInventoryAdjustDto } from './inventory.dto.js';
 
 @ApiTags('StoreInventory')
 @Controller('store/inventory')
@@ -9,7 +10,7 @@ export class StoreInventoryController {
     constructor(private readonly store: StoreService, private readonly jwt: JwtService) {}
 
     @Post('adjust')
-    adjust(@Body() body: { productId: number; skuId?: number | null; change: number; reason: string; remark?: string | null; operatorUserId?: number | null }, @Headers('authorization') authHeader?: string) {
+    adjust(@Body() body: StoreInventoryAdjustDto, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         return this.store.adjustInventory({ ...body, operatorUserId });
     }

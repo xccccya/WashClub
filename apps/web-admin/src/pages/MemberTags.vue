@@ -73,13 +73,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberTagControllerCreate,
+	memberTagControllerList,
+	memberTagControllerMembers,
+	memberTagControllerRemove,
+	memberTagControllerUpdate,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { CirclePlus, Edit, Delete, Search } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Tag = { id: number; name: string; isSystem: boolean; memberCount?: number };
 const tags = ref<Tag[]>([]);
@@ -87,20 +90,18 @@ const dialogVisible = ref(false);
 const current = ref<Tag | null>(null);
 const form = ref<Partial<Tag>>({ name: '' });
 
-async function fetchTags(){ tags.value = await http<Tag[]>('/member-tag', { method: 'GET' }); }
-
 function openCreate(){ current.value = null; form.value = { name: '' }; dialogVisible.value = true; }
 function openEdit(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可编辑'); return; } current.value = row; form.value = { ...row }; dialogVisible.value = true; }
 
 async function onSave(){
 	try{
-		if (current.value?.id) await http(`/member-tag/${current.value.id}`, { method: 'PUT', body: form.value });
-		else await http('/member-tag', { method: 'POST', body: form.value });
+		if (current.value?.id) await memberTagControllerUpdate(String(current.value.id), { name: String(form.value?.name || '').trim() } as any);
+		else await memberTagControllerCreate({ name: String(form.value?.name || '').trim() } as any);
 		dialogVisible.value = false; ElMessage.success('已保存'); fetchTags();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可删除'); return; } try { await http(`/member-tag/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchTags(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(row: Tag){ if (row.isSystem) { ElMessage.error('系统默认标签不可删除'); return; } try { await memberTagControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchTags(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 // 查看详情（双击标签名称列）
 async function openDetail(row: Tag){
@@ -113,11 +114,9 @@ async function openDetail(row: Tag){
 }
 
 async function fetchDetail(){
-	const res = await http<{ items: Array<{ id:number; name:string; phone:string; createdAt:string; level?: { id:number; name:string }; category?: { id:number; name:string } }>; total: number }>(
-		`/member-tag/${detailTagId.value}/members`, { method: 'GET', query: { page: detailPage.value, pageSize: detailPageSize.value, keyword: detailKeyword.value } }
-	);
-	detailList.value = res.items || [];
-	detailTotal.value = res.total || 0;
+	const res:any = (await memberTagControllerMembers(String(detailTagId.value), { page: detailPage.value, pageSize: detailPageSize.value, keyword: detailKeyword.value || undefined } as any) as unknown) as any;
+	detailList.value = Array.isArray(res?.items) ? res.items : [];
+	detailTotal.value = Number(res?.total || 0);
 }
 
 function onDetailPageChange(p: number){ detailPage.value = p; fetchDetail(); }
@@ -130,6 +129,8 @@ const detailList = ref<any[]>([]);
 const detailPage = ref(1);
 const detailPageSize = ref(10);
 const detailTotal = ref(0);
+
+async function fetchTags(){ tags.value = (await memberTagControllerList() as any) as Tag[]; }
 
 onMounted(fetchTags);
 

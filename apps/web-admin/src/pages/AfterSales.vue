@@ -131,12 +131,18 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	orderControllerAuditAfterSales,
+	orderControllerGet,
+	orderControllerGetCompanies,
+	orderControllerGetCompaniesFromTanshu,
+	orderControllerListAfterSales,
+	orderControllerShipExchange,
+	orderControllerWechatRefund,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { Refresh, View, Check, Close } from '@element-plus/icons-vue';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const router = useRouter();
 
 type Row = any;
@@ -186,7 +192,7 @@ function headOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(0
 function tailOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(-6); }catch{ return ''; } }
 
 async function fetchList(){
-	const list = await http('/orders/_after-sales', { method:'GET', query: { status: status.value || undefined } });
+	const list = await (orderControllerListAfterSales({ status: status.value || undefined } as any) as any);
 	let data: any[] = Array.isArray(list) ? list : [];
 	if (keyword.value.trim()){
 		const kw = keyword.value.trim();
@@ -213,8 +219,7 @@ function openAudit(row: any, approve: boolean){
     (async ()=>{
         try{
             const ord0 = row?.order || {};
-            const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
-            const fresh:any = ord0?.id ? await http(`/orders/${ord0.id}`) : ord0;
+            const fresh:any = ord0?.id ? await (orderControllerGet(Number(ord0.id)) as any) : ord0;
             const rr = Array.isArray(fresh?.refundRecords) ? fresh.refundRecords : [];
             const successSum = rr.filter((r:any)=> r.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0);
             auditHasPartial.value = successSum > 0;
@@ -253,7 +258,7 @@ async function confirmAudit(){
             amountPayload = v;
         }
     }
-    await http(`/orders/_after-sales/${afr.id}/audit`, { method:'POST', body: { approve: true, amount: amountPayload } });
+    await orderControllerAuditAfterSales(Number(afr.id), { body: { approve: true, amount: amountPayload } } as any);
     try{
         const ord = afr.order || {};
         if (afr.type==='REFUND' && ord.payMethod === 'WECHAT_JSAPI'){
@@ -269,14 +274,14 @@ async function confirmAudit(){
                 if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); auditDialog.value=false; fetchList(); return; }
                 amount = v;
             }
-            const resp:any = await http(`/orders/${ord.id}/refund`, { method:'POST', body: { reason: '售后退款', amount } });
+            const resp:any = await (orderControllerWechatRefund(Number(ord.id), { body: { reason: '售后退款', amount } } as any) as any);
             if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
         } else if (afr.type==='REFUND' && ord.payMethod==='WECHAT_MICROPAY'){
             // 审核接口已触发渠道退款，这里不再重复调用退款接口
             ElMessage.success('已提交渠道退款');
         } else if (afr.type==='REFUND') {
             // 非微信：内部退款
-            await http(`/orders/${afr.orderId}/refund`, { method:'POST', body: { reason: '售后退款' } });
+            await orderControllerWechatRefund(Number(afr.orderId), { body: { reason: '售后退款' } } as any);
             ElMessage.success('已退款');
         } else if (afr.type==='EXCHANGE') {
             // 换货：提交换货发货信息（独立于订单原始发货）
@@ -290,7 +295,7 @@ async function confirmAudit(){
                     body.contactReceiverPhoneMasked = exReceiverPhoneMasked.value || undefined;
                 }
             }
-            await http(`/orders/_after-sales/${afr.id}/exchange-ship`, { method:'POST', body });
+            await orderControllerShipExchange(Number(afr.id), { body } as any);
             ElMessage.success('换货发货信息已提交');
         }
     }catch{} finally {
@@ -298,7 +303,7 @@ async function confirmAudit(){
     }
     auditDialog.value = false; fetchList();
 }
-async function audit(row: any, approve: boolean){ await http(`/orders/_after-sales/${row.id}/audit`, { method:'POST', body: { approve } }); ElMessage.success('已提交'); fetchList(); }
+async function audit(row: any, approve: boolean){ await orderControllerAuditAfterSales(Number(row.id), { body: { approve } } as any); ElMessage.success('已提交'); fetchList(); }
 
 function addrDisplay(info: any){
 	try{
@@ -316,8 +321,9 @@ async function loadDeliveryCompanies(row?: any){
         const extra:any = ord?.shipExpressExtra || {};
         const editedOnce = !!extra?.editedOnce;
         const useWechat = ord?.payMethod === 'WECHAT_JSAPI' && !editedOnce;
-        const url = useWechat ? '/orders/_logistics/companies' : '/orders/_logistics/companies/tanshu';
-        const list:any[] = await http(url, { method:'GET' });
+        const list:any[] = useWechat
+			? await (orderControllerGetCompanies() as any)
+			: await (orderControllerGetCompaniesFromTanshu() as any);
         deliveryCompanies.value = Array.isArray(list) ? list : [];
     }catch{ deliveryCompanies.value = []; }
 }

@@ -132,7 +132,15 @@ export class GroupService {
   }
 
   async updateBasic(id: number, data: { name?: string | null; iconUrl?: string | null; remark?: string | null }) {
-    const upd = await this.prisma.group.update({ where: { id }, data: { name: data.name ?? undefined, iconUrl: data.iconUrl ?? undefined, remark: data.remark ?? undefined } });
+    const upd = await this.prisma.group.update({
+      where: { id },
+      data: {
+        // name 为非空字段：不允许写入 null
+        name: data.name == null ? undefined : data.name,
+        iconUrl: data.iconUrl === undefined ? undefined : data.iconUrl,
+        remark: data.remark === undefined ? undefined : data.remark,
+      },
+    });
     // 更新文件绑定
     try {
       const url = upd.iconUrl ? [upd.iconUrl] : [];

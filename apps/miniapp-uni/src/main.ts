@@ -1,6 +1,8 @@
 import { createSSRApp } from 'vue';
 // 小程序运行时 shim（仅 MP-WEIXIN 生效），需尽早引入
 import './utils/wx-shim';
+// polyfill: miniapp runtime may not have URLSearchParams; SDK query builder needs it
+import './utils/urlsearchparams-polyfill';
 import App from './App.vue';
 import { API_BASE, getToken } from './utils/auth';
 import { realtime } from './utils/realtime';

@@ -26,13 +26,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl } from '../utils/http';
+import { authControllerAdminLogin, systemSettingControllerGetBingWallpaper, systemSettingControllerGetPublicSetting } from '@wash/api-client';
 
 const router = useRouter();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const form = ref({ phone: '', password: '' });
 const loading = ref(false);
 const formRef = ref();
@@ -69,10 +67,10 @@ async function onSubmit() {
 	}
 	loading.value = true;
 	try {
-		const res = await http<{ token: string; user: { id: number; name?: string; role: string; roleId?: number | null; permissions?: string[] } }>('/auth/admin/login', {
-			method: 'POST',
-			body: form.value,
-		});
+		const res = (await authControllerAdminLogin({ phone: form.value.phone, password: form.value.password } as any) as unknown) as {
+			token: string;
+			user: { id: number; name?: string; role: string; roleId?: number | null; permissions?: string[] };
+		};
 		localStorage.setItem('token', res.token);
 		localStorage.setItem('user', JSON.stringify(res.user || {}));
 		router.push('/');
@@ -85,8 +83,8 @@ async function onSubmit() {
 
 onMounted(async ()=>{
 	try{ document.body.classList.add('login-page'); }catch{}
-	try{ setting.value = await http('/system/public/site-setting', { method:'GET' }); }catch{}
-	try{ const r:any = await http('/system/public/bing-wallpaper', { method:'GET' }); bingUrl.value = r?.url || ''; }catch{}
+	try{ setting.value = (await systemSettingControllerGetPublicSetting() as unknown) as any; }catch{}
+	try{ const r:any = await systemSettingControllerGetBingWallpaper(); bingUrl.value = r?.url || ''; }catch{}
 });
 
 onUnmounted(()=>{ try{ document.body.classList.remove('login-page'); }catch{} });

@@ -135,6 +135,14 @@ import { absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 import { ElMessageBox } from 'element-plus';
 import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell } from '@element-plus/icons-vue';
+import {
+	notificationControllerList,
+	notificationControllerMarkRead,
+	notificationControllerMarkReadAll,
+	notificationControllerUnreadCount,
+	systemSettingControllerGetPublicBusinessStatus,
+	systemSettingControllerSaveSetting,
+} from '@wash/api-client';
 
 const route = useRoute();
 const router = useRouter();
@@ -157,8 +165,7 @@ function onToggleBusy(){ if (busyEnabled.value) pausedEnabled.value = false; }
 function onTogglePaused(){ if (pausedEnabled.value) busyEnabled.value = false; }
 async function reloadBusiness(){
     try{
-        const res = await fetch(`${API_BASE}/system/public/business-status`);
-        const j:any = await res.json();
+        const j:any = await systemSettingControllerGetPublicBusinessStatus();
         hoursStart.value = String(j?.hours?.start||'09:00');
         hoursEnd.value = String(j?.hours?.end||'18:00');
         busyEnabled.value = !!j?.busyEnabled;
@@ -170,8 +177,11 @@ async function reloadBusiness(){
 async function saveBusiness(){
     try{
         savingBiz.value = true;
-        const token = localStorage.getItem('token')||'';
-        await fetch(`${API_BASE}/system/site-setting`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ businessHoursJson: { start: hoursStart.value, end: hoursEnd.value }, busyEnabled: busyEnabled.value, pausedEnabled: pausedEnabled.value }) });
+        await systemSettingControllerSaveSetting({
+			businessHoursJson: { start: hoursStart.value, end: hoursEnd.value },
+			busyEnabled: busyEnabled.value,
+			pausedEnabled: pausedEnabled.value,
+		} as any);
         await reloadBusiness();
     }catch{}
     finally{ savingBiz.value = false; }
@@ -254,10 +264,8 @@ const unreadCountText = computed(()=> unreadCount.value>99 ? '99+' : String(unre
 let ws: WebSocket | null = null;
 async function refreshUnread(){
     try{
-        const token = localStorage.getItem('token')||'';
-        const res = await fetch(`${API_BASE}/notification/unread-count`, { headers: { Authorization: `Bearer ${token}` } });
-        const j:any = await res.json();
-        unreadCount.value = Number(j?.count||0);
+        const r:any = await notificationControllerUnreadCount();
+        unreadCount.value = Number(r?.count||0);
     }catch{ unreadCount.value = 0; }
 }
 function connectWS(){
@@ -291,24 +299,20 @@ const notifications = ref<N[]>([]);
 async function reloadNotifications(){
     notifyLoading.value = true;
     try{
-        const token = localStorage.getItem('token')||'';
-        const res = await fetch(`${API_BASE}/notification/list`, { headers: { Authorization: `Bearer ${token}` } });
-        const arr:any[] = await res.json();
-        notifications.value = Array.isArray(arr)? arr: [];
+        const list:any[] = (await notificationControllerList({} as any) as unknown) as any[];
+        notifications.value = Array.isArray(list)? list: [];
     }catch{ notifications.value = []; }
     finally{ notifyLoading.value = false; }
 }
 async function markRead(n:N){
     try{
-        const token = localStorage.getItem('token')||'';
-        await fetch(`${API_BASE}/notification/mark-read`, { method:'POST', headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: n.id }) });
+        await notificationControllerMarkRead({ id:n.id } as any);
         if (n.status==='UNREAD'){ n.status='READ'; unreadCount.value = Math.max(0, unreadCount.value-1); }
     }catch{}
 }
 async function markAllRead(){
     try{
-        const token = localStorage.getItem('token')||'';
-        await fetch(`${API_BASE}/notification/mark-read-all`, { method:'POST', headers: { Authorization: `Bearer ${token}` } });
+        await notificationControllerMarkReadAll();
         notifications.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; });
         refreshUnread();
     }catch{}

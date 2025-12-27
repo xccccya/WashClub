@@ -87,7 +87,8 @@
 import { ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
+import { miniappCouponControllerMyCoupons } from '@wash/api-client';
 
 type MineItem = {
 	id: number;
@@ -123,7 +124,6 @@ function displayRuleLine(it: any){
 function displayMinLine(it: any){ try{ const v = Number(it?.minOrderAmount||0); return v>0 ? `满¥${v.toFixed(2)}可用` : ''; }catch{ return ''; } }
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttp();
 const loading = ref<boolean>(false);
 const list = ref<MineItem[]>([]);
 const active = ref<'all'|'pending'|'used'|'expired'>('all');
@@ -185,7 +185,7 @@ async function refresh(){
 		if (active.value==='used') q.used = '1';
 		if (active.value==='expired') q.expired = '1';
 		if (active.value==='pending') q.notStarted = '1';
-		const data:any = await http('/coupon/miniapp/mine', { method:'GET', query: q });
+		const data:any = await miniappCouponControllerMyCoupons(q as any);
 		const arr:any[] = Array.isArray(data?.items) ? data.items : [];
 		list.value = arr.map((x:any) => ({
 			id: x.id,

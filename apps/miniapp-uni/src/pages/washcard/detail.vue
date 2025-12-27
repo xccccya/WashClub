@@ -57,8 +57,9 @@
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+import { washCardControllerMyGet, washCardControllerMyLogs } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const card = ref<any|null>(null);
@@ -115,11 +116,10 @@ onLoad(async (query)=>{
 		const id = Number((query as any)?.id || NaN);
 		if (!Number.isFinite(id)) { uni.showToast({ title: '参数错误', icon: 'none' }); return; }
 		if (!getToken()) { try { uni.navigateTo({ url: '/pages/login/index' }); } catch {} return; }
-		const http = createHttp();
-		card.value = await http<any>(`/wash-card/me/${id}`, { method: 'GET' });
+		card.value = await washCardControllerMyGet(String(id), {} as any) as any;
 		isOwner.value = !!card.value && card.value.ownerMemberId && typeof card.value._shared === 'undefined';
-		const res = await http<any>(`/wash-card/me/${id}/logs`, { method: 'GET', query: { page: 1, pageSize: 20 } });
-		logs.value = Array.isArray(res?.items) ? res.items : [];
+		const res = await washCardControllerMyLogs(String(id), { page: 1, pageSize: 20 } as any) as any;
+		logs.value = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
 	} catch { card.value = null; logs.value = []; }
 });
 
@@ -130,11 +130,10 @@ onShow(async ()=>{
 		const id = Number(cur?.options?.id || NaN);
 		if (!Number.isFinite(id)) return;
 		if (!getToken()) return;
-		const http = createHttp();
-		card.value = await http<any>(`/wash-card/me/${id}`, { method: 'GET' });
+		card.value = await washCardControllerMyGet(String(id), {} as any) as any;
 		isOwner.value = !!card.value && card.value.ownerMemberId && typeof card.value._shared === 'undefined';
-		const res = await http<any>(`/wash-card/me/${id}/logs`, { method: 'GET', query: { page: 1, pageSize: 20 } });
-		logs.value = Array.isArray(res?.items) ? res.items : [];
+		const res = await washCardControllerMyLogs(String(id), { page: 1, pageSize: 20 } as any) as any;
+		logs.value = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
 	} catch {}
 });
 

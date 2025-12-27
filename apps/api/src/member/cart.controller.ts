@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CartService } from './cart.service.js';
+import { CartMyAddDto, CartMyUpdateDto, CartToggleAllDto } from './cart.dto.js';
 
 @ApiTags('cart')
 @Controller('cart')
@@ -13,36 +14,42 @@ export class CartController {
     }
 
     @Get('me/list')
+    @ApiOperation({ summary: '我的购物车列表（可选仅勾选）' })
     async myList(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string, @Query('onlyChecked') onlyChecked?: string) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.list(token, String(onlyChecked||'').toLowerCase()==='true');
     }
 
     @Post('me/add')
-    async myAdd(@Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: { productId: number; skuId?: number | null; quantity?: number }) {
+    @ApiOperation({ summary: '加入购物车（会员端）' })
+    async myAdd(@Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: CartMyAddDto) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.add(token, body);
     }
 
     @Put('me/:id')
-    async myUpdate(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: { quantity?: number; checked?: boolean; skuId?: number | null }) {
+    @ApiOperation({ summary: '更新购物车条目（数量/勾选/SKU）' })
+    async myUpdate(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: CartMyUpdateDto) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.update(token, id, body);
     }
 
     @Post('me/toggle-all')
-    async toggleAll(@Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: { checked: boolean }) {
+    @ApiOperation({ summary: '全选/全不选（会员端）' })
+    async toggleAll(@Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined, @Body() body: CartToggleAllDto) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.toggleAll(token, !!body?.checked);
     }
 
     @Delete('me/clear-checked')
+    @ApiOperation({ summary: '清空已勾选条目（会员端）' })
     async clearChecked(@Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.clearChecked(token);
     }
 
     @Delete('me/:id')
+    @ApiOperation({ summary: '删除购物车条目（会员端）' })
     async myDelete(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam: string | undefined) {
         const token = this.extractToken(headers, tokenParam);
         return this.service.remove(token, id);

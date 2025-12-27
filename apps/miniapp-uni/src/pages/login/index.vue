@@ -82,9 +82,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE, saveAuth } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+import {
+	authControllerLogin,
+	authControllerLoginByCode,
+	authControllerSendLoginCode,
+	authControllerWechatOneTap,
+	memberControllerSetActive,
+} from '@wash/api-client';
 
 // 兼容 TS 识别 uni 全局对象
 declare const uni: any;
@@ -144,14 +150,12 @@ function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/reset-
 	uni.navigateTo({ url });
 }
 
-const http = createHttpClient({ baseUrl: API_BASE });
-
 async function onSendCode(){
 	if (mode.value !== 'code') return;
 	if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
 	if (countdown.value > 0) return;
 	try {
-		await http('/auth/send-code', { method: 'POST', body: { phone: phone.value } } as any);
+		await authControllerSendLoginCode({ phone: phone.value } as any);
 		uni.showToast({ title: '验证码已发送', icon: 'success' });
 		countdown.value = 60;
 		const timer = setInterval(()=>{
@@ -172,10 +176,10 @@ async function loginByPwd(){
 	if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
 	if (secret.value.length < 6) { uni.showToast({ title: '密码至少6位', icon: 'none' }); return; }
 	try {
-		const data = await http<{ token: string; user: any }>( '/auth/login', { method: 'POST', body: { phone: phone.value, password: secret.value } } as any);
+		const data = (await authControllerLogin({ phone: phone.value, password: secret.value } as any) as unknown) as { token: string; user: any };
 		saveAuth(data.token, data.user);
 		// 登录后立即上报活跃
-		try { const httpAuth = createHttpClient({ baseUrl: API_BASE, getToken: () => data.token }); httpAuth('/member/me/active', { method: 'POST' }).catch(()=>{}); } catch {}
+		try { await memberControllerSetActive({} as any); } catch {}
 		// 通知全局刷新（H5/小程序兼容）
 		try { uni.$emit?.('auth:changed'); } catch {}
 		uni.showToast({ title: '登录成功', icon: 'success' });
@@ -198,9 +202,9 @@ async function loginByCode(){
     if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
     if (!/^\d{6}$/.test(secret.value)) { uni.showToast({ title: '请输入6位验证码', icon: 'none' }); return; }
     try {
-        const data = await http<{ token: string; user: any; createdNew?: boolean }>( '/auth/login/code', { method: 'POST', body: { phone: phone.value, code: secret.value } } as any);
+        const data = (await authControllerLoginByCode({ phone: phone.value, code: secret.value } as any) as unknown) as { token: string; user: any; createdNew?: boolean };
         saveAuth(data.token, data.user);
-        try { const httpAuth = createHttpClient({ baseUrl: API_BASE, getToken: () => data.token }); httpAuth('/member/me/active', { method: 'POST' }).catch(()=>{}); } catch {}
+        try { await memberControllerSetActive({} as any); } catch {}
         try { uni.$emit?.('auth:changed'); } catch {}
         uni.showToast({ title: '登录成功', icon: 'success' });
         setTimeout(()=>{ try { uni.switchTab({ url: '/pages/me/index' }); } catch { navigate('/pages/me/index'); } }, 300);
@@ -247,7 +251,7 @@ async function onGotPhoneNumber(e: any){
 		if (!jsCode) { if (loadingShown) { try { uni.hideLoading(); } catch {} } uni.showToast({ title: '拉取登录码失败', icon: 'none' }); return; }
 
 		// 调用后端一键登录接口
-		const resp = await http<any>('/auth/wechat/one-tap', { method: 'POST', body: { phoneCode, jsCode } } as any);
+		const resp = (await authControllerWechatOneTap({ phoneCode, jsCode } as any) as unknown) as any;
 		if (resp?.ok === false && resp?.code === 'OPENID_BOUND_CONFLICT') {
 			const masked = resp?.maskedPhone || '';
 			if (loadingShown) { try { uni.hideLoading(); } catch {} }
@@ -263,7 +267,7 @@ async function onGotPhoneNumber(e: any){
 		}
 		if (resp?.ok && resp?.token) {
 			saveAuth(resp.token, resp.user);
-			try { const httpAuth = createHttpClient({ baseUrl: API_BASE, getToken: () => resp.token }); httpAuth('/member/me/active', { method: 'POST' }).catch(()=>{}); } catch {}
+			try { await memberControllerSetActive({} as any); } catch {}
 			try { uni.$emit?.('auth:changed'); } catch {}
 			if (loadingShown) { try { uni.hideLoading(); } catch {} }
 

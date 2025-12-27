@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { GroupBalanceService } from './balance.service.js';
+import { GroupBalanceAdjustDto, GroupBalanceRechargeDto } from './group.dto.js';
 
 @ApiTags('GroupBalance')
 @Controller('group/:id/balance')
@@ -34,14 +35,14 @@ export class GroupBalanceController {
   @Post('adjust')
   @RequirePerm('group-balance')
   @ApiOperation({ summary: '手工调账（正/负）' })
-  adjust(@Param('id', ParseIntPipe) id: number, @Body() body: { amount: number; note?: string | null }) {
+  adjust(@Param('id', ParseIntPipe) id: number, @Body() body: GroupBalanceAdjustDto) {
     return this.service.adjust(id, Number(body?.amount), body?.note ?? null, null);
   }
 
   @Post('recharge')
   @RequirePerm('group-balance')
   @ApiOperation({ summary: '创建集团余额充值订单（FK）' })
-  createRecharge(@Param('id', ParseIntPipe) id: number, @Body() body: { amount: number; remark?: string | null; memberIdForPayment: number }) {
+  createRecharge(@Param('id', ParseIntPipe) id: number, @Body() body: GroupBalanceRechargeDto) {
     return this.service.createRechargeOrder(id, Number(body?.amount), body?.remark ?? null, Number(body?.memberIdForPayment));
   }
 }

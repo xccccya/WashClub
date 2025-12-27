@@ -6,11 +6,12 @@ import { StoreCategoryController } from './category.controller.js';
 import { StoreProductController } from './product.controller.js';
 import { StoreInventoryController } from './inventory.controller.js';
 import { FileModule } from '../file/file.module.js';
+import { resolveJwtSecretEnv } from '../env.js';
 
 @Module({
     imports: [
         JwtModule.register({
-            secret: process.env.JWT_SECRET || 'dev_secret',
+            secret: resolveJwtSecretEnv(),
         }),
         FileModule,
     ],

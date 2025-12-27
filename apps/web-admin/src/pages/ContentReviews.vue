@@ -62,12 +62,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	orderControllerDeleteReview,
+	orderControllerListReviews,
+	orderControllerReplyReview,
+} from '@wash/api-client';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search } from '@element-plus/icons-vue';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const router = useRouter();
 const memberId = ref<number|undefined>(undefined);
 const orderNo = ref<string>('');
@@ -87,20 +89,20 @@ async function fetchList(){
     if (ratingMin.value != null) query.ratingMin = ratingMin.value;
     if (ratingMax.value != null) query.ratingMax = ratingMax.value;
     if (dateRange.value && Array.isArray(dateRange.value)) { query.start = dateRange.value[0]?.toISOString?.(); query.end = dateRange.value[1]?.toISOString?.(); }
-    const res = await http('/orders/_reviews', { method: 'GET', query });
+    const res = await (orderControllerListReviews(query as any) as any);
     list.value = Array.isArray(res) ? res : [];
 }
 function openReply(row: any){ currentId = row?.id || null; replyText.value = row?.replyContent || ''; dialogReply.value = true; }
 async function submitReply(){
     if(!currentId) return;
-    try { await http(`/orders/_reviews/${currentId}/reply`, { method:'POST', body: { content: replyText.value } }); dialogReply.value = false; ElMessage.success('已回复'); fetchList(); }
+    try { await orderControllerReplyReview(currentId, { body: { content: replyText.value } } as any); dialogReply.value = false; ElMessage.success('已回复'); fetchList(); }
     catch(e:any){ ElMessage.error(String(e?.message||e||'提交失败')); }
 }
 async function del(row: any){
     if(!row?.id) return;
     const ok = await ElMessageBox.confirm('确定删除该评价吗？','提示').then(()=>true).catch(()=>false);
     if(!ok) return;
-    try { await http(`/orders/_reviews/${row.id}/delete`, { method:'POST' }); ElMessage.success('已删除'); fetchList(); }
+    try { await orderControllerDeleteReview(Number(row.id)); ElMessage.success('已删除'); fetchList(); }
     catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); }
 }
 function gotoOrder(row:any){ const no = row?.order?.no; if (!no) return; router.push(`/orders/no/${encodeURIComponent(no)}`); }

@@ -82,10 +82,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh, getToken } from '../../utils/auth';
 import PlateInput from './plate-input.vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
+import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyCreate, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const plate = ref('');
@@ -166,8 +167,7 @@ async function onSubmit(){
     try {
         if (saving.value) return; saving.value = true;
         try { uni.showLoading({ title: '正在保存，请稍候…', mask: true }); } catch {}
-        const http = createHttp();
-        await http('/vehicle/me/create', { method: 'POST', body: payload });
+        await vehicleControllerMyCreate(payload as any);
         uni.showToast({ title: '已保存', icon: 'success' });
         setTimeout(()=>{
             try { uni.navigateBack(); return; } catch {}
@@ -178,11 +178,10 @@ async function onSubmit(){
         // 若因唯一索引导致失败（同一车牌已存在），尝试查找并改为更新以触发图片保存逻辑
         if (/Vehicle_plateNumber_key|Unique constraint failed/i.test(msg)) {
             try {
-                const http = createHttp();
-                const list = await http<any[]>('/vehicle/me/list', { method: 'GET' });
+                const list = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any[];
                 const exists = (list||[]).find(it => String(it.plateNumber).toUpperCase() === plate.value.trim().toUpperCase());
                 if (exists && exists.id) {
-                    await http(`/vehicle/${exists.id}`, { method: 'PUT', body: payload as any });
+                    await vehicleControllerUpdateVehicle(String(exists.id), payload as any);
                     uni.showToast({ title: '已更新车辆信息', icon: 'success' });
                     setTimeout(()=>{
                         try { uni.navigateBack(); return; } catch {}
@@ -213,8 +212,7 @@ function applyBrandFilter(){ const all = brandOptionsAll.value; brandOptions.val
 async function fetchBrands(){
     brandLoading.value = true;
     try {
-        const http = createHttp();
-        const json = await http<any>('/content/car/brands', { method: 'GET' });
+        const json = await carDataControllerGetBrands() as any;
         const arr: any[] = json || [];
         const flat: FlatBrand[] = [];
         for (const mb of arr){
@@ -232,8 +230,7 @@ async function fetchSeriesIfNeeded(bid: number){
     if (cached && now - cached.ts < SERIES_TTL_MS) { seriesOptions.value = cached.items; return; }
     seriesLoading.value = true;
     try {
-        const http = createHttp();
-        const json = await http<any>('/content/car/series', { method: 'GET', query: { brandId: bid } });
+        const json = await carDataControllerGetSeries({ brandId: bid } as any) as any;
         const arr: any[] = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
         const items: SeriesItem[] = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
         seriesOptions.value = items; seriesCache.value[bid] = { ts: now, items };

@@ -61,11 +61,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	adminRoleControllerCreateRole,
+	adminRoleControllerListMenus,
+	adminRoleControllerListRoles,
+	adminRoleControllerRemoveRole,
+	adminRoleControllerUpdateRole,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Role = { id: number; name: string; enabled: boolean; isSystem: boolean; permissions: string[] };
 type Menu = { key: string; name: string; path: string };
@@ -78,8 +81,9 @@ const form = ref<Partial<Role>>({ name: '', enabled: true, permissions: [] });
 const activeGroups = ref<string[]>([]);
 
 async function fetchAll(){
-	roles.value = await http<Role[]>('/system/roles', { method: 'GET' });
-	menus.value = await http<Menu[]>('/system/menus', { method: 'GET' });
+	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+	roles.value = (await adminRoleControllerListRoles() as unknown) as Role[];
+	menus.value = (await adminRoleControllerListMenus() as unknown) as Menu[];
 }
 
 function openCreate(){ current.value = null; form.value = { name: '', enabled: true, permissions: [] }; dialogVisible.value = true; }
@@ -87,15 +91,15 @@ function openEdit(row: Role){ current.value = row; form.value = { id: row.id, na
 
 async function onSave(){
 	const payload = { name: form.value.name!, enabled: !!form.value.enabled, permissions: form.value.permissions || [] } as any;
-	if (current.value?.id) await http(`/system/roles/${current.value.id}`, { method: 'PUT', body: payload });
-	else await http('/system/roles', { method: 'POST', body: payload });
+	if (current.value?.id) await adminRoleControllerUpdateRole(String(current.value.id), payload);
+	else await adminRoleControllerCreateRole(payload);
 	dialogVisible.value = false; ElMessage.success('已保存'); fetchAll();
 }
 
-async function remove(row: Role){ await http(`/system/roles/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchAll(); }
+async function remove(row: Role){ await adminRoleControllerRemoveRole(String(row.id)); ElMessage.success('已删除'); fetchAll(); }
 
 async function onToggleEnabled(row: Role){
-	await http(`/system/roles/${row.id}`, { method: 'PUT', body: { enabled: row.enabled } });
+	await adminRoleControllerUpdateRole(String(row.id), { enabled: row.enabled } as any);
 	ElMessage.success(row.enabled ? '已启用' : '已禁用');
 }
 

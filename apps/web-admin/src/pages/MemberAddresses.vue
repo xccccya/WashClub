@@ -32,13 +32,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import { addressControllerAdminList } from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, Delete } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 const items = ref<any[]>([]);
 const total = ref(0);
@@ -47,7 +44,7 @@ const pageSize = ref(20);
 const keyword = ref('');
 
 async function refresh(){
-    const res = await http('/address/list', { method: 'GET', query: { page: page.value, pageSize: pageSize.value, keyword: keyword.value } });
+    const res:any = (await addressControllerAdminList({ page: page.value, pageSize: pageSize.value, keyword: keyword.value || undefined } as any) as unknown) as any;
     items.value = res.items || [];
     total.value = res.total || 0;
 }

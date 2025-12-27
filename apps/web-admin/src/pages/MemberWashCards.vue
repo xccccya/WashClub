@@ -227,13 +227,24 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberControllerList,
+	vehicleControllerListByMember,
+	vehicleControllerSearch,
+	washCardControllerAdminAdd,
+	washCardControllerAdminAddShare,
+	washCardControllerAdminCreate,
+	washCardControllerAdminDeduct,
+	washCardControllerAdminDelete,
+	washCardControllerAdminGet,
+	washCardControllerAdminList,
+	washCardControllerAdminLogs,
+	washCardControllerAdminRemoveShare,
+	washCardControllerAdminSetDefault,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, Remove, Share, List, Star, Delete } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Member = { id: number; name: string; phone: string };
 type Share = { id: number; memberId: number; member?: Member };
@@ -285,23 +296,23 @@ function formatTime(v?: string | null){
 }
 
 async function fetchMembers(){
-    const res = await http<{ items: Member[] }>("/member/list", { method: 'GET', query: { page: 1, pageSize: 200 } });
-    memberOptions.value = res.items || [];
+    const res:any = (await memberControllerList({ page: 1, pageSize: 200 } as any) as unknown) as any;
+    memberOptions.value = Array.isArray(res?.items) ? res.items : [];
 }
 
 async function searchMembers(q?: string){
     loadingMembers.value = true;
     try{
-        const res = await http<{ items: Member[] }>("/member/list", { method:'GET', query: { page: 1, pageSize: 50, keyword: (q||'').trim() || undefined } });
-        memberOptions.value = res.items || [];
+        const res:any = (await memberControllerList({ page: 1, pageSize: 50, keyword: (q||'').trim() || undefined } as any) as unknown) as any;
+        memberOptions.value = Array.isArray(res?.items) ? res.items : [];
     } finally { loadingMembers.value = false; }
 }
 
 async function searchVehicles(q?: string){
     loadingVehicles.value = true;
     try{
-        const res = await http<VehicleLite[]>("/vehicle/search", { method:'GET', query: { q: (q||'').trim() || undefined, limit: 30 } });
-        vehicleOptions.value = Array.isArray(res) ? res.map(v => ({ ...v, _ownerDisplay: v.memberName || v.memberPhone || '-' })) : [];
+        const res:any = (await vehicleControllerSearch({ q: (q||'').trim() || undefined, limit: 30 } as any) as unknown) as any;
+        vehicleOptions.value = Array.isArray(res) ? res.map((v:any) => ({ ...v, _ownerDisplay: v.memberName || v.memberPhone || '-' })) : [];
     } finally { loadingVehicles.value = false; }
 }
 
@@ -310,10 +321,9 @@ async function fetchList(){
     try {
         const query:any = { keyword: keyword.value || undefined, page: page.value, pageSize: pageSize.value };
         if (selectedMemberId.value) query.memberId = selectedMemberId.value;
-        const res = await http<{ items: Card[]; total: number; page: number; pageSize: number }>(
-            '/wash-card/list', { method: 'GET', query }
-        );
-        list.value = res.items; total.value = res.total;
+        const res:any = (await washCardControllerAdminList(query as any) as unknown) as any;
+        list.value = Array.isArray(res?.items) ? res.items : [];
+        total.value = Number(res?.total || 0);
     } finally { loading.value = false; }
 }
 
@@ -342,20 +352,20 @@ async function onCreateSave(){
     if (!createForm.value.ownerMemberId) { ElMessage.error('请选择持卡会员'); return; }
     const payload: any = { ...createForm.value };
     if (createFormPermanent.value) { payload.expiryAt = null; }
-    await http('/wash-card/create', { method: 'POST', body: payload });
+    await washCardControllerAdminCreate({ body: payload } as any);
     dialogCreate.value = false; ElMessage.success('已创建'); fetchList();
 }
 
 function openAdd(card: Card){ current.value = card; addForm.value = { count: 1, remark: '' }; dialogAdd.value = true; }
-async function onAddSave(){ if (!current.value) return; await http(`/wash-card/${current.value.id}/add`, { method: 'POST', body: addForm.value }); dialogAdd.value = false; ElMessage.success('已增加次数'); fetchList(); }
+async function onAddSave(){ if (!current.value) return; await washCardControllerAdminAdd(String(current.value.id), { body: addForm.value } as any); dialogAdd.value = false; ElMessage.success('已增加次数'); fetchList(); }
 
 async function loadDeductVehicles(card: Card){
     try{
         const ownerId = card.ownerMemberId;
-        const ownerVehicles = await http<any[]>(`/vehicle/member/${ownerId}`, { method:'GET' });
+        const ownerVehicles:any = (await vehicleControllerListByMember(String(ownerId)) as unknown) as any;
         // 聚合共享会员车辆
         const sharedMemberIds = (card.shares||[]).map(s=>s.memberId);
-        const sharedVehiclesArr = await Promise.all(sharedMemberIds.map(id=> http<any[]>(`/vehicle/member/${id}`, { method:'GET' }).catch(()=>[])));
+        const sharedVehiclesArr = await Promise.all(sharedMemberIds.map(async (id)=>{ try{ return (await vehicleControllerListByMember(String(id)) as any) as any[]; }catch{ return []; } }));
         const all = [
             ...(ownerVehicles||[]).map((v:any)=> ({ id: v.id, plateNumber: v.plateNumber, _ownerDisplay: '持有人' })),
             ...sharedVehiclesArr.flat().map((v:any)=> ({ id: v.id, plateNumber: v.plateNumber, _ownerDisplay: '共享会员' })),
@@ -378,16 +388,16 @@ async function onDeductSave(){
         const suffix = v ? `（服务车辆：${v.plateNumber}）` : '';
         if (!body.remark) body.remark = `服务划扣${suffix}`; else if (!String(body.remark).includes('服务车辆：') && suffix) body.remark += suffix;
     }
-    await http(`/wash-card/${current.value.id}/deduct`, { method: 'POST', body });
+    await washCardControllerAdminDeduct(String(current.value.id), { body } as any);
     dialogDeduct.value = false; ElMessage.success('已划扣'); fetchList();
 }
 
 function openShare(card: Card){ current.value = card; shareForm.value = {}; dialogShare.value = true; }
-async function onAddShare(){ if (!current.value || !shareForm.value.memberId) return; await http(`/wash-card/${current.value.id}/shares`, { method: 'POST', body: { memberId: shareForm.value.memberId } }); ElMessage.success('已共享'); const fresh = await http<Card>(`/wash-card/${current.value.id}`, { method: 'GET' }); current.value = fresh; fetchList(); }
-async function onRemoveShare(memberId: number){ if (!current.value) return; await http(`/wash-card/${current.value.id}/shares/${memberId}/remove`, { method: 'POST' }); ElMessage.success('已移除'); const fresh = await http<Card>(`/wash-card/${current.value.id}`, { method: 'GET' }); current.value = fresh; fetchList(); }
+async function onAddShare(){ if (!current.value || !shareForm.value.memberId) return; await washCardControllerAdminAddShare(String(current.value.id), { body: { memberId: shareForm.value.memberId } } as any); ElMessage.success('已共享'); const fresh:any = (await washCardControllerAdminGet(String(current.value.id)) as unknown) as any; current.value = fresh as any; fetchList(); }
+async function onRemoveShare(memberId: number){ if (!current.value) return; await washCardControllerAdminRemoveShare(String(current.value.id), String(memberId)); ElMessage.success('已移除'); const fresh:any = (await washCardControllerAdminGet(String(current.value.id)) as unknown) as any; current.value = fresh as any; fetchList(); }
 
 function openLogs(card: Card){ current.value = card; logsPage.value = 1; fetchLogs(); dialogLogs.value = true; }
-async function fetchLogs(){ if (!current.value) return; const res = await http<{ items: any[]; total: number }>(`/wash-card/${current.value.id}/logs`, { method: 'GET', query: { page: logsPage.value, pageSize: logsPageSize.value } }); logs.value = res.items; logsTotal.value = res.total; }
+async function fetchLogs(){ if (!current.value) return; const res:any = (await washCardControllerAdminLogs(String(current.value.id), { page: logsPage.value, pageSize: logsPageSize.value } as any) as unknown) as any; logs.value = Array.isArray(res?.items) ? res.items : []; logsTotal.value = Number(res?.total || 0); }
 function onLogsPageChange(p:number){ logsPage.value = p; fetchLogs(); }
 
 function gotoOrder(orderId: number){
@@ -408,11 +418,11 @@ function applyExpiryYears(years: number){
 }
 function formatDateISO(d: Date){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 
-async function setDefault(card: Card){ await http(`/wash-card/${card.id}/set-default`, { method: 'POST' }); ElMessage.success('已设为默认'); fetchList(); }
+async function setDefault(card: Card){ await washCardControllerAdminSetDefault(String(card.id)); ElMessage.success('已设为默认'); fetchList(); }
 
 function openDelete(card: Card){ current.value = card; delCountdown.value = 5; delDialog.value = true; if (delTimer) { clearInterval(delTimer); delTimer = null; } delTimer = setInterval(()=>{ delCountdown.value = Math.max(0, delCountdown.value - 1); if (delCountdown.value === 0 && delTimer) { clearInterval(delTimer); delTimer = null; } }, 1000); }
 function clearDelTimer(){ if (delTimer) { clearInterval(delTimer); delTimer = null; } }
-async function onDeleteConfirm(){ if (!current.value) return; await http(`/wash-card/${current.value.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); }
+async function onDeleteConfirm(){ if (!current.value) return; await washCardControllerAdminDelete(String(current.value.id)); ElMessage.success('已删除'); delDialog.value = false; fetchList(); }
 
 function zhReason(r?: string){
     const v = String(r||'').toUpperCase();

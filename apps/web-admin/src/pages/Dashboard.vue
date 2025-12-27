@@ -215,14 +215,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { ShoppingBag, Money, CreditCard, User, UserFilled, Tickets, OfficeBuilding } from '@element-plus/icons-vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import { metricsControllerOverview, metricsControllerSeries } from '@wash/api-client';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent]);
 
@@ -249,7 +248,6 @@ type OverviewResp = {
   };
 };
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const range = ref<RangeKey>('today');
 const loading = ref(false);
 const data = ref<OverviewResp | null>(null);
@@ -299,8 +297,9 @@ function arrow(rate: number|null|undefined){
 async function fetchData(){
 	loading.value = true;
 	try{
-		const resp = await http<OverviewResp>('/system/metrics/overview', { query: { range: range.value } });
-		data.value = resp;
+		// 注意：openapi 对返回体未完整建模，这里按后端实际返回结构使用
+		const resp = (await metricsControllerOverview({ range: range.value } as any) as unknown) as OverviewResp;
+		data.value = resp as any;
 	}catch(e:any){
 		ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '加载失败');
 	}finally{
@@ -312,10 +311,10 @@ async function fetchSeries(){
   seriesLoading.value = true;
   try{
     const [orders, payments, washcard, washcount] = await Promise.all([
-      http<any>('/system/metrics/series', { query: { metric: 'orders', range: seriesRange.value } }),
-      http<any>('/system/metrics/series', { query: { metric: 'payments', range: seriesRange.value } }),
-      http<any>('/system/metrics/series', { query: { metric: 'washcard', range: seriesRange.value } }),
-      http<any>('/system/metrics/series', { query: { metric: 'washcount', range: seriesRange.value } }),
+      metricsControllerSeries({ metric: 'orders', range: seriesRange.value } as any) as any,
+      metricsControllerSeries({ metric: 'payments', range: seriesRange.value } as any) as any,
+      metricsControllerSeries({ metric: 'washcard', range: seriesRange.value } as any) as any,
+      metricsControllerSeries({ metric: 'washcount', range: seriesRange.value } as any) as any,
     ]);
     const xDates = (orders?.points||[]).map((p:any)=>p.date);
     ordersPoints.value = orders?.points||[];

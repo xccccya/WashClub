@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminRoleService, AdminMenuKey } from './role.service.js';
 import { AdminGuard } from './admin.guard.js';
 import { RequirePerm } from './perm.decorator.js';
+import { CreateAdminDto, CreateRoleDto, UpdateAdminDto, UpdateRoleDto } from './role.dto.js';
 
 @ApiTags('system')
 @Controller('system')
@@ -19,13 +20,13 @@ export class AdminRoleController {
 	@Post('roles')
 	@ApiOperation({ summary: '创建角色' })
 	@RequirePerm('system-roles')
-	createRole(@Body() body: { name: string; enabled?: boolean; permissions?: AdminMenuKey[] }) { return this.service.createRole(body); }
+	createRole(@Body() body: CreateRoleDto) { return this.service.createRole(body as any); }
 
 	@Put('roles/:id')
 	@ApiOperation({ summary: '更新角色' })
 	@RequirePerm('system-roles')
-	updateRole(@Param('id') id: string, @Body() body: { name?: string; enabled?: boolean; permissions?: AdminMenuKey[] }) {
-		return this.service.updateRole(Number(id), body);
+	updateRole(@Param('id') id: string, @Body() body: UpdateRoleDto) {
+		return this.service.updateRole(Number(id), body as any);
 	}
 
 	@Delete('roles/:id')
@@ -42,13 +43,13 @@ export class AdminRoleController {
 	@Post('admins')
 	@ApiOperation({ summary: '创建管理员' })
 	@RequirePerm('system-admins')
-	createAdmin(@Body() body: { phone: string; name?: string; password: string; roleId: number; avatarUrl?: string | null }) { return this.service.createAdmin(body); }
+	createAdmin(@Body() body: CreateAdminDto) { return this.service.createAdmin(body as any); }
 
 	@Put('admins/:id')
 	@ApiOperation({ summary: '更新管理员' })
 	@RequirePerm('system-admins')
-	updateAdmin(@Param('id') id: string, @Body() body: { phone?: string; name?: string; password?: string; roleId?: number | null; avatarUrl?: string | null }) {
-		return this.service.updateAdmin(Number(id), body);
+	updateAdmin(@Param('id') id: string, @Body() body: UpdateAdminDto) {
+		return this.service.updateAdmin(Number(id), body as any);
 	}
 
 	@Delete('admins/:id')

@@ -88,7 +88,8 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
+import { miniappCouponControllerClaim, miniappCouponControllerListClaimable } from '@wash/api-client';
 
 type CouponItem = {
 	id: number;
@@ -124,7 +125,6 @@ type CouponItem = {
 };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttp();
 const loading = ref<boolean>(false);
 const list = ref<CouponItem[]>([]);
 const claimingIds = ref<Set<number>>(new Set());
@@ -187,7 +187,7 @@ function detailMemberStack(it:any){ try{ if (typeof it?.allowStackWithMemberDisc
 async function refresh(){
 	loading.value = true;
 	try{
-		const data:any = await http('/coupon/miniapp/claimable', { method:'GET' });
+		const data:any = await miniappCouponControllerListClaimable({} as any);
 		const arr:any[] = Array.isArray(data?.items) ? data.items : [];
 		// 排序：可领取（可领）> 未开始 > 已过期；并将已达上限/售罄置后
 		arr.sort((a:any,b:any)=>{
@@ -205,7 +205,7 @@ async function claim(it: CouponItem){
 	if (claimingIds.value.has(it.id)) return;
 	try{
 		claimingIds.value.add(it.id);
-		await http(`/coupon/miniapp/${it.id}/claim`, { method:'POST' });
+		await miniappCouponControllerClaim(it.id, {} as any);
 		uni.showToast({ title:'领取成功', icon:'success' });
 		await refresh();
 	}catch(e:any){ uni.showToast({ title: (e?.message||'领取失败').slice(0,20), icon:'none' }); }

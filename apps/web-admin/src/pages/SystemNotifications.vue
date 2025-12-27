@@ -25,18 +25,19 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	notificationControllerList,
+	notificationControllerMarkRead,
+	notificationControllerMarkReadAll,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type N = { id:number; title:string; content?:string; status:'UNREAD'|'READ'; createdAt:string };
 const list = ref<N[]>([]);
 
-async function load(){ try{ const arr:any[] = await http('/notification/list', { method:'GET' }); list.value = Array.isArray(arr)? arr: []; } catch { list.value = []; } }
-async function markRead(row:N){ try{ await http('/notification/mark-read', { method:'POST', body: { id: row.id } }); row.status='READ'; ElMessage.success('已标记'); }catch{ ElMessage.error('失败'); } }
-async function markAllRead(){ try{ await http('/notification/mark-read-all', { method:'POST' }); list.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; }); ElMessage.success('已全部标记'); }catch{ ElMessage.error('失败'); } }
+async function load(){ try{ const arr:any[] = (await notificationControllerList({} as any) as unknown) as any[]; list.value = Array.isArray(arr)? arr: []; } catch { list.value = []; } }
+async function markRead(row:N){ try{ await notificationControllerMarkRead({ id: row.id } as any); row.status='READ'; ElMessage.success('已标记'); }catch{ ElMessage.error('失败'); } }
+async function markAllRead(){ try{ await notificationControllerMarkReadAll(); list.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; }); ElMessage.success('已全部标记'); }catch{ ElMessage.error('失败'); } }
 
 onMounted(()=>{ load(); });
 </script>

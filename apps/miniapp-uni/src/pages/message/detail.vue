@@ -24,8 +24,7 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { ref, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE } from '../../utils/auth';
+import { notificationControllerDetail, notificationControllerMarkRead } from '@wash/api-client';
 
 type Notice = { id:number; title:string; content?:string; linkPath?:string; status:'UNREAD'|'READ'; createdAt:string };
 const item = ref<Notice|null>(null);
@@ -36,10 +35,9 @@ function formatTime(t:string){ try{ const d = new Date(t); const pad=(n:number)=
 async function load(id:number){
     try{
         const t = uni.getStorageSync('token'); if (!t){ item.value = null; return; }
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        const n:any = await http(`/notification/by-id/${id}`, { method:'GET' });
+        const n:any = await notificationControllerDetail(String(id));
         item.value = n || null;
-        if (n){ try{ await http('/notification/mark-read', { method:'POST', body: { id } }); } catch{} }
+        if (n){ try{ await notificationControllerMarkRead({ id } as any); } catch{} }
     }catch{ item.value = null; }
 }
 

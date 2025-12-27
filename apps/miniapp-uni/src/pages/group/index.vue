@@ -165,7 +165,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { API_BASE, createHttp } from '../../utils/auth';
+import { API_BASE } from '../../utils/auth';
+import {
+  groupMiniappControllerAddMemberByPhone,
+  groupMiniappControllerLookupMemberByPhone,
+  groupMiniappControllerMyGroupAdmins,
+  groupMiniappControllerMyGroupCards,
+  groupMiniappControllerMyGroupLedger,
+  groupMiniappControllerMyGroupMembers,
+  groupMiniappControllerMyGroupSummary,
+  groupMiniappControllerRemoveMember,
+} from '@wash/api-client';
 declare const uni: any;
 
 const { topSpacerHeight } = useSafeArea();
@@ -235,17 +245,16 @@ async function onAddMember(){
   try{
     const phone = String(phoneInput.value||'').trim();
     if (!phone) { uni.showToast({ title:'请输入手机号', icon:'none' }); return; }
-    const http = createHttp();
-    const preview:any = await http('/group/miniapp/me/lookup-member-by-phone', { method:'GET', query:{ phone } });
+    const preview:any = await groupMiniappControllerLookupMemberByPhone({ phone } as any);
     if (!preview) { uni.showToast({ title:'手机号未绑定会员', icon:'none' }); return; }
     const confirmText = `确认添加成员：${preview.name||''}（${preview.phone||phone}）？`;
     await new Promise((resolve, reject)=>{
       uni.showModal({ title:'确认添加', content: confirmText, success: (r)=>{ if(r.confirm){ resolve(null);} else { reject('cancel'); } } });
     });
-    await http('/group/miniapp/me/members', { method:'POST', query:{ phone } });
+    await groupMiniappControllerAddMemberByPhone({ phone } as any);
     phoneInput.value='';
     uni.showToast({ title:'已添加', icon:'success' });
-    try{ const ms = await http('/group/miniapp/me/members', { method: 'GET' }); members.value = Array.isArray(ms) ? ms : []; }catch{}
+    try{ const ms:any = await groupMiniappControllerMyGroupMembers({} as any); members.value = Array.isArray(ms) ? ms : []; }catch{}
   }catch(e){ uni.showToast({ title: (e as any)?.message || '添加失败', icon:'none' }); }
 }
 
@@ -254,27 +263,25 @@ async function onRemoveMember(memberId: number){
     await new Promise((resolve, reject)=>{
       uni.showModal({ title:'确认移除', content:'确认将该成员移出集团？', success:(r)=>{ if(r.confirm){ resolve(null);} else { reject('cancel'); } } });
     });
-    const http = createHttp();
-    await http('/group/miniapp/me/members/remove', { method:'POST', query:{ memberId } });
+    await groupMiniappControllerRemoveMember({ memberId } as any);
     uni.showToast({ title:'已移除', icon:'success' });
-    try{ const ms = await http('/group/miniapp/me/members', { method: 'GET' }); members.value = Array.isArray(ms) ? ms : []; }catch{}
+    try{ const ms:any = await groupMiniappControllerMyGroupMembers({} as any); members.value = Array.isArray(ms) ? ms : []; }catch{}
   }catch(e){ if((e as any)!=='cancel') uni.showToast({ title: (e as any)?.message || '操作失败', icon:'none' }); }
 }
 
 async function loadGroup(){
   try{
-    const http = createHttp();
     // 直接使用小程序端汇总接口，减少多次请求
-    const summary:any = await http('/group/miniapp/me/summary', { method: 'GET' });
+    const summary:any = await groupMiniappControllerMyGroupSummary({} as any);
     if (!summary?.hasGroup) { groupId.value = null; groupInfo.value = {}; balance.value = 0; ledger.value = []; cards.value = []; isAdmin.value = false; return; }
     groupId.value = summary.id;
     isAdmin.value = String(summary?.role||'') === 'ADMIN';
     groupInfo.value = { id: summary.id, name: summary.name, iconUrl: summary.iconUrl, code: summary.code };
     balance.value = Number(summary.balance||0);
-    try{ const led = await http('/group/miniapp/me/ledger', { method: 'GET', query: { limit: 10 } }); ledger.value = Array.isArray(led) ? led : []; }catch{ ledger.value = []; }
-    try{ const cs = await http('/group/miniapp/me/cards', { method: 'GET' }); cards.value = Array.isArray(cs) ? cs : []; }catch{ cards.value = []; }
-    try{ const ads = await http('/group/miniapp/me/admins', { method: 'GET' }); admins.value = Array.isArray(ads) ? ads : []; }catch{ admins.value = []; }
-    try{ const ms = await http('/group/miniapp/me/members', { method: 'GET' }); members.value = Array.isArray(ms) ? ms : []; }catch{ members.value = []; }
+    try{ const led:any = await groupMiniappControllerMyGroupLedger({ limit: 10 } as any); ledger.value = Array.isArray(led) ? led : []; }catch{ ledger.value = []; }
+    try{ const cs:any = await groupMiniappControllerMyGroupCards({} as any); cards.value = Array.isArray(cs) ? cs : []; }catch{ cards.value = []; }
+    try{ const ads:any = await groupMiniappControllerMyGroupAdmins({} as any); admins.value = Array.isArray(ads) ? ads : []; }catch{ admins.value = []; }
+    try{ const ms:any = await groupMiniappControllerMyGroupMembers({} as any); members.value = Array.isArray(ms) ? ms : []; }catch{ members.value = []; }
   }catch{}
 }
 

@@ -63,14 +63,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
+import {
+	adminRoleControllerCreateAdmin,
+	adminRoleControllerListAdmins,
+	adminRoleControllerListRoles,
+	adminRoleControllerRemoveAdmin,
+	adminRoleControllerUpdateAdmin,
+	systemSettingControllerGetPublicSetting,
+} from '@wash/api-client';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { absUrl } from '../utils/http';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Role = { id: number; name: string };
 type Admin = { id: number; name?: string; phone: string; roleId?: number; roleRef?: Role; avatarUrl?: string | null };
@@ -89,15 +94,20 @@ const rules = {
 
 function toAbsUrl(path?: string | null) { if (!path) return ''; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
 function formatAvatar(url?: string | null){ try { const site = JSON.parse(localStorage.getItem('siteSetting')||'{}'); const candidate = url || site?.defaultMemberAvatarUrl || ''; const u = toAbsUrl(candidate); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } catch { return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } }
-const authHeaders = computed(()=>({ Authorization: `Bearer ${localStorage.getItem('token')||''}` }));
 async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); fd.append('source','avatar'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); form.value.avatarUrl = j?.url || null; ElMessage.success('头像已上传'); }
 function onAvatarClear(){ form.value.avatarUrl = null; ElMessage.success('已恢复默认头像'); }
 const pickVisible = ref(false);
 function openPickAvatar(){ pickVisible.value = true; }
 function onPicked(list:any[]){ const f = list?.[0]; if (f && f.url) { form.value.avatarUrl = f.url; ElMessage.success('已选择头像'); } pickVisible.value=false; }
 
-async function fetchAdmins(){ const list = await http<Admin[]>('/system/admins', { method:'GET' }); admins.value = list; }
-async function fetchRoles(){ roles.value = await http<Role[]>('/system/roles', { method:'GET' }); }
+async function fetchAdmins(){
+	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+	admins.value = (await adminRoleControllerListAdmins() as unknown) as Admin[];
+}
+async function fetchRoles(){
+	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+	roles.value = (await adminRoleControllerListRoles() as unknown) as Role[];
+}
 
 function openCreate(){ current.value = null; form.value = { phone: '', name: '', roleId: undefined, password: '', password2: '', avatarUrl: undefined }; dialogVisible.value = true; }
 function openEdit(row: Admin){ current.value = row; form.value = { id: row.id, phone: row.phone, name: row.name, roleId: row.roleId, avatarUrl: row.avatarUrl, password: '', password2: '' }; dialogVisible.value = true; }
@@ -108,20 +118,20 @@ async function onSave(){
 		if (!current.value?.id) {
 			if (!form.value?.password || form.value.password.length < 6) { ElMessage.error('请填写至少6位密码'); return; }
 			const payload:any = { phone: form.value.phone, name: form.value.name, password: form.value.password, roleId: form.value.roleId, avatarUrl: form.value.avatarUrl };
-			await http('/system/admins', { method:'POST', body: payload });
+			await adminRoleControllerCreateAdmin(payload);
 		} else {
 			const payload:any = { phone: form.value.phone, name: form.value.name, roleId: form.value.roleId };
 			if (form.value.password) payload.password = form.value.password;
 			if (form.value.avatarUrl !== undefined) payload.avatarUrl = form.value.avatarUrl;
-			await http(`/system/admins/${current.value.id}`, { method:'PUT', body: payload });
+			await adminRoleControllerUpdateAdmin(String(current.value.id), payload);
 		}
 		ElMessage.success('已保存'); dialogVisible.value=false; fetchAdmins();
 	} catch (e:any) { ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Admin){ if (row.id===1) return; await http(`/system/admins/${row.id}`, { method:'DELETE' }); ElMessage.success('已删除'); fetchAdmins(); }
+async function remove(row: Admin){ if (row.id===1) return; await adminRoleControllerRemoveAdmin(String(row.id)); ElMessage.success('已删除'); fetchAdmins(); }
 
-onMounted(()=>{ fetchRoles(); fetchAdmins(); try{ http('/system/public/site-setting', { method:'GET' }).then(s=>{ try{ localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }); }catch{} });
+onMounted(()=>{ fetchRoles(); fetchAdmins(); try{ systemSettingControllerGetPublicSetting().then((s:any)=>{ try{ localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }); }catch{} });
 </script>
 
 

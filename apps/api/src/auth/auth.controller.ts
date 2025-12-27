@@ -1,14 +1,16 @@
 import { Body, Controller, Post, BadRequestException } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { IsNotEmpty, IsString, MinLength, IsInt, IsIn, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class LoginDto {
+	@ApiProperty({ description: '手机号', example: '13800138000' })
 	@IsString({ message: '请输入手机号' })
 	@IsNotEmpty({ message: '请输入手机号' })
 	phone!: string;
 
+	@ApiProperty({ description: '密码（至少6位）', example: '123456' })
 	@IsString({ message: '请输入密码' })
 	@MinLength(6, { message: '密码至少6位' })
 	password!: string;

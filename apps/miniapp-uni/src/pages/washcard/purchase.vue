@@ -32,12 +32,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh, getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
 import { resolveImageUrl } from '../../utils/url';
+import { storeProductControllerList } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const list = ref<any[]>([]);
@@ -48,8 +48,7 @@ function formatPrice(p: any){ const n = Number(p); return isNaN(n) ? p : n.toFix
 
 async function fetchList(){
 	try {
-		const http = createHttp();
-		const items = await http<any[]>('/store/products', { method: 'GET', query: { type: 'VIRTUAL_CARD', enabled: true } });
+		const items = (await storeProductControllerList({ type: 'VIRTUAL_CARD', enabled: true } as any)) as any;
 		list.value = (Array.isArray(items) ? items : []).filter((p:any)=> p?.type==='VIRTUAL_CARD' && (p?.coupon?.type==='WASH_CARD'));
 	} catch { list.value = []; }
 }

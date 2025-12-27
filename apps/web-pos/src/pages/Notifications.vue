@@ -25,22 +25,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { notificationControllerList, notificationControllerMarkRead, notificationControllerMarkReadAll } from '@wash/api-client';
 
 type N = { id:number; title:string; content?:string; status:'UNREAD'|'READ'; createdAt:string };
 const list = ref<N[]>([]);
 
 async function load(){
     try{
-        const token = localStorage.getItem('token')||'';
-        const res = await fetch(`${API_BASE}/notification/list`, { headers: { Authorization: `Bearer ${token}` } });
-        const arr:any[] = await res.json();
+        const arr:any[] = (await notificationControllerList({} as any) as unknown) as any[];
         list.value = Array.isArray(arr)? arr: [];
     }catch{ list.value = []; }
 }
-async function markRead(row:N){ try{ const token=localStorage.getItem('token')||''; await fetch(`${API_BASE}/notification/mark-read`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ id: row.id }) }); row.status='READ'; ElMessage.success('已标记'); }catch{ ElMessage.error('失败'); } }
-async function markAllRead(){ const unread = list.value.filter(x=>x.status==='UNREAD'); for (const n of unread){ await markRead(n); } }
+async function markRead(row:N){ try{ await notificationControllerMarkRead({ id: row.id } as any); row.status='READ'; ElMessage.success('已标记'); }catch{ ElMessage.error('失败'); } }
+async function markAllRead(){ try{ await notificationControllerMarkReadAll(); list.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; }); ElMessage.success('已全部标记'); }catch{ ElMessage.error('失败'); } }
 
 onMounted(()=>{ load(); });
 </script>

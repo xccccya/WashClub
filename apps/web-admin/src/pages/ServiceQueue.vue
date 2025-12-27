@@ -490,14 +490,39 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	carDataControllerGetBrands,
+	carDataControllerGetSeries,
+	memberControllerList,
+	orderControllerAdjustCashierDiscount,
+	orderControllerGet,
+	orderControllerMarkPaid,
+	orderControllerPayByGroupBalance,
+	orderControllerPayByWashCard,
+	orderControllerWechatMicropay,
+	queueControllerConfirmComplete,
+	queueControllerCreateServiceOrderAndEnqueue,
+	queueControllerEtaSummary,
+	queueControllerFinishTask,
+	queueControllerList,
+	queueControllerRemove,
+	queueControllerSetCurrent,
+	queueControllerStartFirst,
+	queueTypeControllerCreate,
+	queueTypeControllerList,
+	queueTypeControllerRemove,
+	queueTypeControllerSetProducts,
+	queueTypeControllerSetSteps,
+	queueTypeControllerUpdate,
+	storeProductControllerList,
+	vehicleControllerListByMember,
+	vehicleControllerSearch,
+} from '@wash/api-client';
 import { absUrl } from '../utils/http';
 import { ElMessage, ElMessageBox, ElIcon } from 'element-plus';
 import { CirclePlus, User, UserFilled, Search, VideoPlay, SuccessFilled, SwitchButton, Setting, OfficeBuilding, ArrowUp, ArrowDown, Delete, Tickets } from '@element-plus/icons-vue';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 function rowKey(row: { id: number }){ return row.id; }
 function toAbs(u?: string | null){ return absUrl(u || ''); }
 
@@ -523,18 +548,26 @@ const selectedTypeIds = ref<number[]>([]);
 function toggleSelectType(id:number){ const set = new Set(selectedTypeIds.value); if (set.has(id)) set.delete(id); else set.add(id); selectedTypeIds.value = Array.from(set); }
 function clearSelectedTypes(){ selectedTypeIds.value = []; }
 
-async function fetchList(){ loading.value = true; try { const data = await http<QueueItem[]>('/queue/list', { method: 'GET' }); list.value = data || []; } finally { loading.value = false; } }
-async function fetchEtaSummary(){ try { etaSummary.value = await http<EtaSummary[]>('/queue/eta-summary', { method: 'GET' }); } catch { etaSummary.value = []; } }
-async function setCurrent(row: QueueItem, idx: number){ await http(`/queue/${row.id}/set-current`, { method: 'POST', body: { taskIndex: idx } }); const t = row.tasks?.[idx]; ElMessage.success(`已切换到：${t?.name || '当前步骤'}`); fetchList(); }
-async function finishTask(row: QueueItem){ const idx = Number(row.currentTaskIndex||0); const t = row.tasks?.[idx]; await http(`/queue/${row.id}/finish-task`, { method: 'POST' }); ElMessage.success(`已完成：${t?.name || '当前步骤'}`); fetchList(); }
-async function confirmComplete(row: QueueItem){ await http(`/queue/${row.id}/confirm-complete`, { method: 'POST' }); ElMessage.success('该车辆所有步骤均已完成'); fetchList(); }
-async function startFirst(row: QueueItem){ await http(`/queue/${row.id}/start-first`, { method: 'POST' }); const t = row.tasks?.[0]; ElMessage.success(`已开始：${t?.name || '第一步'}`); fetchList(); }
-async function removeItem(row: QueueItem){ await http(`/queue/${row.id}`, { method: 'DELETE' }); ElMessage.success('已移出队列'); fetchList(); }
+async function fetchList(){
+	loading.value = true;
+	try {
+		const data = (await queueControllerList()) as any;
+		list.value = (data || []) as QueueItem[];
+	} finally {
+		loading.value = false;
+	}
+}
+async function fetchEtaSummary(){ try { etaSummary.value = ((await queueControllerEtaSummary()) as any) || []; } catch { etaSummary.value = []; } }
+async function setCurrent(row: QueueItem, idx: number){ await queueControllerSetCurrent(String(row.id), { body: JSON.stringify({ taskIndex: idx }) }); const t = row.tasks?.[idx]; ElMessage.success(`已切换到：${t?.name || '当前步骤'}`); fetchList(); }
+async function finishTask(row: QueueItem){ const idx = Number(row.currentTaskIndex||0); const t = row.tasks?.[idx]; await queueControllerFinishTask(String(row.id)); ElMessage.success(`已完成：${t?.name || '当前步骤'}`); fetchList(); }
+async function confirmComplete(row: QueueItem){ await queueControllerConfirmComplete(String(row.id)); ElMessage.success('该车辆所有步骤均已完成'); fetchList(); }
+async function startFirst(row: QueueItem){ await queueControllerStartFirst(String(row.id)); const t = row.tasks?.[0]; ElMessage.success(`已开始：${t?.name || '第一步'}`); fetchList(); }
+async function removeItem(row: QueueItem){ await queueControllerRemove(String(row.id)); ElMessage.success('已移出队列'); fetchList(); }
 async function markManualPay(row: any, method: 'CASH'|'SHOUQIANBA'|'OFFLINE'){
     try {
         const orderId = Number(row?.orderId||0) || undefined;
         if (!orderId) { ElMessage.error('未找到关联订单'); return; }
-        await http(`/orders/${orderId}/pay/manual`, { method: 'POST', body: { method } });
+        await orderControllerMarkPaid(orderId, { body: { method } } as any);
         ElMessage.success('支付已标记');
         fetchList();
     } catch(e:any){ ElMessage.error(String(e?.message||'标记失败')); }
@@ -543,7 +576,7 @@ async function markWashDeduct(row: any){
     try {
         const orderId = Number(row?.orderId||0) || undefined;
         if (!orderId) { ElMessage.error('未找到关联订单'); return; }
-        await http(`/orders/${orderId}/pay/wash-card`, { method: 'POST', body: { } });
+        await orderControllerPayByWashCard(orderId, { body: {} } as any);
         ElMessage.success('洗车卡划扣成功');
         fetchList();
     } catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); }
@@ -557,7 +590,7 @@ async function markWxMicropay(row: any){
         if (!orderId) { ElMessage.error('未找到关联订单'); return; }
         const { value: authCode } = await ElMessageBox.prompt('请扫描顾客微信付款码或手动输入授权码', '微信付款码', { inputPlaceholder: '授权码（条码内容）', confirmButtonText: '提交', cancelButtonText: '取消' }) as any;
         if (!authCode) return;
-        await http(`/orders/${orderId}/pay/wx-micropay`, { method: 'POST', body: { authCode } });
+        await orderControllerWechatMicropay(orderId, { body: { authCode } } as any);
         ElMessage.success('微信付款码支付成功');
         fetchList();
     } catch(e:any){ const msg = String(e?.message||'支付失败'); ElMessage.error(msg); }
@@ -582,8 +615,8 @@ async function querySearchPlate(queryString: string, cb: (items: PlateSearchItem
     const kw = String(queryString || '').trim();
     if (!kw) { cb([]); return; }
     try {
-        const res = await http<PlateSearchItem[]>(`/vehicle/search`, { method: 'GET', query: { q: kw, limit: 15 } });
-        cb(res || []);
+        const res = (await vehicleControllerSearch({ q: kw, limit: 15 } as any)) as any;
+        cb((res || []) as PlateSearchItem[]);
     } catch { cb([]); }
 }
 function onSelectExistingVehicle(item: PlateSearchItem){
@@ -595,15 +628,15 @@ function onSelectExistingVehicle(item: PlateSearchItem){
 async function onMemberChange(){
     memberVehicles.value = [];
     if (!form.value.memberId) return;
-    const res = await http<any[]>(`/vehicle/member/${form.value.memberId}`, { method: 'GET' });
-    memberVehicles.value = res || [];
+    const res = (await vehicleControllerListByMember(String(form.value.memberId))) as any;
+    memberVehicles.value = (res || []) as any[];
 }
 
 async function onSave(){ /* 直接入队已移除 */ }
 
 async function fetchMemberOptions(){
-    const res = await http<{ items: MemberOption[] }>(`/member/list`, { method: 'GET', query: { page: 1, pageSize: 500 } });
-    memberOptions.value = res.items || [];
+    const res = (await memberControllerList({ page: 1, pageSize: 500 } as any)) as any;
+    memberOptions.value = (res?.items || res?.data?.items || []) as MemberOption[];
 }
 
 onMounted(()=>{ fetchList(); fetchEtaSummary(); fetchMemberOptions(); if (!queueTypes.value.length) loadQueueTypes(); startPolling(); });
@@ -631,8 +664,40 @@ function typeSubOptions(main?: string){ return main ? (typeSubMap[main] || []) :
 
 function selectLetter(ch: string | null){ selectedLetter.value = ch; applyBrandFilter(); try { brandSelectKey.value++; } catch {} }
 function applyBrandFilter(){ const all = brandOptionsAll.value; brandOptions.value = selectedLetter.value ? all.filter((b:any)=>(b.letter||'').toUpperCase()===selectedLetter.value) : all; }
-async function fetchBrands(){ brandLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/brands`); const json = await resp.json(); const arr:any[] = json || []; const flat:any[]=[]; for (const mb of arr){ for (const b of (mb.brand_list||[])){ flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img }); } } brandOptionsAll.value = flat; applyBrandFilter(); brandsLoaded.value=true; } catch { brandOptionsAll.value=[]; brandOptions.value=[]; } finally { brandLoading.value=false; } }
-async function fetchSeries(brandId: number){ if (!brandId) { seriesOptions.value=[]; return; } seriesLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`); const json = await resp.json(); const arr:any[] = json || []; seriesOptions.value = arr.map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale })); } catch { seriesOptions.value=[]; } finally { seriesLoading.value=false; } }
+async function fetchBrands(){
+    brandLoading.value = true;
+    try {
+        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+        const arr = (await carDataControllerGetBrands() as unknown) as any[];
+        const flat:any[]=[];
+        for (const mb of (arr || [])){
+            for (const b of (mb.brand_list||[])){
+                flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img });
+            }
+        }
+        brandOptionsAll.value = flat;
+        applyBrandFilter();
+        brandsLoaded.value = true;
+    } catch {
+        brandOptionsAll.value = [];
+        brandOptions.value = [];
+    } finally {
+        brandLoading.value = false;
+    }
+}
+async function fetchSeries(brandId: number){
+    if (!brandId) { seriesOptions.value = []; return; }
+    seriesLoading.value = true;
+    try {
+        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+        const arr = (await carDataControllerGetSeries({ brandId } as any) as unknown) as any[];
+        seriesOptions.value = (arr || []).map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
+    } catch {
+        seriesOptions.value = [];
+    } finally {
+        seriesLoading.value = false;
+    }
+}
 function onBrandChange(val: number){ const b = brandOptionsAll.value.find((x:any)=>x.brand_id===val); form.value.brandName = b?.brand_name || ''; currentBrand.value = b || null; form.value.seriesId = undefined; fetchSeries(val); }
 function onSeriesChange(val: number){ const s = seriesOptions.value.find((x:any)=>x.series_id===val); form.value.seriesName = s?.series_name || ''; const scale = (s?.scale||'').toString(); const { main, sub } = mapScaleToType(scale); if (main) form.value.typeMain = main; if (sub) form.value.typeSub = sub; lockTypeBySeries.value = !!val; }
 function onBrandDropdownVisible(visible: boolean){ if (visible && !brandsLoaded.value && !brandLoading.value) fetchBrands(); }
@@ -710,7 +775,14 @@ const queueTypes = ref<QueueType[]>([]);
 const activeTypeId = ref<number|undefined>(undefined);
 const activeType = computed(()=> queueTypes.value.find(t=>t.id===activeTypeId.value));
 function syncTypeForm(){ const t = activeType.value; typeForm.value = t ? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' } : { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' }; }
-async function loadQueueTypes(){ const res = await http<QueueType[]>('/queue-types', { method: 'GET' }); queueTypes.value = res||[]; if (!activeTypeId.value && queueTypes.value.length) activeTypeId.value = queueTypes.value[0].id; syncStepEdits(); syncTypeForm(); await loadServiceProducts(); }
+async function loadQueueTypes(){
+	const res = (await queueTypeControllerList()) as any;
+	queueTypes.value = (res || []) as QueueType[];
+	if (!activeTypeId.value && queueTypes.value.length) activeTypeId.value = queueTypes.value[0].id;
+	syncStepEdits();
+	syncTypeForm();
+	await loadServiceProducts();
+}
 function onSelectType(idStr: string){ activeTypeId.value = Number(idStr||0) || undefined; syncStepEdits(); syncTypeForm(); loadTypeProductsSelection(); }
 
 // 步骤编辑
@@ -720,7 +792,16 @@ function addStep(){ stepEdits.value.push({ name: '', durationMin: 0 }); }
 function moveStep(index: number, delta: number){ const i=index, j=index+delta; if (j<0 || j>=stepEdits.value.length) return; const arr=stepEdits.value; const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; }
 function removeStep(index: number){ stepEdits.value.splice(index, 1); }
 const savingSteps = ref(false);
-async function saveSteps(){ if (!activeType.value) return; savingSteps.value=true; try{ const steps = stepEdits.value.map((s,i)=>({ orderIndex: i, name: s.name.trim(), durationMin: Number(s.durationMin||0), isEta: !!s.isEta })); await http(`/queue-types/${activeType.value.id}/steps`, { method:'PUT', body: { steps } }); ElMessage.success('已保存步骤'); await loadQueueTypes(); } finally { savingSteps.value=false; } }
+async function saveSteps(){
+	if (!activeType.value) return;
+	savingSteps.value=true;
+	try{
+		const steps = stepEdits.value.map((s,i)=>({ orderIndex: i, name: s.name.trim(), durationMin: Number(s.durationMin||0), isEta: !!s.isEta }));
+		await queueTypeControllerSetSteps(activeType.value.id, { body: JSON.stringify({ steps }) });
+		ElMessage.success('已保存步骤');
+		await loadQueueTypes();
+	} finally { savingSteps.value=false; }
+}
 
 // 可用商品
 const productKeyword = ref('');
@@ -736,8 +817,8 @@ function productRowKey(row: { id: number }){ return row.id; }
 async function loadServiceProducts(){
     const query:any = { type: 'SERVICE', keyword: productKeyword.value || undefined };
     if (!showDisabled.value) query.enabled = true as any;
-    const res = await http<Product[]>(`/store/products`, { method: 'GET', query });
-    serviceProducts.value = res||[];
+    const res = (await storeProductControllerList(query as any)) as any;
+    serviceProducts.value = ((res as any) || []) as Product[];
     await loadTypeProductsSelection();
     await nextTick(); try { const table:any = serviceTableRef.value; if (table && table.clearSelection) { table.clearSelection(); } const set = new Set(selectedProductIds.value); for (const row of serviceProducts.value) { if (set.has(row.id)) { try { (serviceTableRef.value as any).toggleRowSelection(row, true); } catch {} } } } catch {}
 }
@@ -752,7 +833,7 @@ async function saveTypeProducts(){
     const t = activeType.value; if (!t) return;
     const enabledSet = new Set<number>(serviceProducts.value.filter(p=>p.enabled).map(p=>p.id));
     const ids = selectedProductIds.value.filter(id=>Number.isFinite(id) && enabledSet.has(id));
-    await http(`/queue-types/${t.id}/products`, { method:'PUT', body: { productIds: ids } });
+    await queueTypeControllerSetProducts(Number(t.id), { body: JSON.stringify({ productIds: ids }) });
     ElMessage.success('已保存可用商品');
     await loadQueueTypes();
     await nextTick(); try { await loadServiceProducts(); } catch {}
@@ -764,8 +845,22 @@ const typeDialogVisible = ref(false);
 const savingType = ref(false);
 const typeForm = ref<any>({ id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null as boolean | null, etaParallelSlots: null as number | null, etaGroupKey: '' as string | null, displayColor: '' as string | null });
 function openTypeEditor(t?: any){ typeForm.value = t ? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' } : { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' }; typeDialogVisible.value = true; }
-async function saveType(){ if (!typeForm.value.name) { ElMessage.error('请输入名称'); return; } const payload:any = { name: typeForm.value.name, enabled: !!typeForm.value.enabled, sortWeight: Number(typeForm.value.sortWeight||0), remark: typeForm.value.remark||null, participateInEta: typeForm.value.participateInEta, etaParallelSlots: typeForm.value.etaParallelSlots===null?null:Number(typeForm.value.etaParallelSlots||0)||null, etaGroupKey: (String(typeForm.value.etaGroupKey||'').trim()||null), displayColor: (String(typeForm.value.displayColor||'').trim()||null) }; savingType.value = true; try { if (typeForm.value.id) { await http(`/queue-types/${typeForm.value.id}`, { method:'PUT', body: payload }); } else { await http(`/queue-types`, { method:'POST', body: payload }); } ElMessage.success('保存成功'); typeDialogVisible.value=false; await loadQueueTypes(); } finally { savingType.value=false; } }
-async function onDeleteType(id: number){ await http(`/queue-types/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await loadQueueTypes(); if (activeTypeId.value===id) activeTypeId.value = queueTypes.value[0]?.id; }
+async function saveType(){
+	if (!typeForm.value.name) { ElMessage.error('请输入名称'); return; }
+	const payload:any = { name: typeForm.value.name, enabled: !!typeForm.value.enabled, sortWeight: Number(typeForm.value.sortWeight||0), remark: typeForm.value.remark||null, participateInEta: typeForm.value.participateInEta, etaParallelSlots: typeForm.value.etaParallelSlots===null?null:Number(typeForm.value.etaParallelSlots||0)||null, etaGroupKey: (String(typeForm.value.etaGroupKey||'').trim()||null), displayColor: (String(typeForm.value.displayColor||'').trim()||null) };
+	savingType.value = true;
+	try {
+		if (typeForm.value.id) {
+			await queueTypeControllerUpdate(Number(typeForm.value.id), { body: JSON.stringify(payload) });
+		} else {
+			await queueTypeControllerCreate({ body: JSON.stringify(payload) });
+		}
+		ElMessage.success('保存成功');
+		typeDialogVisible.value=false;
+		await loadQueueTypes();
+	} finally { savingType.value=false; }
+}
+async function onDeleteType(id: number){ await queueTypeControllerRemove(Number(id)); ElMessage.success('已删除'); await loadQueueTypes(); if (activeTypeId.value===id) activeTypeId.value = queueTypes.value[0]?.id; }
 
 // 阶段二：入队向导（创建订单并入队）
 const wizardDrawer = ref(false);
@@ -788,8 +883,9 @@ watch(wizardQueueTypeId, async (val)=>{
     const t = queueTypes.value.find(t=>t.id===val);
     const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId));
     if (!ids.size) { wizardAllowedProducts.value = []; return; }
-    const list = await http<any[]>(`/store/products`, { method: 'GET', query: { type: 'SERVICE' } as any });
-    wizardAllowedProducts.value = (list||[]).filter(p=>ids.has(p.id));
+    const list = (await storeProductControllerList({ type: 'SERVICE' } as any)) as any;
+    const arr: any[] = (list as any) || [];
+    wizardAllowedProducts.value = arr.filter((p:any)=>ids.has(p.id));
     wizardSelectedProductIds.value = [];
     wizardSkuByProduct.value = {};
 });
@@ -811,7 +907,7 @@ async function submitCreateOrderAndEnqueue(){
         const body: any = { queueTypeId: wizardQueueTypeId.value, items };
         if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
         if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
-        const res = await http<any>('/queue/create-service-order-and-enqueue', { method: 'POST', body });
+        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) });
         ElMessage.success('已创建订单并入队');
         wizardDrawer.value=false; wizardStep.value=0; await fetchList();
     } finally { submittingOrder.value=false; }
@@ -888,19 +984,19 @@ async function openPay(row:any){
     canGroupBalance.value = false;
     try{
         const id = currentOrderId.value;
-        if (id){ const ord:any = await http(`/orders/${id}`); orderForPay.value = ord||null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; }
+        if (id){ const ord:any = await (orderControllerGet(id) as any); orderForPay.value = ord||null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; }
     }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value = false; }
     showPay.value = true;
 }
-async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${id}/pay/manual`, { method:'POST', body: { method: payMethod.value } }); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body: { amount: Number(cashierDiscountInput.value||0) } }); }catch{} await http(`/orders/${id}/pay/wx-micropay`, { method:'POST', body: { authCode: code } }); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
-async function doWashDeduct(){ try{ const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const ord:any = await http(`/orders/${id}`); if (String(ord?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; } const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value; const ret:any = await http(`/orders/${id}/pay/wash-card`, { method:'POST', body: { prefer } }); const plan = Array.isArray(ret?.plan)?ret.plan:[]; const times = Number(ret?.requiredTimes||0); ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`); showPay.value=false; await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); } }
+async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerMarkPaid(id, { body: { method: payMethod.value } } as any); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerWechatMicropay(id, { body: { authCode: code } } as any); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
+async function doWashDeduct(){ try{ const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const ord:any = await (orderControllerGet(id) as any); if (String(ord?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; } const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value; const ret:any = await orderControllerPayByWashCard(id, { body: { prefer } } as any); const plan = Array.isArray(ret?.plan)?ret.plan:[]; const times = Number(ret?.requiredTimes||0); ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`); showPay.value=false; await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); } }
 async function doGroupBalance(){
     try{
         const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; }
         if (!canGroupBalance.value){ ElMessage.error('仅集团服务订单可使用集团余额支付'); return; }
         groupPayLoading.value = true;
-        await http(`/orders/${id}/pay/group-balance`, { method:'POST' });
+        await orderControllerPayByGroupBalance(id);
         ElMessage.success('集团余额支付成功');
         showPay.value = false;
         await fetchList();

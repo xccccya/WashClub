@@ -117,8 +117,19 @@
 declare const uni: any;
 import { ref, computed } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { checkAuthAndRefresh, createHttp } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+import {
+	addressControllerMyList,
+	cartControllerClearChecked,
+	cartControllerMyList,
+	memberControllerMe,
+	miniappCouponControllerApplicable,
+	orderControllerCreate,
+	orderControllerWechatJsapi,
+	storeProductControllerGet,
+	systemSettingControllerGetPublicSetting,
+} from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -163,15 +174,14 @@ const allowPickup = computed(()=>{
 function setDelivery(v: 'EXPRESS'|'PICKUP'){ delivery.value = v; }
 
 async function loadSelected(){
-	try { const http=createHttp(); items.value = await http<any[]>('/cart/me/list', { method:'GET', query:{ onlyChecked: true } }); } catch { items.value = []; }
+	try { items.value = await cartControllerMyList({ token: '', onlyChecked: 'true' } as any) as any; } catch { items.value = []; }
 	// 预取商品发货形态并设置默认配送方式
 	try{
 		const phys = (items.value||[]).filter(it => String(it?.snapshot?.type||'')==='PHYSICAL');
 		if (phys.length){
-			const http = createHttp();
 			const metas: Record<number, { allowExpress: boolean; allowPickup: boolean; type: string }> = {} as any;
 			await Promise.all(phys.map(async (it:any)=>{
-				try{ const p:any = await http(`/store/products/${it.productId}`, { method:'GET' }); metas[Number(it.productId||0)] = { allowExpress: p?.shipAllowExpress!==false, allowPickup: p?.shipAllowPickup!==false, type: String(p?.type||'') }; } catch {}
+				try{ const p:any = await storeProductControllerGet(Number(it.productId)) as any; metas[Number(it.productId||0)] = { allowExpress: p?.shipAllowExpress!==false, allowPickup: p?.shipAllowPickup!==false, type: String(p?.type||'') }; } catch {}
 			}));
 			productShipMeta.value = metas;
 			const canExpress = phys.every(it => metas[Number(it.productId||0)]?.allowExpress !== false);
@@ -184,8 +194,7 @@ async function loadSelected(){
 	// 若包含实体商品则加载地址
 	if (requiresAddress.value) {
 		try {
-			const http = createHttp();
-			const list = await http<Address[]>('/address/me/list', { method:'GET' });
+			const list = await addressControllerMyList({} as any) as any as Address[];
 			addresses.value = Array.isArray(list) ? list : [];
 			selectedAddressId.value = addresses.value[0]?.id;
 		} catch { addresses.value = []; selectedAddressId.value = undefined; }
@@ -196,8 +205,7 @@ async function saveBack(){ /* 实时写入后端，不需要本地回写 */ }
 
 async function inc(it:any){
     try{
-        const http = createHttp();
-        const prod:any = await http(`/store/products/${it.productId}`, { method:'GET' });
+        const prod:any = await storeProductControllerGet(Number(it.productId)) as any;
         let max = 99;
         if (String(prod?.type||'') !== 'SERVICE'){
             if (String(prod?.specType||'') === 'MULTI'){
@@ -297,9 +305,9 @@ const pointsNote = computed(()=>{
 async function loadPointsMeta(){
   pointsLoading.value = true;
   try{
-    const profile = await createHttp()<any>('/member/me/profile', { method:'GET' });
+    const profile = await memberControllerMe({ token: '' } as any) as any;
     pointsAvailable.value = Math.max(0, Number(profile?.points||0));
-    const ss = await createHttp()<any>('/system/public/site-setting', { method:'GET' });
+    const ss = await systemSettingControllerGetPublicSetting() as any;
     fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
     maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
   }catch{
@@ -365,9 +373,8 @@ function toggleCoupon(c:any){
 async function loadApplicableCoupons(){
     couponLoading.value = true;
     try{
-        const http = createHttp();
         const body:any = { items: buildApplicableItems() };
-        const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+        const res:any = await miniappCouponControllerApplicable(body as any, { token: '' } as any);
         applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
         selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
     }catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
@@ -398,7 +405,7 @@ const memberDiscountAllowedByCoupons = computed(()=>{
 });
 async function loadMemberMeta(){
   try{
-    const profile = await createHttp()<any>('/member/me/profile', { method:'GET' });
+    const profile = await memberControllerMe({ token: '' } as any) as any;
     const pct = Number((profile as any)?.level?.payDiscountPercent || 0);
     memberPayDiscountPercent.value = Math.max(0, pct);
   }catch{ memberPayDiscountPercent.value = 0; }
@@ -406,9 +413,8 @@ async function loadMemberMeta(){
 
 async function submit(){
 	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
-	const http = createHttp();
 	// 拉取 profile 获取 memberId
-	let profile:any=null; try { profile = await http('/member/me/profile', { method:'GET' }); } catch {}
+	let profile:any=null; try { profile = await memberControllerMe({ token: '' } as any) as any; } catch {}
 	const memberId = Number(profile?.id||0); if (!memberId){ uni.showToast({ title:'请先登录', icon:'none' }); return; }
 	// 组装订单项（仅实体商品 SP）
 	const orderItems = items.value.map(it=>({
@@ -431,12 +437,12 @@ async function submit(){
 	if (!payMethod.value) { uni.showToast({ title:'请选择支付方式', icon:'none' }); return; }
 	const body:any = { type: 'SP', memberId, items: orderItems, userRemark: remark.value || undefined, shippingAddressId: requiresAddress.value ? selectedAddressId.value : undefined, noExpress: hasPhysical.value ? (delivery.value==='PICKUP') : undefined, memberCouponIds: Array.from(selectedCouponIds.value), usedPoints: pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0, disableMemberDiscount: !memberDiscountAllowedByCoupons.value };
 	try {
-		const created = await http<any>('/orders', { method:'POST', body });
+		const created:any = await (orderControllerCreate({ body } as any) as any);
 		// 清理后端已勾选条目
-		try { await http('/cart/me/clear-checked', { method:'DELETE' }); } catch {}
+		try { await cartControllerClearChecked(); } catch {}
 		if (payMethod.value === 'WECHAT'){
 			try{
-				const params:any = await http(`/orders/${created?.id}/pay/wechat-jsapi`, { method:'POST' });
+				const params:any = await (orderControllerWechatJsapi((created as any)?.id as any) as any);
 				// #ifdef MP-WEIXIN
 				await new Promise<void>((resolve,reject)=>{
 					(uni as any).requestPayment({

@@ -6,6 +6,7 @@ import { AssetService } from './asset.service.js';
 import { getAutoTags } from './auto-tag.config.js';
 import { validateFileSecurity, validateDirectoryName, FILE_SIZE_LIMITS } from './upload.config.js';
 import type { Response } from 'express';
+import { AssetBindDto, AssetBulkThumbsDto, AssetCleanupDto, AssetGenThumbsDto, UpdateAssetDto } from './asset.dto.js';
 
 @ApiTags('assets')
 @Controller('assets')
@@ -34,7 +35,7 @@ export class AssetController {
 
 	@Patch(':id')
 	@ApiOperation({ summary: '更新文件元数据（重命名/公开性/标签）' })
-	update(@Param('id') id: string, @Body() body: any) {
+	update(@Param('id') id: string, @Body() body: UpdateAssetDto) {
 		return this.service.update(id, { filename: body.filename, isPublic: body.isPublic, tags: body.tags });
 	}
 
@@ -97,19 +98,29 @@ export class AssetController {
 
 	@Post(':id/thumbnails')
 	@ApiOperation({ summary: '生成缩略图（占位：仅回显待生成尺寸）' })
-	genThumbs(@Param('id') id: string, @Body('sizes') sizes?: number[]) { return this.service.ensureThumbnails(id, Array.isArray(sizes)&&sizes.length? sizes: [120,240,480]); }
+	genThumbs(@Param('id') id: string, @Body() body: AssetGenThumbsDto) {
+		const sizes = body?.sizes;
+		return this.service.ensureThumbnails(id, Array.isArray(sizes)&&sizes.length? sizes: [120,240,480]);
+	}
 
 	@Post('thumbnails/bulk')
 	@ApiOperation({ summary: '批量预热缩略图（生成常用尺寸）' })
-	bulkThumbs(@Body('ids') ids: string[], @Body('sizes') sizes?: number[]) { return this.service.bulkEnsureThumbnails(Array.isArray(ids)? ids: [], Array.isArray(sizes)&&sizes.length? sizes: [120,240,480]); }
+	bulkThumbs(@Body() body: AssetBulkThumbsDto) {
+		const ids = body?.ids;
+		const sizes = body?.sizes;
+		return this.service.bulkEnsureThumbnails(Array.isArray(ids)? ids: [], Array.isArray(sizes)&&sizes.length? sizes: [120,240,480]);
+	}
 
 	@Post('thumbnails/cleanup')
 	@ApiOperation({ summary: '清理变体缩略图并重置 variants' })
-	cleanup(@Body('ids') ids?: string[]) { return this.service.cleanupVariants(Array.isArray(ids)? ids: []); }
+	cleanup(@Body() body: AssetCleanupDto) {
+		const ids = body?.ids;
+		return this.service.cleanupVariants(Array.isArray(ids)? ids: []);
+	}
 
 	@Post(':id/bindings')
 	@ApiOperation({ summary: '绑定业务引用' })
-	bind(@Param('id') id: string, @Body() body: any) {
+	bind(@Param('id') id: string, @Body() body: AssetBindDto) {
 		if (!body?.tableName || !body?.rowId || !body?.fieldName) throw new BadRequestException('缺少必要参数');
 		return this.service.bindReference(id, { tableName: body.tableName, rowId: body.rowId, fieldName: body.fieldName });
 	}

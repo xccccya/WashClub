@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AddressService } from './address.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { AddressAdminCreateDto, AddressAdminUpdateDto, AddressMyCreateDto, AddressMyUpdateDto } from './address.dto.js';
 
 @ApiTags('address')
 @Controller('address')
@@ -39,7 +40,7 @@ export class AddressController {
         @Headers() headers: Record<string, string>,
         @Query('token') tokenParam: string | undefined,
         @Body()
-        body: { province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null },
+        body: AddressMyCreateDto,
     ) {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
         const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
@@ -54,7 +55,7 @@ export class AddressController {
         @Headers() headers: Record<string, string>,
         @Query('token') tokenParam: string | undefined,
         @Body()
-        body: Partial<{ province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null }>,
+        body: AddressMyUpdateDto,
     ) {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
         const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
@@ -79,7 +80,7 @@ export class AddressController {
     @UseGuards(AdminGuard)
     @RequirePerm('member-addresses')
     @ApiOperation({ summary: '管理员创建收货地址（支持指定会员或使用游客会员）' })
-    adminCreate(@Body() body: { memberId?: number | null; useGuest?: boolean; input: { province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null } }) {
+    adminCreate(@Body() body: AddressAdminCreateDto) {
         return this.service.adminCreate({ memberId: body?.memberId ?? null, useGuest: !!body?.useGuest, input: body?.input as any });
     }
 
@@ -87,7 +88,7 @@ export class AddressController {
     @UseGuards(AdminGuard)
     @RequirePerm('member-addresses')
     @ApiOperation({ summary: '管理员修改收货地址' })
-    adminUpdate(@Param('id') id: string, @Body() body: Partial<{ province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null }>) {
+    adminUpdate(@Param('id') id: string, @Body() body: AddressAdminUpdateDto) {
         return this.service.adminUpdate(Number(id), body);
     }
 

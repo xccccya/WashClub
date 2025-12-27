@@ -1,5 +1,5 @@
 // 登录状态与 API 基址工具
-import createHttpClient from '@wash/shared-utils/src/http';
+import { memberControllerMe } from '@wash/api-client';
 // 对于 TS 编译环境下的全局 uni 声明
 declare const uni: any;
 // 对于 TS 编译环境下的全局 wx 声明（MP-微信）
@@ -109,6 +109,15 @@ if (IS_PROD) {
 
 export const API_BASE = stripTrailingSlash(decidedBase);
 
+// 关键：让 @wash/api-client 默认的 createHttpClient 能拿到 miniapp 端真实 API_BASE
+// shared-utils 会优先读取 globalThis.__VITE_API_BASE__ / globalThis.VITE_API_BASE
+try {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).__VITE_API_BASE__ = API_BASE;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).VITE_API_BASE = API_BASE;
+} catch {}
+
 // 正式过期时间：7 天
 const TEST_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -161,11 +170,9 @@ export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean
   // 未登录：返回 false，不提示、不跳转；由页面自行引导登录
   if (!token) { return false; }
 
-  const http = createHttpClient({ baseUrl: API_BASE, getToken: () => token || '' });
-
   // 始终以服务端验证为准：调用 profile 校验 token 是否有效
   try {
-    const profile = await http<any>('/member/me/profile', { method: 'GET' });
+    const profile = await (memberControllerMe({} as any, { headers: { Authorization: `Bearer ${token}` } } as any) as any);
     if (profile) { uni.setStorageSync('user', profile); uni.setStorageSync('loginAt', Date.now()); return true; }
   } catch {
     try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {}
@@ -175,9 +182,3 @@ export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean
   // 正常返回
   return true;
 }
-
-export function createHttp() {
-  return createHttpClient({ baseUrl: API_BASE, getToken: () => getToken() || '' });
-}
-
-

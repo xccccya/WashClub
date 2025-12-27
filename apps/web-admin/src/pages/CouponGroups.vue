@@ -36,13 +36,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
+import { couponGroupControllerCreate, couponGroupControllerList, couponGroupControllerRemove, couponGroupControllerUpdate } from '@wash/api-client';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const list = ref<any[]>([]);
-async function fetchList(){ list.value = await http('/coupon/groups'); }
+async function fetchList(){ list.value = (await couponGroupControllerList() as any) || []; }
 
 const show = ref(false);
 const form = ref<any>({ id: 0, name: '', enabled: true, weight: 0, description: '' });
@@ -52,12 +50,12 @@ function openEdit(row:any){ form.value = { id: row.id, name: row.name, enabled: 
 async function save(){
 	try{
 		if (!form.value.name) { ElMessage.error('请输入名称'); return; }
-		if (form.value.id) await http(`/coupon/groups/${form.value.id}`, { method:'PUT', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
-		else await http('/coupon/groups', { method:'POST', body: { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } });
+		if (form.value.id) await couponGroupControllerUpdate(form.value.id, { name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } as any);
+		else await couponGroupControllerCreate({ name: form.value.name, enabled: form.value.enabled, weight: form.value.weight, description: form.value.description } as any);
 		show.value = false; ElMessage.success('已保存'); await fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
-async function remove(id:number){ try { await http(`/coupon/groups/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(id:number){ try { await couponGroupControllerRemove(id); ElMessage.success('已删除'); await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 </script>

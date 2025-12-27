@@ -196,12 +196,18 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	notificationControllerInitTypeSettings,
+	notificationControllerListTypeSettings,
+	notificationControllerUpsertTypeSetting,
+	notificationTemplateControllerCreate,
+	notificationTemplateControllerList,
+	notificationTemplateControllerRemove,
+	notificationTemplateControllerUpdate,
+	notificationTemplateControllerVariables,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { ElNotification } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Tpl = { id:number; typeKey:string; titleTemplate:string; contentTemplate:string; enabled:boolean };
 const list = ref<Tpl[]>([]);
@@ -227,7 +233,13 @@ const defaultKeys = [
     { key:'WASH_CARD_DEDUCT', label:'洗车卡划扣' },
 ];
 
-async function load(){ try{ const listRaw:any[] = await http('/notification/template/list', { method:'GET', query: q.value ? { q: q.value, channel: 'MEMBER' } : { channel: 'MEMBER' } }); list.value = Array.isArray(listRaw)? listRaw: []; } catch { list.value=[]; } }
+async function load(){
+	try{
+		const params: any = q.value ? { q: q.value, channel: 'MEMBER' } : { channel: 'MEMBER' };
+		const listRaw:any[] = (await notificationTemplateControllerList(params) as unknown) as any[];
+		list.value = Array.isArray(listRaw)? listRaw: [];
+	} catch { list.value=[]; }
+}
 
 const dlgVisible = ref(false);
 const dlgMode = ref<'create'|'edit'>('create');
@@ -243,9 +255,9 @@ function openEdit(row: Tpl){ dlgMode.value='edit'; form.value = { id: row.id, ty
 async function onSave(){
     try{
         if (dlgMode.value==='create'){
-            await http('/notification/template/create', { method:'POST', body: { typeKey: form.value.typeKey, titleTemplate: form.value.titleTemplate, contentTemplate: form.value.contentTemplate, enabled: form.value.enabled!==false, channel: 'MEMBER' } });
+            await notificationTemplateControllerCreate({ typeKey: form.value.typeKey, titleTemplate: form.value.titleTemplate, contentTemplate: form.value.contentTemplate, enabled: form.value.enabled!==false, channel: 'MEMBER' } as any);
         } else {
-            await http(`/notification/template/${form.value.id}`, { method:'PUT', body: { titleTemplate: form.value.titleTemplate, contentTemplate: form.value.contentTemplate, enabled: form.value.enabled!==false } });
+            await notificationTemplateControllerUpdate(String(form.value.id), { titleTemplate: form.value.titleTemplate, contentTemplate: form.value.contentTemplate, enabled: form.value.enabled!==false } as any);
         }
         ElMessage.success('已保存'); dlgVisible.value=false; load();
     }catch(e:any){ ElMessage.error(String(e?.message||'保存失败')); }
@@ -253,7 +265,7 @@ async function onSave(){
 
 async function onToggle(row: Tpl){
     try{
-        await http(`/notification/template/${row.id}`, { method:'PUT', body: { enabled: !!row.enabled } });
+        await notificationTemplateControllerUpdate(String(row.id), { enabled: !!row.enabled } as any);
         ElMessage.success('已更新');
         // 自动刷新，确保同类型其它模板禁用状态同步
         load();
@@ -261,14 +273,14 @@ async function onToggle(row: Tpl){
 }
 
 async function delTpl(row: Tpl){
-    try{ await http(`/notification/template/${row.id}`, { method:'DELETE' }); ElMessage.success('已删除'); load(); }
+    try{ await notificationTemplateControllerRemove(String(row.id)); ElMessage.success('已删除'); load(); }
     catch{ ElMessage.error('删除失败'); }
 }
 
 async function loadVars(){
     try{
         const typeKey = form.value.typeKey || defaultKeys[0].key;
-        const arr:any = await http('/notification/template/variables', { method:'GET', query: { typeKey } });
+        const arr:any = await notificationTemplateControllerVariables({ typeKey } as any);
         variables.value = Array.isArray(arr)? arr: [];
     }catch{ variables.value = []; }
 }
@@ -319,7 +331,13 @@ function adminLabelOf(k:string){
 onMounted(()=>{ load(); });
 
 // 管理通知：CRUD
-async function loadAdmin(){ try{ const listRaw:any[] = await http('/notification/template/list', { method:'GET', query: { q: q2.value || undefined, channel: 'ADMIN' } }); listAdmin.value = Array.isArray(listRaw)? listRaw: []; } catch { listAdmin.value=[]; } }
+async function loadAdmin(){
+	try{
+		const params: any = { q: q2.value || undefined, channel: 'ADMIN' };
+		const listRaw:any[] = (await notificationTemplateControllerList(params) as unknown) as any[];
+		listAdmin.value = Array.isArray(listRaw)? listRaw: [];
+	} catch { listAdmin.value=[]; }
+}
 
 const dlgAdminVisible = ref(false);
 const dlgAdminMode = ref<'create'|'edit'>('create');
@@ -336,21 +354,21 @@ async function onAdminSave(){
     try{
         const payload:any = { titleTemplate: formAdmin.value.titleTemplate, contentTemplate: formAdmin.value.contentTemplate, enabled: formAdmin.value.enabled!==false, uiType: formAdmin.value.uiType || null, uiPosition: formAdmin.value.uiPosition || null, uiDuration: (formAdmin.value.uiDuration==null? null: Number(formAdmin.value.uiDuration)) };
         if (dlgAdminMode.value==='create'){
-            await http('/notification/template/create', { method:'POST', body: { ...payload, typeKey: formAdmin.value.typeKey, channel: 'ADMIN' } });
+            await notificationTemplateControllerCreate({ ...payload, typeKey: formAdmin.value.typeKey, channel: 'ADMIN' } as any);
         } else {
-            await http(`/notification/template/${formAdmin.value.id}`, { method:'PUT', body: payload });
+            await notificationTemplateControllerUpdate(String(formAdmin.value.id), payload as any);
         }
         ElMessage.success('已保存'); dlgAdminVisible.value=false; loadAdmin();
     }catch(e:any){ ElMessage.error(String(e?.message||'保存失败')); }
 }
 
-async function onAdminToggle(row: AdminTpl){ try{ await http(`/notification/template/${row.id}`, { method:'PUT', body: { enabled: !!row.enabled } }); ElMessage.success('已更新'); }catch{ ElMessage.error('更新失败'); } }
-async function delAdminTpl(row: AdminTpl){ try{ await http(`/notification/template/${row.id}`, { method:'DELETE' }); ElMessage.success('已删除'); loadAdmin(); }catch{ ElMessage.error('删除失败'); } }
+async function onAdminToggle(row: AdminTpl){ try{ await notificationTemplateControllerUpdate(String(row.id), { enabled: !!row.enabled } as any); ElMessage.success('已更新'); }catch{ ElMessage.error('更新失败'); } }
+async function delAdminTpl(row: AdminTpl){ try{ await notificationTemplateControllerRemove(String(row.id)); ElMessage.success('已删除'); loadAdmin(); }catch{ ElMessage.error('删除失败'); } }
 
 async function loadAdminVars(){
     try{
         const typeKey = formAdmin.value.typeKey || adminKeys[0].key;
-        const arr:any = await http('/notification/template/variables', { method:'GET', query: { typeKey } });
+        const arr:any = await notificationTemplateControllerVariables({ typeKey } as any);
         variablesAdmin.value = Array.isArray(arr)? arr: [];
     }catch{ variablesAdmin.value = []; }
 }
@@ -370,10 +388,15 @@ function previewAdmin(row?: AdminTpl){
 onMounted(()=>{ loadAdmin(); });
 
 // 类型设置 API
-async function loadTypeSettings(){ try{ const arr:any[] = await http('/notification/type-settings', { method:'GET', query: { channel: typeChannel.value } }); typeSettings.value = (arr||[]).map((x:any)=> ({ ...x, defaultUi: x.defaultUi || {} })); } catch { typeSettings.value = []; } }
-async function saveType(row: TypeSetting){ try{ await http('/notification/type-settings/upsert', { method:'POST', body: { typeKey: row.typeKey, channel: row.channel || typeChannel.value, enabled: row.enabled, allowFallback: row.allowFallback, defaultUi: row.defaultUi } }); ElMessage.success('已保存'); }catch{ ElMessage.error('保存失败'); } }
+async function loadTypeSettings(){
+	try{
+		const arr:any[] = (await notificationControllerListTypeSettings({ channel: typeChannel.value } as any) as unknown) as any[];
+		typeSettings.value = (arr||[]).map((x:any)=> ({ ...x, defaultUi: x.defaultUi || {} }));
+	} catch { typeSettings.value = []; }
+}
+async function saveType(row: TypeSetting){ try{ await notificationControllerUpsertTypeSetting({ typeKey: row.typeKey, channel: row.channel || typeChannel.value, enabled: row.enabled, allowFallback: row.allowFallback, defaultUi: row.defaultUi } as any); ElMessage.success('已保存'); }catch{ ElMessage.error('保存失败'); } }
 onMounted(()=>{ loadTypeSettings(); });
-async function initTypes(){ try{ await http('/notification/type-settings/init', { method:'POST' }); ElMessage.success('已初始化'); loadTypeSettings(); }catch{ ElMessage.error('初始化失败'); } }
+async function initTypes(){ try{ await notificationControllerInitTypeSettings(); ElMessage.success('已初始化'); loadTypeSettings(); }catch{ ElMessage.error('初始化失败'); } }
 </script>
 
 <style scoped>

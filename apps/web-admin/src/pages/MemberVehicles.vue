@@ -183,14 +183,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	carDataControllerGetBrands,
+	carDataControllerGetSeries,
+	memberControllerList,
+	vehicleControllerAdminList,
+	vehicleControllerBindMember,
+	vehicleControllerCreateForMember,
+	vehicleControllerCreateGuest,
+	vehicleControllerRemove,
+	vehicleControllerSetDefault,
+	vehicleControllerUpdateVehicle,
+} from '@wash/api-client';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, User, UserFilled, Edit, Star, Delete } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Vehicle = { id: number; plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; isDefault: boolean; memberId: number | null; brandImage?: string | null; seriesImage?: string | null; createdAt?: string | null; updatedAt?: string | null; member?: { id: number; name: string; phone: string } };
 
@@ -220,7 +228,13 @@ const bindDialog = ref(false);
 const bindVehicle = ref<Vehicle | null>(null);
 const bindMemberId = ref<number | null>(null);
 function openBindMember(v: Vehicle){ bindVehicle.value = v; bindMemberId.value = null; bindDialog.value = true; }
-async function onBindSave(){ if (!bindVehicle.value?.id || !bindMemberId.value) { ElMessage.error('请选择会员'); return; } await http(`/vehicle/${bindVehicle.value.id}/bind-member/${bindMemberId.value}`, { method: 'POST' }); bindDialog.value = false; ElMessage.success('已绑定'); fetchList(); }
+async function onBindSave(){
+	if (!bindVehicle.value?.id || !bindMemberId.value) { ElMessage.error('请选择会员'); return; }
+	await vehicleControllerBindMember(String(bindVehicle.value.id), String(bindMemberId.value));
+	bindDialog.value = false;
+	ElMessage.success('已绑定');
+	fetchList();
+}
 const typeMainOptions = ['轿车', 'SUV', 'MPV', '卡车', '跑车'];
 const typeSubMap: Record<string, string[]> = {
     '轿车': ['微型车','小型车','紧凑型车','中型车','中大型车','大型车'],
@@ -262,9 +276,8 @@ function applyBrandFilter(){
 async function fetchBrands(){
     brandLoading.value = true;
     try {
-        const resp = await fetch(`${API_BASE}/content/car/brands`);
-        const json = await resp.json();
-        const arr: BrandItem[] = json || [];
+        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+        const arr = (await carDataControllerGetBrands() as unknown) as BrandItem[];
         const flat: FlatBrand[] = [];
         for (const mb of arr){
             for (const b of (mb.brand_list || [])){
@@ -281,9 +294,8 @@ async function fetchSeries(brandId: number){
     if (!brandId) { seriesOptions.value = []; return; }
     seriesLoading.value = true;
     try {
-        const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`);
-        const json = await resp.json();
-        const arr: any[] = json || [];
+        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+        const arr = (await carDataControllerGetSeries({ brandId } as any) as unknown) as any[];
         seriesOptions.value = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
     } catch { seriesOptions.value = []; }
     finally { seriesLoading.value = false; }
@@ -309,11 +321,9 @@ function onSeriesChange(val: number){
 async function fetchList(){
     loading.value = true;
     try {
-        const res = await http<{ items: Vehicle[]; page: number; pageSize: number; total: number }>(
-            '/vehicle/list', { method: 'GET', query: { page: page.value, pageSize: pageSize.value, keyword: keyword.value } }
-        );
-        list.value = res.items;
-        total.value = res.total;
+        const res:any = await vehicleControllerAdminList({ page: page.value, pageSize: pageSize.value, keyword: keyword.value || undefined } as any);
+        list.value = Array.isArray(res?.items) ? res.items : [];
+        total.value = Number(res?.total || 0);
     } finally { loading.value = false; }
 }
 
@@ -325,7 +335,7 @@ function openDelete(v: Vehicle){ delId.value = v.id; delDialog.value = true; }
 function openView(v: Vehicle){ viewItem.value = v; viewDialog.value = true; }
 function onRowDblClick(row: Vehicle){ openView(row); }
 
-async function setDefault(v: Vehicle){ await http(`/vehicle/${v.id}/set-default`, { method: 'POST' }); ElMessage.success('已设为默认'); fetchList(); }
+async function setDefault(v: Vehicle){ await vehicleControllerSetDefault(String(v.id)); ElMessage.success('已设为默认'); fetchList(); }
 
 function validatePlate(plate: string){ return /^[\u4e00-\u9fa5]{1}[A-Z]{1}[A-Z0-9\u4e00-\u9fa5]{5,6}$/.test(plate.replace(/\s+/g,'')); }
 
@@ -360,12 +370,12 @@ async function onSave(){
             isDefault: !!form.value.isDefault,
         } as any;
         if (current.value?.id) {
-            await http(`/vehicle/${current.value.id}`, { method: 'PUT', body: payload });
+            await vehicleControllerUpdateVehicle(String(current.value.id), payload);
         } else if (createMode.value === 'member') {
             if (!form.value.memberId) { ElMessage.error('请选择会员'); return; }
-            await http(`/vehicle/member/${form.value.memberId}`, { method: 'POST', body: payload });
+            await vehicleControllerCreateForMember(String(form.value.memberId), payload);
         } else {
-            await http(`/vehicle/guest/create`, { method: 'POST', body: payload });
+            await vehicleControllerCreateGuest(payload);
         }
         dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
     } catch (e:any) {
@@ -373,14 +383,12 @@ async function onSave(){
     } finally { saving.value = false; }
 }
 
-async function onDeleteConfirm(){ if (!delId.value) return; try { await http(`/vehicle/${delId.value}`, { method: 'DELETE' }); ElMessage.success('已删除'); delDialog.value = false; fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function onDeleteConfirm(){ if (!delId.value) return; try { await vehicleControllerRemove(String(delId.value)); ElMessage.success('已删除'); delDialog.value = false; fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 async function fetchMemberOptions(){
     try {
-        const res = await http<{ items: Array<{ id:number; name:string; phone:string }> }>(
-            '/member/list', { method: 'GET', query: { page: 1, pageSize: 500 } }
-        );
-        memberOptions.value = (res.items || []).map(m => ({ id: m.id, name: m.name, phone: m.phone }));
+        const res:any = await memberControllerList({ page: '1', pageSize: '500', keyword: '' } as any);
+        memberOptions.value = (Array.isArray(res?.items) ? res.items : []).map((m:any) => ({ id: m.id, name: m.name, phone: m.phone }));
     } catch {}
 }
 

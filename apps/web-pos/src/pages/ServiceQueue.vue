@@ -665,12 +665,40 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { http, absUrl } from '../utils/http';
-import { API_BASE } from '../config';
+import { absUrl } from '../utils/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import PlateInput from '../components/PlateInput.vue';
 import PlateKeyboard from '../components/PlateKeyboard.vue';
 import { useRouter } from 'vue-router';
+import {
+	carDataControllerGetBrands,
+	carDataControllerGetSeries,
+	memberControllerList,
+	orderControllerAdjustCashierDiscount,
+	orderControllerGet,
+	orderControllerMarkPaid,
+	orderControllerPayByGroupBalance,
+	orderControllerPayByWashCard,
+	orderControllerWechatMicropay,
+	queueControllerConfirmComplete,
+	queueControllerCreateServiceOrderAndEnqueue,
+	queueControllerEtaSummary,
+	queueControllerFinishTask,
+	queueControllerList,
+	queueControllerRemove,
+	queueControllerSetCurrent,
+	queueControllerStartFirst,
+	queueTypeControllerCreate,
+	queueTypeControllerList,
+	queueTypeControllerRemove,
+	queueTypeControllerSetProducts,
+	queueTypeControllerSetSteps,
+	queueTypeControllerUpdate,
+	storeProductControllerList,
+	vehicleControllerCreateForMember,
+	vehicleControllerListByMember,
+	vehicleControllerSearch,
+} from '@wash/api-client';
 
 type Task = { id:number; name:string; durationMin:number; status?: string; orderIndex?: number };
 type QueueItem = { id:number; plateNumber:string; guest:boolean; status?: string; orderId?: number|null; currentTaskIndex:number; tasks: Task[]; aheadCount?:number; aheadMinutes?:number; remainingMinutes?:number; queueTypeId?: number|null; queueType?: { id:number; name:string; displayColor?: string|null } | null; vehicle?: { id:number; brand?:string|null; series?:string|null; brandImage?:string|null; group?: { name: string }; member?: { name?: string|null; phone?: string|null } } };
@@ -814,33 +842,37 @@ function combinedRemainingModel(row: QueueItem, index: number){
 }
 
 async function fetchList(){
-	try { loading.value = true; list.value = await http<QueueItem[]>('/queue/list', { method:'GET' }); }
+	try {
+		loading.value = true;
+		const res = (await queueControllerList()) as any;
+		list.value = (res || []) as QueueItem[];
+	}
 	catch { list.value = []; }
 	finally { loading.value = false; }
 }
 async function fetchEta(){
-	try { etaSummary.value = await http<EtaSummary[]>('/queue/eta-summary', { method:'GET' }); }
+	try { etaSummary.value = ((await queueControllerEtaSummary()) as any) || []; }
 	catch { etaSummary.value = []; }
 }
 
 async function setCurrent(row: QueueItem, idx: number){
-	try{ await http(`/queue/${row.id}/set-current`, { method:'POST', body:{ taskIndex: idx } }); ElMessage.success('已切换步骤'); fetchList(); }
+	try{ await queueControllerSetCurrent(String(row.id), { body: JSON.stringify({ taskIndex: idx }) }); ElMessage.success('已切换步骤'); fetchList(); }
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 async function finishTask(row: QueueItem){
-	try{ await http(`/queue/${row.id}/finish-task`, { method:'POST' }); ElMessage.success('已完成当前步骤'); fetchList(); }
+	try{ await queueControllerFinishTask(String(row.id)); ElMessage.success('已完成当前步骤'); fetchList(); }
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 async function confirmComplete(row: QueueItem){
-	try{ await http(`/queue/${row.id}/confirm-complete`, { method:'POST' }); ElMessage.success('已完成全部步骤'); fetchList(); }
+	try{ await queueControllerConfirmComplete(String(row.id)); ElMessage.success('已完成全部步骤'); fetchList(); }
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 async function startFirst(row: QueueItem){
-	try{ await http(`/queue/${row.id}/start-first`, { method:'POST' }); ElMessage.success('已开始第一步'); fetchList(); }
+	try{ await queueControllerStartFirst(String(row.id)); ElMessage.success('已开始第一步'); fetchList(); }
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 async function removeItem(row: QueueItem){
-	try{ await http(`/queue/${row.id}`, { method:'DELETE' }); ElMessage.success('已移出队列'); fetchList(); }
+	try{ await queueControllerRemove(String(row.id)); ElMessage.success('已移出队列'); fetchList(); }
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 function openOrder(row:any){ const id = Number(row?.orderId||0)||0; if(!id){ ElMessage.error('未找到订单'); return; } router.push(`/orders/${id}`); }
@@ -886,7 +918,7 @@ function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value|
 const showScan = ref(false);
 const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
-async function openPay(row:any){ currentOrderId.value=Number(row?.orderId||0)||null; canGroupBalance.value=false; try{ const id=currentOrderId.value; if(id){ const ord:any = await http(`/orders/${id}`); orderForPay.value = ord || null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; } }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value=false; } showPay.value=true; }
+async function openPay(row:any){ currentOrderId.value=Number(row?.orderId||0)||null; canGroupBalance.value=false; try{ const id=currentOrderId.value; if(id){ const ord:any = await (orderControllerGet(id) as any); orderForPay.value = ord || null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; } }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value=false; } showPay.value=true; }
 // 无遮罩键盘状态
 const windowW = (typeof window!=='undefined' ? window.innerWidth : 1280) || 1280;
 const searchKbVisible = ref(false);
@@ -895,8 +927,8 @@ async function doMarkPaid(){
     try{
         const id = currentOrderId.value;
         if(!id){ ElMessage.error('未找到关联订单'); return; }
-        try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body:{ amount: Number(cashierDiscountInput.value||0) } }); }catch{}
-        await http(`/orders/${id}/pay/manual`, { method:'POST', body:{ method: payMethod.value } });
+        try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        await orderControllerMarkPaid(id, { body: { method: payMethod.value } } as any);
         ElMessage.success('已标记为已支付');
         showPay.value=false;
         await fetchList();
@@ -909,8 +941,8 @@ async function doWxMicropay(){
         const code = String(wxAuthCode.value||'').trim();
         if(!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
         wxPayLoading.value=true;
-        try{ await http(`/orders/${id}/adjust-cashier-discount`, { method:'POST', body:{ amount: Number(cashierDiscountInput.value||0) } }); }catch{}
-        await http(`/orders/${id}/pay/wx-micropay`, { method:'POST', body:{ authCode: code } });
+        try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        await orderControllerWechatMicropay(id, { body: { authCode: code } } as any);
         ElMessage.success('付款成功，已标记订单为已支付');
         showPay.value=false; wxAuthCode.value='';
         await fetchList();
@@ -922,7 +954,7 @@ async function doWashDeduct(){
 		const id = currentOrderId.value;
 		if(!id){ ElMessage.error('未找到关联订单'); return; }
 		const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value;
-		await http(`/orders/${id}/pay/wash-card`, { method:'POST', body:{ prefer } });
+		await orderControllerPayByWashCard(id, { body: { prefer } } as any);
 		ElMessage.success('划扣成功');
 		showPay.value=false;
 		await fetchList();
@@ -933,7 +965,7 @@ async function doGroupBalance(){
         const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; }
         if (!canGroupBalance.value){ ElMessage.error('仅集团服务订单可使用集团余额支付'); return; }
         groupPayLoading.value = true;
-        await http(`/orders/${id}/pay/group-balance`, { method:'POST' });
+        await orderControllerPayByGroupBalance(id);
         ElMessage.success('集团余额支付成功');
         showPay.value=false;
         await fetchList();
@@ -996,7 +1028,7 @@ async function saveSteps(){
 	const steps = stepEdits.value.map((s,i)=>({ orderIndex: i, name: s.name.trim(), durationMin: Number(s.durationMin||0), isEta: !!s.isEta }));
 	savingSteps.value = true;
 	try{
-		await http(`/queue-types/${activeType.value.id}/steps`, { method:'PUT', body: { steps } });
+		await queueTypeControllerSetSteps(activeType.value.id, { body: JSON.stringify({ steps }) });
 		ElMessage.success('已保存步骤');
 		await loadQueueTypes();
 		dirtySteps.value = false;
@@ -1005,8 +1037,30 @@ async function saveSteps(){
 	}
 }
 function syncTypeForm(){ const t = activeType.value; typeForm.value = t ? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' } : { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' }; }
-async function saveType(){ if (!typeForm.value.name) { ElMessage.error('请输入名称'); return; } const payload:any = { name: typeForm.value.name, enabled: !!typeForm.value.enabled, sortWeight: Number(typeForm.value.sortWeight||0), remark: typeForm.value.remark||null, participateInEta: typeForm.value.participateInEta, etaParallelSlots: typeForm.value.etaParallelSlots===null?null:Number(typeForm.value.etaParallelSlots||0)||null, etaGroupKey: (String(typeForm.value.etaGroupKey||'').trim()||null), displayColor: (String(typeForm.value.displayColor||'').trim()||null) }; savingType.value = true; try { if (typeForm.value.id) { await http(`/queue-types/${typeForm.value.id}`, { method:'PUT', body: payload }); } else { await http(`/queue-types`, { method:'POST', body: payload }); } ElMessage.success('保存成功'); typeDialogVisible.value=false; await loadQueueTypes(); dirtyType.value=false; } finally { savingType.value=false; } }
-async function onDeleteType(id:number){ await http(`/queue-types/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await loadQueueTypes(); if (activeTypeId.value===id) activeTypeId.value = queueTypes.value[0]?.id; }
+async function saveType(){
+	if (!typeForm.value.name) { ElMessage.error('请输入名称'); return; }
+	const payload:any = { name: typeForm.value.name, enabled: !!typeForm.value.enabled, sortWeight: Number(typeForm.value.sortWeight||0), remark: typeForm.value.remark||null, participateInEta: typeForm.value.participateInEta, etaParallelSlots: typeForm.value.etaParallelSlots===null?null:Number(typeForm.value.etaParallelSlots||0)||null, etaGroupKey: (String(typeForm.value.etaGroupKey||'').trim()||null), displayColor: (String(typeForm.value.displayColor||'').trim()||null) };
+	savingType.value = true;
+	try {
+		if (typeForm.value.id) {
+			await queueTypeControllerUpdate(Number(typeForm.value.id), { body: JSON.stringify(payload) });
+		} else {
+			await queueTypeControllerCreate({ body: JSON.stringify(payload) });
+		}
+		ElMessage.success('保存成功');
+		typeDialogVisible.value=false;
+		await loadQueueTypes();
+		dirtyType.value=false;
+	} finally {
+		savingType.value=false;
+	}
+}
+async function onDeleteType(id:number){
+	await queueTypeControllerRemove(Number(id));
+	ElMessage.success('已删除');
+	await loadQueueTypes();
+	if (activeTypeId.value===id) activeTypeId.value = queueTypes.value[0]?.id;
+}
 const typeDialogVisible = ref(false);
 const dirtySteps = ref(false);
 const dirtyType = ref(false);
@@ -1026,8 +1080,8 @@ function openTypeEditor(t?: any){
 
 async function loadQueueTypes(){
 	try{
-		const res = await http<QueueType[]>('/queue-types', { method:'GET' });
-		queueTypes.value = res || [];
+		const res = (await queueTypeControllerList()) as any;
+		queueTypes.value = (res || []) as QueueType[];
 		if (!activeTypeId.value && queueTypes.value.length) activeTypeId.value = queueTypes.value[0].id;
 		syncStepEdits();
 		syncTypeForm();
@@ -1060,9 +1114,36 @@ function isAllowed(id: number){ const t = activeType.value; if (!t) return false
 async function onToggleAllowed(productId: number, allowed: boolean){ try { savingRowId.value=productId; const t = activeType.value; if (!t) return; const set = new Set<number>((t.products||[]).map((x:any)=>Number(x.productId))); if (allowed) set.add(productId); else set.delete(productId); selectedProductIds.value = Array.from(set); await saveTypeProducts(); } finally { savingRowId.value=null; } }
 function onSelectProducts(rows:any[]){ selectedProductIds.value = rows.map(r=>r.id); }
 const savingProducts = ref(false);
-async function loadServiceProducts(){ const query:any = { type: 'SERVICE', keyword: productKeyword.value || undefined }; if (!showDisabled.value) query.enabled = true as any; const res = await http<Product[]>(`/store/products`, { method:'GET', query }); serviceProducts.value = res||[]; await loadTypeProductsSelection(); await nextTick(); try { const table:any = serviceTableRef.value; if (table && table.clearSelection) { table.clearSelection(); } const set = new Set<number>((selectedProductIds?.value||[]) as number[]); for (const row of serviceProducts.value) { if (set.has(row.id)) { try { (serviceTableRef.value as any).toggleRowSelection(row, true); } catch {} } } } catch {} }
+async function loadServiceProducts(){
+	const query:any = { type: 'SERVICE', keyword: productKeyword.value || undefined };
+	if (!showDisabled.value) query.enabled = true as any;
+	const res = (await storeProductControllerList(query as any)) as any;
+	serviceProducts.value = ((res as any) || []) as Product[];
+	await loadTypeProductsSelection();
+	await nextTick();
+	try {
+		const table:any = serviceTableRef.value;
+		if (table && table.clearSelection) { table.clearSelection(); }
+		const set = new Set<number>((selectedProductIds?.value||[]) as number[]);
+		for (const row of serviceProducts.value) {
+			if (set.has(row.id)) {
+				try { (serviceTableRef.value as any).toggleRowSelection(row, true); } catch {}
+			}
+		}
+	} catch {}
+}
 async function loadTypeProductsSelection(){ const t = activeType.value; if (!t) return; const ids = new Set<number>((t.products||[]).map((x:any)=>x.productId)); const currentIds = new Set<number>((serviceProducts.value||[]).map(p=>p.id)); selectedProductIds.value = Array.from(ids).filter(id=> showDisabled.value ? true : currentIds.has(id)); }
-async function saveTypeProducts(){ const t = activeType.value; if (!t) return; const ids = selectedProductIds.value.filter(id=>Number.isFinite(id)); await http(`/queue-types/${t.id}/products`, { method:'PUT', body: { productIds: ids } }); ElMessage.success('已保存可用商品'); await loadQueueTypes(); dirtyProducts.value=false; await nextTick(); try { await loadServiceProducts(); } catch {} }
+async function saveTypeProducts(){
+	const t = activeType.value;
+	if (!t) return;
+	const ids = selectedProductIds.value.filter(id=>Number.isFinite(id));
+	await queueTypeControllerSetProducts(Number(t.id), { body: JSON.stringify({ productIds: ids }) });
+	ElMessage.success('已保存可用商品');
+	await loadQueueTypes();
+	dirtyProducts.value=false;
+	await nextTick();
+	try { await loadServiceProducts(); } catch {}
+}
 function selectAllServiceProducts(){ const set = new Set<number>((serviceProducts.value||[]).filter(sp=>spSelectable(sp as any)).map(sp=>sp.id)); selectedProductIds.value = Array.from(set); }
 function clearProductSelection(){ selectedProductIds.value = []; }
 
@@ -1106,10 +1187,36 @@ watch(()=>form.value.memberId, ()=>{
     }catch{}
 });
 type PlateSearchItem = { id:number; plateNumber:string; brand?:string; series?:string; memberId?:number|null; memberName?:string; memberPhone?:string };
-async function querySearchPlate(queryString: string, cb: (items: PlateSearchItem[])=>void){ const kw = String(queryString || '').trim(); if (!kw) { cb([]); return; } try { const res = await http<PlateSearchItem[]>(`/vehicle/search`, { method: 'GET', query: { q: kw, limit: 15 } }); cb(res || []); } catch { cb([]); } }
+async function querySearchPlate(queryString: string, cb: (items: PlateSearchItem[])=>void){
+	const kw = String(queryString || '').trim();
+	if (!kw) { cb([]); return; }
+	try {
+		const res = (await vehicleControllerSearch({ q: kw, limit: 15 } as any)) as any;
+		cb((res || []) as PlateSearchItem[]);
+	} catch {
+		cb([]);
+	}
+}
 function onSelectExistingVehicle(item: PlateSearchItem){ form.value.plateNumber = item.plateNumber; form.value.vehicleId = item.id; form.value.existingVehicle = item; }
-async function onMemberChange(){ memberVehicles.value = []; form.value.vehicleId = undefined; if (!form.value.memberId) return; const res = await http<any[]>(`/vehicle/member/${form.value.memberId}`, { method: 'GET' }); memberVehicles.value = res || []; }
-async function fetchMemberOptions(){ try{ const res = await http<{ items: MemberOption[] }>(`/member/list`, { method: 'GET', query: { page: 1, pageSize: 500 } }); memberOptions.value = res?.items || []; } catch { memberOptions.value = []; } }
+async function onMemberChange(){
+	memberVehicles.value = [];
+	form.value.vehicleId = undefined;
+	if (!form.value.memberId) return;
+	try{
+		const res = (await vehicleControllerListByMember(String(form.value.memberId))) as any;
+		memberVehicles.value = (res || []) as any[];
+	}catch{
+		memberVehicles.value = [];
+	}
+}
+async function fetchMemberOptions(){
+	try{
+		const res = (await memberControllerList({ page: 1, pageSize: 500 } as any)) as any;
+		memberOptions.value = (res?.items || res?.data?.items || []) as MemberOption[];
+	} catch {
+		memberOptions.value = [];
+	}
+}
 
 // 品牌/车系联动（游客车辆）
 const brandLetters = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ');
@@ -1130,8 +1237,40 @@ const typeSubMap: Record<string, string[]> = { '轿车': ['微型车','小型车
 function typeSubOptions(main?: string){ return main ? (typeSubMap[main] || []) : []; }
 function selectLetter(ch: string | null){ selectedLetter.value = ch; applyBrandFilter(); try { brandSelectKey.value++; } catch {} }
 function applyBrandFilter(){ const all = brandOptionsAll.value; brandOptions.value = selectedLetter.value ? all.filter((b:any)=>(b.letter||'').toUpperCase()===selectedLetter.value) : all; }
-async function fetchBrands(){ brandLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/brands`); const json = await resp.json(); const arr:any[] = json || []; const flat:any[]=[]; for (const mb of arr){ for (const b of (mb.brand_list||[])){ flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img }); } } brandOptionsAll.value = flat; applyBrandFilter(); brandsLoaded.value=true; } catch { brandOptionsAll.value=[]; brandOptions.value=[]; } finally { brandLoading.value=false; } }
-async function fetchSeries(brandId: number){ if (!brandId) { seriesOptions.value=[]; return; } seriesLoading.value=true; try { const resp = await fetch(`${API_BASE}/content/car/series?brandId=${brandId}`); const json = await resp.json(); const arr:any[] = json || []; seriesOptions.value = arr.map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale })); } catch { seriesOptions.value=[]; } finally { seriesLoading.value=false; } }
+async function fetchBrands(){
+	brandLoading.value = true;
+	try {
+		const json = (await carDataControllerGetBrands()) as any;
+		const arr:any[] = (json as any) || [];
+		const flat:any[]=[];
+		for (const mb of arr){
+			for (const b of (mb.brand_list||[])){
+				flat.push({ brand_id: b.brand_id, brand_name: b.brand_name, main_brand_name: mb.main_brand_name, letter: (mb.letter||'').toUpperCase(), img: b.img || mb.img });
+			}
+		}
+		brandOptionsAll.value = flat;
+		applyBrandFilter();
+		brandsLoaded.value = true;
+	} catch {
+		brandOptionsAll.value = [];
+		brandOptions.value = [];
+	} finally {
+		brandLoading.value = false;
+	}
+}
+async function fetchSeries(brandId: number){
+	if (!brandId) { seriesOptions.value=[]; return; }
+	seriesLoading.value = true;
+	try {
+		const json = (await carDataControllerGetSeries({ brandId } as any)) as any;
+		const arr:any[] = (json as any) || [];
+		seriesOptions.value = arr.map((s:any)=>({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
+	} catch {
+		seriesOptions.value = [];
+	} finally {
+		seriesLoading.value = false;
+	}
+}
 function onBrandChange(val: number){ const b = brandOptionsAll.value.find((x:any)=>x.brand_id===val); form.value.brandName = b?.brand_name || ''; currentBrand.value = b || null; form.value.seriesId = undefined; fetchSeries(val); }
 function onSeriesChange(val: number){ const s = seriesOptions.value.find((x:any)=>x.series_id===val); form.value.seriesName = s?.series_name || ''; const scale = (s?.scale||'').toString(); const { main, sub } = mapScaleToType(scale); if (main) form.value.typeMain = main; if (sub) form.value.typeSub = sub; lockTypeBySeries.value = !!val; }
 function onBrandDropdownVisible(visible: boolean){ if (visible && !brandsLoaded.value && !brandLoading.value) fetchBrands(); }
@@ -1205,9 +1344,9 @@ async function nextWizardFromVehicle(){
         if (!plate && !form.value.vehicleId) { ElMessage.error('请输入或选择车牌'); return; }
         if (!form.value.vehicleId && plate) {
             try{
-                const res = await http<PlateSearchItem[]>(`/vehicle/search`, { method:'GET', query: { q: plate, limit: 20 } });
+                const res = (await vehicleControllerSearch({ q: plate, limit: 20 } as any)) as any;
                 const upper = plate.toUpperCase();
-                const match = (res||[]).find(it => String(it.plateNumber||'').toUpperCase() === upper);
+                const match = ((res||[]) as any[]).find((it:any) => String(it.plateNumber||'').toUpperCase() === upper);
                 if (!match) {
                     ElMessage.error('未找到该车牌对应的车辆，请从列表选择现有车辆或切换为游客车辆');
                     return;
@@ -1225,7 +1364,17 @@ async function nextWizardFromVehicle(){
     }
     wizardStep.value=1;
 }
-watch(wizardQueueTypeId, async (val)=>{ if (!val) { wizardAllowedProducts.value = []; return; } const t = queueTypes.value.find(t=>t.id===val); const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId)); if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; return; } const list = await http<any[]>(`/store/products`, { method: 'GET', query: { type: 'SERVICE' } as any }); wizardAllowedProducts.value = (list||[]).filter(p=>ids.has(p.id)); wizardSelectedProductIds.value = []; wizardSkuByProduct.value = {}; });
+watch(wizardQueueTypeId, async (val)=>{
+	if (!val) { wizardAllowedProducts.value = []; return; }
+	const t = queueTypes.value.find(t=>t.id===val);
+	const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId));
+	if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; return; }
+	const list = (await storeProductControllerList({ type: 'SERVICE' } as any)) as any;
+	const arr:any[] = (list as any) || [];
+	wizardAllowedProducts.value = arr.filter((p:any)=>ids.has(p.id));
+	wizardSelectedProductIds.value = [];
+	wizardSkuByProduct.value = {};
+});
 const submittingOrder = ref(false);
 async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value){ ElMessage.error('请选择队列类型'); return; } if (!wizardSelectedProductIds.value.length){ ElMessage.error('请选择服务商品'); return; } submittingOrder.value=true; // 构造 items，校验多规格SKU
         for (const p of wizardAllowedProducts.value){ if (String((p as any)?.specType||'')==='MULTI' && wizardSelectedProductIds.value.includes(p.id)){ const sid = wizardSkuByProduct.value[p.id]; if (!sid){ ElMessage.error(`请选择规格：${p.name}`); submittingOrder.value=false; return; } } }
@@ -1238,8 +1387,8 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
             } else if (smartCreateMode.value === 'member'){
                 // 先创建会员车辆，再使用 vehicleId
                 const payload:any = { plateNumber: String(form.value.plateNumber||'').trim(), vin: form.value.vin||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined };
-                const created:any = await http(`/vehicle/member/${form.value.memberId}`, { method:'POST', body: payload });
-                body.vehicleId = Number(created?.id||0) || undefined;
+                const created:any = await vehicleControllerCreateForMember(String(form.value.memberId), payload as any);
+                body.vehicleId = Number((created as any)?.id || (created as any)?.data?.id || 0) || undefined;
                 if (!body.vehicleId) { ElMessage.error('创建会员车辆失败'); return; }
             } else {
                 // 游客车辆：随入队接口一起创建（保持图片填充：传 brandId/seriesId）
@@ -1250,7 +1399,7 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
             if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
             if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
         }
-        await http('/queue/create-service-order-and-enqueue', { method:'POST', body }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
+        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
 
 function skuLabel(s: any){ try{ const p = Number(s?.price||0); return p>0 ? `${s?.name||''}（￥${p.toFixed(2)}）` : String(s?.name||''); }catch{ return String(s?.name||''); } }
 function skuPriceHint(row: any){ try{ const arr = Array.isArray(row?.skus)?row.skus:[]; if(!arr.length) return '-'; const prices = arr.map((x:any)=>Number(x?.price||0)).filter((n:number)=>Number.isFinite(n)); if(!prices.length) return '-'; const min = Math.min(...prices); const max = Math.max(...prices); return min===max ? `￥${min.toFixed(2)}` : `￥${min.toFixed(2)} ~ ￥${max.toFixed(2)}`; }catch{ return '-'; } }

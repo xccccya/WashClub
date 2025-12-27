@@ -141,8 +141,19 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { computed, reactive, ref, watch } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+import {
+	cartControllerClearChecked,
+	cartControllerMyDelete,
+	cartControllerMyList,
+	cartControllerMyUpdate,
+	cartControllerToggleAll,
+	memberControllerMe,
+	miniappCouponControllerApplicable,
+	storeProductControllerGet,
+	systemSettingControllerGetPublicSetting,
+} from '@wash/api-client';
 
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
@@ -166,8 +177,7 @@ const specKeyCache = reactive<Record<number, string[]>>({});
 
 async function loadCart(){
 	try {
-		const http = createHttp();
-		items.value = await http<any[]>('/cart/me/list', { method:'GET' });
+		items.value = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
 		// 异步确保需要的规格名可用（用于将 "S/2" 转为 "大小：S/长度：2"）
 		ensureSpecKeysForItems(items.value).catch(()=>{});
 	} catch { items.value = []; }
@@ -231,9 +241,8 @@ async function loadApplicableCoupons(){
 	try{
 		const authed = await checkAuthAndRefresh({ redirectIfExpired: false });
 		if (!authed) { applicableCoupons.value=[]; selectedCouponIds.value=new Set(); return; }
-		const http = createHttp();
 		const body:any = { items: buildApplicableItems() };
-		const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+		const res:any = await miniappCouponControllerApplicable(body as any, { token: '' } as any);
 		applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
 		selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
 	}catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
@@ -243,11 +252,10 @@ async function loadApplicableCoupons(){
 // 会员/积分元数据加载
 (async ()=>{
     try{
-        const http = createHttp();
-        const ss:any = await http('/system/public/site-setting', { method:'GET' });
+        const ss:any = await systemSettingControllerGetPublicSetting() as any;
         fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
         maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
-        const prof:any = await http('/member/me/profile', { method:'GET' });
+        const prof:any = await memberControllerMe({ token: '' } as any) as any;
         memberPayDiscountPercent.value = Math.max(0, Number((prof as any)?.level?.payDiscountPercent||0));
     }catch{}
 })();
@@ -261,13 +269,12 @@ watch(selectedCouponIds, ()=>{
     }catch{}
 });
 
-async function toggleAll(){ try { const http=createHttp(); await http('/cart/me/toggle-all', { method:'POST', body:{ checked: !allChecked.value } }); await loadCart(); await loadApplicableCoupons(); } catch {} }
-async function toggleItem(it:any){ try { const http=createHttp(); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ checked: !it.checked } }); it.checked=!it.checked; await loadApplicableCoupons(); } catch {} }
+async function toggleAll(){ try { await cartControllerToggleAll({ checked: !allChecked.value } as any); await loadCart(); await loadApplicableCoupons(); } catch {} }
+async function toggleItem(it:any){ try { await cartControllerMyUpdate(Number(it.id), { checked: !it.checked } as any); it.checked=!it.checked; await loadApplicableCoupons(); } catch {} }
 async function inc(it:any){
     try {
-        const http=createHttp();
         // 获取最新商品/库存信息用于校验
-        const prod:any = await http(`/store/products/${it.productId}`, { method:'GET' });
+        const prod:any = await storeProductControllerGet(Number(it.productId)) as any;
         let max = 99;
         if (String(prod?.type||'') !== 'SERVICE'){
             if (String(prod?.specType||'') === 'MULTI'){
@@ -279,20 +286,19 @@ async function inc(it:any){
         }
         const next = Math.min(max, Number(it.quantity||0)+1);
         if (next === Number(it.quantity||0)) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
-        await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity: next } }); it.quantity = next; await loadApplicableCoupons();
+        await cartControllerMyUpdate(Number(it.id), { quantity: next } as any); it.quantity = next; await loadApplicableCoupons();
     } catch {}
 }
 async function dec(it:any){
 	try {
-		const http=createHttp();
 		const cur = Number(it.quantity||0);
 		if (cur <= 1) {
 			uni.showModal({ title:'提示', content:'是否删除该商品？', success: async (res:any) => {
-				if (res?.confirm) { try { await http(`/cart/me/${it.id}`, { method:'DELETE' }); await loadCart(); await loadApplicableCoupons(); } catch {} }
+				if (res?.confirm) { try { await cartControllerMyDelete(Number(it.id)); await loadCart(); await loadApplicableCoupons(); } catch {} }
 			}});
 			return;
 		}
-		const q=Math.max(1, cur-1); await http(`/cart/me/${it.id}`, { method:'PUT', body:{ quantity:q } }); it.quantity=q; await loadApplicableCoupons();
+		const q=Math.max(1, cur-1); await cartControllerMyUpdate(Number(it.id), { quantity:q } as any); it.quantity=q; await loadApplicableCoupons();
 	} catch {}
 }
 
@@ -346,10 +352,9 @@ async function ensureSpecKeysForItems(rows:any[]){
             .map(r => Number(r?.productId||0))
             .filter(id => id>0 && !specKeyCache[id])));
         if (!ids.length) return;
-        const http = createHttp();
         await Promise.all(ids.map(async(pid)=>{
             try{
-                const prod:any = await http(`/store/products/${pid}`, { method:'GET' });
+                const prod:any = await storeProductControllerGet(Number(pid)) as any;
                 const keys = deriveSpecKeysFromProduct(prod);
                 if (keys.length) specKeyCache[pid] = keys;
             }catch{}
@@ -407,8 +412,7 @@ function onSelectSpec(key:string, value:string){ if (isOptionDisabled(key,value)
 
 async function openSkuPicker(it:any){
 	try {
-		const http = createHttp();
-		const prod:any = await http(`/store/products/${it.productId}`, { method:'GET' });
+		const prod:any = await storeProductControllerGet(Number(it.productId)) as any;
 		const skus:Sku[] = Array.isArray(prod?.skus) ? (prod.skus as any[]).filter(s=>s.enabled!==false).map((s:any)=>({ id:s.id, name:s.name, specsJson:s.specsJson, price:Number(s.price||0) })) : [];
 		skuPicker.visible = true; skuPicker.itemKey = it.key; skuPicker.productId = it.productId; skuPicker.rowId = it.id; skuPicker.skus = skus; skuPicker.selectedId = it.skuId || skus[0]?.id;
 		// 预选维度
@@ -421,7 +425,7 @@ function closeSkuPicker(){ skuPicker.visible=false; }
 async function applySku(){
 	const s = skuPicker.skus.find(x=>x.id===skuPicker.selectedId);
 	if (!s || typeof skuPicker.rowId !== 'number') { closeSkuPicker(); return; }
-	try { const http=createHttp(); await http(`/cart/me/${skuPicker.rowId}`, { method:'PUT', body:{ skuId: s.id } }); await loadCart(); } catch {}
+	try { await cartControllerMyUpdate(Number(skuPicker.rowId), { skuId: s.id } as any); await loadCart(); } catch {}
 	closeSkuPicker();
 }
 

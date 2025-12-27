@@ -4,6 +4,7 @@ import { MemberService } from './member.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto } from './member.dto.js';
 
 @ApiTags('member')
 @Controller('member')
@@ -80,7 +81,7 @@ export class MemberController {
 	@ApiOperation({ summary: '管理员手动调整成长值（正负均可），记录备注' })
 	adjustGrowth(
 		@Param('id') id: string,
-		@Body() body: { delta: number; remark?: string|null },
+		@Body() body: AdjustMemberGrowthDto,
 		@Headers('authorization') authHeader?: string,
 	){
 		// 读取管理员ID（由守卫保证为管理员）
@@ -110,17 +111,7 @@ export class MemberController {
 	@ApiOperation({ summary: '创建会员' })
 	create(
 		@Body()
-		body: {
-			name: string;
-			phone: string;
-			password?: string;
-			points?: number;
-			balance?: number;
-			levelId?: number;
-			categoryId?: number;
-			tagIds?: number[];
-			avatarUrl?: string | null;
-		},
+		body: CreateMemberDto,
 	) {
 		// 昵称长度校验：≤10 个字符（按 Unicode 码点计）
 		const nameTrim = String(body?.name || '').trim();
@@ -136,17 +127,7 @@ export class MemberController {
 	update(
 		@Param('id') id: string,
 		@Body()
-		body: {
-			name?: string;
-			phone?: string;
-			password?: string;
-			points?: number;
-			balance?: number;
-			levelId?: number | null;
-			categoryId?: number | null;
-			tagIds?: number[];
-			avatarUrl?: string | null;
-		},
+		body: UpdateMemberDto,
 	) {
 		// 若传入 name，则进行长度与非空校验
 		if (Object.prototype.hasOwnProperty.call(body, 'name')) {
@@ -164,7 +145,7 @@ export class MemberController {
 
 	@Put(':id/password')
 	@ApiOperation({ summary: '设置/重置会员密码（管理员）' })
-	setPassword(@Param('id') id: string, @Body() body: { password: string }) {
+	setPassword(@Param('id') id: string, @Body() body: SetMemberPasswordDto) {
 		return this.service.setPassword(Number(id), body.password);
 	}
 

@@ -84,9 +84,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
+import { memberControllerMe, orderControllerCancelOrder, orderControllerList, orderControllerReceive, orderControllerWechatJsapi } from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
 const authed = ref<boolean>(false);
@@ -205,12 +206,11 @@ async function fetchOrders(){
 		const ok = await checkAuthAndRefresh({ redirectIfExpired: false });
 		authed.value = !!ok;
 		if (!ok) { orders.value = []; return; }
-		const http = createHttp();
-		let profile: any = null; try { profile = await http('/member/me/profile', { method:'GET' }); } catch {}
+		let profile: any = null; try { profile = await (memberControllerMe({} as any) as any); } catch {}
 		const memberId = profile?.id;
 		const q = buildQuery();
 		if (memberId) q.memberId = memberId;
-		const list = await http<Order[]>('/orders', { method:'GET', query: q });
+		const list = await (orderControllerList(q as any) as any);
 		orders.value = Array.isArray(list) ? list : [];
 		// 重置倒计时计时器（每秒触发一次视图刷新）
 		try { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } } catch {}
@@ -269,8 +269,7 @@ async function goPay(o: Order){
 	try {
 		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
 		if (!authed) return;
-		const http = createHttp();
-		const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method: 'POST' });
+		const params:any = await (orderControllerWechatJsapi(Number(o.id||0)) as any);
 		// #ifdef MP-WEIXIN
 		await new Promise<void>((resolve, reject)=>{
 			(uni as any).requestPayment({
@@ -344,8 +343,7 @@ async function confirmReceive(o: Order){
 		// #ifndef MP-WEIXIN
 		if ((o as any)?.payMethod === 'WECHAT_JSAPI') { uni.showToast({ title:'微信支付订单请在微信小程序内确认收货', icon:'none' }); return; }
 		// #endif
-		const http = createHttp();
-		await http(`/orders/${o.id}/receive`, { method: 'POST' });
+		await orderControllerReceive(Number(o.id||0));
 		uni.showToast({ title: '收货成功', icon: 'success' });
 		await fetchOrders();
 	} catch(e){
@@ -360,8 +358,7 @@ async function confirmCancel(o: Order){
         });
         if (!ok) return;
         const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
-        const http = createHttp();
-        await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason: '用户主动取消' } });
+        await orderControllerCancelOrder(Number(o.id||0), { body: { reason: '用户主动取消' } } as any);
         uni.showToast({ title:'已取消', icon:'success' });
         await fetchOrders();
     } catch { uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); }

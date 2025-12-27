@@ -33,14 +33,14 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
+import { addressControllerMyDelete, addressControllerMyList } from '@wash/api-client';
 
 type Addr = { id?: number; province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null };
 
 type DistrictItem = { name: string; adcode?: string; districts?: DistrictItem[] };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttp();
 const list = ref<Addr[]>([]);
 
 const showEdit = ref(false);
@@ -55,7 +55,7 @@ function goBack(){
 }
 
 async function refresh(){
-    try { list.value = await http<Addr[]>('/address/me/list', { method: 'GET' }); } catch { list.value = []; }
+    try { list.value = await addressControllerMyList({} as any) as any; } catch { list.value = []; }
 }
 
 function gotoCreate(){ try { uni.navigateTo({ url: '/pages/address/create' }); } catch {} }
@@ -64,7 +64,7 @@ function openEdit(a: Addr){ try { uni.navigateTo({ url: `/pages/address/edit?id=
 async function remove(a: Addr){
     if (!a?.id) return;
     try {
-        await http(`/address/me/${a.id}`, { method: 'DELETE' });
+        await addressControllerMyDelete(String(a.id));
         uni.showToast({ title:'已删除', icon:'success' });
         await refresh();
     } catch { uni.showToast({ title:'删除失败', icon:'none' }); }

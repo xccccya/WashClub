@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberPointsService } from './points.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { MemberPointsAdjustDto, MemberPointsSaveConfigDto } from './points.dto.js';
 
 @ApiTags('member-points')
 @Controller('member-points')
@@ -19,7 +20,7 @@ export class MemberPointsController {
   @UseGuards(AdminGuard)
   @RequirePerm('member-points')
   @ApiOperation({ summary: '保存积分配置' })
-  save(@Body() body: { pointsPerFen: number; pointsFenPerPoint: number; pointsMaxDeductFenPerOrder: number }){ return this.service.saveConfig(body); }
+  save(@Body() body: MemberPointsSaveConfigDto){ return this.service.saveConfig(body); }
 
   @Get('logs')
   @UseGuards(AdminGuard)
@@ -31,7 +32,7 @@ export class MemberPointsController {
   @UseGuards(AdminGuard)
   @RequirePerm('member-points')
   @ApiOperation({ summary: '后台调整指定会员积分（正负均可）' })
-  adjust(@Body() body: { memberId: number; delta: number; remark?: string | null; operatorUserId?: number | null }){
+  adjust(@Body() body: MemberPointsAdjustDto){
     return this.service.adjustByAdmin(Number(body?.memberId||0), Number(body?.delta||0), body?.remark ?? null, body?.operatorUserId ?? null);
   }
 }

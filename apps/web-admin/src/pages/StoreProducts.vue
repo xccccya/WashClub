@@ -198,17 +198,23 @@
 import { ref, onMounted, watch, onBeforeUnmount, nextTick } from 'vue';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
-import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ElMessage } from 'element-plus';
 import { Grid, CirclePlus, Promotion, Ticket } from '@element-plus/icons-vue';
+import {
+	couponControllerList,
+	storeCategoryControllerList,
+	storeProductControllerCreate,
+	storeProductControllerList,
+	storeProductControllerRemove,
+	storeProductControllerUpdate,
+} from '@wash/api-client';
 
 // 兼容：将 Quill 暴露到全局，供 @vueup/vue-quill 内部使用
 try { if (typeof window !== 'undefined' && !(window as any).Quill) { (window as any).Quill = Quill; } } catch {}
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 function abs(u?: string){ return absUrl(u || ''); }
 const list = ref<any[]>([]);
 const categories = ref<any[]>([]);
@@ -216,13 +222,18 @@ const keyword = ref('');
 const quillRef = ref<HTMLDivElement|null>(null);
 let quillInstance: any = null;
 
-async function fetchList(){ list.value = await http('/store/products', { query: { keyword: keyword.value } }); }
+async function fetchList(){
+	const params: any = {};
+	if (keyword.value) params.keyword = keyword.value;
+	const res: any = await storeProductControllerList(params as any);
+	list.value = Array.isArray(res) ? res : [];
+}
 function typeLabel(t?: string){ if(t==='SERVICE') return '服务项目'; if(t==='PHYSICAL') return '实物商品'; if(t==='VIRTUAL_CARD') return '虚拟卡券'; return t||'-'; }
 function specLabel(s?: string){ if(s==='SINGLE') return '单规格'; if(s==='MULTI') return '多规格'; return s||'-'; }
 function fmtTime(val?: string){ try{ if(!val) return '-'; const d = new Date(val); const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }catch{return '-';} }
 
-async function toggleEnabled(row:any){ try{ await http(`/store/products/${row.id}`, { method:'PUT', body:{ enabled: !row.enabled } }); ElMessage.success(!row.enabled?'已上架':'已下架'); await fetchList(); }catch(e:any){ ElMessage.error(e?.message||'操作失败'); } }
-async function fetchCategories(){ categories.value = await http('/store/categories'); }
+async function toggleEnabled(row:any){ try{ await storeProductControllerUpdate(Number(row.id), { enabled: !row.enabled } as any); ElMessage.success(!row.enabled?'已上架':'已下架'); await fetchList(); }catch(e:any){ ElMessage.error(e?.message||'操作失败'); } }
+async function fetchCategories(){ const res:any = await storeCategoryControllerList({} as any); categories.value = Array.isArray(res) ? res : []; }
 
 const show = ref(false);
 const formTab = ref<'base'|'extra'|'desc'>('base');
@@ -237,7 +248,10 @@ const skuPickerRow = ref<any|null>(null);
 
 function openCreate(){ form.value = { id: 0, type: 'SERVICE', name: '', barcode: '', categoryId: undefined, enabled: true, sortWeight: 0, sellPoint: '', specType: 'SINGLE', price: 0, listPrice: 0, stockQuantity: 0, couponId: undefined, description: '', skus: [], pointsDeductible: false, memberDiscount: false, initialSales: 0, isCarWash: false, shipAllowExpress: true, shipAllowPickup: true }; formImages.value = []; specItems.value = []; formTab.value = 'base'; show.value = true; }
 const couponOptions = ref<any[]>([]);
-async function fetchCoupons(){ couponOptions.value = await http('/coupons', { query: { type: 'WASH_CARD' } }); }
+async function fetchCoupons(){
+	const res: any = await couponControllerList({ type: 'WASH_CARD' } as any);
+	couponOptions.value = Array.isArray(res) ? res : [];
+}
 function openEdit(row:any){
 	form.value = JSON.parse(JSON.stringify(row));
 	if (!Array.isArray(form.value.skus)) form.value.skus = [];
@@ -283,12 +297,12 @@ async function save(){
 		if (form.value.specType==='SINGLE') form.value.stockQuantity = 0;
 		else if (Array.isArray(form.value.skus)) for(const s of form.value.skus){ s.stockQuantity = 0; }
 	}
-	if (form.value.id) await http(`/store/products/${form.value.id}`, { method:'PUT', body: form.value });
-	else await http('/store/products', { method:'POST', body: form.value });
+	if (form.value.id) await storeProductControllerUpdate(Number(form.value.id), form.value as any);
+	else await storeProductControllerCreate(form.value as any);
 	show.value = false; ElMessage.success('已保存'); await fetchList();
 }
 
-async function remove(id:number){ await http(`/store/products/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await fetchList(); }
+async function remove(id:number){ await storeProductControllerRemove(Number(id)); ElMessage.success('已删除'); await fetchList(); }
 
 // 上传图片
 const showUpload = ref(false);
@@ -303,7 +317,11 @@ async function onFileChange(e:any){
 	const res = await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } });
 	const j = await res.json(); uploadUrl.value = j?.url || '';
 }
-async function applyImage(){ if (!currentProductId.value || !uploadUrl.value) return; await http(`/store/products/${currentProductId.value}`, { method:'PUT', body: { imageUrl: uploadUrl.value } }); ElMessage.success('已更新图片'); showUpload.value = false; await fetchList(); }
+async function applyImage(){
+	if (!currentProductId.value || !uploadUrl.value) return;
+	await storeProductControllerUpdate(Number(currentProductId.value), { imageUrl: uploadUrl.value } as any);
+	ElMessage.success('已更新图片'); showUpload.value = false; await fetchList();
+}
 
 onMounted(async ()=>{ await Promise.all([fetchCategories(), fetchList(), fetchCoupons()]); });
 

@@ -180,7 +180,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { useRouter } from 'vue-router';
-import { httpWrap as http } from '../utils/http';
+import { metricsControllerOverview, orderControllerList, queueControllerEtaSummary, queueControllerList } from '@wash/api-client';
 import { ShoppingBag, Money, CreditCard, User, UserFilled, Tickets, ShoppingCart } from '@element-plus/icons-vue';
 
 const router = useRouter();
@@ -237,8 +237,8 @@ function baseLabel(b: 'yesterday'|'prev7'|'prev30'|'lastMonth'){ return b==='yes
 async function fetchData(){
 	loading.value = true;
 	try{
-		const resp = await http<OverviewResp>('/system/metrics/overview', { method:'GET', query: { range: range.value } });
-		data.value = resp;
+		const resp = await metricsControllerOverview({ range: range.value } as any) as any;
+		data.value = resp as OverviewResp;
 		updateCounters();
 	}catch{ data.value = null; }
 	finally{ loading.value = false; }
@@ -259,15 +259,27 @@ function onMetricClick(kind: 'orders'|'washcount'|'pay'|'washcard'){
 const reminders = ref({ pendingPayment: 0, pendingDelivery: 0, pendingService: 0 });
 const remLoading = ref(false);
 let remTimer: any = null;
+function getOrderListCount(resp: unknown): number {
+	try {
+		if (Array.isArray(resp)) return resp.length;
+		const r: any = resp as any;
+		if (Array.isArray(r?.items)) return r.items.length;
+		if (Array.isArray(r?.data?.items)) return r.data.items.length;
+		if (Array.isArray(r?.data)) return r.data.length;
+		return 0;
+	} catch {
+		return 0;
+	}
+}
 async function fetchReminders(){
 	remLoading.value = true;
 	try{
 		const [a,b,c] = await Promise.all([
-			http<any[]>('/orders', { method:'GET', query: { scene:'PENDING_PAYMENT' } }).catch(()=>[]),
-			http<any[]>('/orders', { method:'GET', query: { scene:'PENDING_DELIVERY' } }).catch(()=>[]),
-			http<any[]>('/orders', { method:'GET', query: { scene:'PENDING_SERVICE' } }).catch(()=>[]),
+			(orderControllerList({ scene:'PENDING_PAYMENT' } as any) as any).catch(()=>[]),
+			(orderControllerList({ scene:'PENDING_DELIVERY' } as any) as any).catch(()=>[]),
+			(orderControllerList({ scene:'PENDING_SERVICE' } as any) as any).catch(()=>[]),
 		]);
-		reminders.value = { pendingPayment: Array.isArray(a)?a.length:0, pendingDelivery: Array.isArray(b)?b.length:0, pendingService: Array.isArray(c)?c.length:0 };
+		reminders.value = { pendingPayment: getOrderListCount(a), pendingDelivery: getOrderListCount(b), pendingService: getOrderListCount(c) };
 	}catch{ reminders.value = { pendingPayment: 0, pendingDelivery: 0, pendingService: 0 }; }
 	finally{ remLoading.value = false; }
 }
@@ -281,8 +293,8 @@ async function fetchQueueSummary(){
 	queueLoading.value = true;
 	try{
 		const [eta, list] = await Promise.all([
-			http<EtaSummary[]>('/queue/eta-summary', { method:'GET' }).catch(()=>[]),
-			http<any[]>('/queue/list', { method:'GET' }).catch(()=>[]),
+			(queueControllerEtaSummary() as any).catch(()=>[]),
+			(queueControllerList() as any).catch(()=>[]),
 		]);
 		const counts = new Map<number, number>();
 		(list||[]).forEach((x:any)=>{ const id = Number(x?.queueTypeId || x?.queueType?.id || 0); if (!id) return; counts.set(id, (counts.get(id)||0)+1); });

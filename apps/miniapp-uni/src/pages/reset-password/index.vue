@@ -21,8 +21,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE } from '../../utils/auth';
+import { authControllerResetPassword, authControllerSendLoginCode } from '@wash/api-client';
 
 declare const uni: any;
 
@@ -32,7 +31,6 @@ const code = ref('');
 const pwd = ref('');
 const pwd2 = ref('');
 const countdown = ref(0);
-const http = createHttpClient({ baseUrl: API_BASE });
 
 function goBack(){
 	try { uni.navigateBack(); } catch {}
@@ -42,7 +40,7 @@ async function onSendCode(){
 	if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
 	if (countdown.value > 0) return;
 	try {
-		await http('/auth/send-code', { method: 'POST', body: { phone: phone.value, purpose: 'resetPwd' } } as any);
+		await authControllerSendLoginCode({ phone: phone.value, purpose: 'resetPwd' } as any);
 		uni.showToast({ title: '验证码已发送', icon: 'success' });
 		countdown.value = 60;
 		const timer = setInterval(()=>{
@@ -59,7 +57,7 @@ async function onSubmit(){
 	if (!pwd.value || pwd.value.length < 6) { uni.showToast({ title: '新密码至少6位', icon: 'none' }); return; }
 	if (pwd.value !== pwd2.value) { uni.showToast({ title: '两次密码不一致', icon: 'none' }); return; }
 	try {
-		await http('/auth/reset-password', { method: 'POST', body: { phone: phone.value, code: code.value, newPassword: pwd.value } } as any);
+		await authControllerResetPassword({ phone: phone.value, code: code.value, newPassword: pwd.value } as any);
 		uni.showToast({ title: '修改成功', icon: 'success' });
 		setTimeout(()=>{ try { uni.navigateBack(); } catch {} }, 400);
 	} catch (e:any) {

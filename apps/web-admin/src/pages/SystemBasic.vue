@@ -94,25 +94,29 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
+import {
+	systemSettingControllerGetMiniappTerms,
+	systemSettingControllerGetSetting,
+	systemSettingControllerSaveMiniappTerms,
+	systemSettingControllerSaveSetting,
+} from '@wash/api-client';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl as abs } from '../utils/http';
 import FileInput from './_components/FileInput.vue';
 import { Check } from '@element-plus/icons-vue';
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const form = ref<{ title: string; logoUrl: string|null; bgType: 'bing'|'image'; bgImageUrl: string|null; defaultMemberAvatarUrl: string|null }>({ title: 'WashClub 管理后台', logoUrl: null, bgType: 'bing', bgImageUrl: null, defaultMemberAvatarUrl: null });
 
 function absUrl(u?: string | null){ return abs(u); }
 
-async function fetchSetting(){ form.value = await http('/system/site-setting', { method: 'GET' }); }
+async function fetchSetting(){ form.value = (await systemSettingControllerGetSetting() as unknown) as any; }
 
 const showLogoViewer = ref(false);
 const showAvatarViewer = ref(false);
 
 async function save(){
-  await http('/system/site-setting', { method:'POST', body: form.value });
+  await systemSettingControllerSaveSetting({ method:'POST', body: JSON.stringify(form.value) });
   try { localStorage.setItem('siteTitle', form.value.title || 'WashClub 管理后台'); document.title = `${form.value.title || 'WashClub 管理后台'} - 基础设置`; } catch {}
   ElMessage.success('已保存');
 }
@@ -126,7 +130,7 @@ const termsPublicUrlWithTs = computed(() => `${termsPublicUrl.value}?_=${Date.no
 
 async function fetchTerms(){
 	try{
-		const res = await http<{ html: string }>(`/system/miniapp-terms`, { method:'GET' });
+		const res = (await systemSettingControllerGetMiniappTerms() as unknown) as any;
 		termsHtml.value = String((res as any)?.html || '');
 		ElMessage.success('已拉取');
 	}catch(e:any){ termsHtml.value = ''; ElMessage.error(String(e?.message||'拉取失败')); }
@@ -135,7 +139,7 @@ async function fetchTerms(){
 async function saveTerms(){
 	try{
 		savingTerms.value = true;
-		const res = await http<{ ok: boolean; url: string }>(`/system/miniapp-terms`, { method:'POST', body: { html: termsHtml.value } });
+		await systemSettingControllerSaveMiniappTerms({ method:'POST', body: JSON.stringify({ html: termsHtml.value }) });
 		ElMessage.success('协议已保存');
 		// 刷新预览
 		setTimeout(()=>{ /* 触发 iframe 刷新 */ }, 0);

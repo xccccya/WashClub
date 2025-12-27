@@ -91,21 +91,28 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+import {
+	authControllerChangePhone,
+	authControllerResolvePhone,
+	authControllerSendLoginCode,
+	memberControllerList,
+	memberControllerMe,
+	memberControllerUpdate,
+	systemSettingControllerGetPublicSetting,
+} from '@wash/api-client';
 
 // 声明 uni
 declare const uni: any;
 declare function getCurrentPages(): any[];
 
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const bottomInsetPx = ref(0);
 
 // 动态读取站点默认头像
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null }|null>(null);
-async function ensureSiteSetting(){ if (siteSetting.value) return; try{ siteSetting.value = await http('/system/public/site-setting', { method:'GET' }); } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
+async function ensureSiteSetting(){ if (siteSetting.value) return; try{ siteSetting.value = (await systemSettingControllerGetPublicSetting() as unknown) as any; } catch { siteSetting.value = { defaultMemberAvatarUrl: null }; } }
 const defaultAvatar = computed(()=> siteSetting.value?.defaultMemberAvatarUrl ? toAbs(siteSetting.value?.defaultMemberAvatarUrl as any) : '/static/icons/placeholder.png');
 const user = ref<any>({});
 const avatarPreview = ref<string>('');
@@ -201,7 +208,7 @@ function onChooseWeixinAvatar(e: any) {
 				if (!url) { uni.showToast({ title: '上传失败', icon: 'none' }); return; }
 				avatarPreview.value = toAbs(url);
 				// 立即更新后端头像
-				await http(`/member/${user.value?.id}`, { method: 'PUT', body: { avatarUrl: url } as any });
+				await memberControllerUpdate(String(user.value?.id || ''), { avatarUrl: url } as any);
 				try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
 				uni.showToast({ title: '头像已更新', icon: 'success' });
 				closeAvatarSheet();
@@ -233,7 +240,7 @@ function onChooseLocalImage(r: any){
 				const url = data?.url || '';
 				if (!url) { uni.showToast({ title:'上传失败', icon:'none' }); return; }
 				avatarPreview.value = toAbs(url);
-				await http(`/member/${user.value?.id}`, { method: 'PUT', body: { avatarUrl: url } as any });
+				await memberControllerUpdate(String(user.value?.id || ''), { avatarUrl: url } as any);
 				try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
 				uni.showToast({ title: '头像已更新', icon: 'success' });
 			} catch (e:any) { uni.showToast({ title: e?.message?.slice(0,30) || '保存失败', icon: 'none' }); }
@@ -253,7 +260,7 @@ async function onGetRealtimePhoneNumber(e: any){
 	const code = e?.detail?.code;
 	if (!phone && code) {
 		try {
-			const r = await http<{ phone: string }>('/auth/wechat/resolve-phone', { method: 'POST', body: { code } as any });
+			const r = (await authControllerResolvePhone({ code } as any) as unknown) as any;
 			phone = (r as any)?.phone || '';
 		} catch (err:any) {
 			uni.showToast({ title: err?.message?.slice(0,30) || '手机号解析失败', icon: 'none' });
@@ -265,8 +272,8 @@ async function onGetRealtimePhoneNumber(e: any){
 	if (String(phone) === String(currentPhone.value || '')) { uni.showToast({ title: '新旧手机号一致，请重新选择', icon: 'none' }); return; }
 	// 唯一性校验（后端）
 	try {
-		const exists = await http<boolean>('/member/list', { method: 'GET', query: { keyword: phone, page: 1, pageSize: 1 } }) as any;
-		const occupied = Array.isArray((exists as any)?.items) && (exists as any).items.some((m:any)=> String(m?.phone)===String(phone));
+		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
+		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
 		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
 		pendingPhone.value = phone;
 		uni.showToast({ title: `已选择：${phone}`, icon: 'none' });
@@ -287,13 +294,13 @@ async function sendH5Code(){
 	if (String(phone) === String(currentPhone.value||'')) { uni.showToast({ title: '新旧手机号一致', icon: 'none' }); return; }
 	// 唯一性校验
 	try {
-		const exists = await http<any>('/member/list', { method: 'GET', query: { keyword: phone, page: 1, pageSize: 1 } });
+		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
 		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
 		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
 	} catch {}
 	try {
 		sendingCode.value = true;
-		await http('/auth/send-code', { method: 'POST', body: { phone, purpose: 'changePhone' } as any });
+		await authControllerSendLoginCode({ phone, purpose: 'changePhone' } as any);
 		uni.showToast({ title: '验证码已发送', icon: 'none' });
 		cd.value = 60;
 		cdTimer = setInterval(()=>{ cd.value = Math.max(0, cd.value - 1); if (cd.value === 0) { clearInterval(cdTimer); } }, 1000);
@@ -307,12 +314,12 @@ async function confirmH5PhoneChange(){
 	// 与微信端一致：一致性/占用校验
 	if (String(phone) === String(currentPhone.value||'')) { uni.showToast({ title: '新旧手机号一致', icon: 'none' }); return; }
 	try {
-		const exists = await http<any>('/member/list', { method: 'GET', query: { keyword: phone, page: 1, pageSize: 1 } });
+		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
 		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
 		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
 		// 使用后端 changePhone purpose 的验证码进行更换
-		await http('/auth/change-phone', { method: 'POST', body: { oldPhone: currentPhone.value, newPhone: phone, code: h5Code.value } as any });
-		const updated = await http('/member/me/profile', { method: 'GET' });
+		await authControllerChangePhone({ oldPhone: currentPhone.value, newPhone: phone, code: h5Code.value } as any);
+		const updated = (await memberControllerMe({} as any) as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || phone;
 		closeH5PhoneDialog();
@@ -327,8 +334,8 @@ async function saveChanges(){
 		if (nickname.value && nickname.value !== user.value?.name) body.name = nickname.value;
 		if (pendingPhone.value) body.phone = pendingPhone.value;
 		if (Object.keys(body).length === 0) { uni.showToast({ title: '没有修改项', icon: 'none' }); return; }
-		await http(`/member/${user.value?.id}`, { method: 'PUT', body: body as any });
-		const updated = await http('/member/me/profile', { method:'GET' });
+		await memberControllerUpdate(String(user.value?.id || ''), body as any);
+		const updated = (await memberControllerMe({} as any) as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || currentPhone.value;
 		uni.showToast({ title: '保存成功', icon: 'success' });

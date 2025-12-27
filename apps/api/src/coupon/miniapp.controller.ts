@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { CouponService } from './coupon.service.js';
+import { MiniappCouponApplicableDto } from './miniapp.dto.js';
 
 @ApiTags('MiniappCoupons')
 @Controller('coupon/miniapp')
@@ -132,13 +133,11 @@ export class MiniappCouponController {
 
     // 计算当前商品/购物车可用优惠券与预计折扣
     @Post('applicable')
+    @ApiOperation({ summary: '计算购物车/商品可用优惠券与预计折扣（预计算，不持久化）' })
     async applicable(
         @Headers() headers: Record<string, string>,
+        @Body() body: MiniappCouponApplicableDto,
         @Query('token') tokenParam?: string,
-        // body: { items: Array<{ productId:number; price:number; quantity:number }> }
-        // 备注：仅用于预计算，不持久化
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        @Body() body?: any,
     ){
         const memberId = await this.getMemberIdFromToken(headers, tokenParam);
         const items: Array<{ productId?: number|null; price: number; quantity: number }> = Array.isArray(body?.items) ? body.items : [];

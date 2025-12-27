@@ -179,7 +179,16 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { http } from '../utils/http';
+import {
+	groupCardControllerAdd,
+	groupCardControllerConsume,
+	groupCardControllerCreate,
+	groupCardControllerList,
+	groupCardControllerLogs,
+	groupCardControllerRemove,
+	groupControllerList,
+	groupVehicleControllerList,
+} from '@wash/api-client';
 
 const route = useRoute();
 const groupId = ref<number | null>(null);
@@ -218,7 +227,7 @@ function zhReason(r?: string){
 
 async function load(){
   if(!groupId.value){ items.value = []; return; }
-  const res:any = await http(`/group/${groupId.value}/cards`, { method: 'GET' });
+  const res:any = await groupCardControllerList(Number(groupId.value));
   items.value = Array.isArray(res) ? res : [];
 }
 
@@ -231,14 +240,18 @@ async function doCreate(){
   if (payload.remainingTimes == null || payload.remainingTimes === '') { payload.remainingTimes = payload.totalTimes; }
   if (payload.remainingTimes < 0) { ElMessage.error('初始剩余次数不能小于0'); return; }
   if (payload.remainingTimes > payload.totalTimes) { ElMessage.error('初始剩余次数不能大于初始总次数'); return; }
-  await http(`/group/${groupId.value}/cards`, { method: 'POST', body: payload });
+  await groupCardControllerCreate(Number(groupId.value), payload as any);
   ElMessage.success('创建成功');
   createVisible.value=false;
   await load();
 }
 
 function openAdd(row:any){ addForm.value = { cardId: row.id, count: 1, remark: '' }; addVisible.value = true; }
-async function doAdd(){ if(!groupId.value){ ElMessage.error('缺少集团ID'); return; } await http(`/group/${groupId.value}/cards/${addForm.value.cardId}/add`, { method: 'POST', body: { count: addForm.value.count, remark: addForm.value.remark||'' } }); ElMessage.success('已增加次数'); addVisible.value=false; await load(); }
+async function doAdd(){
+	if(!groupId.value){ ElMessage.error('缺少集团ID'); return; }
+	await groupCardControllerAdd(Number(groupId.value), Number(addForm.value.cardId), { count: addForm.value.count, remark: addForm.value.remark||'' } as any);
+	ElMessage.success('已增加次数'); addVisible.value=false; await load();
+}
 
 function openConsume(row: any){ consumeForm.value = { cardId: row.id, times: 1, reason: 'SERVICE_DEDUCT', vehicleId: undefined, memberId: undefined, remark: '' }; consumeVisible.value = true; searchConsumeVehicles(''); }
 async function doConsume(){
@@ -247,7 +260,7 @@ async function doConsume(){
   let remark = consumeForm.value.remark || '';
   const v = consumeVehicles.value.find((x:any)=>x.id===consumeForm.value.vehicleId);
   if (v && !String(remark).includes('服务车辆：')) { remark = `${remark || '服务划扣'}（服务车辆：${v.plateNumber}）`; }
-  await http(`/group/${groupId.value}/cards/${consumeForm.value.cardId}/consume`, { method: 'POST', body: { times: consumeForm.value.times, reason: consumeForm.value.reason, vehicleId: consumeForm.value.vehicleId || null, memberId: consumeForm.value.memberId || null, remark } });
+  await groupCardControllerConsume(Number(groupId.value), Number(consumeForm.value.cardId), { times: consumeForm.value.times, reason: consumeForm.value.reason, vehicleId: consumeForm.value.vehicleId || null, memberId: consumeForm.value.memberId || null, remark } as any);
   ElMessage.success('已划扣');
   consumeVisible.value=false;
   await load();
@@ -257,7 +270,7 @@ async function searchConsumeVehicles(q?: string){
   if(!groupId.value){ consumeVehicles.value = []; return; }
   loadingConsumeVehicles.value = true;
   try{
-    const res:any[] = await http(`/group/${groupId.value}/vehicles`, { method:'GET', query: { keyword: (q||'').trim() || undefined, source: 'all' } });
+    const res:any[] = await groupVehicleControllerList(Number(groupId.value), { keyword: (q||'').trim() || undefined, source: 'all' } as any) as any;
     consumeVehicles.value = Array.isArray(res) ? res : [];
   } finally { loadingConsumeVehicles.value = false; }
 }
@@ -269,13 +282,17 @@ function onConsumeVehicleChange(){
 
 async function doDelete(row:any){
   if(!groupId.value){ ElMessage.error('缺少集团ID'); return; }
-  await http(`/group/${groupId.value}/cards/${row.id}`, { method: 'DELETE' });
+  await groupCardControllerRemove(Number(groupId.value), Number(row.id));
   ElMessage.success('已删除');
   await load();
 }
 
 function openLogs(row:any){ logsPage.value=1; fetchLogs(row.id); logsVisible.value = true; }
-async function fetchLogs(cardId:number){ if(!groupId.value) return; const res:any = await http(`/group/${groupId.value}/cards/${cardId}/logs`, { method:'GET', query: { page: logsPage.value, pageSize: logsPageSize.value } }); logs.value = res?.items||[]; logsTotal.value = res?.total||0; }
+async function fetchLogs(cardId:number){
+	if(!groupId.value) return;
+	const res:any = await groupCardControllerLogs(Number(groupId.value), Number(cardId), { page: logsPage.value, pageSize: logsPageSize.value } as any);
+	logs.value = res?.items||[]; logsTotal.value = res?.total||0;
+}
 function onLogsPageChange(p:number){ logsPage.value = p; const current = addForm.value.cardId || consumeForm.value.cardId; if (current) fetchLogs(current); }
 
 function applyExpiryDays(days: number){
@@ -293,7 +310,7 @@ onMounted(()=>{ const q = Number(route.query.groupId||0); if (Number.isFinite(q)
 async function searchGroups(q?: string){
   loadingGroups.value = true;
   try{
-    const res:any = await http('/group', { method:'GET', query: { page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } });
+    const res:any = await groupControllerList({ page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } as any);
     groupOptions.value = Array.isArray(res?.items) ? res.items : [];
   } finally { loadingGroups.value = false; }
 }

@@ -249,12 +249,23 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
 import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { Bell, Sunny } from '@element-plus/icons-vue';
+import {
+	authControllerUpdateAdminAvatar,
+	authControllerUpdateAdminNickname,
+	authControllerUpdateAdminPassword,
+	notificationControllerList,
+	notificationControllerMarkRead,
+	notificationControllerMarkReadAll,
+	notificationControllerUnreadCount,
+	systemSettingControllerGetPublicBusinessStatus,
+	systemSettingControllerGetPublicSetting,
+	systemSettingControllerSaveSetting,
+} from '@wash/api-client';
 
 const presetColors = [
 	{ key:'default', color:'#409eff', label:'默认' },
@@ -279,7 +290,6 @@ function onCustomChange(){
 }
 
 const router = useRouter();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const active = ref('/dashboard');
 const tabs = ref<{ path:string; title:string }[]>([{ path:'/dashboard', title:'系统首页' }]);
 const breadcrumbList = ref<string[]>(['首页']);
@@ -299,7 +309,7 @@ function onToggleBusy(){ if (busyEnabled.value) pausedEnabled.value = false; }
 function onTogglePaused(){ if (pausedEnabled.value) busyEnabled.value = false; }
 async function reloadBusiness(){
     try{
-        const j:any = await http('/system/public/business-status', { method:'GET' });
+        const j:any = await systemSettingControllerGetPublicBusinessStatus();
         hoursStart.value = String(j?.hours?.start||'09:00');
         hoursEnd.value = String(j?.hours?.end||'18:00');
         busyEnabled.value = !!j?.busyEnabled;
@@ -311,7 +321,11 @@ async function reloadBusiness(){
 async function saveBusiness(){
     try{
         savingBiz.value = true;
-        await http('/system/site-setting', { method:'POST', body: { businessHoursJson: { start: hoursStart.value, end: hoursEnd.value }, busyEnabled: busyEnabled.value, pausedEnabled: pausedEnabled.value } });
+        await systemSettingControllerSaveSetting({
+            businessHoursJson: { start: hoursStart.value, end: hoursEnd.value },
+            busyEnabled: busyEnabled.value,
+            pausedEnabled: pausedEnabled.value
+        } as any);
         await reloadBusiness();
         ElMessage.success('营业设置已保存');
     }catch(e:any){ ElMessage.error(String(e?.message||'保存失败')); }
@@ -340,7 +354,7 @@ function openPickAvatar(){ pickVisible.value = true; }
 function onPicked(list:any[]){ const f = list?.[0]; if (f && f.url) { avatarDraft.value = f.url; ElMessage.success('已选择头像'); } pickVisible.value = false; }
 async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); fd.append('source','avatar'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); avatarDraft.value = j?.url || null; ElMessage.success('头像已上传'); }
 function clearAvatar(){ avatarDraft.value = null; ElMessage.success('将使用默认头像'); }
-async function saveAvatar(){ if (!userId.value) { ElMessage.error('未获取到用户ID'); return; } await http('/auth/admin/update-avatar', { method:'POST', body: { userId: userId.value, avatarUrl: avatarDraft.value ?? null } }); avatarUrl.value = avatarDraft.value ?? null; try { const u = JSON.parse(localStorage.getItem('user')||'{}'); u.avatarUrl = avatarUrl.value; localStorage.setItem('user', JSON.stringify(u)); } catch{} showAvatar.value=false; ElMessage.success('头像已更新'); }
+async function saveAvatar(){ if (!userId.value) { ElMessage.error('未获取到用户ID'); return; } await authControllerUpdateAdminAvatar({ userId: userId.value, avatarUrl: avatarDraft.value ?? null } as any); avatarUrl.value = avatarDraft.value ?? null; try { const u = JSON.parse(localStorage.getItem('user')||'{}'); u.avatarUrl = avatarUrl.value; localStorage.setItem('user', JSON.stringify(u)); } catch{} showAvatar.value=false; ElMessage.success('头像已更新'); }
 
 function can(key: string){ return permissions.value.includes('*') || permissions.value.includes(key); }
 function onSelect(index: string){ router.push(index); active.value = index; }
@@ -437,7 +451,7 @@ function openEditNick(){ nickDraft.value = nick.value; showNick.value = true; }
 async function saveNick(){
 	if (!userId.value) { ElMessage.error('未获取到用户ID'); return; }
 	try{
-		await http('/auth/admin/update-nickname', { method: 'POST', body: { userId: userId.value, name: nickDraft.value } });
+		await authControllerUpdateAdminNickname({ userId: userId.value, name: nickDraft.value } as any);
 		nick.value = nickDraft.value; try{ const u = JSON.parse(localStorage.getItem('user')||'{}'); u.name = nick.value; localStorage.setItem('user', JSON.stringify(u)); }catch{}
 		showNick.value = false; ElMessage.success('昵称已更新');
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
@@ -448,7 +462,7 @@ async function savePwd(){
 	if (!userId.value) { ElMessage.error('未获取到用户ID'); return; }
 	if (pwdNew.value.length < 6) { ElMessage.error('新密码至少6位'); return; }
 	try {
-		await http('/auth/admin/update-password', { method: 'POST', body: { userId: userId.value, oldPassword: pwdOld.value, newPassword: pwdNew.value } });
+		await authControllerUpdateAdminPassword({ userId: userId.value, oldPassword: pwdOld.value, newPassword: pwdNew.value } as any);
 		showPwd.value = false; ElMessage.success('密码已更新');
 	} catch (e:any) {
 		ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '修改密码失败');
@@ -503,7 +517,7 @@ const unreadCount = ref<number>(0);
 const unreadCountText = computed(()=> unreadCount.value>99 ? '99+' : String(unreadCount.value));
 let ws: WebSocket | null = null;
 
-async function refreshUnread(){ try { const r:any = await http('/notification/unread-count', { method:'GET' }); unreadCount.value = Number(r?.count||0); } catch { unreadCount.value = 0; } }
+async function refreshUnread(){ try { const r:any = await notificationControllerUnreadCount(); unreadCount.value = Number(r?.count||0); } catch { unreadCount.value = 0; } }
 function connectWS(){
     try{
         const token = localStorage.getItem('token'); if (!token) return;
@@ -535,12 +549,12 @@ function openNotifyDrawer(){ notifyDrawer.value = true; reloadNotifications(); }
 function formatTime(t:string){ try{ const d=new Date(t); const p=(n:number)=> String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }catch{ return t; } }
 async function reloadNotifications(){
     notifyLoading.value = true;
-    try{ const list:any[] = await http('/notification/list', { method:'GET' }); notifications.value = Array.isArray(list)? list: []; }
+    try{ const list:any[] = (await notificationControllerList({} as any) as unknown) as any[]; notifications.value = Array.isArray(list)? list: []; }
     catch{ notifications.value = []; }
     finally{ notifyLoading.value = false; }
 }
-async function markRead(n:N){ try{ await http('/notification/mark-read', { method:'POST', body:{ id:n.id } }); if (n.status==='UNREAD'){ n.status='READ'; unreadCount.value = Math.max(0, unreadCount.value-1); } }catch{} }
-async function markAllRead(){ try{ await http('/notification/mark-read-all', { method:'POST' }); notifications.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; }); refreshUnread(); }catch{} }
+async function markRead(n:N){ try{ await notificationControllerMarkRead({ id:n.id } as any); if (n.status==='UNREAD'){ n.status='READ'; unreadCount.value = Math.max(0, unreadCount.value-1); } }catch{} }
+async function markAllRead(){ try{ await notificationControllerMarkReadAll(); notifications.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; }); refreshUnread(); }catch{} }
 function openNotification(n:N){ if (n.linkPath){ try{ router.push(n.linkPath); }catch{} } if (n.status==='UNREAD'){ markRead(n); } }
 
 onMounted(()=>{
@@ -551,7 +565,7 @@ onMounted(()=>{
     refreshUnread();
     connectWS();
 		// 读取公共站点设置 + 营业状态
-		http('/system/public/site-setting', { method:'GET' }).then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }).catch(()=>{});
+		systemSettingControllerGetPublicSetting().then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }).catch(()=>{});
 		reloadBusiness();
 	// 初始化主题
 	try {

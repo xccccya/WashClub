@@ -53,11 +53,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import { smsAdminControllerListSmsCodes } from '@wash/api-client';
 import { Search } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type SmsItem = { id: number; phone: string; code: string; purpose: 'login'|'resetPwd'|'changePhone'; createdAt: string; expiresAt: string; usedAt?: string | null };
 
@@ -76,7 +73,8 @@ async function fetchList(){
     if (qPhone.value) query.phone = qPhone.value;
     if (qPurpose.value) query.purpose = qPurpose.value;
     if (qUsed.value) query.used = qUsed.value;
-    const resp = await http<{ total: number; page: number; pageSize: number; items: SmsItem[] }>('/system/sms-codes', { method: 'GET', query });
+    // 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（对象含 items/total）使用
+    const resp = (await smsAdminControllerListSmsCodes(query as any) as unknown) as { total: number; page: number; pageSize: number; items: SmsItem[] };
     items.value = resp.items; total.value = resp.total; page.value = resp.page; pageSize.value = resp.pageSize;
 }
 

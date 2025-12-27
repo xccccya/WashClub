@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import sharp from 'sharp';
-import { existsSync, unlinkSync } from 'node:fs';
+import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -64,7 +64,7 @@ export class ThumbnailService {
 			// 确保目标目录存在
 			const targetDir = join(targetAbs, '..');
 			if (!existsSync(targetDir)) {
-				require('fs').mkdirSync(targetDir, { recursive: true });
+				mkdirSync(targetDir, { recursive: true });
 			}
 			
 			// 生成缩略图

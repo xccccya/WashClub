@@ -82,9 +82,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh, getToken } from '../../utils/auth';
 import PlateInput from './plate-input.vue';
 import { useSafeArea } from '../../utils/safe-area';
+import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const id = ref<number>(0);
@@ -163,8 +164,7 @@ function closeSeriesDialog(){ seriesDialog.value = false; }
 async function fetchBrands(){
 	brandLoading.value = true;
 	try {
-		const http = createHttp();
-		const json = await http<any>('/content/car/brands', { method: 'GET' });
+		const json = await carDataControllerGetBrands() as any;
 		const arr: any[] = json || [];
 		const flat: FlatBrand[] = [];
 		for (const mb of arr){
@@ -182,8 +182,7 @@ async function fetchSeriesIfNeeded(bid: number){
 	if (cached && now - cached.ts < SERIES_TTL_MS) { seriesOptions.value = cached.items; return; }
 	seriesLoading.value = true;
 	try {
-		const http = createHttp();
-		const json = await http<any>('/content/car/series', { method: 'GET', query: { brandId: bid } });
+		const json = await carDataControllerGetSeries({ brandId: bid } as any) as any;
 		const arr: any[] = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
 		const items: SeriesItem[] = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
 		seriesOptions.value = items; seriesCache.value[bid] = { ts: now, items };
@@ -219,8 +218,7 @@ function mapScaleToType(scale: string): { main: string; sub: string }{
 }
 
 async function loadDetail(){
-	const http = createHttp();
-	const list = await http<any[]>('/vehicle/me/list', { method: 'GET' });
+	const list = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any[];
 	const item = (list||[]).find(x=>x.id === id.value);
 	if (item) {
 		plate.value = item.plateNumber || '';
@@ -238,9 +236,8 @@ async function onSubmit(){
 	if (!validate()) return;
 	try {
 		if (saving.value) return; saving.value = true; try { uni.showLoading({ title: '正在保存，请稍候…', mask: true }); } catch {}
-		const http = createHttp();
 		const payload: any = { plateNumber: plate.value.trim(), typeMain: typeMain.value, typeSub: typeSub.value || undefined, color: color.value || undefined, vin: vin.value || undefined, brand: brandName.value || undefined, series: seriesName.value || undefined, brandId: brandId.value || undefined, seriesId: seriesId.value || undefined };
-		await http(`/vehicle/${id.value}`, { method: 'PUT', body: payload });
+		await vehicleControllerUpdateVehicle(String(id.value), payload as any);
 		uni.showToast({ title:'已保存', icon:'success' });
 		setTimeout(()=>{
 			try { uni.navigateBack(); return; } catch {}

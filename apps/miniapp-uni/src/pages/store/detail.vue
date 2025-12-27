@@ -115,10 +115,18 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { createHttp, getToken, checkAuthAndRefresh } from '../../utils/auth';
+import { getToken, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
+import {
+	cartControllerMyAdd,
+	cartControllerMyList,
+	favoriteControllerAdd,
+	favoriteControllerMyList,
+	favoriteControllerRemove,
+	storeProductControllerGet,
+} from '@wash/api-client';
 // #ifdef MP-WEIXIN
 // 通过 easycom 使用 mp-html 组件
 // #endif
@@ -166,7 +174,6 @@ type Product = {
 };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttp();
 
 const id = ref<number|undefined>(undefined);
 const product = ref<Product|null>(null);
@@ -202,7 +209,7 @@ onLoad(async (q: any) => {
 
 async function fetchDetail(){
 	try {
-		const res = await http<Product>(`/store/products/${id.value}`, { method:'GET' });
+		const res = await storeProductControllerGet(Number(id.value || 0)) as any;
 		if (res && (res as any)?.enabled === false) {
 			uni.showToast({ title:'商品已下架', icon:'none' });
 			setTimeout(()=>{ goBack(); }, 600);
@@ -596,7 +603,7 @@ const displayPriceText = computed(() => {
 function initCollect(){
 	return (async () => {
 		try {
-			const list:any[] = await http('/favorite/me/list', { method:'GET' });
+			const list:any[] = await favoriteControllerMyList({ token: '' } as any) as any;
 			const set = new Set<number>(Array.isArray(list) ? list.map((x:any)=>x?.productId).filter((v:any)=>typeof v==='number') : []);
 			collected.value = set.has(product.value?.id || -1);
 		} catch { collected.value = false; }
@@ -608,8 +615,8 @@ async function toggleCollect(){
 	try {
 		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
 		const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
-		if (collected.value) { await http(`/favorite/me/${product.value.id}`, { method:'DELETE' }); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
-		else { await http(`/favorite/me/${product.value.id}`, { method:'POST' }); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
+		if (collected.value) { await favoriteControllerRemove(product.value.id, { token: '' } as any); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
+		else { await favoriteControllerAdd(product.value.id, { token: '' } as any); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
 	} catch {}
 }
 
@@ -633,7 +640,7 @@ async function addToCart(){
 		if (stock <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
 		let inCart = 0;
 		try{
-			const list:any[] = await http('/cart/me/list', { method:'GET' });
+			const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
 			if (product.value.specType === 'SINGLE') {
 				inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(product.value?.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 			} else {
@@ -643,7 +650,7 @@ async function addToCart(){
 		}catch{}
 		const canAdd = Math.min(1, Math.max(0, stock - inCart));
 		if (canAdd <= 0) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
-		await http('/cart/me/add', { method:'POST', body: { productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: canAdd } });
+		await cartControllerMyAdd({ productId: product.value.id, skuId: product.value.specType==='MULTI' ? selectedSkuId.value : null, quantity: canAdd } as any);
 		uni.showToast({ title: canAdd===1 ? '已加入购物车' : `库存不足，已加入${canAdd}件`, icon:'none' });
 		refreshCartCount();
 	} catch {
@@ -745,7 +752,7 @@ function sanitizeHtml(html: string): string{
 async function refreshCartCount(){
 	try{
 		const token = getToken(); if (!token) { cartCount.value = 0; return; }
-		const list:any[] = await http('/cart/me/list', { method:'GET' });
+		const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
 		const total = (Array.isArray(list)? list:[]).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 		cartCount.value = Math.max(0, Number(total||0));
 	}catch{ cartCount.value = 0; }

@@ -1,5 +1,100 @@
+// eslint-disable-next-line no-undef
+function normalizeBase(u) {
+    try {
+        const s = String(u || '').trim();
+        if (!s)
+            return '';
+        if (/^https?:\/\//i.test(s))
+            return s.replace(/\/$/, '');
+        const protocol = (typeof location !== 'undefined' ? (location.protocol || 'http:') : 'http:');
+        return `${protocol}//${s}`.replace(/\/$/, '');
+    }
+    catch {
+        return '';
+    }
+}
+function isAbsoluteUrl(u) {
+    return /^https?:\/\//i.test(String(u || ''));
+}
+function resolveDefaultBaseUrl() {
+    // eslint-disable-next-line no-undef
+    const g = (typeof globalThis !== 'undefined') ? globalThis : (typeof window !== 'undefined' ? window : {});
+    try {
+        const gb = g?.__VITE_API_BASE__ || g?.VITE_API_BASE;
+        if (gb)
+            return normalizeBase(String(gb));
+    }
+    catch { }
+    try {
+        // eslint-disable-next-line no-undef
+        if (typeof __APP_VITE_API_BASE__ !== 'undefined' && __APP_VITE_API_BASE__)
+            return normalizeBase(String(__APP_VITE_API_BASE__));
+    }
+    catch { }
+    try {
+        const envBase = import.meta?.env?.VITE_API_BASE || import.meta?.env?.VITE_APP_API_BASE;
+        if (envBase)
+            return normalizeBase(String(envBase));
+    }
+    catch { }
+    try {
+        if (typeof window !== 'undefined' && window.location && window.location.search) {
+            const sp = new URLSearchParams(window.location.search);
+            const q = sp.get('api') || sp.get('apibase');
+            if (q)
+                return normalizeBase(String(q));
+        }
+    }
+    catch { }
+    try {
+        const ls = (typeof localStorage !== 'undefined') ? (localStorage.getItem('API_BASE') || localStorage.getItem('apiBase')) : '';
+        if (ls)
+            return normalizeBase(String(ls));
+    }
+    catch { }
+    try {
+        // eslint-disable-next-line no-undef
+        const us = (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') ? (uni.getStorageSync('API_BASE') || uni.getStorageSync('apiBase')) : '';
+        if (us)
+            return normalizeBase(String(us));
+    }
+    catch { }
+    try {
+        if (typeof location !== 'undefined' && location.hostname) {
+            const protocol = location.protocol || 'http:';
+            const host = location.hostname;
+            return `${protocol}//${host}:3000`;
+        }
+    }
+    catch { }
+    return 'http://127.0.0.1:3000';
+}
+function resolveDefaultToken() {
+    try {
+        // eslint-disable-next-line no-undef
+        if (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') {
+            const t = uni.getStorageSync('token');
+            if (t)
+                return String(t);
+        }
+    }
+    catch { }
+    try {
+        const t = (typeof localStorage !== 'undefined') ? localStorage.getItem('token') : null;
+        return t || undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+function callGlobalUnauthorizedHook() {
+    try {
+        globalThis?.__ON_HTTP_401__?.();
+    }
+    catch { }
+}
 function createHttpClientFactory(config = {}) {
-    const { baseUrl = '', getToken } = config;
+    const { baseUrl = '', getToken, onUnauthorized } = config;
     return async function request(url, options = {}) {
         const headers = {
             'Content-Type': 'application/json',
@@ -8,7 +103,7 @@ function createHttpClientFactory(config = {}) {
         const token = getToken?.();
         if (token)
             headers['Authorization'] = `Bearer ${token}`;
-        let fullUrl = baseUrl + url;
+        let fullUrl = isAbsoluteUrl(url) ? url : (baseUrl + url);
         if (options.query) {
             const pairs = [];
             Object.entries(options.query).forEach(([k, v]) => {
@@ -47,6 +142,13 @@ function createHttpClientFactory(config = {}) {
                             resolve(resp.data);
                         }
                         else {
+                            if (resp.statusCode === 401) {
+                                try {
+                                    onUnauthorized?.();
+                                }
+                                catch { }
+                                callGlobalUnauthorizedHook();
+                            }
                             // 友好提取 message 字段
                             const raw = resp.data;
                             const msg = (raw && typeof raw === 'object' && raw.message) ? String(raw.message) :
@@ -68,6 +170,13 @@ function createHttpClientFactory(config = {}) {
             body: rawBody !== undefined && rawBody !== null && typeof rawBody !== 'string' ? JSON.stringify(rawBody) : rawBody,
         });
         if (!res.ok) {
+            if (res.status === 401) {
+                try {
+                    onUnauthorized?.();
+                }
+                catch { }
+                callGlobalUnauthorizedHook();
+            }
             const contentType = res.headers.get('content-type') || '';
             if (contentType.includes('application/json')) {
                 let messageFromJson;
@@ -95,7 +204,11 @@ function createHttpClientFactory(config = {}) {
 export function createHttpClient(arg1, arg2) {
     if (typeof arg1 === 'string') {
         // 直接调用：createHttpClient(url, options)
-        const client = createHttpClientFactory({});
+        const client = createHttpClientFactory({
+            baseUrl: resolveDefaultBaseUrl(),
+            getToken: resolveDefaultToken,
+            onUnauthorized: callGlobalUnauthorizedHook,
+        });
         return client(arg1, arg2 || {});
     }
     // 工厂用法：createHttpClient(config)

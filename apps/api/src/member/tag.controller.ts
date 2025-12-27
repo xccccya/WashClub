@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberTagService } from './tag.service.js';
+import { CreateMemberTagDto, UpdateMemberTagDto } from './tag.dto.js';
 
 @ApiTags('member-tag')
 @Controller('member-tag')
@@ -13,11 +14,11 @@ export class MemberTagController {
 
 	@Post()
 	@ApiOperation({ summary: '创建会员标签' })
-	create(@Body() body: { name: string }) { return this.service.create(body); }
+	create(@Body() body: CreateMemberTagDto) { return this.service.create(body as any); }
 
 	@Put(':id')
 	@ApiOperation({ summary: '更新会员标签' })
-	update(@Param('id') id: string, @Body() body: { name?: string }) { return this.service.update(Number(id), body); }
+	update(@Param('id') id: string, @Body() body: UpdateMemberTagDto) { return this.service.update(Number(id), body as any); }
 
 	@Delete(':id')
 	@ApiOperation({ summary: '删除会员标签' })

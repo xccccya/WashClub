@@ -214,10 +214,22 @@
 import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
-import { http, absUrl } from '../utils/http';
+import { absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 import FileInput from './_components/FileInput.vue';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
+import {
+	groupControllerCreate,
+	groupControllerGet,
+	groupControllerList,
+	groupControllerRemove,
+	groupControllerUpdate,
+	groupMemberControllerAdd,
+	groupMemberControllerList,
+	groupMemberControllerRemove,
+	groupMemberControllerSetAdmin,
+	memberControllerList,
+} from '@wash/api-client';
 
 const router = useRouter();
 const page = ref(1);
@@ -252,7 +264,7 @@ function formatTime(v?: string){ if(!v) return '-'; try{ return new Date(v).toLo
 async function load(){
   loading.value = true;
   try{
-    const res:any = await http('/group', { method: 'GET', query: { page: page.value, pageSize: pageSize.value, keyword: keyword.value||undefined, sortBy: sortBy.value, sortOrder: sortOrder.value } });
+    const res:any = await groupControllerList({ page: page.value, pageSize: pageSize.value, keyword: keyword.value||undefined, sortBy: sortBy.value, sortOrder: sortOrder.value } as any);
     total.value = res?.total || 0;
     items.value = Array.isArray(res?.items) ? res.items : [];
   }finally{
@@ -267,7 +279,7 @@ function openCreate(){
 
 async function doCreate(){
   if(!createForm.value.name || !createForm.value.firstAdminMemberId){ ElMessage.error('请填写完整'); return; }
-  await http('/group', { method: 'POST', body: createForm.value });
+  await groupControllerCreate(createForm.value as any);
   ElMessage.success('创建成功');
   createVisible.value = false;
   createForm.value = { name: '', iconUrl: '', firstAdminMemberId: undefined as any, remark: '' };
@@ -276,7 +288,7 @@ async function doCreate(){
 
 async function openDetail(row: any){
   const id = row?.id || row;
-  const res:any = await http(`/group/${id}`, { method: 'GET' });
+  const res:any = await groupControllerGet(Number(id));
   detail.value = res;
   detailEdit.value = { name: res?.name, iconUrl: res?.iconUrl, remark: res?.remark || '' };
   detailVisible.value = true;
@@ -286,7 +298,7 @@ async function saveBasic(){
   if(!detail.value) return;
   const body:any = { ...detailEdit.value };
   if (Object.prototype.hasOwnProperty.call(detailEdit.value, 'iconUrl') && detailEdit.value.iconUrl === '') body.iconUrl = null;
-  await http(`/group/${detail.value.id}`, { method: 'PATCH', body });
+  await groupControllerUpdate(Number(detail.value.id), body as any);
   ElMessage.success('已保存');
   await openDetail(detail.value.id);
   await load();
@@ -296,7 +308,7 @@ async function addMembers(){
   if(!detail.value) return;
   const ids = (addMemberIds.value||'').split(',').map(s=>Number(s.trim())).filter(n=>Number.isFinite(n));
   if(ids.length===0){ ElMessage.error('请输入会员ID'); return; }
-  await http(`/group/${detail.value.id}/members`, { method: 'POST', body: { memberIds: ids } });
+  await groupMemberControllerAdd(Number(detail.value.id), { memberIds: ids } as any);
   ElMessage.success('添加成功');
   addMemberIds.value = '';
   await openDetail(detail.value.id);
@@ -305,14 +317,14 @@ async function addMembers(){
 async function toggleAdmin(row: any){
   if(!detail.value) return;
   const isAdmin = row.role !== 'ADMIN';
-  await http(`/group/${detail.value.id}/members/${row.memberId}/admin`, { method: 'PATCH', body: { isAdmin } });
+  await groupMemberControllerSetAdmin(Number(detail.value.id), Number(row.memberId), { isAdmin } as any);
   ElMessage.success('已更新');
   await openDetail(detail.value.id);
 }
 
 async function removeMember(row: any){
   if(!detail.value) return;
-  await http(`/group/${detail.value.id}/members/${row.memberId}`, { method: 'DELETE' });
+  await groupMemberControllerRemove(Number(detail.value.id), Number(row.memberId));
   ElMessage.success('已移除');
   await openDetail(detail.value.id);
 }
@@ -321,7 +333,7 @@ load();
 
 async function doDelete(row: any){
   const id = row?.id || row;
-  await http(`/group/${id}`, { method: 'DELETE' });
+  await groupControllerRemove(Number(id));
   ElMessage.success('已删除');
   await load();
 }
@@ -329,7 +341,7 @@ async function doDelete(row: any){
 async function searchMembers(){
   const kw = (memberSearchKeyword.value||'').trim();
   if(!kw){ memberSearchResult.value = []; return; }
-  const res:any = await http('/member/list', { method: 'GET', query: { page: 1, pageSize: 20, keyword: kw } });
+  const res:any = await memberControllerList({ page: 1, pageSize: 20, keyword: kw } as any);
   memberSearchResult.value = Array.isArray(res?.items) ? res.items : [];
 }
 
@@ -359,7 +371,7 @@ async function deleteWithConfirm(row:any){
 async function searchMembersForCreate(q: string){
   memberLoadingForCreate.value = true;
   try{
-    const res:any = await http('/member/list', { method:'GET', query: { page: 1, pageSize: 50, keyword: (q||'').trim() || undefined } });
+    const res:any = await memberControllerList({ page: 1, pageSize: 50, keyword: (q||'').trim() || undefined } as any);
     memberOptionsForCreate.value = Array.isArray(res?.items) ? res.items : [];
   } finally { memberLoadingForCreate.value = false; }
 }

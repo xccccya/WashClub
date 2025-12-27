@@ -90,7 +90,14 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { http } from '../utils/http';
+import {
+	groupBalanceControllerAdjust,
+	groupBalanceControllerCreateRecharge,
+	groupBalanceControllerLedger,
+	groupBalanceControllerSummary,
+	groupControllerList,
+	groupMemberControllerList,
+} from '@wash/api-client';
 
 const route = useRoute();
 const router = useRouter();
@@ -124,19 +131,19 @@ const balanceColor = computed(()=> balance.value >= 0 ? '#16a34a' : '#ef4444');
 async function load(){ if(!groupId.value){ items.value=[]; balance.value=0; adminOptions.value=[]; return; } await loadSummary(); await loadLedger(); await loadAdmins(); }
 
 async function loadSummary(){
-  const res:any = await http(`/group/${groupId.value}/balance`, { method: 'GET' });
+  const res:any = await groupBalanceControllerSummary(Number(groupId.value));
   balance.value = Number(res?.balance || 0);
 }
 
 async function loadLedger(){
-  const res:any = await http(`/group/${groupId.value}/balance/ledger`, { method: 'GET', query: { page: page.value, pageSize: pageSize.value } });
+  const res:any = await groupBalanceControllerLedger(Number(groupId.value), { page: page.value, pageSize: pageSize.value } as any);
   total.value = res?.total || 0;
   items.value = Array.isArray(res?.items) ? res.items : [];
 }
 
 async function loadAdmins(){
   try{
-    const res:any[] = await http(`/group/${groupId.value}/members`, { method: 'GET' });
+    const res:any[] = (await groupMemberControllerList(Number(groupId.value)) as any) || [];
     const list = Array.isArray(res) ? res : [];
     adminOptions.value = list.filter((it:any)=> String(it?.role||'').toUpperCase()==='ADMIN').map((it:any)=>({ id: Number(it?.memberId||it?.member?.id||0), name: it?.member?.name || '-', phone: it?.member?.phone || '' })).filter(it=>it.id>0);
   }catch{ adminOptions.value = []; }
@@ -146,7 +153,7 @@ function openRecharge(){ rechargeVisible.value = true; }
 async function doRecharge(){
   if(!groupId.value){ ElMessage.error('缺少集团ID'); return; }
   if(!rechargeForm.value.memberIdForPayment){ ElMessage.error('请选择付款会员'); return; }
-  const r:any = await http(`/group/${groupId.value}/balance/recharge`, { method: 'POST', body: { amount: rechargeForm.value.amount, remark: rechargeForm.value.remark, memberIdForPayment: rechargeForm.value.memberIdForPayment } });
+  const r:any = await groupBalanceControllerCreateRecharge(Number(groupId.value), { amount: rechargeForm.value.amount, remark: rechargeForm.value.remark, memberIdForPayment: rechargeForm.value.memberIdForPayment } as any);
   ElMessage.success(`已创建充值订单：${r?.no}`);
   rechargeVisible.value=false;
   try{
@@ -158,7 +165,7 @@ async function doRecharge(){
 function openAdjust(){ adjustVisible.value = true; }
 async function doAdjust(){
   if(!groupId.value){ ElMessage.error('缺少集团ID'); return; }
-  await http(`/group/${groupId.value}/balance/adjust`, { method: 'POST', body: { amount: adjustForm.value.amount, note: adjustForm.value.note } });
+  await groupBalanceControllerAdjust(Number(groupId.value), { amount: adjustForm.value.amount, note: adjustForm.value.note } as any);
   ElMessage.success('已调账');
   adjustVisible.value=false;
   await load();
@@ -168,7 +175,7 @@ onMounted(()=>{ const q = Number(route.query.groupId||0); if (Number.isFinite(q)
 async function searchGroups(q?: string){
   loadingGroups.value = true;
   try{
-    const res:any = await http('/group', { method:'GET', query: { page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } });
+    const res:any = await groupControllerList({ page: 1, pageSize: 200, keyword: (q||'').trim() || undefined, sortBy: 'name', sortOrder: 'asc' } as any);
     groupOptions.value = Array.isArray(res?.items) ? res.items : [];
   } finally { loadingGroups.value = false; }
 }

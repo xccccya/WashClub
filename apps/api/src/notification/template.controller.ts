@@ -1,10 +1,16 @@
 import { Body, Controller, Get, Post, Put, Param, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { UseGuards } from '@nestjs/common';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { Delete } from '@nestjs/common';
+import {
+	NotificationTemplateCreateDto,
+	NotificationTemplateListQueryDto,
+	NotificationTemplateUpdateDto,
+	NotificationTemplateVariablesQueryDto,
+} from './template.dto.js';
 
 @ApiTags('notification-template')
 @Controller('notification/template')
@@ -14,8 +20,11 @@ export class NotificationTemplateController {
 
     @Get('list')
     @ApiOperation({ summary: '模板列表' })
+    @ApiOkResponse({ description: '模板列表' })
     @RequirePerm('notification-templates' as any)
-    async list(@Query('q') q?: string, @Query('channel') channel?: 'MEMBER'|'ADMIN'|'WXAPP'){
+    async list(@Query() query?: NotificationTemplateListQueryDto){
+        const q = String((query as any)?.q || '').trim();
+        const channel = (query as any)?.channel as ('MEMBER'|'ADMIN'|'WXAPP'|undefined);
         const where: any = q ? { OR: [ { typeKey: { contains: q } }, { titleTemplate: { contains: q } }, { contentTemplate: { contains: q } } ] } : {};
         if (channel) where.channel = channel;
         return this.prisma.notificationTemplate.findMany({ where, orderBy: { id: 'asc' } });
@@ -24,7 +33,7 @@ export class NotificationTemplateController {
     @Post('create')
     @ApiOperation({ summary: '创建模板' })
     @RequirePerm('notification-templates' as any)
-    async create(@Body() dto: { typeKey:string; titleTemplate:string; contentTemplate:string; enabled?:boolean; channel?: 'MEMBER'|'ADMIN'|'WXAPP'; uiDuration?: number|null; uiType?: string|null; uiPosition?: string|null }){
+    async create(@Body() dto: NotificationTemplateCreateDto){
         const data = { typeKey: String(dto.typeKey||'').trim(), titleTemplate: String(dto.titleTemplate||''), contentTemplate: String(dto.contentTemplate||''), enabled: dto.enabled!==false, channel: (dto.channel||'MEMBER'), uiDuration: dto.uiDuration==null? null: Number(dto.uiDuration), uiType: dto.uiType||null, uiPosition: dto.uiPosition||null } as any;
         if (!data.typeKey) throw new Error('缺少类型');
         // 允许同一 typeKey/channel 多个模板并存；若启用则关闭其他启用模板，保持单一启用
@@ -38,7 +47,7 @@ export class NotificationTemplateController {
     @Put(':id')
     @ApiOperation({ summary: '更新模板' })
     @RequirePerm('notification-templates' as any)
-    async update(@Param('id') idStr: string, @Body() dto: { titleTemplate?:string; contentTemplate?:string; enabled?:boolean; uiDuration?: number|null; uiType?: string|null; uiPosition?: string|null }){
+    async update(@Param('id') idStr: string, @Body() dto: NotificationTemplateUpdateDto){
         const id = Number(idStr||0); if (!id) throw new Error('ID无效');
         const prev = await this.prisma.notificationTemplate.findUnique({ where: { id } });
         if (!prev) throw new Error('模板不存在');
@@ -60,7 +69,8 @@ export class NotificationTemplateController {
     @Get('variables')
     @ApiOperation({ summary: '模板类型的变量清单' })
     @RequirePerm('notification-templates' as any)
-    async variables(@Query('typeKey') typeKey?: string){
+    async variables(@Query() query?: NotificationTemplateVariablesQueryDto){
+        const typeKey = String((query as any)?.typeKey || '').trim() || undefined;
         const map: Record<string, { key:string; label:string }[]> = {
             ORDER_PAID: [ { key:'no', label:'订单号' }, { key:'amount', label:'支付金额(元)' }, { key:'paidAt', label:'支付时间' } ],
             SERVICE_DONE: [ { key:'no', label:'订单号' }, { key:'endAt', label:'服务完成时间' } ],

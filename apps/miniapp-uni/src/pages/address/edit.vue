@@ -53,13 +53,13 @@
 import { ref, reactive } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
+import { addressControllerMyList, addressControllerMyUpdate, districtControllerGetDistrict } from '@wash/api-client';
 
 type Addr = { id?: number; province: string; city: string; district: string; street: string; detail: string; phone: string; label?: string | null };
 type DistrictItem = { name: string; adcode?: string; districts?: DistrictItem[] };
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttp();
 const id = ref<number | null>(null);
 const form = reactive<Addr>({ province: '', city: '', district: '', street: '', detail: '', phone: '' });
 const customLabel = ref('');
@@ -82,8 +82,7 @@ async function onPickDistrict(e:any){ const idx = Number(e?.detail?.value || 0);
 function onPickStreet(e:any){ const idx = Number(e?.detail?.value || 0); const s = streetList.value[idx]; form.street = (s?.name)||''; }
 
 async function fetchSub(keywords: string){
-    const q = `keywords=${encodeURIComponent(keywords)}&subdistrict=1&extensions=base`;
-    const res:any = await http(`/content/district?${q}`);
+    const res:any = await districtControllerGetDistrict({ keywords, subdistrict: 1, extensions: 'base' } as any);
     const arr: DistrictItem[] = Array.isArray(res?.districts) ? res.districts : [];
     const first = arr[0];
     return Array.isArray(first?.districts) ? first.districts as DistrictItem[] : [];
@@ -91,7 +90,7 @@ async function fetchSub(keywords: string){
 
 async function loadProvinces(){
     try {
-        const res:any = await http('/content/district?subdistrict=1&extensions=base');
+        const res:any = await districtControllerGetDistrict({ subdistrict: 1, extensions: 'base' } as any);
         const root: any = Array.isArray(res?.districts) ? res.districts[0] : null;
         provinceList.value = Array.isArray(root?.districts) ? root.districts : [];
     } catch {}
@@ -109,7 +108,7 @@ onLoad(async (query:any)=>{
     id.value = query && query.id ? Number(query.id) : null;
     if (!id.value){ uni.showToast({ title:'参数错误', icon:'none' }); goBack(); return; }
     try {
-        const list = await http<any[]>('/address/me/list', { method: 'GET' });
+        const list = await addressControllerMyList({} as any) as any[];
         const found = Array.isArray(list) ? list.find(it=>Number(it?.id)===id.value) : null;
         if (!found){ uni.showToast({ title:'未找到地址', icon:'none' }); goBack(); return; }
         Object.assign(form, found);
@@ -132,7 +131,7 @@ function validate(): string | null {
 async function save(){
     const msg = validate(); if (msg){ uni.showToast({ title: msg, icon:'none' }); return; }
     try {
-        await http(`/address/me/${id.value}`, { method: 'PUT', body: form });
+        await addressControllerMyUpdate(String(id.value), form as any);
         uni.showToast({ title: '已保存', icon: 'success' });
         setTimeout(()=>{ goBack(); }, 200);
     } catch (e:any) { uni.showToast({ title: e?.message?.slice(0,30) || '保存失败', icon: 'none' }); }

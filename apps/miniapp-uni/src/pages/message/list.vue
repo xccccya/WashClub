@@ -55,8 +55,7 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import createHttpClient from '@wash/shared-utils/src/http';
-import { API_BASE } from '../../utils/auth';
+import { notificationControllerList, notificationControllerMarkRead, notificationControllerMarkReadAll } from '@wash/api-client';
 
 type Notice = { id:number; title:string; content?:string; linkPath?:string; status:'UNREAD'|'READ'; createdAt:string };
 const items = ref<Notice[]>([]);
@@ -71,8 +70,7 @@ async function load(){
     try{
         const t = uni.getStorageSync('token');
         if (!t){ items.value = []; return; }
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        const list:any[] = await http('/notification/list', { method:'GET' });
+        const list:any[] = (await notificationControllerList({} as any) as unknown) as any[];
         items.value = Array.isArray(list) ? list : [];
     }catch{ items.value = []; }
 }
@@ -80,8 +78,7 @@ async function load(){
 async function markReadSingle(n: Notice){
     try{
         const t = uni.getStorageSync('token'); if (!t) return;
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        await http('/notification/mark-read', { method:'POST', body:{ id: n.id } });
+        await notificationControllerMarkRead({ id: n.id } as any);
         n.status = 'READ';
         // 同步减少未读角标
         try{ uni.$emit?.('realtime:unread-delta', { delta: -1 }); }catch{}
@@ -90,8 +87,7 @@ async function markReadSingle(n: Notice){
 async function markAllRead(){
     try{
         const t = uni.getStorageSync('token'); if (!t) return;
-        const http = createHttpClient({ baseUrl: API_BASE, getToken: () => t });
-        await http('/notification/mark-read-all', { method:'POST' });
+        await notificationControllerMarkReadAll();
         items.value.forEach(n=>{ if(n.status==='UNREAD') n.status='READ'; });
         // 未读被清空
         try{ uni.$emit?.('realtime:unread', { count: 0 }); }catch{}

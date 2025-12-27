@@ -50,11 +50,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	scrollNoticeControllerCreate,
+	scrollNoticeControllerEnable,
+	scrollNoticeControllerList,
+	scrollNoticeControllerRemove,
+	scrollNoticeControllerUpdate,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 type Notice = { id: number; type: 'home' | 'store'; content: string; enabled: boolean };
 const filterType = ref('');
@@ -66,7 +69,8 @@ const form = ref<{ id?: number; type: 'home' | 'store'; content: string; enabled
 async function fetchList(){
 	const query: any = {};
 	if (filterType.value) query.type = filterType.value;
-	notices.value = await http<Notice[]>('/content/notices', { method: 'GET', query });
+	// 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
+	notices.value = (await scrollNoticeControllerList(query) as unknown) as Notice[];
 }
 
 function openCreate(){ current.value = null; form.value = { type: 'home', content: '', enabled: false }; dialogVisible.value = true; }
@@ -75,16 +79,16 @@ function openEdit(row: Notice){ current.value = row; form.value = { id: row.id, 
 async function onSave(){
 	try{
 		if (current.value?.id) {
-			await http(`/content/notices/${current.value.id}`, { method: 'PUT', body: { content: form.value.content, enabled: form.value.enabled } });
+			await scrollNoticeControllerUpdate(String(current.value.id), { content: form.value.content, enabled: form.value.enabled } as any);
 		} else {
-			await http('/content/notices', { method: 'POST', body: { type: form.value.type, content: form.value.content, enabled: form.value.enabled } });
+			await scrollNoticeControllerCreate({ type: form.value.type, content: form.value.content, enabled: form.value.enabled } as any);
 		}
 		dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function enable(row: Notice){ try { await http(`/content/notices/${row.id}/enable`, { method: 'POST' }); ElMessage.success('已启用'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function remove(row: Notice){ try { await http(`/content/notices/${row.id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function enable(row: Notice){ try { await scrollNoticeControllerEnable(String(row.id)); ElMessage.success('已启用'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function remove(row: Notice){ try { await scrollNoticeControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 watch(filterType, fetchList);

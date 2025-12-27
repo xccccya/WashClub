@@ -58,18 +58,27 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberCouponAdminControllerList,
+	memberCouponAdminControllerRemove,
+	memberCouponAdminControllerUpdateExpiry,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const page = ref(1);
 const pageSize = ref(20);
 const query = ref<{ memberId?: string | number; couponId?: string | number; used?: '0'|'1'|''; expired?: '0'|'1'|'' }>({ used: '' as any, expired: '' as any });
 const list = ref<{ total:number; page:number; pageSize:number; items:any[] }>({ total:0, page:1, pageSize:20, items: [] });
 
 async function fetchList(){
-	list.value = await http('/member-coupons', { query: { page: page.value, pageSize: pageSize.value, memberId: query.value.memberId || undefined, couponId: query.value.couponId || undefined, used: query.value.used || undefined, expired: query.value.expired || undefined } });
+	const res:any = (await memberCouponAdminControllerList({ 
+		page: page.value, 
+		pageSize: pageSize.value, 
+		memberId: query.value.memberId || undefined, 
+		couponId: query.value.couponId || undefined, 
+		used: query.value.used || undefined, 
+		expired: query.value.expired || undefined,
+	} as any) as unknown) as any;
+	list.value = res as any;
 }
 function onPage(p:number){ page.value=p; fetchList(); }
 
@@ -84,12 +93,12 @@ async function save(){
 		if (!editingId.value) return;
 		const startAt = Array.isArray(range.value) ? range.value[0] : null;
 		const endAt = Array.isArray(range.value) ? range.value[1] : null;
-		await http(`/member-coupons/${editingId.value}/expiry`, { method: 'PUT', body: { startAt, endAt } });
+		await memberCouponAdminControllerUpdateExpiry(Number(editingId.value), { startAt, endAt } as any);
 		show.value = false; ElMessage.success('已保存'); fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(id:number){ try { await http(`/member-coupons/${id}`, { method: 'DELETE' }); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(id:number){ try { await memberCouponAdminControllerRemove(Number(id)); ElMessage.success('已删除'); fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
 
 onMounted(fetchList);
 

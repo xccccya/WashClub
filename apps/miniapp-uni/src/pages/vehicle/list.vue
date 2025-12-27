@@ -31,8 +31,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh } from '../../utils/auth';
+import { checkAuthAndRefresh, getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+import { vehicleControllerMyVehicles, vehicleControllerRemove, vehicleControllerSetDefault } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 type Vehicle = { id: number; plateNumber: string; vin?: string|null; brand?: string|null; series?: string|null; typeMain: string; typeSub?: string|null; color?: string|null; isDefault: boolean };
@@ -70,20 +71,22 @@ function displayPlate(v: Vehicle){
 async function fetchList(){
 	loading.value = true;
 	try {
-		const http = createHttp();
-		list.value = await http<Vehicle[]>('/vehicle/me/list', { method: 'GET' });
+		list.value = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any;
+	} catch (e:any) {
+		list.value = [];
+		uni.showToast({ title: String(e?.message || '车辆列表加载失败').slice(0, 30), icon: 'none' });
 	} finally { loading.value = false; }
 }
 
 async function onDelete(v: Vehicle){
 	uni.showModal({ title: '提示', content: '确认删除该车辆？', success: async (res:any)=>{
 		if (!res.confirm) return;
-		try { const http = createHttp(); await http(`/vehicle/${v.id}`, { method: 'DELETE' }); await fetchList(); uni.showToast({ title: '已删除', icon: 'success' }); } catch {}
+		try { await vehicleControllerRemove(String(v.id)); await fetchList(); uni.showToast({ title: '已删除', icon: 'success' }); } catch {}
 	}});
 }
 
 async function onSetDefault(v: Vehicle){
-	try { const http = createHttp(); await http(`/vehicle/${v.id}/set-default`, { method: 'POST' }); await fetchList(); uni.showToast({ title: '已设为默认', icon: 'success' }); } catch {}
+	try { await vehicleControllerSetDefault(String(v.id)); await fetchList(); uni.showToast({ title: '已设为默认', icon: 'success' }); } catch {}
 }
 
 onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) fetchList(); });

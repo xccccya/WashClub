@@ -78,7 +78,8 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, API_BASE } from '../../utils/auth';
+import { API_BASE } from '../../utils/auth';
+import { queueControllerEtaSummary, queueControllerList } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const list = ref<any[]>([]);
@@ -113,8 +114,7 @@ function stepClass(item: any, index: number, t: any){
 
 async function fetchList(){
     try {
-        const http = createHttp();
-        let arr = await http<any[]>('/queue/list', { method: 'GET' });
+        let arr = await queueControllerList() as any;
         const sel = selectedTypeId.value;
         if (sel !== null) {
             arr = (arr||[]).filter((x:any)=> Number(x?.queueTypeId || x?.queueType?.id || 0) === sel);
@@ -123,7 +123,7 @@ async function fetchList(){
     } catch { list.value = []; }
 }
 
-async function fetchEtaSummary(){ try { const http = createHttp(); etaSummary.value = await http<any[]>('/queue/eta-summary', { method:'GET' }); } catch { etaSummary.value = []; } }
+async function fetchEtaSummary(){ try { etaSummary.value = await queueControllerEtaSummary() as any; } catch { etaSummary.value = []; } }
 
 onShow(async()=>{ await Promise.all([fetchEtaSummary(), fetchList()]); });
 

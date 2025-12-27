@@ -141,8 +141,9 @@
 <script setup lang="ts">
 declare const uni: any;
 import { computed, reactive, ref, watch } from 'vue';
-import { createHttp, checkAuthAndRefresh } from '../utils/auth';
+import { checkAuthAndRefresh } from '../utils/auth';
 import { resolveImageUrl } from '../utils/url';
+import { addressControllerMyList, memberControllerMe, miniappCouponControllerApplicable, orderControllerCreate, orderControllerWechatJsapi, systemSettingControllerGetPublicSetting } from '@wash/api-client';
 
 type Sku = { id: number; name?: string; price: number; stockQuantity?: number; enabled?: boolean; specsJson?: Array<{ key: string; value: string }>|null };
 
@@ -182,7 +183,6 @@ const payMethod = ref<'WECHAT'|'OFFLINE'|undefined>(undefined);
 payMethod.value = 'WECHAT';
 // #endif
 
-const http = createHttp();
 // 发货形式（仅 PHYSICAL 使用）
 const delivery = ref<'EXPRESS'|'PICKUP'>('PICKUP');
 const shipAllowExpress = computed(()=> (product.value?.type==='PHYSICAL') ? ((product.value as any)?.shipAllowExpress !== false) : true);
@@ -503,7 +503,7 @@ async function loadApplicableCoupons(){
     couponLoading.value = true;
     try{
         const body:any = { items: buildApplicableItems() };
-        const res:any = await http('/coupon/miniapp/applicable', { method:'POST', body });
+        const res:any = await miniappCouponControllerApplicable(body, { token: '' } as any) as any;
         applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
         selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
     }catch{ applicableCoupons.value = []; selectedCouponIds.value = new Set(); }
@@ -597,9 +597,9 @@ const pointsNote = computed(()=>{
 async function loadPointsMeta(){
     pointsLoading.value = true;
     try{
-        const profile = await http<any>('/member/me/profile', { method:'GET' });
+        const profile = await (memberControllerMe({} as any) as any);
         pointsAvailable.value = Math.max(0, Number(profile?.points||0));
-        const ss = await http<any>('/system/public/site-setting', { method:'GET' });
+        const ss = await (systemSettingControllerGetPublicSetting() as any);
         fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
         maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
     }catch{
@@ -654,7 +654,7 @@ const memberDiscountAllowedByCoupons = computed(()=>{
 });
 async function loadMemberMeta(){
     try{
-        const profile = await http<any>('/member/me/profile', { method:'GET' });
+        const profile = await (memberControllerMe({} as any) as any);
         const pct = Number((profile as any)?.level?.payDiscountPercent || 0);
         memberPayDiscountPercent.value = Math.max(0, pct);
     }catch{ memberPayDiscountPercent.value = 0; }
@@ -662,7 +662,7 @@ async function loadMemberMeta(){
 
 async function loadAddresses(){
     try {
-        const list = await http<Address[]>('/address/me/list', { method:'GET' });
+        const list = await (addressControllerMyList({} as any) as any);
         addresses.value = Array.isArray(list) ? list : [];
         selectedAddressId.value = addresses.value[0]?.id;
     } catch { addresses.value = []; selectedAddressId.value = undefined; }
@@ -670,7 +670,7 @@ async function loadAddresses(){
 
 async function loadVehicles(){
 	try {
-		const profile = await http<any>('/member/me/profile', { method:'GET' });
+		const profile = await (memberControllerMe({} as any) as any);
 		const vs: VehicleEx[] = Array.isArray(profile?.vehicles) ? profile.vehicles : [];
 		vehicles.value = vs;
 		selectedVehicleId.value = vs[0]?.id;
@@ -724,7 +724,7 @@ async function submit(){
 	// 允许优惠券超过应付，前端不拦截；后端会按最低支付 0.01 处理
 	// 获取会员信息
 	let profile: any = null;
-	try { profile = await http<any>('/member/me/profile', { method:'GET' }); } catch {}
+	try { profile = await (memberControllerMe({} as any) as any); } catch {}
 	const memberId = Number(profile?.id || 0);
 	if (!memberId) { uni.showToast({ title:'请先登录', icon:'none' }); return; }
 	// 服务商品：需要车辆
@@ -771,11 +771,11 @@ async function submit(){
 		disableMemberDiscount: !memberDiscountAllowedByCoupons.value
 	};
 	try {
-		const created = await http<any>('/orders', { method:'POST', body });
+		const created:any = await (orderControllerCreate({ body } as any) as any);
 		// 选择支付方式
 		if (payMethod.value === 'WECHAT') {
 			try {
-				const params:any = await http(`/orders/${created?.id}/pay/wechat-jsapi`, { method:'POST' });
+				const params:any = await (orderControllerWechatJsapi((created as any)?.id as any) as any);
 				// #ifdef MP-WEIXIN
 				await new Promise<void>((resolve, reject)=>{
 					(uni as any).requestPayment({

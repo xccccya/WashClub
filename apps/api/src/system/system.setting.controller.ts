@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards, Res } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
@@ -7,6 +7,7 @@ import { AssetService } from '../file/asset.service.js';
 import { join, dirname } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Response } from 'express';
+import { SystemSiteSettingSaveDto } from './system.setting.dto.js';
 
 @ApiTags('system')
 @Controller('system')
@@ -53,7 +54,8 @@ export class SystemSettingController {
     @UseGuards(AdminGuard)
     @RequirePerm('system-basic')
     @ApiOperation({ summary: '保存站点基础设置' })
-    async saveSetting(@Body() body: { title?: string; logoUrl?: string | null; bgType?: 'bing'|'image'; bgImageUrl?: string | null; defaultMemberAvatarUrl?: string | null; growthPerYuan?: number; businessHoursJson?: { start?: string; end?: string } | null; busyEnabled?: boolean; pausedEnabled?: boolean }) {
+    @ApiBody({ type: SystemSiteSettingSaveDto })
+    async saveSetting(@Body() body: SystemSiteSettingSaveDto) {
         const payload: any = {
             title: (body.title || 'WashClub 管理后台').slice(0, 60),
             logoUrl: body.logoUrl ?? null,

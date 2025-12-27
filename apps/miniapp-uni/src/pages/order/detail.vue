@@ -177,9 +177,16 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app';
-import { createHttp } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
+import {
+	orderControllerCancelOrder,
+	orderControllerGet,
+	orderControllerGetByNo,
+	orderControllerQuery,
+	orderControllerReceive,
+	orderControllerWechatJsapi,
+} from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number|string; quantity: number; specsText?: string|null; specsJson?: any };
@@ -296,8 +303,7 @@ function getExStatusDesc(ex:any){ const k = exchangeKey(ex); const v = exchangeT
 async function openExchangeTrace(ex:any){
     try{
         if (!ex?.trackingNo) return;
-        const http = createHttp();
-        const res:any = await http('/orders/_logistics/query', { method:'GET', query: { com: ex?.companyCode || undefined, no: ex?.trackingNo } });
+        const res:any = await (orderControllerQuery({ com: ex?.companyCode || undefined, no: ex?.trackingNo } as any) as any);
         const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
         const getTime = (it:any)=> it?.datetime || it?.time || '';
         const getRemark = (it:any)=> it?.remark || it?.context || '';
@@ -381,12 +387,12 @@ async function confirmReceiveInDetail(){
         // #ifndef MP-WEIXIN
         if (o?.payMethod === 'WECHAT_JSAPI') { uni.showToast({ title:'微信支付订单请在微信小程序内确认收货', icon:'none' }); return; }
         // #endif
-        const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail();
+        await orderControllerReceive(Number(o.id||0)); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail();
     }catch{ uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); }
 }
 function within15min(createdAt?: string){ try{ if(!createdAt) return false; const t = new Date(createdAt).getTime(); return Date.now() - t <= 15*60*1000; }catch{ return false; } }
 function canShowCancel(o:any){ try{ if (!o) return false; if (o.payStatus!=='UNPAID') return false; if (String(o.type||'').toUpperCase()!=='SERVICE') return within15min(o.createdAt); const fs = String(o.fulfillmentStatus||'').toUpperCase(); if (fs!=='PENDING') return false; return within15min(o.createdAt); }catch{ return false; } }
-async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; if (!canShowCancel(o)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); return; } const http = createHttp(); await http(`/orders/${o.id}/cancel`, { method:'POST', body: { reason:'用户主动取消' } }); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch(e:any){ const msg = String(e?.message||''); if (msg.includes('服务已开始')||/409/.test(msg)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); } else { uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } } }
+async function confirmCancelInDetail(){ try{ const ok = await new Promise<boolean>(r=>{ uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success:(x:any)=>r(!!x.confirm), fail:()=>r(false) }); }); if(!ok) return; const authed = await (async()=>{ try{ const { checkAuthAndRefresh } = await import('../../utils/auth'); return await checkAuthAndRefresh({ redirectIfExpired: true }); }catch{return true} })(); if (!authed) return; const o:any = order.value; if(!o) return; if (!canShowCancel(o)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); return; } await orderControllerCancelOrder(Number(o.id||0), { body: { reason:'用户主动取消' } } as any); uni.showToast({ title:'已取消', icon:'success' }); await reloadDetail(); }catch(e:any){ const msg = String(e?.message||''); if (msg.includes('服务已开始')||/409/.test(msg)) { uni.showToast({ title:'服务已开始/完成，订单不可取消，如需帮助请联系门店', icon:'none' }); } else { uni.showToast({ title:'操作失败，请稍后重试', icon:'none' }); } } }
 async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) return; let list = ['线下支付'];
     // #ifdef MP-WEIXIN
     list = ['微信支付','线下支付'];
@@ -400,7 +406,7 @@ async function choosePayInDetail(){ try{ const o:any = order.value; if(!o) retur
             const fs = String(o.fulfillmentStatus||'').toUpperCase();
             if (fs !== 'DONE') { uni.showToast({ title:'服务尚未完成，完成后请支付', icon:'none' }); return; }
         }
-        try{ const http = createHttp(); const params:any = await http(`/orders/${o.id}/pay/wechat-jsapi`, { method:'POST' }); await new Promise<void>((resolve,reject)=>{ (uni as any).requestPayment({ timeStamp: params.timeStamp, nonceStr: params.nonceStr, package: params.package, signType: params.signType || 'RSA', paySign: params.paySign, success:()=>resolve(), fail:(e:any)=>reject(e) }); }); uni.showToast({ title:'支付成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'支付未完成', icon:'none' }); }
+        try{ const params:any = await (orderControllerWechatJsapi(Number(o.id||0)) as any); await new Promise<void>((resolve,reject)=>{ (uni as any).requestPayment({ timeStamp: params.timeStamp, nonceStr: params.nonceStr, package: params.package, signType: params.signType || 'RSA', paySign: params.paySign, success:()=>resolve(), fail:(e:any)=>reject(e) }); }); uni.showToast({ title:'支付成功', icon:'success' }); await reloadDetail(); }catch{ uni.showToast({ title:'支付未完成', icon:'none' }); }
     } else { uni.showToast({ title:'请到店线下支付', icon:'none' }); }
     // #endif
     // #ifndef MP-WEIXIN
@@ -419,7 +425,7 @@ function goReviewInDetail(){
     }catch{}
 }
 
-async function reloadDetail(){ try{ const o:any = order.value; if(!o) return; const http = createHttp(); const data:any = await http(`/orders/${o.id}`, { method:'GET' }); order.value = data || null; try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; } }catch{} }
+async function reloadDetail(){ try{ const o:any = order.value; if(!o) return; const data:any = await (orderControllerGet(Number(o.id||0)) as any); order.value = data || null; try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; } }catch{} }
 const refundedAmountYuan = computed(()=>{
 	try{ const list = (order.value as any)?.refundRecords || []; const sum = list.filter((r:any)=>r?.status==='SUCCESS').reduce((s:number,r:any)=> s + Number(r.amount||0), 0); return sum; }catch{return 0}
 });
@@ -553,10 +559,9 @@ onLoad(async (query:any)=>{
 		const id = query?.id ? Number(query.id) : NaN;
 		const fromCreated = String(query?.src||'') === 'created';
 		if (!no && !id) { uni.showToast({ title:'参数错误', icon:'none' }); return; }
-		const http = createHttp();
 		const data = no
-			? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
-			: await http<Order>(`/orders/${id}`, { method:'GET' });
+			? await (orderControllerGetByNo(encodeURIComponent(no)) as any)
+			: await (orderControllerGet(Number(id)) as any);
 		order.value = data || null;
 		startCountdown();
 		// 若来自下单页，则调整返回行为：返回到订单列表
@@ -602,10 +607,9 @@ onShow(async ()=>{
 		const idStr = isNaN(idNum) ? '' : String(idNum);
 		const key = `no=${no}&id=${idStr}`;
 		// 无条件轻量刷新一次（返回时也同步状态）
-		const http = createHttp();
 		const data = no
-			? await http<Order>(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
-			: await http<Order>(`/orders/${idNum}`, { method:'GET' });
+			? await (orderControllerGetByNo(encodeURIComponent(no)) as any)
+			: await (orderControllerGet(Number(idNum)) as any);
 		order.value = data || null;
 		startCountdown();
 		// 初始化地址显示
@@ -633,7 +637,7 @@ onShow(async ()=>{
 					const o:any = order.value; if (!o) return;
 					if (o.payStatus !== 'UNPAID') { clearInterval(visibleRefreshTimer as any); visibleRefreshTimer=null; return; }
 					if (Date.now() - visibleRefreshStartAtMs > 120000) { clearInterval(visibleRefreshTimer as any); visibleRefreshTimer=null; return; }
-					const latest:any = await createHttp()(`/orders/${o.id}`, { method:'GET' });
+					const latest:any = await (orderControllerGet(Number(o.id||0)) as any);
 					const changed = !latest || latest.payStatus !== o.payStatus || latest.fulfillmentStatus !== (o as any).fulfillmentStatus || String(latest.updatedAt||'') !== String((o as any).updatedAt||'');
 					if (changed) { order.value = latest || null; }
 				}catch{}
@@ -649,7 +653,7 @@ onShow(async ()=>{
 					const ed = ref?.extraData || {};
 					const status = String(ed?.status||'');
 					if (status === 'success'){
-						const o:any = order.value; if(o){ const http = createHttp(); await http(`/orders/${o.id}/receive`, { method:'POST' }); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail(); }
+							const o:any = order.value; if(o){ await orderControllerReceive(Number(o.id||0)); uni.showToast({ title:'收货成功', icon:'success' }); await reloadDetail(); }
 					} else {
 						uni.showToast({ title:'未完成确认收货', icon:'none' });
 					}
@@ -666,8 +670,7 @@ async function loadTrace(){
 		traceList.value = []; mainTraceStatusDesc.value = '';
 		const o:any = order.value;
 		if (!o?.shipExpressTrackingNo) return;
-		const http = createHttp();
-		const res:any = await http('/orders/_logistics/query', { method:'GET', query: { com: o?.shipExpressCompanyCode || undefined, no: o?.shipExpressTrackingNo } });
+		const res:any = await (orderControllerQuery({ com: o?.shipExpressCompanyCode || undefined, no: o?.shipExpressTrackingNo } as any) as any);
 		const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
 		const getTime = (it:any)=> it?.datetime || it?.time || '';
 		const getRemark = (it:any)=> it?.remark || it?.context || '';
@@ -701,10 +704,9 @@ async function handleHashChange(){
 		if (!no && !idNum) return;
 		const key = `no=${no}&id=${isNaN(idNum)?'':String(idNum)}`;
 		if (key === lastKey.value) return;
-		const http = createHttp();
 		const data:any = no
-			? await http(`/orders/by-no/${encodeURIComponent(no)}`, { method:'GET' })
-			: await http(`/orders/${idNum}`, { method:'GET' });
+			? await (orderControllerGetByNo(encodeURIComponent(no)) as any)
+			: await (orderControllerGet(Number(idNum)) as any);
 		order.value = data || null;
 		try{ timelineList.value = Array.isArray((data as any)?.timelines) ? (data as any).timelines : []; }catch{ timelineList.value = []; }
 		showAllTimeline.value = false;

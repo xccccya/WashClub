@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { GroupCardService } from './card.service.js';
+import { GroupCardAddDto, GroupCardConsumeDto, GroupCardCreateDto } from './group.dto.js';
 
 @ApiTags('GroupCard')
 @Controller('group/:id/cards')
@@ -19,14 +20,14 @@ export class GroupCardController {
   @Post('')
   @RequirePerm('group-cards' as any)
   @ApiOperation({ summary: '新购集团洗车卡（直接入账次数）' })
-  create(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string | null; totalTimes: number; remainingTimes?: number | null; expiryAt?: string | null; cardNo?: string | null }) {
+  create(@Param('id', ParseIntPipe) id: number, @Body() body: GroupCardCreateDto) {
     return this.service.create(id, { ...body, totalTimes: Number(body?.totalTimes || 0), remainingTimes: (body?.remainingTimes ?? null) as any });
   }
 
   @Post(':cardId/add')
   @RequirePerm('group-cards' as any)
   @ApiOperation({ summary: '集团洗车卡加次（后台）' })
-  add(@Param('id', ParseIntPipe) id: number, @Param('cardId', ParseIntPipe) cardId: number, @Body() body: { count: number; remark?: string | null }) {
+  add(@Param('id', ParseIntPipe) id: number, @Param('cardId', ParseIntPipe) cardId: number, @Body() body: GroupCardAddDto) {
     return this.service.addTimes(cardId, Number(body?.count || 0), { remark: body?.remark ?? null });
   }
 
@@ -36,7 +37,7 @@ export class GroupCardController {
   consume(
     @Param('id', ParseIntPipe) id: number,
     @Param('cardId', ParseIntPipe) cardId: number,
-    @Body() body: { times: number; reason?: 'SERVICE_DEDUCT'|'REFUND_DEDUCT'|'BACKEND_DEDUCT'; vehicleId?: number | null; memberId?: number | null; remark?: string | null; serviceOrderId?: number | null; refundRecordId?: number | null; purchaseOrderId?: number | null }
+    @Body() body: GroupCardConsumeDto
   ) {
     return this.service.consume(cardId, Number(body?.times || 0), { reason: (body?.reason || 'SERVICE_DEDUCT') as any, vehicleId: body?.vehicleId ?? null, memberId: body?.memberId ?? null, remark: body?.remark ?? null, serviceOrderId: body?.serviceOrderId ?? null, refundRecordId: body?.refundRecordId ?? null, purchaseOrderId: body?.purchaseOrderId ?? null });
   }

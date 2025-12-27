@@ -30,23 +30,23 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import WashCard from '../../components/WashCard.vue';
+import { washCardControllerMyList, washCardControllerMySetDefault } from '@wash/api-client';
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 const loggedIn = ref(false);
 const cards = ref<any[]>([]);
 
-function formatDate(v?: string | null){ if (!v) return ''; try { const d = new Date(v as any); if (isNaN(d.getTime())) return ''; const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; } catch { return ''; } }
 function gotoLogin(){ uni.navigateTo({ url: '/pages/login/index' }); }
 function onTapCard(c: any){ if (!c?.id) return; uni.navigateTo({ url: `/pages/washcard/detail?id=${c.id}` }); }
 function gotoPurchase(){ try { uni.navigateTo({ url: '/pages/washcard/purchase' }); } catch {} }
 
 async function refreshList(){
 	try {
-		const http = createHttp();
-		cards.value = await http<any[]>('/wash-card/me/list', { method: 'GET' });
+		const res = (await washCardControllerMyList({} as any)) as any;
+		cards.value = (Array.isArray(res) ? res : []) as any[];
 	} catch { cards.value = []; }
 }
 
@@ -54,8 +54,7 @@ async function setDefault(c: any){
 	if (!c?.id) return;
 	try {
 		if (c._shared) { uni.showToast({ title: '共享卡不能设为默认', icon: 'none' }); return; }
-		const http = createHttp();
-		await http(`/wash-card/me/${c.id}/set-default`, { method: 'POST' });
+		await washCardControllerMySetDefault(String(c.id), {} as any);
 		uni.showToast({ title: '已设为默认', icon: 'success' });
 		await refreshList();
 	} catch (e) {

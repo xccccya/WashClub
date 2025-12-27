@@ -4,18 +4,33 @@ import { VehicleService } from './vehicle.service.js';
 import { UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { JwtService } from '@nestjs/jwt';
+import {
+    VehicleAdminListQueryDto,
+    VehicleCreateForMemberByPhoneDto,
+    VehicleCreateForMemberDto,
+    VehicleGuestCreateDto,
+    VehicleMyCreateDto,
+    VehicleSearchQueryDto,
+    VehicleUpdateDto,
+} from './vehicle.dto.js';
 
 @ApiTags('vehicle')
 @Controller('vehicle')
 export class VehicleController {
-    constructor(private service: VehicleService) {}
+    constructor(private service: VehicleService, private jwt: JwtService) {}
 
     // 管理端列表
     @Get('list')
     @ApiOperation({ summary: '车辆列表（管理员，分页/关键词）' })
-    adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('scope') scope?: 'member'|'all', @Query('guest') guest?: string) {
+    adminList(@Query() q: VehicleAdminListQueryDto) {
+        const page = q?.page;
+        const pageSize = q?.pageSize;
+        const keyword = q?.keyword;
+        const scope = q?.scope;
+        const guest = q?.guest;
         // 兼容旧参数：guest=1 时仅返回游客车辆；优先级高于 scope
-        if (String(guest||'') === '1') {
+        if (Number(guest || 0) === 1) {
             return this.service.adminList(Number(page || 1), Number(pageSize || 20), keyword, 'all').then((res: any)=>{
                 try { res.items = (res.items||[]).filter((it:any)=> !it?.memberId); } catch {}
                 return res;
@@ -36,19 +51,7 @@ export class VehicleController {
     @ApiOperation({ summary: '为会员新增车辆（管理员）' })
     createForMember(
         @Param('memberId') memberId: string,
-        @Body()
-        body: {
-            plateNumber: string;
-            vin?: string | null;
-            brand?: string | null;
-            series?: string | null;
-            brandId?: number | null;
-            seriesId?: number | null;
-            typeMain: string;
-            typeSub?: string | null;
-            color?: string | null;
-            isDefault?: boolean;
-        },
+        @Body() body: VehicleCreateForMemberDto,
     ) {
         if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
         if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
@@ -59,18 +62,7 @@ export class VehicleController {
     @Post('member/by-phone')
     @ApiOperation({ summary: '按手机号为会员新增车辆（管理员）' })
     createForMemberByPhone(
-        @Body()
-        body: {
-            phone: string;
-            plateNumber: string;
-            vin?: string | null;
-            brand?: string | null;
-            series?: string | null;
-            typeMain: string;
-            typeSub?: string | null;
-            color?: string | null;
-            isDefault?: boolean;
-        },
+        @Body() body: VehicleCreateForMemberByPhoneDto,
     ) {
         const phone = String((body as any)?.phone || '').trim();
         if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('会员手机号格式不正确');
@@ -84,19 +76,7 @@ export class VehicleController {
     @ApiOperation({ summary: '修改车辆信息' })
     updateVehicle(
         @Param('id') id: string,
-        @Body()
-        body: Partial<{
-            plateNumber: string;
-            vin?: string | null;
-            brand?: string | null;
-            series?: string | null;
-            brandId?: number | null;
-            seriesId?: number | null;
-            typeMain?: string;
-            typeSub?: string | null;
-            color?: string | null;
-            isDefault?: boolean;
-        }>,
+        @Body() body: VehicleUpdateDto,
     ) {
         return this.service.updateVehicle(Number(id), body);
     }
@@ -118,14 +98,14 @@ export class VehicleController {
     // 模糊搜索车牌（管理端/队列用）
     @Get('search')
     @ApiOperation({ summary: '模糊搜索车牌（管理端/队列）' })
-    search(@Query('q') q?: string, @Query('limit') limit?: string) {
-        return this.service.searchByPlateLike(String(q || ''), Number(limit || 15));
+    search(@Query() q: VehicleSearchQueryDto) {
+        return this.service.searchByPlateLike(String(q?.q || ''), Number(q?.limit || 15));
     }
 
     // 创建游客车辆
     @Post('guest/create')
     @ApiOperation({ summary: '创建游客车辆' })
-    createGuest(@Body() body: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null }) {
+    createGuest(@Body() body: VehicleGuestCreateDto) {
         if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
         return this.service.createGuestVehicle(body);
     }
@@ -147,10 +127,10 @@ export class VehicleController {
         @Body() body: { toMemberId?: number | null; toGroupId?: number | null; remark?: string | null; confirm?: boolean },
         @Headers('authorization') authHeader?: string,
     ){
-        if (!body?.confirm) throw new (require('@nestjs/common').BadRequestException)('请勾选二次确认');
+        if (!body?.confirm) throw new BadRequestException('请勾选二次确认');
         const token = (authHeader||'').replace(/^Bearer\s+/i,'');
         let operatorUserId: number | null = null;
-        try{ const jwt = require('@nestjs/jwt'); const srv = new (jwt.JwtService)({ secret: process.env.JWT_SECRET || 'dev_secret' }); const dec:any = srv.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
+        try{ const dec:any = this.jwt.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
         return (this.service as any).adminRebindVehicle(Number(id), { toMemberId: Number((body as any)?.toMemberId||0) || null, toGroupId: Number((body as any)?.toGroupId||0) || null, remark: (body as any)?.remark || null, operatorUserId });
     }
 
@@ -170,8 +150,7 @@ export class VehicleController {
     async myCreate(
         @Headers() headers: Record<string, string>,
         @Query('token') tokenParam: string | undefined,
-        @Body()
-        body: { plateNumber: string; typeMain: string; typeSub?: string | null; vin?: string | null; brand?: string | null; series?: string | null; color?: string | null; isDefault?: boolean },
+        @Body() body: VehicleMyCreateDto,
     ) {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
         const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';

@@ -226,13 +226,19 @@
 function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='PAID') return '已支付'; if(v==='FULFILLED') return '已履约'; if(v==='CLOSED') return '已完成'; if(v==='CANCELLED') return '已取消'; return v || '-'; }
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { createHttpClient } from '@wash/shared-utils';
 import { absUrl } from '../utils/http';
-import { API_BASE } from '../config';
+import {
+	orderControllerGet,
+	orderControllerGetByNo,
+	orderControllerQuery,
+	orderControllerQueryRefundV2,
+	orderControllerRetryRefund,
+	orderControllerWechatRefund,
+	orderControllerWriteoff,
+} from '@wash/api-client';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const route = useRoute();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 const data = ref<any>(null);
 const canShowRetryRefund = ref(false);
 const canShowPartialRefund = ref(false);
@@ -244,10 +250,10 @@ async function fetchDetail(){
     const idParam = route.params.id as string | undefined;
     const noParam = route.params.no as string | undefined;
     if (noParam) {
-        data.value = await http(`/orders/by-no/${encodeURIComponent(String(noParam))}`);
+        data.value = await (orderControllerGetByNo(encodeURIComponent(String(noParam))) as any);
     } else if (idParam) {
         const id = Number(idParam);
-        data.value = await http(`/orders/${id}`);
+        data.value = await (orderControllerGet(id) as any);
     }
     // 计算按钮显隐
     try{
@@ -269,12 +275,12 @@ async function openRetryRefund(){
     const rec = (data.value?.refundRecords||[]).find((r:any)=> r.status==='FAILED' || r.status==='PENDING');
     if (!rec) return;
     try{
-        await http(`/orders/_refunds/${rec.id}/retry`, { method:'POST' });
+        await orderControllerRetryRefund(Number(rec?.id||0));
     }catch{}
 }
 
 function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
-async function writeoffThis(){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; const id = Number((data.value?.id)||0); if(!id) return; await http(`/orders/${id}/void`, { method:'POST', body: { reason: '后台作废/红冲' } }); ElMessage.success('操作成功'); await fetchDetail(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+async function writeoffThis(){ try{ const ok = await new Promise<boolean>(r=>{ ElMessageBox.confirm('确认对该订单执行作废/红冲操作？', '操作确认', { type:'warning' }).then(()=>r(true)).catch(()=>r(false)); }); if(!ok) return; const id = Number((data.value?.id)||0); if(!id) return; await orderControllerWriteoff(id, { body: { reason: '后台作废/红冲' } } as any); ElMessage.success('操作成功'); await fetchDetail(); }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
 
 function canQueryRefund(row:any){
     try{
@@ -289,7 +295,7 @@ function canQueryRefund(row:any){
 async function queryRefund(row:any){
     try{
         if (!row?.outRefundNo){ ElMessage.error('缺少退款单号'); return; }
-        const res:any = await http(`/orders/_refunds/${encodeURIComponent(row.outRefundNo)}/query-v2`, { method:'POST' });
+        const res:any = await (orderControllerQueryRefundV2(encodeURIComponent(String(row.outRefundNo||''))) as any);
         if (res?.ok){ ElMessage.success(`状态：${res.status}`); await fetchDetail(); }
         else { ElMessage.error('查询失败'); }
     }catch(e:any){ ElMessage.error(String(e?.message||e||'查询失败')); }
@@ -314,7 +320,7 @@ async function submitPartialRefund(){
     if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
     if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
     try{
-        await http(`/orders/${data.value?.id}/refund`, { method:'POST', body: { reason: partialReason.value || '部分退款', amount: v } });
+        await orderControllerWechatRefund(Number(data.value?.id||0), { body: { reason: partialReason.value || '部分退款', amount: v } } as any);
         dialogPartial.value = false; fetchDetail();
     }catch{}
 }
@@ -323,7 +329,7 @@ async function openTrace(){
     if (!data.value?.shipExpressTrackingNo) return;
     showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = '';
     try{
-        const res:any = await http('/orders/_logistics/query', { query: { com: data.value?.shipExpressCompanyCode || undefined, no: data.value?.shipExpressTrackingNo } });
+        const res:any = await (orderControllerQuery({ com: data.value?.shipExpressCompanyCode || undefined, no: data.value?.shipExpressTrackingNo } as any) as any);
         traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
         const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
         const getTime = (it:any)=> it?.datetime || it?.time || '';
@@ -343,7 +349,7 @@ async function openExchangeTrace(ex: any){
     if (!ex?.trackingNo) return;
     showTrace.value = true; loadingTrace.value = true; traceList.value = []; traceStatusDesc.value = '';
     try{
-        const res:any = await http('/orders/_logistics/query', { query: { com: ex?.companyCode || undefined, no: ex?.trackingNo } });
+        const res:any = await (orderControllerQuery({ com: ex?.companyCode || undefined, no: ex?.trackingNo } as any) as any);
         traceStatusDesc.value = String(res?.data?.status_desc || res?.data?.statusDesc || res?.data?.status || res?.msg || '');
         const rawList:any[] = Array.isArray(res?.data?.list) ? res.data.list : [];
         const getTime = (it:any)=> it?.datetime || it?.time || '';

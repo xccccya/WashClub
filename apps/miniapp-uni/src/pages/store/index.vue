@@ -83,12 +83,21 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { createHttp, getToken, checkAuthAndRefresh } from '../../utils/auth';
+import { getToken, checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { AMAP_API_BASE } from '../../utils/thirdparty';
 import { readAmapKey, readStoreLocation } from '../../utils/env';
 import { useSafeArea } from '../../utils/safe-area';
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
+import {
+	cartControllerMyAdd,
+	cartControllerMyList,
+	scrollNoticeControllerActive,
+	storeCategoryControllerList,
+	storeProductControllerGet,
+	storeProductControllerList,
+	systemSettingControllerGetPublicBusinessStatus,
+} from '@wash/api-client';
 declare const wx: any;
 
 const { topSpacerHeight } = useSafeArea();
@@ -103,8 +112,7 @@ const bizHoursStart = ref<string>('09:00');
 const bizHoursEnd = ref<string>('18:00');
 async function loadBizHours(){
   try{
-    const http = createHttp();
-    const j:any = await http('/system/public/business-status', { method:'GET' });
+    const j:any = await systemSettingControllerGetPublicBusinessStatus() as any;
     bizHoursStart.value = String(j?.hours?.start||'09:00');
     bizHoursEnd.value = String(j?.hours?.end||'18:00');
   }catch{}
@@ -315,14 +323,13 @@ function thumbOf(p:any){
 
 async function fetchCategories(){
 	try {
-		const http = createHttp();
 		// 秒杀页：隐藏并清空分类
 		if (activeTab.value === 'flash') { categories.value = []; activeCategory.value = null; return; }
 		// 按 Tab 类型筛选分类
 		let typeParam: string | undefined = undefined;
 		if (activeTab.value === 'service') typeParam = 'SERVICE';
 		else if (activeTab.value === 'goods') typeParam = 'PHYSICAL';
-		const list = await http<any[]>('/store/categories', { method:'GET', query: { type: typeParam } });
+		const list = await storeCategoryControllerList({ type: typeParam } as any) as any;
 		categories.value = Array.isArray(list) ? list : [];
 		activeCategory.value = categories.value[0]?.id || null;
 	} catch { categories.value = []; activeCategory.value = null; }
@@ -331,8 +338,7 @@ async function fetchProducts(){
 	try {
 		// 秒杀页：占位，清空商品
 		if (activeTab.value === 'flash') { products.value = []; return; }
-		const http = createHttp();
-		const list = await http<any[]>('/store/products', { method:'GET', query: { categoryId: activeCategory.value || undefined } });
+		const list = await storeProductControllerList({ categoryId: activeCategory.value || undefined } as any) as any;
 		// 根据 Tab 过滤：服务 或 实物（仅 PHYSICAL）
 		products.value = (Array.isArray(list) ? list : [])
 		  .filter((p:any) => activeTab.value==='service' ? p.type==='SERVICE' : p.type==='PHYSICAL')
@@ -346,8 +352,7 @@ watch(activeTab, async () => { await fetchCategories(); await fetchProducts(); }
 const noticeStore = ref('');
 onShow(async () => {
 	try {
-		const http = createHttp();
-		const active = await http<any>('/content/notices/active', { method: 'GET', query: { type: 'store' } });
+		const active = await scrollNoticeControllerActive({ type: 'store' } as any) as any;
 		noticeStore.value = active?.content || '';
 	} catch {}
 	await loadBizHours();
@@ -394,21 +399,20 @@ async function addToCartFromList(p:any){
 	try{
 		if (!p || p.type !== 'PHYSICAL') return;
 		if (!(await requireLogin())) return;
-		const http = createHttp();
 		if (p.specType === 'MULTI') { goDetail(p); return; }
 		// 单规格：加入前做库存校验（商品库存 - 购物车已加数量）
-		const detail:any = await http(`/store/products/${p.id}`, { method:'GET' });
+		const detail:any = await storeProductControllerGet(Number(p.id)) as any;
 		const stock = Math.max(0, Number(detail?.stockQuantity ?? p?.stockQuantity ?? 0));
 		if (stock <= 0) { uni.showToast({ title:'已售罄', icon:'none' }); return; }
 		let inCart = 0;
 		try{
-			const list:any[] = await http('/cart/me/list', { method:'GET' });
+			const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
 			inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(p.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 		}catch{}
 		if (inCart >= stock) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
 		const canAdd = Math.min(1, Math.max(0, stock - inCart));
 		if (canAdd <= 0) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }
-		await http('/cart/me/add', { method:'POST', body: { productId: p.id, skuId: null, quantity: canAdd } });
+		await cartControllerMyAdd({ productId: p.id, skuId: null, quantity: canAdd } as any);
 		uni.showToast({ title: canAdd===1 ? '已加入购物车' : `库存不足，已加入${canAdd}件`, icon:'none' });
 	}catch{
 		uni.showToast({ title:'加入失败', icon:'none' });

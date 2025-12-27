@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 @Injectable()
 export class AddressService {
@@ -109,7 +110,7 @@ export class AddressService {
 
     // ================= 管理端接口（POS 代客） =================
     private async getGuestMemberId(): Promise<number> {
-        const gid = Number(process.env.GUEST_MEMBER_ID || (process as any)?.env?.GUESS_MEMBER_ID || 0);
+        const gid = resolveGuestMemberIdEnv();
         if (!Number.isFinite(gid) || gid <= 0) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID');
         const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
         if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员');

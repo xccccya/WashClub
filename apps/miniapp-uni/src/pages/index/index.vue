@@ -124,9 +124,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, createHttp, getToken, API_BASE } from '../../utils/auth';
+import { checkAuthAndRefresh, getToken, API_BASE } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import WashCard from '../../components/WashCard.vue';
+import { adBannerControllerActive, queueControllerEtaSummary, queueControllerSummary, scrollNoticeControllerActive, systemSettingControllerGetPublicBusinessStatus, vehicleControllerMyVehicles, washCardControllerMyList, weatherControllerGetWeather } from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
 
@@ -164,8 +165,7 @@ const businessType = ref<BizStatus>('REST');
 const businessLabel = ref<string>('休息中');
 async function loadBusiness(){
   try{
-    const http = createHttp();
-    const j:any = await http('/system/public/business-status', { method:'GET' });
+    const j:any = await systemSettingControllerGetPublicBusinessStatus();
     businessType.value = (j?.status||'REST') as BizStatus;
     businessLabel.value = String(j?.label||'休息中');
   }catch{}
@@ -209,15 +209,27 @@ function navigateToPath(path: string){
 
 async function loadDefaultPlate(){
 	try {
-		const http = createHttp();
-		const vehicles = await http<any[]>('/vehicle/me/list', { method: 'GET' });
+		const vehicles = (await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as unknown as any[]);
 		const def = Array.isArray(vehicles) ? vehicles.find(v=>v.isDefault) || vehicles[0] : null;
 		plateNo.value = def?.plateNumber || '-';
 		brand.value = def?.brand || '';
 		series.value = def?.series || '';
 		brandImage.value = def?.brandImage || '';
 		hasCar.value = !!def;
-	} catch { plateNo.value = '-'; }
+	} catch (e:any) {
+		plateNo.value = '-';
+		hasCar.value = false;
+		// 仅在已登录时提示一次，避免首页频繁打扰
+		try {
+			const authed = !!getToken();
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const g: any = globalThis as any;
+			if (authed && !g.__VEHICLE_LOAD_TOASTED__) {
+				g.__VEHICLE_LOAD_TOASTED__ = true;
+				uni.showToast({ title: String(e?.message || '车辆加载失败').slice(0, 30), icon: 'none' });
+			}
+		} catch {}
+	}
 }
 
 // #ifdef MP-WEIXIN || H5
@@ -225,8 +237,7 @@ async function loadDefaultPlate(){
 onShow(async ()=>{ loggedIn.value = !!getToken(); const ok = await checkAuthAndRefresh({ redirectIfExpired: false }); if (ok) loggedIn.value = true; });
 onShow(async ()=>{
 	try {
-		const http = createHttp();
-		const active = await http<any>('/content/notices/active', { method: 'GET', query: { type: 'home' } });
+		const active = await scrollNoticeControllerActive({ type: 'home' } as any) as any;
 		noticeHome.value = active?.content || '';
 	} catch {}
 });
@@ -240,8 +251,7 @@ onShow(async ()=>{
 
 onShow(async ()=>{
 	try {
-		const http = createHttp();
-		const list = await http<any[]>('/content/banners/active', { method: 'GET' });
+		const list = await adBannerControllerActive() as any;
 		banners.value = Array.isArray(list) ? list : [];
 	} catch { banners.value = []; }
 });
@@ -343,8 +353,7 @@ function buildWashAdvice(live: any, forecast: any){
 
 async function loadWeather(){
     try {
-        const http = createHttp();
-        const data = await http<any>('/content/weather', { method: 'GET', query: { city: '511024' } });
+        const data = await weatherControllerGetWeather({ city: '511024' } as any) as any;
         liveWeather.value = data?.live || null;
         forecastWeather.value = data?.forecast || null;
         washAdvice.value = buildWashAdvice(liveWeather.value, forecastWeather.value);
@@ -359,8 +368,7 @@ async function loadWeather(){
 async function loadWashCardSummary(){
 	try {
 		if (!getToken()) { washCard.value = null; return; }
-		const http = createHttp();
-		const cards = await http<any[]>('/wash-card/me/list', { method: 'GET' });
+		const cards = await washCardControllerMyList({} as any) as any;
 		const def = Array.isArray(cards) ? cards.find(c=>c.isDefault) || cards[0] : null;
 		washCard.value = def || null;
 	} catch { washCard.value = null; }
@@ -393,13 +401,12 @@ function computeEtaForNewCar(items: any[]): number {
 
 async function loadQueueSummary(){
     try {
-        const http = createHttp();
         // 统计数量
-        const summary = await http<any>('/queue/summary', { method: 'GET' });
+        const summary = await queueControllerSummary() as any;
         servingCars.value = Number(summary?.servingCars || 0);
         waitingCars.value = Number(summary?.waitingCars || 0);
         // 新 ETA 口径（按类型汇总、按资源组计算），首页取“最短预计等待”
-        const etaList = await http<any[]>('/queue/eta-summary', { method: 'GET' });
+        const etaList = await queueControllerEtaSummary() as any;
         const arr = Array.isArray(etaList) ? etaList : [];
         const candidates = arr.filter((t:any)=> t && t.etaConfigured === true && t.excludedFromEta !== true);
         if (!candidates.length) {

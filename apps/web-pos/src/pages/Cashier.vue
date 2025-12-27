@@ -208,8 +208,30 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { httpWrap as http } from '../utils/http';
 import { resolveGuestMemberId } from '../config';
+import {
+	addressControllerAdminCreate,
+	addressControllerAdminDelete,
+	addressControllerAdminUpdate,
+	addressControllerListByMember,
+	couponControllerGet,
+	groupControllerGet,
+	memberControllerGet,
+	memberControllerList,
+	memberCouponAdminControllerList,
+	orderControllerCreateFk,
+	orderControllerCreate,
+	orderControllerMarkPaid,
+	orderControllerWechatMicropay,
+	orderControllerPayByWashCard,
+	storeCategoryControllerList,
+	storeProductControllerList,
+	vehicleControllerAdminList,
+	systemSettingControllerGetPublicSetting,
+	vehicleControllerCreateGuest,
+	vehicleControllerListByMember,
+	vehicleControllerSearch,
+} from '@wash/api-client';
 import ProductBrowser from '../components/cashier/ProductBrowser.vue';
 import SummaryCard from '../components/cashier/SummaryCard.vue';
 import CartList from '../components/cashier/CartList.vue';
@@ -219,6 +241,47 @@ import HangDrawer from '../components/cashier/HangDrawer.vue';
 import AddressManager from '../components/cashier/AddressManager.vue';
 import TypeMainDialog from '../components/cashier/TypeMainDialog.vue';
 import SettleDialog from '../components/cashier/SettleDialog.vue';
+
+async function withPosAuthGuard<T>(fn: () => Promise<T>): Promise<T> {
+	// 对齐 ../utils/http.ts 的 httpWrap 行为：token 过期预判 + 401 兜底跳转
+	try{
+		const raw = localStorage.getItem('token') || '';
+		const payload = JSON.parse(atob((raw.split('.')[1]||'').replace(/-/g,'+').replace(/_/g,'/'))||'{}');
+		const exp = Number(payload?.exp || 0);
+		if (exp && Date.now()/1000 > exp - 10) {
+			localStorage.removeItem('token');
+			localStorage.removeItem('user');
+			if (typeof window !== 'undefined') {
+				try {
+					if (!(window as any).__HAS_SHOWN_401__) {
+						(window as any).__HAS_SHOWN_401__ = true;
+						ElMessage.error('登录已过期，请重新登录');
+					}
+				} catch {}
+				window.location.href = '/pos/login';
+			}
+			throw new Error('登录已过期');
+		}
+	}catch{}
+	try{
+		return await fn();
+	}catch(e:any){
+		const msg = String(e?.message||'');
+		if (/^HTTP\s*401/.test(msg) || /unauthorized/i.test(msg)){
+			try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch {}
+			if (typeof window !== 'undefined') {
+				try {
+					if (!(window as any).__HAS_SHOWN_401__) {
+						(window as any).__HAS_SHOWN_401__ = true;
+						ElMessage.error('登录已过期，请重新登录');
+					}
+				} catch {}
+				window.location.href = '/pos/login';
+			}
+		}
+		throw e;
+	}
+}
 
 // 扫码枪输入缓冲（避免影响输入框）
 const scanBuf = reactive({ s: '', t: 0 });
@@ -240,8 +303,7 @@ function onGlobalKeydown(ev: KeyboardEvent){
 async function handleScanCode(code: string){
 	if (orderKind.value !== 'SP'){ ElMessage.warning('扫码仅用于商品/卡券订单'); return; }
 	try{
-		const en = 'true';
-		const build = (t: string) => { const u = new URL('/store/products', location.origin); u.searchParams.set('type', t); u.searchParams.set('enabled', en); u.searchParams.set('keyword', code); return http<any[]>(u.pathname + '?' + u.searchParams.toString(), { method:'GET' }); };
+		const build = (t: string) => storeProductControllerList({ type: t, enabled: true, keyword: code } as any) as any;
 		const [pa, pb] = await Promise.allSettled([build('PHYSICAL'), build('VIRTUAL_CARD')]);
 		const arrA = pa.status==='fulfilled' ? (pa.value||[]) : []; const arrB = pb.status==='fulfilled' ? (pb.value||[]) : [];
 		const list = [...arrA, ...arrB];
@@ -292,10 +354,12 @@ function displayPrice(p: any): string { if (p.specType === 'MULTI') return p.pri
 async function loadCategories(){
 	try{
 		if (orderKind.value==='SERVICE'){
-			categoriesService.value = await http<any[]>('/store/categories?type=SERVICE', { method: 'GET' }).catch(()=>[]);
+			categoriesService.value = (await storeCategoryControllerList({ type: 'SERVICE' } as any) as any) || [];
 		}else{
-			const a = await http<any[]>('/store/categories?type=PHYSICAL', { method: 'GET' }).catch(()=>[]);
-			const b = await http<any[]>('/store/categories?type=VIRTUAL_CARD', { method: 'GET' }).catch(()=>[]);
+			const [a, b] = await Promise.all([
+				(storeCategoryControllerList({ type: 'PHYSICAL' } as any) as any).catch(()=>[]),
+				(storeCategoryControllerList({ type: 'VIRTUAL_CARD' } as any) as any).catch(()=>[]),
+			]);
 			const map = new Map<number, any>();
 			[...(a||[]), ...(b||[])].forEach((c:any)=>{ if (!map.has(c.id)) map.set(c.id, c); });
 			categoriesGoods.value = Array.from(map.values());
@@ -306,13 +370,23 @@ async function loadCategories(){
 async function loadProducts(){
 	productsLoading.value = true;
 	try{
-		const cat = activeCategoryId.value; const kw = keyword.value.trim(); const en = showOnlyEnabled.value ? 'true' : undefined;
+		const cat = activeCategoryId.value;
+		const kw = keyword.value.trim();
+		const enabled = showOnlyEnabled.value ? true : undefined;
 		if (orderKind.value==='SERVICE'){
-			const url = new URL('/store/products', location.origin);
-			url.searchParams.set('type','SERVICE'); if (cat!=null) url.searchParams.set('categoryId', String(cat)); if (kw) url.searchParams.set('keyword', kw); if (en) url.searchParams.set('enabled', en);
-			products.value = await http<any[]>(url.pathname + '?' + url.searchParams.toString(), { method: 'GET' });
+			products.value = await storeProductControllerList({
+				type: 'SERVICE',
+				categoryId: cat ?? undefined,
+				keyword: kw || undefined,
+				enabled,
+			} as any) as any;
 		}else{
-			const build = (t: string) => { const u = new URL('/store/products', location.origin); u.searchParams.set('type', t); if (cat!=null) u.searchParams.set('categoryId', String(cat)); if (kw) u.searchParams.set('keyword', kw); if (en) u.searchParams.set('enabled', en); return http<any[]>(u.pathname + '?' + u.searchParams.toString(), { method: 'GET' }); };
+			const build = (t: string) => storeProductControllerList({
+				type: t,
+				categoryId: cat ?? undefined,
+				keyword: kw || undefined,
+				enabled,
+			} as any) as any;
 			const [pa, pb] = await Promise.allSettled([build('PHYSICAL'), build('VIRTUAL_CARD')]);
 			const arrA = pa.status==='fulfilled' ? (pa.value||[]) : []; const arrB = pb.status==='fulfilled' ? (pb.value||[]) : [];
 			products.value = [...arrA, ...arrB];
@@ -379,7 +453,14 @@ function onEnableMemberDiscountChange(v:any){ try{ enableMemberDiscount.value = 
 // ============ 会员/车辆/队列 ============
 const memberKeyword = ref('');
 const selectedMember = ref<any|null>(null);
-async function queryMembers(q: string, cb: (list:any[])=>void){ try{ const kw = String(q||'').trim(); if (!kw) { cb([]); return; } const url = new URL('/member/list', location.origin); url.searchParams.set('page','1'); url.searchParams.set('pageSize','20'); url.searchParams.set('keyword', kw); const res:any = await http(url.pathname + '?' + url.searchParams.toString(), { method: 'GET' }); cb((res?.items)||[]); }catch{ cb([]); } }
+async function queryMembers(q: string, cb: (list:any[])=>void){
+	try{
+		const kw = String(q||'').trim();
+		if (!kw) { cb([]); return; }
+		const res:any = await memberControllerList({ page: 1, pageSize: 20, keyword: kw } as any) as any;
+		cb((res?.items)||[]);
+	}catch{ cb([]); }
+}
 function onPickMember(m:any){ selectedMember.value = m; loadMemberCouponsAndPoints(); }
 function clearMember(){ selectedMember.value = null; selectedCouponIds.value = []; usedPoints.value = 0; memberPoints.value = 0; recompute(); }
 watch(selectedMember, async(val)=>{
@@ -387,7 +468,7 @@ watch(selectedMember, async(val)=>{
 		memberVehicles.value = [];
 		memberVehicleId.value = undefined;
 		if (val && val.id){
-			const list = await http<any[]>(`/vehicle/member/${val.id}`, { method:'GET' }).catch(()=>[]);
+			const list = await vehicleControllerListByMember(String(val.id)) as any;
 			memberVehicles.value = Array.isArray(list) ? list : [];
 		}
 	}catch{}
@@ -418,14 +499,14 @@ async function onPlateConfirmed(){
     const plate = String(plateNumber.value||'').trim(); if (!plate) return;
     try{
         // 以搜索接口精确匹配判断归属
-        const list:any[] = await http(`/vehicle/search?q=${encodeURIComponent(plate)}&limit=20`, { method:'GET' }).catch(()=>[]) as any[];
+        const list:any[] = await (vehicleControllerSearch({ q: plate, limit: 20 } as any) as any).catch(()=>[]) as any[];
         const upper = plate.toUpperCase();
         const match = Array.isArray(list) ? list.find((it:any)=> String(it?.plateNumber||'').toUpperCase()===upper) : null;
         if (!match){
             // 不存在：提示是否创建游客车辆（并选择车辆主类）
             const typeMain = await openTypeMainDialog();
             if (!typeMain) return;
-            const created = await http('/vehicle/guest/create', { method:'POST', body:{ plateNumber: plate, typeMain } });
+            const created = await vehicleControllerCreateGuest({ plateNumber: plate, typeMain } as any) as any;
             resolvedVehicleId.value = Number((created as any)?.id||0)||undefined; resolvedOwnerType.value='guest';
             ElMessage.success('已创建游客车辆');
             return;
@@ -438,9 +519,9 @@ async function onPlateConfirmed(){
             // 切换身份并选中会员
             identity.value = 'member';
             try{
-                const prof = await http(`/member/${Number(match.memberId)}`, { method:'GET' });
+                const prof = await memberControllerGet(String(Number(match.memberId))) as any;
                 selectedMember.value = prof;
-                const vs = await http<any[]>(`/vehicle/member/${Number(match.memberId)}`, { method:'GET' }).catch(()=>[]);
+                const vs = await (vehicleControllerListByMember(String(Number(match.memberId))) as any).catch(()=>[]);
                 memberVehicles.value = Array.isArray(vs) ? vs : [];
                 const found = memberVehicles.value.find(v=> String(v.plateNumber||'').toUpperCase()===upper);
                 if (found) memberVehicleId.value = Number(found.id);
@@ -455,9 +536,9 @@ async function onPlateConfirmed(){
                 let groupDetail:any = null;
                 try{
                     // 通过 group 详情拿占位会员
-                    groupDetail = await http(`/group/${Number(match.groupId)}`, { method:'GET' });
+                    groupDetail = await groupControllerGet(Number(match.groupId)) as any;
                     const ownerId = Number((groupDetail as any)?.orderOwnerMemberId||0);
-                    if (ownerId){ const prof = await http(`/member/${ownerId}`, { method:'GET' }); selectedMember.value = prof; }
+                    if (ownerId){ const prof = await memberControllerGet(String(ownerId)) as any; selectedMember.value = prof; }
                 }catch{}
                 // 保存 groupId 与显示集团名称
                 try{ (settleDialog as any).groupId = Number(match.groupId); (settleDialog as any).groupName = (groupDetail as any)?.name || '集团'; }catch{}
@@ -482,7 +563,7 @@ async function ensureCouponDetailsLoaded(){
         const needIds = list.map(x=> Number((x?.coupon?.id)||x?.couponId||x?.id||0)).filter(id=>id>0);
         const uniq = Array.from(new Set(needIds)).filter(id=> !couponDetailsMap.value.has(id));
         if (!uniq.length) return false;
-        const results = await Promise.allSettled(uniq.map(id=> http(`/coupons/${id}`, { method:'GET' })));
+        const results = await Promise.allSettled(uniq.map(id=> couponControllerGet(Number(id))));
         let loaded = false;
         results.forEach((r, idx)=>{ const id = uniq[idx]; if (r.status==='fulfilled' && r.value){ couponDetailsMap.value.set(id, r.value); loaded = true; } });
         if (loaded) { recompute(); }
@@ -614,8 +695,8 @@ async function loadMemberCouponsAndPoints(){
     } 
     try{ 
         const mid = Number(selectedMember.value?.id||0); 
-        const list = await http<any[]>(`/member-coupons?memberId=${mid}&used=0&expired=0`, { method:'GET' }).catch(()=>[]); 
-        const items = Array.isArray((list as any)?.items) ? (list as any).items : (Array.isArray(list) ? list : []); 
+        const resp:any = await memberCouponAdminControllerList({ memberId: String(mid), used: '0', expired: '0' } as any).catch(()=>null);
+        const items = Array.isArray(resp?.items) ? resp.items : (Array.isArray(resp) ? resp : []); 
         
         // 修复后的API返回包含了正确的优惠券属性，直接使用
         memberCoupons.value = items.map((x:any)=>({ 
@@ -700,7 +781,7 @@ watch(selectedMember, async(val)=>{
 	try{
 		memberPayDiscountPercent.value = 0;
 		if (val && val.id){
-			const prof:any = await http(`/member/${val.id}`, { method:'GET' });
+			const prof:any = await memberControllerGet(String(val.id)) as any;
 			memberPayDiscountPercent.value = Math.max(0, Number((prof as any)?.level?.payDiscountPercent||0));
 		}
 	}catch{ memberPayDiscountPercent.value = 0; }
@@ -710,9 +791,9 @@ watch(selectedMember, async(val)=>{
 async function loadPointsMeta(){
 	pointsLoading.value = true;
 	try{
-		const profile = selectedMember.value ? await http<any>(`/member/${Number(selectedMember.value.id)}`, { method:'GET' }) : null;
+		const profile = selectedMember.value ? await memberControllerGet(String(Number(selectedMember.value.id))) as any : null;
 		pointsAvailable.value = Math.max(0, Number(profile?.points||0));
-		const ss = await http<any>('/system/public/site-setting', { method:'GET' });
+		const ss = await systemSettingControllerGetPublicSetting() as any;
 		fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
 		maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
 	}catch{ pointsAvailable.value = 0; fenPerPoint.value = 0; maxFenPerOrder.value = 0; }
@@ -780,7 +861,7 @@ async function submitServiceOrder(){
         const memberIdResolved = identity.value==='member' && selectedMember.value ? Number(selectedMember.value.id) : (GUEST_MEMBER_ID_CONST || await ensureGuestMemberId());
         const payload:any = { type: 'SERVICE', memberId: memberIdResolved, items, userRemark: null, vehicleId: vehicleIdResolved, payAfterService: false } as any;
         try{ if ((settleDialog as any).groupId) payload.groupId = Number((settleDialog as any).groupId); }catch{}
-        const res:any = await http('/orders', { method:'POST', body: payload });
+        const res:any = await withPosAuthGuard(()=> orderControllerCreate({ body: payload } as any) as any);
         if (res?.id){
             ElMessage.success('服务订单已创建');
             // 服务订单：创建后立即在结算弹窗内完成支付
@@ -821,9 +902,9 @@ function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visi
     // 打开时确保已加载券详情，保证弹窗中的预计显示正确
     try{ ensureCouponDetailsLoaded(); }catch{}
 }
-async function confirmSettleManual(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/manual`, { method:'POST', body:{ method: settleDialog.manualMethod } }); ElMessage.success('支付已标记'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
-async function confirmSettleWx(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } const code = String(settleDialog.wxAuthCode||'').trim(); if (!code){ ElMessage.error('请输入授权码'); return; } settleDialog.loading=true; await http(`/orders/${oid}/pay/wx-micropay`, { method:'POST', body:{ authCode: code } }); ElMessage.success('微信付款成功'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
-async function confirmSettleWash(){ try{ if (orderKind.value!=='SERVICE'){ ElMessage.error('仅服务订单支持划扣'); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; const prefer = settleDialog.washPrefer==='AUTO' ? undefined : (settleDialog.washPrefer as any); await http(`/orders/${oid}/pay/wash-card`, { method:'POST', body:{ prefer } }); ElMessage.success('洗车卡划扣成功'); settleDialog.visible=false; clearCart(); } catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleManual(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; await withPosAuthGuard(()=> orderControllerMarkPaid(Number(oid), { body:{ method: settleDialog.manualMethod } } as any) as any); ElMessage.success('支付已标记'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleWx(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } const code = String(settleDialog.wxAuthCode||'').trim(); if (!code){ ElMessage.error('请输入授权码'); return; } settleDialog.loading=true; await withPosAuthGuard(()=> orderControllerWechatMicropay(Number(oid), { body:{ authCode: code } } as any) as any); ElMessage.success('微信付款成功'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
+async function confirmSettleWash(){ try{ if (orderKind.value!=='SERVICE'){ ElMessage.error('仅服务订单支持划扣'); return; } let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; const prefer = settleDialog.washPrefer==='AUTO' ? undefined : (settleDialog.washPrefer as any); await withPosAuthGuard(()=> orderControllerPayByWashCard(Number(oid), { body:{ prefer } } as any) as any); ElMessage.success('洗车卡划扣成功'); settleDialog.visible=false; clearCart(); } catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); } finally { settleDialog.loading=false; } }
 
  
 
@@ -866,7 +947,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
             const isGuest = !(identity.value==='member' && selectedMember.value);
             const payload:any = { type: 'SP', memberId: memberIdForSp, items, usedPoints: isGuest ? 0 : (pointsAllowedByCoupons.value ? (usedPoints.value || 0) : 0), memberCouponIds: isGuest ? undefined : (selectedCouponIds.value.length ? selectedCouponIds.value : undefined), disableMemberDiscount: isGuest ? true : !(enableMemberDiscount.value && memberDiscountAllowedByCoupons.value), noExpress: !requiresAddress, shippingAddressId };
             try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) (payload as any).cashierDiscountAmount = Number(v.toFixed(2)); }catch{}
-            const res:any = await http('/orders', { method:'POST', body: payload });
+            const res:any = await withPosAuthGuard(()=> orderControllerCreate({ body: payload } as any) as any);
             if (res?.id){ settleDialog.createdOrderId = Number(res.id); return Number(res.id); }
             return null;
         } else {
@@ -890,7 +971,7 @@ async function ensureOrderForSettle(): Promise<number|null>{
             try{ const v = Math.max(0, Number((settleDialog as any).cashierDiscountAmount||0)); if (v>0) (payload as any).cashierDiscountAmount = Number(v.toFixed(2)); }catch{}
             // 若为集团车辆，显式传 groupId
             try{ if ((settleDialog as any).groupId) payload.groupId = Number((settleDialog as any).groupId); }catch{}
-            const res:any = await http('/orders', { method:'POST', body: payload });
+            const res:any = await withPosAuthGuard(()=> orderControllerCreate({ body: payload } as any) as any);
             if (res?.id){ settleDialog.createdOrderId = Number(res.id); return Number(res.id); }
             return null;
         }
@@ -924,7 +1005,7 @@ async function ensureGuestMemberId(): Promise<number>{
 async function ensureVehicleForPlate(plate: string, memberId?: number|null): Promise<any|null>{
 	const p = String(plate||'').trim(); if (!p) return null;
 	// 直接尝试创建游客车辆（后端存在即返回），若传入 memberId 则不绑定，只作为服务订单车辆
-	try{ const v = await http<any>('/vehicle/guest/create', { method:'POST', body: { plateNumber: p } }); return v||null; }catch{ return null; }
+	try{ const v = await vehicleControllerCreateGuest({ plateNumber: p } as any); return v||null; }catch{ return null; }
 }
 function setGuestMode(){ identity.value = 'guest'; selectedMember.value = null; memberVehicles.value = []; memberVehicleId.value = undefined; }
 
@@ -934,7 +1015,7 @@ const guestVehicleId = ref<number|undefined>();
 async function queryGuestVehicles(q: string, cb: (list:any[])=>void){
 	try{
 		const kw = String(q||'').trim(); if (!kw) { cb([]); return; }
-		const res = await http<any[]>(`/vehicle/list?guest=1&keyword=${encodeURIComponent(kw)}&page=1&pageSize=20`, { method:'GET' }).catch(()=>[]);
+		const res:any = await vehicleControllerAdminList({ guest: 1, keyword: kw, page: 1, pageSize: 20 } as any).catch(()=>null) as any;
 		const items = Array.isArray((res as any)?.items) ? (res as any).items : (Array.isArray(res) ? res : []);
 		cb(items);
 	}catch{ cb([]); }
@@ -943,23 +1024,54 @@ function onPickGuestVehicle(v:any){ try{ guestVehicleId.value = Number(v?.id||0)
 function clearGuestVehicle(){ guestVehicleId.value = undefined; guestVehicleKeyword.value = ''; }
 
 // ============ 会员地址管理 ============
-async function loadMemberAddresses(memberId: number){ try{ const list = await http<any[]>(`/address/member/${memberId}`, { method:'GET' }).catch(()=>[]); settleDialog.memberAddresses = Array.isArray(list) ? list : []; }catch{ settleDialog.memberAddresses = []; } }
+async function loadMemberAddresses(memberId: number){
+	try{
+		const list = await addressControllerListByMember(String(memberId)) as any;
+		settleDialog.memberAddresses = Array.isArray(list) ? list : [];
+	}catch{ settleDialog.memberAddresses = []; }
+}
 function openCreateMemberAddress(){ settleDialog.showMemberAddrForm = true; }
 function validateAddrForm(): boolean { const f = settleDialog.addrForm; if (!f.province || !f.city || !f.district || !f.street) return false; if (!f.detail || !/\S+/.test(f.detail)) return false; if (!/^1\d{10}$/.test(String(f.phone||''))) return false; return true; }
-async function ensureGuestAddressCreated(): Promise<number|null>{ try{ const f = settleDialog.addrForm; if (!validateAddrForm()) return null; const res:any = await http('/address/admin/create', { method:'POST', body: { useGuest: true, input: { province:f.province, city:f.city, district:f.district, street:f.street, detail:f.detail, phone:f.phone, label: f.label||null } } }); return Number(res?.id||0) || null; }catch{ return null; } }
-async function ensureMemberAddressCreated(memberId:number): Promise<number|null>{ try{ const f = settleDialog.addrForm; if (!validateAddrForm()) return null; const res:any = await http('/address/admin/create', { method:'POST', body: { memberId, input: { province:f.province, city:f.city, district:f.district, street:f.street, detail:f.detail, phone:f.phone, label: f.label||null } } }); return Number(res?.id||0) || null; }catch{ return null; } }
+async function ensureGuestAddressCreated(): Promise<number|null>{
+	try{
+		const f = settleDialog.addrForm;
+		if (!validateAddrForm()) return null;
+		const res:any = await addressControllerAdminCreate({
+			useGuest: true,
+			input: { province:f.province, city:f.city, district:f.district, street:f.street, detail:f.detail, phone:f.phone, label: f.label||null }
+		} as any) as any;
+		return Number(res?.id||0) || null;
+	}catch{ return null; }
+}
+async function ensureMemberAddressCreated(memberId:number): Promise<number|null>{
+	try{
+		const f = settleDialog.addrForm;
+		if (!validateAddrForm()) return null;
+		const res:any = await addressControllerAdminCreate({
+			memberId,
+			input: { province:f.province, city:f.city, district:f.district, street:f.street, detail:f.detail, phone:f.phone, label: f.label||null }
+		} as any) as any;
+		return Number(res?.id||0) || null;
+	}catch{ return null; }
+}
 function addrDisplay(a:any){ if(!a) return ''; const label = a.label ? `（${a.label}）` : ''; return `${a.province}${a.city}${a.district}${a.street}${a.detail}${label} ${a.phone}`; }
 
 // 管理地址对话框（统一实现）
 const addrDialog = reactive({ visible:false, list: [] as any[], editing: false, saving: false, currentId: null as number|null, form: { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' } });
 function openManageMemberAddress(){ if (!selectedMember.value) { ElMessage.error('请先选择会员'); return; } addrDialog.visible=true; addrDialog.editing=false; loadAddressList(); }
-async function loadAddressList(){ try{ const mid = Number(selectedMember.value?.id||0); const list = await http<any[]>(`/address/member/${mid}`, { method:'GET' }).catch(()=>[]); addrDialog.list = Array.isArray(list) ? list : []; }catch{ addrDialog.list = []; } }
+async function loadAddressList(){
+	try{
+		const mid = Number(selectedMember.value?.id||0);
+		const list = await addressControllerListByMember(String(mid)) as any;
+		addrDialog.list = Array.isArray(list) ? list : [];
+	}catch{ addrDialog.list = []; }
+}
 function beginCreateAddress(){ addrDialog.editing=true; addrDialog.currentId=null; addrDialog.form = { province:'', city:'', district:'', street:'', detail:'', phone:'', label:'' }; }
 function beginEditAddress(row:any){ addrDialog.editing=true; addrDialog.currentId = Number(row?.id||0)||null; addrDialog.form = { province: row.province||'', city: row.city||'', district: row.district||'', street: row.street||'', detail: row.detail||'', phone: row.phone||'', label: row.label||'' }; }
-async function saveAddress(){ try{ if (!selectedMember.value){ ElMessage.error('缺少会员'); return; } const f = addrDialog.form; if (!/^1\d{10}$/.test(String(f.phone||''))) { ElMessage.error('手机号格式不正确'); return; } if (!f.province||!f.city||!f.district||!f.street||!f.detail){ ElMessage.error('请完善地址信息'); return; } addrDialog.saving=true; if (addrDialog.currentId){ await http(`/address/admin/${addrDialog.currentId}`, { method:'PUT', body: { ...f } }); ElMessage.success('已保存'); } else { await http('/address/admin/create', { method:'POST', body: { memberId: Number(selectedMember.value.id), input: { ...f } } }); ElMessage.success('已新增'); } addrDialog.editing=false; await loadAddressList(); await loadMemberAddresses(Number(selectedMember.value.id)); }
+async function saveAddress(){ try{ if (!selectedMember.value){ ElMessage.error('缺少会员'); return; } const f = addrDialog.form; if (!/^1\d{10}$/.test(String(f.phone||''))) { ElMessage.error('手机号格式不正确'); return; } if (!f.province||!f.city||!f.district||!f.street||!f.detail){ ElMessage.error('请完善地址信息'); return; } addrDialog.saving=true; if (addrDialog.currentId){ await addressControllerAdminUpdate(String(addrDialog.currentId), { ...f } as any); ElMessage.success('已保存'); } else { await addressControllerAdminCreate({ memberId: Number(selectedMember.value.id), input: { ...f } } as any); ElMessage.success('已新增'); } addrDialog.editing=false; await loadAddressList(); await loadMemberAddresses(Number(selectedMember.value.id)); }
 catch(e:any){ ElMessage.error(String(e?.message||'保存失败')); }
 finally{ addrDialog.saving=false; } }
-async function deleteAddress(row:any){ try{ const id = Number(row?.id||0)||0; if (!id) return; await http(`/address/admin/${id}`, { method:'DELETE' }); ElMessage.success('已删除'); await loadAddressList(); await loadMemberAddresses(Number(selectedMember.value!.id)); if (settleDialog.shippingAddressId===id) settleDialog.shippingAddressId=undefined; } catch(e:any){ ElMessage.error(String(e?.message||'删除失败')); } }
+async function deleteAddress(row:any){ try{ const id = Number(row?.id||0)||0; if (!id) return; await addressControllerAdminDelete(String(id)); ElMessage.success('已删除'); await loadAddressList(); await loadMemberAddresses(Number(selectedMember.value!.id)); if (settleDialog.shippingAddressId===id) settleDialog.shippingAddressId=undefined; } catch(e:any){ ElMessage.error(String(e?.message||'删除失败')); } }
 
 const currentPlate = computed(()=>{
     if (orderKind.value==='SERVICE'){
@@ -1011,7 +1123,7 @@ async function confirmFkCollect(){
         if (!remark){ ElMessage.error('请填写备注'); return; }
         const body:any = { amount: Number(amt.toFixed(2)), remark };
         if (identity.value==='member' && selectedMember.value){ body.memberId = Number(selectedMember.value.id); }
-        const res:any = await http('/orders/_create-fk', { method:'POST', body });
+        const res:any = await withPosAuthGuard(()=> orderControllerCreateFk({ body } as any) as any);
         if (!res?.id){ ElMessage.error('创建付款订单失败'); return; }
         // 打开统一结算弹窗（付款订单）
         (settleDialog as any).isFk = true; (settleDialog as any).fkAmount = Number(amt.toFixed(2));

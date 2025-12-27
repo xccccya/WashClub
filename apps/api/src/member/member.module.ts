@@ -25,11 +25,12 @@ import { MemberSignInService } from './signin.service.js';
 import { MemberPointsController } from './points.controller.js';
 import { MemberPointsService } from './points.service.js';
 import { NotificationModule } from '../notification/notification.module.js';
+import { resolveJwtSecretEnv } from '../env.js';
 
 @Module({
 	imports: [
 		JwtModule.register({
-			secret: process.env.JWT_SECRET || 'dev_secret',
+			secret: resolveJwtSecretEnv(),
 		}),
 		FileModule,
 		NotificationModule,

@@ -82,7 +82,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { createHttp, checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { addressControllerMyList, orderControllerCreateAfterSales } from '@wash/api-client';
 import { useSafeArea } from '../../utils/safe-area';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -150,7 +151,6 @@ async function chooseImages(){
 	try{
 		const r:any = await new Promise((resolve)=> uni.chooseImage({ count: 6, success: resolve, fail: ()=>resolve(null) }));
 		if (!r || !Array.isArray(r.tempFilePaths)) return;
-		const http = createHttp();
 		const joinUrl = (base:string, pathStr:string) => {
 			if (!pathStr) return '';
 			if (/^https?:\/\//i.test(pathStr)) return pathStr;
@@ -197,8 +197,7 @@ onLoad((q:any)=>{
 
 async function loadAddresses(){
     try{
-        const http = createHttp();
-        const list = await http<Address[]>('/address/me/list', { method:'GET' });
+        const list = await (addressControllerMyList({} as any) as any);
         addresses.value = Array.isArray(list) ? list : [];
         selectedAddressId.value = addresses.value[0]?.id;
     }catch{ addresses.value = []; selectedAddressId.value = undefined; }
@@ -209,7 +208,6 @@ function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); }
 async function submit(){
 	try{
 		const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
-		const http = createHttp();
 		// 可见类型由 visibleTypeOptions 限定，不再强制回退索引，避免 SERVICE 的“重新服务”被误改为“退款”
 		const payload:any = {
 			type: currentType.value,
@@ -218,7 +216,7 @@ async function submit(){
 			images: images.value,
 			exchangeAddress: currentType.value==='EXCHANGE' ? (addresses.value.find(a=>a.id===selectedAddressId.value) || undefined) : undefined,
 		};
-		await http(`/orders/${orderId.value}/after-sales`, { method:'POST', body: payload });
+		await orderControllerCreateAfterSales(Number(orderId.value||0), { body: payload } as any);
 		uni.showToast({ title:'已提交', icon:'success' });
 		setTimeout(()=>{ goBack(); }, 600);
 	}catch{ uni.showToast({ title:'提交失败，请稍后再试', icon:'none' }); }

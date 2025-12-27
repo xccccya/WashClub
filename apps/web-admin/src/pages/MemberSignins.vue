@@ -111,12 +111,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { BasePage } from '@wash/shared-ui';
-import { createHttpClient } from '@wash/shared-utils';
-import { API_BASE } from '../config';
+import {
+	memberControllerGet,
+	memberSignInControllerGetConfig,
+	memberSignInControllerGetMemberStatus,
+	memberSignInControllerList,
+	memberSignInControllerSaveConfig,
+} from '@wash/api-client';
 import { ElMessage } from 'element-plus';
 import { Setting, Search, View } from '@element-plus/icons-vue';
-
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => localStorage.getItem('token') || undefined });
 
 const q = ref<{ memberId?: string; date?: string }>({});
 const loading = ref(false);
@@ -128,17 +131,19 @@ const streakMap = ref<Map<number, StreakInfo>>(new Map());
 async function fetchLogs(){
 	loading.value = true;
 	try{
-		const rows = await http<any[]>('/member-signin/logs', { method:'GET', query: { memberId: q.value.memberId, date: q.value.date } });
+		// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
+		const rows = (await memberSignInControllerList({ memberId: q.value.memberId, date: q.value.date } as any) as unknown) as any[];
 		logs.value = rows;
 		// 并发获取每个会员的统计数据，去重 memberId
 		const ids = Array.from(new Set((rows||[]).map((r:any)=> Number(r.memberId||0)).filter((n:number)=>n>0)));
 		const pending = ids.map(async (id:number)=>{
-			try{ const s = await http<StreakInfo>('/member-signin/member-status', { method:'GET', query:{ memberId: id } });
+			try{
+				const s = (await memberSignInControllerGetMemberStatus({ memberId: id } as any) as unknown) as StreakInfo;
 				streakMap.value.set(id, { streakDays: Number(s?.streakDays||0), totalDays: Number(s?.totalDays||0) });
 			}catch{ streakMap.value.set(id, { streakDays: 0, totalDays: 0 }); }
 		});
 		const pendingMembers = ids.map(async (id:number)=>{
-			try{ const m:any = await http(`/member/${id}`, { method:'GET' }); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{}
+			try{ const m:any = await (memberControllerGet(String(id)) as any); memberMap.value.set(id, { id, name: m?.name, phone: m?.phone }); }catch{}
 		});
 		await Promise.all([...pending, ...pendingMembers]);
 	} finally { loading.value = false; }
@@ -148,7 +153,8 @@ const cfgVisible = ref(false);
 const cfg = ref<{ dayRewards: number[]; after7: number }>({ dayRewards: [1,1,1,1,1,1,1], after7: 1 });
 
 async function openConfig(){
-	try{ const res = await http<{ dayRewards: number[]; after7: number }>('/member-signin/config', { method: 'GET' });
+	try{
+		const res = (await memberSignInControllerGetConfig() as unknown) as { dayRewards: number[]; after7: number };
 		cfg.value.dayRewards = new Array(7).fill(1).map((_,i)=> Number((res?.dayRewards||[])[i]||1));
 		cfg.value.after7 = Number(res?.after7 || cfg.value.dayRewards[6] || 1);
 		cfgVisible.value = true;
@@ -157,7 +163,7 @@ async function openConfig(){
 
 async function saveConfig(){
 	try{
-		await http('/member-signin/config', { method: 'POST', body: cfg.value });
+		await memberSignInControllerSaveConfig({ ...(cfg.value as any) } as any);
 		ElMessage.success('已保存'); cfgVisible.value = false;
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
 }
@@ -181,9 +187,9 @@ const detailMember = ref<any>(null);
 async function openDetail(memberId: number){
 	try{
 		const [s, rows, m] = await Promise.all([
-			http('/member-signin/member-status', { method:'GET', query:{ memberId } }),
-			http<any[]>('/member-signin/logs', { method:'GET', query:{ memberId } }),
-			http(`/member/${memberId}`, { method:'GET' }),
+			memberSignInControllerGetMemberStatus({ memberId } as any),
+			memberSignInControllerList({ memberId } as any),
+			memberControllerGet(String(memberId)),
 		]);
 		detail.value = s; detailLogs.value = rows; detailMember.value = m;
 		detailVisible.value = true;

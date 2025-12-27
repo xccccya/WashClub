@@ -99,15 +99,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import createHttpClient from '@wash/shared-utils/src/http';
 import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+import {
+	memberControllerGetGrowthLogs,
+	memberControllerMe,
+	memberLevelControllerList,
+	memberSignInControllerMeMonth,
+	memberSignInControllerMeStatus,
+	memberSignInControllerSignInMe,
+} from '@wash/api-client';
 
 // 全局 uni 与小程序页面栈声明，避免 TS 报错（运行时由 uni-app 注入）
 declare const uni: any;
 declare function getCurrentPages(): any[];
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
-const http = createHttpClient({ baseUrl: API_BASE, getToken: () => uni.getStorageSync('token') });
 
 const growthPoints = ref<number>(0);
 const levels = ref<Array<{ id:number; name:string; iconUrl?: string|null; level:number; requiredGrowth:number; pointsMultiplier?: number; payDiscountPercent?: number }>>([]);
@@ -198,9 +204,9 @@ function iconOf(i:number, ok:boolean){
     return ok ? '/static/icons/singrefinal.png' : '/static/icons/prsingrefinal.png';
 }
 async function fetchSignStatus(){
-    try{ const res:any = await http('/member-signin/me/status', { method:'GET' }); status.value = res || status.value; }catch{}
+    try{ const res:any = await memberSignInControllerMeStatus(); status.value = res || status.value; }catch{}
 }
-async function doSignIn(){ if (status.value.todaySigned) return; try{ await http('/member-signin/me', { method:'POST' }); await fetchSignStatus(); await fetchMonth(curYm.value); uni.showToast({ title:'签到成功', icon:'success' }); }catch(e:any){ uni.showToast({ title: String(e?.message||e||'签到失败'), icon:'none' }); } }
+async function doSignIn(){ if (status.value.todaySigned) return; try{ await memberSignInControllerSignInMe(); await fetchSignStatus(); await fetchMonth(curYm.value); uni.showToast({ title:'签到成功', icon:'success' }); }catch(e:any){ uni.showToast({ title: String(e?.message||e||'签到失败'), icon:'none' }); } }
 
 const curYm = ref('');
 const calDays = ref<Array<{ key:string; day:number; isToday:boolean; isSigned:boolean }>>([]);
@@ -227,7 +233,7 @@ async function fetchMonth(ym?: string){
     // 限制：不可超过当前月
     if (req > defaultYm) { curYm.value = defaultYm; ym = defaultYm; }
     else { curYm.value = req; }
-    try{ const res:any = await http('/member-signin/me/month', { method:'GET', query: { ym: req } }); const days:number[] = Array.isArray(res?.signedDays)?res.signedDays:[]; buildMonthDays(res?.ym||req, days); }catch{ buildMonthDays(req, []); }
+    try{ const res:any = await memberSignInControllerMeMonth({ ym: req } as any); const days:number[] = Array.isArray(res?.signedDays)?res.signedDays:[]; buildMonthDays(res?.ym||req, days); }catch{ buildMonthDays(req, []); }
 }
 function prevMonth(){ const [y,m]=curYm.value.split('-').map(n=>Number(n)); const d = new Date(y, m-2, 1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; fetchMonth(ym); }
 
@@ -259,11 +265,11 @@ function onTouchEnd(e:any){
 
 onMounted(async ()=>{
 	const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
-	const prof:any = await http('/member/me/profile', { method: 'GET' });
+	const prof:any = await memberControllerMe({} as any);
 	growthPoints.value = Number(prof?.growthPoints||0);
 	currentRequired.value = Number(prof?.currentRequiredGrowth||0);
 	nextRequired.value = Number(prof?.nextRequiredGrowth||0);
-	const list:any[] = await http('/member-level', { method:'GET' });
+	const list:any[] = (await memberLevelControllerList() as unknown) as any[];
 	levels.value = (Array.isArray(list)?list:[]).sort((a:any,b:any)=> Number(a.level)-Number(b.level));
 	// 定位到当前会员等级
 	const curId = Number(prof?.level?.id||0);
@@ -271,7 +277,7 @@ onMounted(async ()=>{
 	userLevelIndex.value = idx>=0 ? idx : 0;
 	currentIndex.value = userLevelIndex.value; // 初始展示定位到当前等级
 	// 加载成长日志（持久化接口）
-	try{ const lg:any[] = await http('/member/me/growth-logs', { method:'GET', query:{ limit: 50 } }); logs.value = Array.isArray(lg)?lg:[]; }catch{ logs.value = []; }
+	try{ const lg:any[] = (await memberControllerGetGrowthLogs({ limit: 50 } as any) as unknown) as any[]; logs.value = Array.isArray(lg)?lg:[]; }catch{ logs.value = []; }
 	await fetchSignStatus();
 	await fetchMonth(curYm.value);
 });

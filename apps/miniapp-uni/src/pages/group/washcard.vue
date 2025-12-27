@@ -55,7 +55,8 @@
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { createHttp, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
+import { groupMiniappControllerMyGroupCardDetail, groupMiniappControllerMyGroupCardLogs } from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
 const card = ref<any|null>(null);
@@ -77,9 +78,8 @@ onLoad(async (query:any)=>{
     const id = Number(query?.id||NaN);
     if (!Number.isFinite(id)) { uni.showToast({ title:'参数错误', icon:'none' }); return; }
     if (!getToken()) { uni.navigateTo({ url:'/pages/login/index' }); return; }
-    const http = createHttp();
-    card.value = await http(`/group/miniapp/me/card/${id}`, { method:'GET' });
-    const res:any = await http(`/group/miniapp/me/card/${id}/logs`, { method:'GET', query:{ page:1, pageSize: 20 } });
+    card.value = await groupMiniappControllerMyGroupCardDetail(String(id), {} as any) as any;
+    const res:any = await groupMiniappControllerMyGroupCardLogs(String(id), { page:1, pageSize: 20 } as any);
     logs.value = Array.isArray(res?.items) ? res.items : [];
   }catch{ card.value=null; logs.value=[]; }
 });
