@@ -5,11 +5,11 @@ import { NotificationService } from '../notification/notification.service.js';
 import { CouponService } from '../coupon/coupon.service.js';
 import { AssetService } from '../file/asset.service.js';
 import { resolveGuestMemberIdEnv } from '../env.js';
+import type { ProxyAdminSnapshot } from './order.types.js';
+import { syncFileBindings } from './file-bindings.helper.js';
 
 @Injectable()
 export class OrderService {
-    private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
-    
     constructor(
         private readonly prisma: PrismaService,
         private readonly coupons: CouponService,
@@ -17,11 +17,22 @@ export class OrderService {
         private readonly notifier?: NotificationService,
     ) {}
 
-    private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
+    private async writeTimeline(params: { tx?: Prisma.TransactionClient | PrismaService; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
         try {
             const db = params.tx ?? this.prisma;
             await db.orderTimeline.create({ data: { orderId: params.orderId, event: params.event, value: params.value || null, remark: params.remark || null, operatorUserId: params.operatorUserId ?? null } });
         } catch {/* ignore timeline errors */ }
+    }
+
+    private async syncBindings(tableName: string, rowId: string, fieldName: string, urls: string[]): Promise<void> {
+        return syncFileBindings({
+            prisma: this.prisma,
+            assets: this.assets,
+            tableName,
+            rowId,
+            fieldName,
+            urls,
+        });
     }
 
     private generateOrderNo(type: 'SERVICE' | 'SP' | 'FK') {
@@ -66,18 +77,18 @@ export class OrderService {
         // 控制标记（由控制器注入）：游客/代客
         _isGuestOrder?: boolean | null;
         _proxyAdminUserId?: number | null;
-        _proxyAdminSnapshot?: any;
+        _proxyAdminSnapshot?: ProxyAdminSnapshot | null;
     }): Promise<{ id: number; no: string }> {
         const {
             type, memberId, vehicleId, groupId, shippingAddressId, noExpress, items, userRemark, remark,
             shippingFee = 0, usedPoints = 0, pointsAmount = 0, couponInfo,
             memberCouponId, memberCouponIds, disableMemberDiscount, payAfterService
         } = params;
-        const cashierDiscountInput = Number((params as any)?.cashierDiscountAmount ?? 0);
+        const cashierDiscountInput = Number(params.cashierDiscountAmount ?? 0);
         const cashierDiscountManual = Number.isFinite(cashierDiscountInput) && cashierDiscountInput > 0 ? cashierDiscountInput : 0;
-        const isGuestOrderFlag = !!(params as any)._isGuestOrder;
-        const proxyAdminUserId = (params as any)._proxyAdminUserId ?? null;
-        const proxyAdminSnapshot = (params as any)._proxyAdminSnapshot ?? null;
+        const isGuestOrderFlag = !!params._isGuestOrder;
+        const proxyAdminUserId = params._proxyAdminUserId ?? null;
+        const proxyAdminSnapshot = params._proxyAdminSnapshot ?? null;
         
         if (!items || items.length === 0) throw new Error('订单项不能为空');
 
@@ -127,7 +138,7 @@ export class OrderService {
                     detail: addr.detail,
                     phone: addr.phone,
                     label: addr.label ?? null,
-                } as any;
+                };
             } else if (shippingAddressId) {
                 // 非必填但传入时亦进行记录
                 const addr = await tx.memberAddress.findUnique({ where: { id: shippingAddressId } });
@@ -142,7 +153,7 @@ export class OrderService {
                         detail: addr.detail,
                         phone: addr.phone,
                         label: addr.label ?? null,
-                    } as any;
+                    };
                 }
             }
             
@@ -840,66 +851,66 @@ export class OrderService {
         if (query.scene) {
             const scene = String(query.scene).toUpperCase();
             if (scene === 'PENDING_PAYMENT') {
-                (where as any).payStatus = 'UNPAID';
+                where.payStatus = 'UNPAID';
             } else if (scene === 'REFUND_AFTERSALE') {
-                (where as any).OR = [
+                where.OR = [
                     { payStatus: 'REFUNDED' },
-                    { afterSalesRequests: { some: { status: { in: ['PENDING', 'APPROVED'] as any } } } },
+                    { afterSalesRequests: { some: { status: { in: ['PENDING', 'APPROVED'] } } } },
                 ];
             } else if (scene === 'PENDING_SERVICE') {
-                (where as any).type = 'SERVICE';
-                (where as any).payStatus = 'PAID';
-                (where as any).fulfillmentStatus = { in: ['PENDING', 'IN_SERVICE'] } as any;
+                where.type = 'SERVICE';
+                where.payStatus = 'PAID';
+                where.fulfillmentStatus = { in: ['PENDING', 'IN_SERVICE'] };
             } else if (scene === 'PENDING_DELIVERY') {
-                (where as any).type = 'SP';
-                (where as any).payStatus = 'PAID';
-                (where as any).fulfillmentStatus = 'PENDING' as any;
+                where.type = 'SP';
+                where.payStatus = 'PAID';
+                where.fulfillmentStatus = 'PENDING';
             } else if (scene === 'PENDING_RECEIPT') {
-                (where as any).type = 'SP';
-                (where as any).payStatus = 'PAID';
+                where.type = 'SP';
+                where.payStatus = 'PAID';
                 // 兼容旧数据
-                (where as any).OR = [
+                where.OR = [
                     { AND: [{ type: 'SP' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'SHIPPED' }] },
                     { AND: [{ type: 'SP' }, { status: 'FULFILLED' }] },
                 ];
             } else if (scene === 'COMPLETED') {
-                const rules: any[] = [
+                const rules: Prisma.OrderWhereInput[] = [
                     { AND: [{ type: 'SERVICE' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'DONE' }] },
                     { AND: [{ type: 'SP' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'RECEIVED' }] },
                     { AND: [{ type: 'FK' }, { payStatus: 'PAID' }] },
                     { AND: [{ type: 'SERVICE' }, { status: 'FULFILLED' }] },
                     { AND: [{ type: 'SP' }, { status: 'CLOSED' }] },
                 ];
-                (where as any).OR = rules;
+                where.OR = rules;
             } else if (scene === 'CANCELLED') {
                 if (query.type) {
-                    (where as any).OR = [
+                    where.OR = [
                         { AND: [{ type: query.type }, { status: 'CANCELLED' }] },
                         { AND: [{ type: query.type }, { payStatus: 'CANCELLED' }] },
                     ];
                 } else {
-                    (where as any).OR = [
+                    where.OR = [
                         { status: 'CANCELLED' },
                         { payStatus: 'CANCELLED' },
                     ];
                 }
             } else if (scene === 'REVIEW') {
-                const rules: any[] = [
+                const rules: Prisma.OrderWhereInput[] = [
                     { AND: [{ type: 'SERVICE' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'DONE' }] },
                     { AND: [{ type: 'SP' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'RECEIVED' }] },
                     { AND: [{ type: 'FK' }, { payStatus: 'PAID' }] },
                     { AND: [{ type: 'SERVICE' }, { status: 'FULFILLED' }] },
                     { AND: [{ type: 'SP' }, { status: 'CLOSED' }] },
                 ];
-                (where as any).OR = rules;
+                where.OR = rules;
             } else if (scene === 'DELETED') {
-                (where as any).deletedAt = { not: null } as any;
+                where.deletedAt = { not: null };
             }
         }
         
         // 后台可全量查看时允许带 includeDeleted=true；小程序不会传该参数
         if (!query.includeDeleted) {
-            (where as any).deletedAt = null as any;
+            where.deletedAt = null;
         }
         
         if (query.keyword) {
@@ -908,9 +919,9 @@ export class OrderService {
                 { no: { contains: kw } },
                 { remark: { contains: kw } },
                 { userRemark: { contains: kw } },
-                { paymentNote: { contains: kw } as any },
+                { paymentNote: { contains: kw } },
                 { member: { phone: { contains: kw } } },
-            ] as any;
+            ];
         }
         
         if (query.start || query.end) {
@@ -923,7 +934,7 @@ export class OrderService {
                 const e = new Date(query.end);
                 if (!isNaN(e.getTime())) createdAt.lte = e;
             }
-            if (Object.keys(createdAt).length) (where as any).createdAt = createdAt;
+            if (Object.keys(createdAt).length) where.createdAt = createdAt;
         }
         
         return this.prisma.order.findMany({
@@ -938,7 +949,7 @@ export class OrderService {
         const id = Number(orderId||0);
         if (!Number.isFinite(id) || id<=0) throw new Error('订单ID无效');
         const req = Math.max(0, Number(amount||0));
-        const order: any = await this.prisma.order.findUnique({ where: { id }, select: {
+        const order = await this.prisma.order.findUnique({ where: { id }, select: {
             id: true,
             payStatus: true,
             totalAmount: true,
@@ -960,70 +971,18 @@ export class OrderService {
         const baseBeforeCashier = total.minus(discountBeforeCashier);
         let allow = baseBeforeCashier;
         if (allow.lessThan(0)) allow = new Prisma.Decimal(0);
-        const want = new Prisma.Decimal(req as any);
-        const cashierFinal = want.greaterThan(allow) ? (allow as any) : want;
+        const want = new Prisma.Decimal(req);
+        const cashierFinal = want.greaterThan(allow) ? allow : want;
         // 新的折扣总额与应收
         const discountNew = discountBeforeCashier.plus(cashierFinal);
         let payAmount = total.minus(discountNew).plus(shipping).minus(pointsAmt);
-        if (payAmount.lessThan(0)) payAmount = new Prisma.Decimal(0 as any);
+        if (payAmount.lessThan(0)) payAmount = new Prisma.Decimal(0);
         const updated = await this.prisma.order.update({ where: { id }, data: {
-            cashierDiscountAmount: cashierFinal as any,
-            discountAmount: discountNew as any,
-            payAmount: payAmount as any,
+            cashierDiscountAmount: cashierFinal,
+            discountAmount: discountNew,
+            payAmount: payAmount,
         } });
         try { await this.writeTimeline({ orderId: id, event: 'NOTE', value: 'CASHIER_DISCOUNT_ADJUST', remark: `调整为：${cashierFinal.toFixed(2)}`, operatorUserId: operatorUserId ?? null }); } catch {}
-        return { ok: true, id: updated.id, cashierDiscountAmount: Number(cashierFinal), payAmount: Number(payAmount) } as any;
+        return { ok: true, id: updated.id, cashierDiscountAmount: Number(cashierFinal), payAmount: Number(payAmount) };
     }
 }
-
-// ========== 文件绑定辅助 ==========
-async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]> {
-    const set = new Set<string>();
-    for (const u of urls) {
-        if (!u) continue;
-        const s = String(u).trim();
-        if (!s) continue;
-        set.add(s);
-        try {
-            if (/^https?:\/\//i.test(s)) {
-                const rel = new URL(s).pathname;
-                if (rel) set.add(rel);
-            }
-        } catch { }
-    }
-    const arr = Array.from(set);
-    if (!arr.length) return [];
-    const rows = await (prisma as any).fileAsset.findMany({
-        where: { url: { in: arr } },
-        select: { id: true }
-    });
-    return Array.isArray(rows) ? rows.map((r: any) => String(r.id)) : [];
-}
-
-OrderService.prototype['syncBindings'] = async function (this: OrderService, tableName: string, rowId: string, fieldName: string, urls: string[]) {
-    try {
-        const desired = new Set<string>(await getAssetIdsFromUrls(this['prisma'], urls));
-        const existing: any[] = await (this['prisma'] as any).fileBinding.findMany({
-            where: { tableName, rowId: String(rowId), fieldName }
-        });
-        for (const b of existing) {
-            if (!desired.has(String(b.fileId))) {
-                try {
-                    await this['assets']?.unbindReference(String(b.fileId), String(b.id));
-                } catch { }
-            }
-        }
-        for (const fid of desired) {
-            const ok = existing.find((b: any) => String(b.fileId) === fid);
-            if (!ok) {
-                try {
-                    await this['assets']?.bindReference(String(fid), {
-                        tableName,
-                        rowId: String(rowId),
-                        fieldName
-                    });
-                } catch { }
-            }
-        }
-    } catch { }
-};

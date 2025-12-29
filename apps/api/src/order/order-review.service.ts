@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service.js';
 import { AssetService } from '../file/asset.service.js';
+import { syncFileBindings } from './file-bindings.helper.js';
 
 @Injectable()
 export class OrderReviewService {
@@ -9,17 +11,26 @@ export class OrderReviewService {
         private readonly assets?: AssetService
     ) {}
 
-    private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
-
-    private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
+    private async writeTimeline(params: { tx?: Prisma.TransactionClient | PrismaService; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
         try {
             const db = params.tx ?? this.prisma;
             await db.orderTimeline.create({ data: { orderId: params.orderId, event: params.event, value: params.value || null, remark: params.remark || null, operatorUserId: params.operatorUserId ?? null } });
         } catch {/* ignore timeline errors */ }
     }
 
+    private async syncBindings(tableName: string, rowId: string, fieldName: string, urls: string[]): Promise<void> {
+        return syncFileBindings({
+            prisma: this.prisma,
+            assets: this.assets,
+            tableName,
+            rowId,
+            fieldName,
+            urls,
+        });
+    }
+
     // 判断订单是否可以评价
-    private isOrderCompletedForReview(o: any): boolean {
+    private isOrderCompletedForReview(o: { type?: string | null; payStatus?: string | null; fulfillmentStatus?: string | null; status?: string | null } | null | undefined): boolean {
         if (!o) return false;
         if (o.type === 'SERVICE') return (o.payStatus === 'PAID') && (o.fulfillmentStatus === 'DONE' || o.status === 'FULFILLED');
         if (o.type === 'SP') return (o.payStatus === 'PAID') && (o.fulfillmentStatus === 'RECEIVED' || o.status === 'CLOSED');
@@ -33,7 +44,7 @@ export class OrderReviewService {
         memberId: number;
         rating: number;
         content?: string | null;
-        images?: any;
+        images?: unknown;
     }) {
         const order = await this.prisma.order.findUniqueOrThrow({ where: { id: params.orderId } });
         if (order.memberId !== params.memberId) throw new Error('订单不属于当前用户');
@@ -166,55 +177,3 @@ export class OrderReviewService {
         return updated;
     }
 }
-
-// ========== 文件绑定辅助 ==========
-async function getAssetIdsFromUrls(prisma: PrismaService, urls: string[]): Promise<string[]> {
-    const set = new Set<string>();
-    for (const u of urls) {
-        if (!u) continue;
-        const s = String(u).trim();
-        if (!s) continue;
-        set.add(s);
-        try {
-            if (/^https?:\/\//i.test(s)) {
-                const rel = new URL(s).pathname;
-                if (rel) set.add(rel);
-            }
-        } catch { }
-    }
-    const arr = Array.from(set);
-    if (!arr.length) return [];
-    const rows = await (prisma as any).fileAsset.findMany({
-        where: { url: { in: arr } },
-        select: { id: true }
-    });
-    return Array.isArray(rows) ? rows.map((r: any) => String(r.id)) : [];
-}
-
-OrderReviewService.prototype['syncBindings'] = async function (this: OrderReviewService, tableName: string, rowId: string, fieldName: string, urls: string[]) {
-    try {
-        const desired = new Set<string>(await getAssetIdsFromUrls(this['prisma'], urls));
-        const existing: any[] = await (this['prisma'] as any).fileBinding.findMany({
-            where: { tableName, rowId: String(rowId), fieldName }
-        });
-        for (const b of existing) {
-            if (!desired.has(String(b.fileId))) {
-                try {
-                    await this['assets']?.unbindReference(String(b.fileId), String(b.id));
-                } catch { }
-            }
-        }
-        for (const fid of desired) {
-            const ok = existing.find((b: any) => String(b.fileId) === fid);
-            if (!ok) {
-                try {
-                    await this['assets']?.bindReference(String(fid), {
-                        tableName,
-                        rowId: String(rowId),
-                        fieldName
-                    });
-                } catch { }
-            }
-        }
-    } catch { }
-};

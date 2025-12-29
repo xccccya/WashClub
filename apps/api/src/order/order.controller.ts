@@ -13,6 +13,12 @@ import { WxpayService } from './wxpay.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { resolveGuestMemberIdEnv } from '../env.js';
+import type { Request, Response } from 'express';
+import { PrismaService } from '../prisma.service.js';
+import type { AuthJwtPayload, CreateFkBody, CreateOrderBody, ProxyAdminSnapshot } from './order.types.js';
+import type { OrderType } from '@prisma/client';
+
+type CreateOrderParams = Parameters<OrderService['createOrder']>[0];
 
 @ApiTags('Order')
 @Controller('orders')
@@ -27,74 +33,77 @@ export class OrderController {
         private readonly jwt: JwtService,
         private readonly tanshu: TanshuService,
         private readonly wxpay: WxpayService,
-        private readonly wxship: WechatShippingService
+        private readonly wxship: WechatShippingService,
+        private readonly prisma: PrismaService,
     ) {}
 
     @Post('')
-    async create(@Body() body: any, @Headers('authorization') authHeader?: string) {
+    async create(@Body() body: CreateOrderBody, @Headers('authorization') authHeader?: string) {
         // 游客兜底：若未提供有效 memberId，则回退到环境变量配置的 GUEST_MEMBER_ID
-        try {
-            let memberId = Number(body?.memberId || 0);
-            let isGuestOrder = false;
-            if (!Number.isFinite(memberId) || memberId <= 0) {
-                const gid = resolveGuestMemberIdEnv();
-                if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
-                // 校验该会员是否存在
-                const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
-                if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。');
-                memberId = gid;
-                isGuestOrder = true;
-            } else {
-                const gid = resolveGuestMemberIdEnv();
-                if (gid && memberId === gid) isGuestOrder = true;
-            }
-
-            // 识别代客下单管理员
-            let proxyAdminUserId: number | null = null;
-            let proxyAdminSnapshot: any = null;
-            try {
-                const adminId = this.extractAdminIdFromAuthHeader(authHeader);
-                if (adminId) {
-                    proxyAdminUserId = adminId;
-                    const u = await (this.orders as any).prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
-                    if (u) proxyAdminSnapshot = { id: u.id, name: u.name || null, phone: u.phone || null };
-                }
-            } catch {}
-
-            const payload = { ...body, memberId, _isGuestOrder: isGuestOrder, _proxyAdminUserId: proxyAdminUserId, _proxyAdminSnapshot: proxyAdminSnapshot };
-            return await this.orders.createOrder(payload);
-        } catch (e) {
-            throw e;
+        let memberId = Number(body?.memberId ?? 0);
+        let isGuestOrder = false;
+        if (!Number.isFinite(memberId) || memberId <= 0) {
+            const gid = resolveGuestMemberIdEnv();
+            if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID（游客订单所属会员）。请在环境变量中设置 GUEST_MEMBER_ID，指向一个有效会员ID。');
+            // 校验该会员是否存在
+            const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+            if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效：未找到对应会员。');
+            memberId = gid;
+            isGuestOrder = true;
+        } else {
+            const gid = resolveGuestMemberIdEnv();
+            if (gid && memberId === gid) isGuestOrder = true;
         }
+
+        // 识别代客下单管理员
+        let proxyAdminUserId: number | null = null;
+        let proxyAdminSnapshot: ProxyAdminSnapshot | null = null;
+        try {
+            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+            if (adminId) {
+                proxyAdminUserId = adminId;
+                const u = await this.prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
+                if (u) proxyAdminSnapshot = { id: u.id, name: u.name ?? undefined, phone: u.phone ?? undefined };
+            }
+        } catch {}
+
+        const payload: CreateOrderParams = {
+            ...(body as CreateOrderParams),
+            memberId,
+            _isGuestOrder: isGuestOrder,
+            _proxyAdminUserId: proxyAdminUserId,
+            _proxyAdminSnapshot: proxyAdminSnapshot,
+        };
+        return await this.orders.createOrder(payload);
     }
 
     // POS/后台：创建通用付款订单（无商品收款）
     @Post('_create-fk')
     @UseGuards(AdminGuard)
     @RequirePerm('orders')
-    async createFk(@Body() body: { amount: number; remark?: string | null; memberId?: number | null }, @Headers('authorization') authHeader?: string){
-        const amount = Number((body as any)?.amount || 0);
+    async createFk(@Body() body: CreateFkBody, @Headers('authorization') authHeader?: string){
+        const amount = Number(body?.amount || 0);
         if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('金额必须为正数');
 
         // 识别代客下单管理员
         let proxyAdminUserId: number | null = null;
-        let proxyAdminSnapshot: any = null;
+        let proxyAdminSnapshot: ProxyAdminSnapshot | null = null;
         try {
             const adminId = this.extractAdminIdFromAuthHeader(authHeader);
             if (adminId) {
                 proxyAdminUserId = adminId;
-                const u = await (this.orders as any).prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
-                if (u) proxyAdminSnapshot = { id: u.id, name: u.name || null, phone: u.phone || null };
+                const u = await this.prisma.user.findUnique({ where: { id: adminId }, select: { id: true, name: true, phone: true } });
+                if (u) proxyAdminSnapshot = { id: u.id, name: u.name ?? undefined, phone: u.phone ?? undefined };
             }
         } catch {}
 
         // 会员归属（可选）；未提供则回退到 GUEST_MEMBER_ID
-        let memberId = Number((body as any)?.memberId || 0);
+        let memberId = Number(body?.memberId || 0);
         let isGuestOrder = false;
         if (!Number.isFinite(memberId) || memberId <= 0) {
             const gid = resolveGuestMemberIdEnv();
             if (!gid) throw new BadRequestException('系统未配置 GUEST_MEMBER_ID');
-            const m = await (this.orders as any).prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
+            const m = await this.prisma.member.findUnique({ where: { id: gid }, select: { id: true } });
             if (!m) throw new BadRequestException('GUEST_MEMBER_ID 无效');
             memberId = gid;
             isGuestOrder = true;
@@ -114,27 +123,27 @@ export class OrderController {
         let no: string; let tries = 0;
         while (true) {
             no = `FK_${ts}_${rand8()}`;
-            const exists = await (this.orders as any).prisma.order.findUnique({ where: { no } });
+            const exists = await this.prisma.order.findUnique({ where: { no } });
             if (!exists) break;
             tries++; if (tries > 50) throw new BadRequestException('订单号生成失败');
         }
 
-        const remark = String((body as any)?.remark || '').trim();
+        const remark = String(body?.remark || '').trim();
 
         // 创建订单并写入时间线
-        const order = await (this.orders as any).prisma.order.create({
+        const order = await this.prisma.order.create({
             data: ({
                 no,
-                type: 'FK' as any,
-                status: 'CREATED' as any,
-                fulfillmentStatus: 'NONE' as any,
-                totalAmount: amount as any,
-                discountAmount: 0 as any,
-                memberDiscountAmount: 0 as any,
-                cashierDiscountAmount: 0 as any,
-                payAmount: amount as any,
-                shippingFee: 0 as any,
-                payStatus: 'UNPAID' as any,
+                type: 'FK',
+                status: 'CREATED',
+                fulfillmentStatus: 'NONE',
+                totalAmount: amount,
+                discountAmount: 0,
+                memberDiscountAmount: 0,
+                cashierDiscountAmount: 0,
+                payAmount: amount,
+                shippingFee: 0,
+                payStatus: 'UNPAID',
                 memberId,
                 groupId: null,
                 payAfterService: false,
@@ -144,25 +153,26 @@ export class OrderController {
                 isGuestOrder: isGuestOrder,
                 isProxyOrder: !!proxyAdminUserId,
                 proxyAdminUserId: proxyAdminUserId ?? null,
-                proxyAdminSnapshot: proxyAdminSnapshot ?? null,
-            } as any)
+                proxyAdminSnapshot: proxyAdminSnapshot ?? undefined,
+            })
         });
-        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' } }); } catch {}
-        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' } }); } catch {}
-        try { await (this.orders as any).prisma.orderTimeline.create({ data: { orderId: order.id, event: 'FULFILLMENT', value: 'NONE' } }); } catch {}
-        return { id: order.id, no: order.no } as any;
+        try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED' } }); } catch {}
+        try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'PAY_STATUS', value: 'UNPAID' } }); } catch {}
+        try { await this.prisma.orderTimeline.create({ data: { orderId: order.id, event: 'FULFILLMENT', value: 'NONE' } }); } catch {}
+        return { id: order.id, no: order.no };
     }
 
     @Get(':id(\\d+)')
     async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
-        const o: any = await this.orders.getOrder(id);
+        const o = await this.orders.getOrder(id);
         // 非管理员请求：隐藏代客下单的管理员快照信息
         try{
             const adminId = this.extractAdminIdFromAuthHeader(authHeader);
             if (!adminId) {
-                if (o) {
-                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
-                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                if (o && typeof o === 'object') {
+                    const r = o as Record<string, unknown>;
+                    delete r.proxyAdminUser;
+                    delete r.proxyAdminSnapshot;
                 }
             }
         }catch{}
@@ -171,13 +181,14 @@ export class OrderController {
 
     @Get('by-no/:no')
     async getByNo(@Param('no') no: string, @Headers('authorization') authHeader?: string) {
-        const o: any = await this.orders.getOrderByNo(no);
+        const o = await this.orders.getOrderByNo(no);
         try{
             const adminId = this.extractAdminIdFromAuthHeader(authHeader);
             if (!adminId) {
-                if (o) {
-                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
-                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                if (o && typeof o === 'object') {
+                    const r = o as Record<string, unknown>;
+                    delete r.proxyAdminUser;
+                    delete r.proxyAdminSnapshot;
                 }
             }
         }catch{}
@@ -200,8 +211,8 @@ export class OrderController {
         // 统一鉴权：支持 admin 与 member
         const token = /^Bearer\s+(.+)$/.exec(String(authHeader||''))?.[1];
         if (!token) throw new UnauthorizedException('未登录');
-        let decoded: any;
-        try { decoded = this.jwt.verify(token); } catch { throw new UnauthorizedException('登录已过期'); }
+        let decoded: AuthJwtPayload;
+        try { decoded = this.jwt.verify(token) as AuthJwtPayload; } catch { throw new UnauthorizedException('登录已过期'); }
         const tokenType = String(decoded?.type||'');
         if (tokenType !== 'admin' && tokenType !== 'member') throw new UnauthorizedException('身份无效');
         let memberId: number | undefined = memberIdStr ? Number(memberIdStr) : undefined;
@@ -212,17 +223,18 @@ export class OrderController {
             memberId = Number.isFinite(selfId) ? selfId : undefined;
             includeDeleted = false;
         }
-        const list = await this.orders.listOrders({ type: type as any, status: status as any, payStatus: payStatus as any, scene, includeDeleted, memberId, keyword, start, end });
+        const list = await this.orders.listOrders({ type: type as OrderType | undefined, status: status as any, payStatus: payStatus as any, scene, includeDeleted, memberId, keyword, start, end });
         // 对会员侧列表隐藏代客管理员信息
         if (tokenType === 'member') {
             try{
-                return (list || []).map((o: any)=>{
-                    if (!o) return o;
-                    if ('proxyAdminUser' in o) o.proxyAdminUser = undefined;
-                    if ('proxyAdminSnapshot' in o) o.proxyAdminSnapshot = undefined;
+                return (list || []).map((o)=>{
+                    if (!o || typeof o !== 'object') return o;
+                    const r = o as Record<string, unknown>;
+                    delete r.proxyAdminUser;
+                    delete r.proxyAdminSnapshot;
                     return o;
                 });
-            }catch{ return list; }
+            }catch{ return list; }            
         }
         return list;
     }
@@ -238,12 +250,12 @@ export class OrderController {
 
     // 微信支付回调（v3）
     @Post('_notify/wechat')
-    async wechatNotify(@Req() req: any, @Res() res: any) {
+    async wechatNotify(@Req() req: Request, @Res() res: Response) {
         try {
             const result = await this.payment.handleWechatPaymentNotify(req.body);
             res.status(200).json(result);
         } catch (e) {
-            res.status(500).json({ code: 'ERROR', message: (e as any)?.message || String(e) });
+            res.status(500).json({ code: 'ERROR', message: (e as Error)?.message || String(e) });
         }
     }
 
@@ -303,7 +315,7 @@ export class OrderController {
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { authCode: string; deviceInfo?: string },
         @Headers('x-forwarded-for') xff?: string,
-        @Req() req?: any,
+        @Req() req?: Request,
         @Headers('authorization') authHeader?: string,
     ) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
@@ -421,7 +433,7 @@ export class OrderController {
     @Post(':id/after-sales')
     async createAfterSales(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { type: 'REFUND'|'EXCHANGE'|'RE_SERVICE'; reasonCode?: string; reasonText?: string; description?: string; images?: any; exchangeAddress?: any; amount?: number },
+        @Body() body: { type: 'REFUND'|'EXCHANGE'|'RE_SERVICE'; reasonCode?: string; reasonText?: string; description?: string; images?: unknown; exchangeAddress?: unknown; amount?: number },
         @Headers('authorization') authHeader?: string,
     ) {
         const memberId = this.extractMemberIdFromAuthHeader(authHeader);
@@ -487,22 +499,22 @@ export class OrderController {
 
     // 微信退款回调
     @Post('_notify/wechat-refund')
-    async wechatRefundNotify(@Req() req: any, @Res() res: any) {
+    async wechatRefundNotify(@Req() req: Request, @Res() res: Response) {
         try{
             const result = await this.refund.handleWechatRefundNotify(req.body);
             res.status(200).json(result);
         } catch (e) {
-            res.status(500).json({ code:'ERROR', message: (e as any)?.message || String(e) });
+            res.status(500).json({ code:'ERROR', message: (e as Error)?.message || String(e) });
         }
     }
 
     // 微信退款回调（v2 兼容占位，无验签要求，这里仅作为将来可能的桥接；建议以查询为准）
     @Post('_notify/wechat-refund-v2')
-    async wechatRefundV2Notify(@Req() req: any, @Res() res: any){
+    async wechatRefundV2Notify(@Req() req: Request, @Res() res: Response){
         try{
             // 退款结果通知（v2）：XML，字段 req_info 需解密。
-            const rawBody = req?.rawBody || req?.body || '';
-            const text = typeof rawBody === 'string' ? rawBody : (rawBody?.toString?.('utf8') || '');
+            const rawBody = (req as unknown as { rawBody?: unknown })?.rawBody || req.body || '';
+            const text = typeof rawBody === 'string' ? rawBody : ((rawBody as { toString?: (enc?: string)=>string })?.toString?.('utf8') || '');
             const result = await this.refund.handleWechatRefundV2Notify(text);
             res.set('Content-Type', 'text/xml');
             res.status(200).send(result);
@@ -536,7 +548,7 @@ export class OrderController {
     @RequirePerm('orders')
     ship(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { noExpress?: boolean; companyCode?: string; companyName?: string; companyLogo?: string; trackingNo?: string; extra?: any; contactSenderPhoneMasked?: string; contactReceiverPhoneMasked?: string },
+        @Body() body: { noExpress?: boolean; companyCode?: string; companyName?: string; companyLogo?: string; trackingNo?: string; extra?: unknown; contactSenderPhoneMasked?: string; contactReceiverPhoneMasked?: string },
         @Headers('authorization') authHeader?: string,
     ) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
@@ -591,7 +603,7 @@ export class OrderController {
 
     // 评价接口（新增）
     @Post(':id/review')
-    async createReview(@Param('id', ParseIntPipe) id: number, @Body() body: { rating: number; content?: string; images?: any }, @Headers('authorization') authHeader?: string) {
+    async createReview(@Param('id', ParseIntPipe) id: number, @Body() body: { rating: number; content?: string; images?: unknown }, @Headers('authorization') authHeader?: string) {
         const memberId = this.extractMemberIdFromAuthHeader(authHeader);
         if (!memberId) throw new BadRequestException('未登录或身份无效');
         return this.review.createOrderReview({ orderId: id, memberId, rating: body.rating, content: body.content, images: body.images });
@@ -658,7 +670,7 @@ export class OrderController {
         const token = m?.[1];
         if (!token) return undefined;
         try {
-            const decoded: any = this.jwt.verify(token);
+            const decoded = this.jwt.verify(token) as AuthJwtPayload;
             if (decoded?.type !== 'admin') return undefined;
             const id = Number(decoded?.sub);
             return Number.isFinite(id) && id > 0 ? id : undefined;
@@ -673,7 +685,7 @@ export class OrderController {
         const token = m?.[1];
         if (!token) return undefined;
         try {
-            const decoded: any = this.jwt.verify(token);
+            const decoded = this.jwt.verify(token) as AuthJwtPayload;
             if (decoded?.type !== 'member') return undefined;
             const id = Number(decoded?.sub);
             return Number.isFinite(id) && id > 0 ? id : undefined;
