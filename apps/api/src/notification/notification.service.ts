@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { NotificationGateway } from './notification.gateway.js';
-import { Queue, Worker, JobsOptions } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 
 type CreateNotificationInput = {
@@ -19,6 +19,8 @@ export class NotificationService {
     private redisPub?: any;
     private redisSub?: any;
     private redisWorker?: any;
+
+    private notifyDbSchedulerTimer?: any;
     
 
     constructor(private prisma: PrismaService, private gateway: NotificationGateway) {
@@ -60,7 +62,7 @@ export class NotificationService {
                         const memberId = Number(d?.target?.memberId||d?.memberId||0);
                         const memberCouponId = Number(d?.memberCouponId||0);
                         if (memberId>0 && memberCouponId>0){
-                            await this.handleCouponWillExpire(memberId, memberCouponId, d?.payload);
+                            await this.processCouponWillExpireFromQueue(memberId, memberCouponId, d?.payload);
                         }
                     }catch{}
                     return;
@@ -128,6 +130,171 @@ export class NotificationService {
             console.error('[NotificationService] 队列初始化失败:', error);
             this.notifyQueue = undefined;
         }
+
+        // DB 兜底调度：无论 Redis/BullMQ 是否可用，都启动（通过任务状态 claim 避免重复处理）
+        try{
+            this.startDbScheduler();
+        }catch{}
+    }
+
+    private startDbScheduler(){
+        if (this.notifyDbSchedulerTimer) return;
+        const intervalMs = process.env.NOTIFY_DB_SCHEDULER_INTERVAL_MS ? Number(process.env.NOTIFY_DB_SCHEDULER_INTERVAL_MS) : 30000;
+        const safeInterval = Number.isFinite(intervalMs) && intervalMs > 5000 ? intervalMs : 30000;
+        this.notifyDbSchedulerTimer = setInterval(() => {
+            this.processDueNotificationJobs().catch(()=>{});
+        }, safeInterval);
+    }
+
+    private async processDueNotificationJobs(){
+        const now = new Date();
+
+        // 释放卡死的 PROCESSING（进程崩溃/异常退出等导致的锁遗留）
+        try{
+            const staleMs = process.env.NOTIFY_DB_SCHEDULER_STALE_LOCK_MS ? Number(process.env.NOTIFY_DB_SCHEDULER_STALE_LOCK_MS) : 10 * 60 * 1000;
+            const safeStale = Number.isFinite(staleMs) && staleMs > 60000 ? staleMs : 10 * 60 * 1000;
+            const staleAt = new Date(Date.now() - safeStale);
+            await (this.prisma as any).notificationJob.updateMany({
+                where: { status: 'PROCESSING', lockedAt: { lt: staleAt } },
+                data: { status: 'PENDING', lockedAt: null, lastError: 'stale lock released' }
+            });
+        }catch{}
+
+        // 拉取即将到期任务
+        let jobs: any[] = [];
+        try{
+            jobs = await (this.prisma as any).notificationJob.findMany({
+                where: { status: 'PENDING', runAt: { lte: now } },
+                orderBy: { runAt: 'asc' },
+                take: 50,
+            });
+        }catch{
+            return;
+        }
+        if (!jobs || jobs.length === 0) return;
+
+        for (const job of jobs){
+            const id = Number(job?.id||0);
+            if (!id) continue;
+            const type = String(job?.type||'');
+            const claimAt = new Date();
+            let claimed = false;
+            try{
+                const res = await (this.prisma as any).notificationJob.updateMany({
+                    where: { id, status: 'PENDING' },
+                    data: { status: 'PROCESSING', lockedAt: claimAt, attempts: { increment: 1 } }
+                });
+                claimed = (res?.count || 0) === 1;
+            }catch{ claimed = false; }
+            if (!claimed) continue;
+
+            try{
+                if (type === 'COUPON_WILL_EXPIRE'){
+                    const memberCouponId = Number(job?.memberCouponId||0);
+                    let memberId = Number(job?.memberId||0);
+                    if (!memberId && memberCouponId>0){
+                        try{
+                            const mc = await (this.prisma as any).memberCoupon.findUnique({ where: { id: memberCouponId }, select: { memberId: true } });
+                            memberId = Number(mc?.memberId||0);
+                        }catch{}
+                    }
+                    if (memberId>0 && memberCouponId>0){
+                        await this.handleCouponWillExpire(memberId, memberCouponId, job?.payload);
+                    }
+                }
+                await (this.prisma as any).notificationJob.update({
+                    where: { id },
+                    data: { status: 'DONE', processedAt: new Date(), lockedAt: null, lastError: null }
+                });
+            }catch(e:any){
+                const prevAttempts = Number(job?.attempts || 0);
+                const nextAttempts = prevAttempts + 1;
+                const maxAttempts = Number(job?.maxAttempts || 20);
+                const errMsg = (()=>{ try{ return String(e?.message || e || 'unknown'); }catch{ return 'unknown'; } })();
+                try{
+                    if (nextAttempts >= maxAttempts){
+                        await (this.prisma as any).notificationJob.update({
+                            where: { id },
+                            data: { status: 'FAILED', lockedAt: null, lastError: errMsg }
+                        });
+                    } else {
+                        const backoffMs = Math.min(60_000 * Math.max(1, nextAttempts), 15 * 60_000);
+                        await (this.prisma as any).notificationJob.update({
+                            where: { id },
+                            data: { status: 'PENDING', lockedAt: null, lastError: errMsg, runAt: new Date(Date.now() + backoffMs) }
+                        });
+                    }
+                }catch{}
+            }
+        }
+    }
+
+    private async upsertCouponWillExpireJob(params: { memberId: number; memberCouponId: number; runAt: Date; payload: any }){
+        const { memberId, memberCouponId, runAt, payload } = params;
+        if (!memberId || !memberCouponId) return null as any;
+        try{
+            const existing = await (this.prisma as any).notificationJob.findFirst({
+                where: { type: 'COUPON_WILL_EXPIRE', memberCouponId }
+            });
+            if (existing){
+                return (this.prisma as any).notificationJob.update({
+                    where: { id: existing.id },
+                    data: { status: 'PENDING', runAt, memberId, payload, lastError: null, lockedAt: null }
+                });
+            }
+            return await (this.prisma as any).notificationJob.create({
+                data: { type: 'COUPON_WILL_EXPIRE', status: 'PENDING', runAt, memberId, memberCouponId, payload, maxAttempts: 20 }
+            });
+        }catch{
+            // 并发下可能触发唯一键冲突：回退为 update
+            try{
+                const existing2 = await (this.prisma as any).notificationJob.findFirst({
+                    where: { type: 'COUPON_WILL_EXPIRE', memberCouponId }
+                });
+                if (existing2){
+                    return (this.prisma as any).notificationJob.update({
+                        where: { id: existing2.id },
+                        data: { status: 'PENDING', runAt, memberId, payload, lastError: null, lockedAt: null }
+                    });
+                }
+            }catch{}
+            return null as any;
+        }
+    }
+
+    private async processCouponWillExpireFromQueue(memberId: number, memberCouponId: number, payload: any){
+        // 若存在 DB 任务，先 claim 再处理，避免与 DB scheduler 重复发送
+        try{
+            const existing = await (this.prisma as any).notificationJob.findFirst({
+                where: { type: 'COUPON_WILL_EXPIRE', memberCouponId }
+            });
+            if (existing){
+                const claimAt = new Date();
+                const res = await (this.prisma as any).notificationJob.updateMany({
+                    where: { id: existing.id, status: 'PENDING' },
+                    data: { status: 'PROCESSING', lockedAt: claimAt, attempts: { increment: 1 } }
+                });
+                if ((res?.count || 0) !== 1) return;
+                try{
+                    await this.handleCouponWillExpire(memberId, memberCouponId, payload);
+                    await (this.prisma as any).notificationJob.update({
+                        where: { id: existing.id },
+                        data: { status: 'DONE', processedAt: new Date(), lockedAt: null, lastError: null }
+                    });
+                }catch(e:any){
+                    const errMsg = (()=>{ try{ return String(e?.message || e || 'unknown'); }catch{ return 'unknown'; } })();
+                    try{
+                        await (this.prisma as any).notificationJob.update({
+                            where: { id: existing.id },
+                            data: { status: 'PENDING', lockedAt: null, lastError: errMsg, runAt: new Date(Date.now() + 60_000) }
+                        });
+                    }catch{}
+                }
+                return;
+            }
+        }catch{}
+        // 兼容历史：若没有 DB 任务，照旧处理
+        await this.handleCouponWillExpire(memberId, memberCouponId, payload);
     }
 
     async create(input: CreateNotificationInput) {
@@ -200,21 +367,34 @@ export class NotificationService {
     async scheduleCouponWillExpire(memberId: number, memberCouponId: number, title: string, content: string, linkPath?: string | null, delayMs?: number) {
         const payload = { type:'notification', data: { title, content, type: 'COUPON_WILL_EXPIRE', linkPath: linkPath ?? null } } as any;
         const delay = Number(delayMs||0);
+        const runAt = new Date(Date.now() + Math.max(0, delay));
         
         // 延迟为0或负数时立即处理（优惠券24小时内到期）
         if (delay <= 0) {
             try { await this.handleCouponWillExpire(memberId, memberCouponId, payload); } catch {}
+            try{
+                // 记录为已完成（用于幂等与观测）
+                await (this.prisma as any).notificationJob.create({
+                    data: { type:'COUPON_WILL_EXPIRE', status:'DONE', runAt: new Date(), memberId, memberCouponId, payload, processedAt: new Date() }
+                });
+            }catch{}
             return { ok: true, immediate: true } as any;
         }
-        
-        // 队列未配置时，对于超过24小时到期的优惠券，跳过调度（不处理）
-        if (!this.notifyQueue) {
-            return { ok: false, error: 'Queue not available' } as any;
-        }
+
+        // 先落库任务：Redis/BullMQ 不可用时由 DB scheduler 兜底处理
+        try{
+            await this.upsertCouponWillExpireJob({ memberId, memberCouponId, runAt, payload });
+        }catch{}
         
         // 有正延迟时，加入队列调度（优惠券超过24小时到期）
-        await this.notifyQueue.add('coupon-will-expire', { target: { kind:'MEMBER', memberId }, memberId, memberCouponId, payload }, { delay, removeOnComplete: true, removeOnFail: 20 } as any);
-        return { ok: true, scheduled: true } as any;
+        try{
+            if (this.notifyQueue) {
+                await this.notifyQueue.add('coupon-will-expire', { target: { kind:'MEMBER', memberId }, memberId, memberCouponId, payload }, { delay, removeOnComplete: true, removeOnFail: 20 } as any);
+                return { ok: true, scheduled: true, via: 'bullmq' } as any;
+            }
+        }catch{}
+        // BullMQ 不可用也算调度成功：由 DB scheduler 执行
+        return { ok: true, scheduled: true, via: 'db' } as any;
     }
 
 

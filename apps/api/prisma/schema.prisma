@@ -1530,6 +1530,48 @@ enum NotificationStatus {
   READ
 }
 
+// =====================
+// 通知延迟任务（DB 兜底调度）
+// - 目的：Redis/BullMQ 不可用时，延迟通知仍可通过数据库轮询处理
+// - 目前仅用于 COUPON_WILL_EXPIRE（券将到期）类任务
+// =====================
+
+enum NotificationJobType {
+  COUPON_WILL_EXPIRE
+}
+
+enum NotificationJobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+model NotificationJob {
+  id          Int                  @id @default(autoincrement())
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  type        NotificationJobType
+  status      NotificationJobStatus @default(PENDING)
+  runAt       DateTime
+
+  attempts    Int                  @default(0)
+  maxAttempts Int                  @default(20)
+  lastError   String?              @db.Text
+  lockedAt    DateTime?
+  processedAt DateTime?
+
+  // 业务字段（当前仅 MEMBER 目标）
+  memberId        Int?
+  memberCouponId  Int?             // COUPON_WILL_EXPIRE 对应 MemberCoupon.id
+  payload         Json?
+
+  @@index([status, runAt])
+  @@unique([type, memberCouponId])
+}
+
 model Notification {
   id            Int                     @id @default(autoincrement())
   createdAt     DateTime                @default(now())
