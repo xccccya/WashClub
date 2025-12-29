@@ -189,7 +189,7 @@ export class OrderService {
                     // 这里以商品的 memberDiscount 作为判别（如有任一商品启用会员折扣则不允许叠加）
                     const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
                     if (productIds.length) {
-                        const products = await this.prisma.product.findMany({
+                        const products = await tx.product.findMany({
                             where: { id: { in: productIds } },
                             select: { id: true, memberDiscount: true }
                         });
@@ -201,7 +201,7 @@ export class OrderService {
                 let discountBase = total; // 缺省按整单
                 let applicableSubtotal = total;
                 if (memberCoupon.coupon?.applyScope === 'SPECIFIED') {
-                    const applicable = await this.prisma.couponApplicableProduct.findMany({
+                    const applicable = await tx.couponApplicableProduct.findMany({
                         where: { couponId: memberCoupon.couponId },
                         select: { productId: true }
                     });
@@ -282,7 +282,7 @@ export class OrderService {
                 if (records.some((mc: any) => mc?.coupon && mc.coupon.allowStackWithMemberDiscount === false) && !disableMemberDiscount) {
                     const productIds = items.map(it => it.productId).filter((v): v is number => typeof v === 'number');
                     if (productIds.length) {
-                        const products = await this.prisma.product.findMany({
+                        const products = await tx.product.findMany({
                             where: { id: { in: productIds } },
                             select: { id: true, memberDiscount: true }
                         });
@@ -293,7 +293,7 @@ export class OrderService {
                 for (const mc of records) {
                     let discountBase = total;
                     if (mc.coupon?.applyScope === 'SPECIFIED') {
-                        const applicable = await this.prisma.couponApplicableProduct.findMany({
+                        const applicable = await tx.couponApplicableProduct.findMany({
                             where: { couponId: mc.couponId },
                             select: { productId: true }
                         });
