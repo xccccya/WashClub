@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>WashClub - 登录 / 修改密码（原型）</title>
+    <style>
+      :root{
+        --bg0:#e9f5ff;
+        --bg1:#fff0f6;
+        --card:#ffffffcc;
+        --card2:#ffffff;
+        --text:#0b1220;
+        --muted:#6b7280;
+        --line:#e5e7eb;
+        --primary0:#63b3ff;
+        --primary1:#ff77b3;
+        --wechat:#07c160;
+        --danger:#ef4444;
+        --shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+        --shadow2: 0 10px 30px rgba(15, 23, 42, 0.10);
+        --radius: 22px;
+        --radius2: 16px;
+        --control-h: 52px;
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      *{ box-sizing:border-box; }
+      html,body{ height:100%; }
+      body{
+        margin:0;
+        font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC","Microsoft YaHei", Arial, sans-serif;
+        color:var(--text);
+        background: radial-gradient(1200px 600px at 20% 0%, rgba(99,179,255,.45), transparent 60%),
+                    radial-gradient(900px 500px at 90% 10%, rgba(255,119,179,.40), transparent 60%),
+                    linear-gradient(180deg, var(--bg0), var(--bg1));
+        overflow:hidden;
+      }
+      .app{
+        position:relative;
+        height:100%;
+        width:min(440px, 100%);
+        margin:0 auto;
+        padding: 14px 14px calc(14px + var(--safe-bottom)) 14px;
+      }
+      .topbar{
+        height: 48px;
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        padding: 0 2px;
+      }
+      .nav-btn{
+        width:42px;height:42px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.7);
+        background: rgba(255,255,255,.55);
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow2);
+        display:grid;
+        place-items:center;
+        cursor:pointer;
+        user-select:none;
+        transition: transform .12s ease, filter .12s ease;
+      }
+      .nav-btn:active{ transform: scale(.98); filter: brightness(.98); }
+      .nav-icon{
+        width: 18px; height: 18px;
+        border-left: 2px solid #111827;
+        border-bottom: 2px solid #111827;
+        transform: rotate(45deg);
+        margin-left: 4px;
+      }
+      .brand{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        padding: 8px 10px 0 10px;
+      }
+      .logo{
+        width: 44px; height: 44px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(99,179,255,.9), rgba(255,119,179,.9));
+        box-shadow: 0 18px 40px rgba(99,179,255,.22), 0 18px 40px rgba(255,119,179,.18);
+        position:relative;
+        overflow:hidden;
+      }
+      .logo:before{
+        content:"";
+        position:absolute; inset:-40%;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.75), transparent 50%);
+        transform: rotate(20deg);
+      }
+      .brand-text .title{
+        font-size: 18px;
+        font-weight: 750;
+        letter-spacing:.2px;
+      }
+      .brand-text .sub{
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .screens{
+        position:relative;
+        height: calc(100% - 56px);
+        margin-top: 8px;
+      }
+      .screen{
+        position:absolute;
+        inset:0;
+        display:flex;
+        flex-direction: column;
+        gap: 14px;
+        transform: translateX(0);
+        opacity:1;
+        pointer-events:auto;
+        transition: transform .32s cubic-bezier(.2,.9,.2,1), opacity .24s ease;
+      }
+      .screen.off-left{ transform: translateX(-12%); opacity:0; pointer-events:none; }
+      .screen.off-right{ transform: translateX(12%); opacity:0; pointer-events:none; }
+      .card{
+        border-radius: var(--radius);
+        background: var(--card);
+        border: 1px solid rgba(255,255,255,.7);
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+        overflow:hidden;
+      }
+      /* 轻微整体动效：页面首次进入时卡片轻轻上浮淡入（不做夸张弹跳） */
+      .card.enter{
+        animation: card-enter .38s cubic-bezier(.2,.9,.2,1) both;
+      }
+      @keyframes card-enter{
+        from{ opacity: 0; transform: translateY(10px) scale(.992); filter: saturate(.98); }
+        to{ opacity: 1; transform: translateY(0) scale(1); filter: saturate(1); }
+      }
+      .card-inner{ padding: 18px 16px; }
+      .headline{
+        display:flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .headline h2{
+        margin:0;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: .2px;
+      }
+      .headline p{
+        margin:0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .field{
+        display:flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .label-row{
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .label{
+        font-size: 12px;
+        color: #374151;
+        font-weight: 650;
+      }
+      .hint{
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .input{
+        height: var(--control-h);
+        width: 100%;
+        display: block;
+        border-radius: 16px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.86);
+        box-shadow: inset 0 1px 8px rgba(0,0,0,.04);
+        padding: 0 14px;
+        outline: none;
+        font-size: 14px;
+        transition: box-shadow .16s ease, border-color .16s ease, transform .12s ease;
+      }
+      .input:focus{
+        border-color: rgba(37,99,235,.30);
+        /* 用“内发光”替代外扩 ring，避免被 reveal/overflow 裁切造成不美观 */
+        box-shadow:
+          0 0 0 3px rgba(99,179,255,.22) inset,
+          0 1px 0 rgba(255,255,255,.65) inset,
+          inset 0 1px 8px rgba(0,0,0,.04);
+      }
+
+      .row{
+        display:flex;
+        align-items:center;
+        gap: 10px;
+      }
+
+      /* 手机号输入组：整行占满（输入 + 右侧获取验证码按钮同高） */
+      .input-group{
+        width: 100%;
+        display:flex;
+        align-items: stretch;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.86);
+        box-shadow: inset 0 1px 8px rgba(0,0,0,.04);
+      }
+      .input-group:focus-within{
+        border-color: rgba(37,99,235,.30);
+        box-shadow:
+          0 0 0 3px rgba(99,179,255,.20) inset,
+          0 1px 0 rgba(255,255,255,.65) inset,
+          inset 0 1px 8px rgba(0,0,0,.04);
+      }
+      .input-group .input{
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        height: var(--control-h);
+        flex: 1;
+        min-width: 0;
+      }
+      .input-group .input:focus{
+        border-color: transparent;
+        box-shadow: none;
+      }
+      .input-group .btn{
+        height: var(--control-h);
+        border: 0;
+        border-left: 1px solid rgba(17,24,39,.10);
+        border-radius: 0;
+        background: rgba(255,255,255,.76);
+        padding: 0 16px;
+        font-weight: 850;
+      }
+      /* 获取验证码按钮：在密码模式下平滑收起，不占位 */
+      .input-group .send-code{
+        max-width: 132px;
+        opacity: 1;
+        transform: translateX(0);
+        transition:
+          max-width .28s cubic-bezier(.2,.9,.2,1),
+          opacity .18s ease,
+          transform .28s cubic-bezier(.2,.9,.2,1),
+          padding .28s cubic-bezier(.2,.9,.2,1),
+          border-color .18s ease;
+      }
+      .input-group .send-code.hidden{
+        max-width: 0;
+        padding-left: 0;
+        padding-right: 0;
+        opacity: 0;
+        transform: translateX(6px);
+        border-left-color: transparent;
+        pointer-events: none;
+      }
+      .btn{
+        height: var(--control-h);
+        border-radius: 999px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.72);
+        backdrop-filter: blur(10px);
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor:pointer;
+        user-select:none;
+        transition: transform .12s ease, filter .12s ease, background .16s ease;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        white-space:nowrap;
+      }
+      .btn:active{ transform: scale(.99); filter: brightness(.98); }
+      .btn.ghost{ background: rgba(255,255,255,.82); }
+      .btn:disabled{
+        cursor: not-allowed;
+        opacity: .55;
+        filter: grayscale(.25);
+      }
+      .btn.link{
+        border:0;
+        background: transparent;
+        padding:0 4px;
+        height:auto;
+        font-weight: 750;
+        color: #2563eb;
+      }
+
+      .seg-code{
+        display:grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+      .seg-code.focused .cell{
+        border-color: rgba(37,99,235,.16);
+      }
+      .cell{
+        height: var(--control-h);
+        border-radius: 14px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.86);
+        display:grid;
+        place-items:center;
+        font-size: 16px;
+        font-weight: 800;
+      }
+      .cell.filled{
+        border-color: rgba(37,99,235,.22);
+        background: rgba(255,255,255,.92);
+      }
+      .cell.caret{
+        /* caret 高亮更克制，跟输入框 focus 的“内发光”一致 */
+        border-color: rgba(37,99,235,.28);
+        /* 用内发光替代外扩阴影，避免被容器裁切导致边缘不美观 */
+        box-shadow:
+          0 0 0 3px rgba(99,179,255,.18) inset,
+          0 1px 0 rgba(255,255,255,.65) inset;
+      }
+
+      .mode-tabs{
+        display:flex;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.55);
+        border: 1px solid rgba(255,255,255,.7);
+        backdrop-filter: blur(12px);
+      }
+      .tab{
+        flex:1;
+        height: 36px;
+        border-radius: 999px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+        user-select:none;
+        font-size: 12px;
+        font-weight: 800;
+        color: #374151;
+        transition: background .16s ease, transform .12s ease, color .16s ease;
+      }
+      .tab.active{
+        color: #0b1220;
+        background: linear-gradient(135deg, rgba(99,179,255,.75), rgba(255,119,179,.65));
+        box-shadow: 0 10px 18px rgba(15,23,42,.12);
+      }
+      .tab:active{ transform: scale(.99); }
+
+      /* 模式切换动画：验证码区域 / 密码区域 */
+      .mode-area{ margin-top: 12px; }
+      .panel-wrap{
+        display:grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows .34s cubic-bezier(.2,.9,.2,1);
+      }
+      .mode-panel{
+        overflow:hidden;
+        opacity: 0;
+        transform: translateY(10px);
+        filter: blur(.0px);
+        transition: opacity .18s ease, transform .34s cubic-bezier(.2,.9,.2,1);
+        pointer-events:none;
+      }
+      #app[data-mode="code"] .code-wrap{ grid-template-rows: 1fr; }
+      #app[data-mode="pwd"] .pwd-wrap{ grid-template-rows: 1fr; }
+      #app[data-mode="code"] .code-wrap .mode-panel,
+      #app[data-mode="pwd"] .pwd-wrap .mode-panel{
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events:auto;
+      }
+
+      .actions{
+        display:flex;
+        justify-content:flex-end;
+        align-items:center;
+        margin-top: 14px;
+      }
+
+      .primary{
+        height: 58px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.55);
+        cursor:pointer;
+        user-select:none;
+        font-weight: 900;
+        letter-spacing: .3px;
+        color: #0b1220;
+        background: linear-gradient(135deg, rgba(99,179,255,.96), rgba(255,119,179,.94));
+        box-shadow:
+          0 22px 50px rgba(99,179,255,.18),
+          0 22px 50px rgba(255,119,179,.14),
+          0 8px 18px rgba(15,23,42,.10);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        transition: transform .12s ease, filter .12s ease, box-shadow .16s ease;
+        position: relative;
+        overflow: hidden;
+        text-shadow: 0 1px 0 rgba(255,255,255,.35);
+        padding: 0 22px;
+        min-width: 186px;
+      }
+      .primary:before{
+        content:"";
+        position:absolute;
+        inset: -60% -40%;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(255,255,255,.65), transparent 55%),
+          radial-gradient(circle at 70% 20%, rgba(255,255,255,.35), transparent 55%);
+        transform: rotate(18deg);
+        opacity: .55;
+        pointer-events:none;
+      }
+      .primary:after{
+        content:"";
+        position:absolute;
+        inset: 1px;
+        border-radius: 999px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+        pointer-events:none;
+      }
+      .primary:active{
+        transform: translateY(1px) scale(.99);
+        filter: brightness(.98);
+        box-shadow:
+          0 16px 38px rgba(99,179,255,.16),
+          0 16px 38px rgba(255,119,179,.12),
+          0 6px 14px rgba(15,23,42,.10);
+      }
+      .primary[disabled]{
+        cursor:not-allowed;
+        filter: grayscale(.15);
+        opacity: .62;
+        box-shadow: 0 10px 22px rgba(15,23,42,.10);
+        background: linear-gradient(135deg, rgba(148,163,184,.55), rgba(203,213,225,.55));
+      }
+      .primary.stacked{
+        height: 66px;
+        flex-direction: column;
+        gap: 6px;
+        line-height: 1.08;
+        padding: 0 24px;
+        min-width: 210px;
+      }
+      .primary .btn-title{ font-size: 16px; font-weight: 950; line-height: 1.1; letter-spacing: .4px; }
+      .primary .btn-sub{
+        font-size: 12px;
+        font-weight: 850;
+        opacity: .82;
+        line-height: 1.1;
+        letter-spacing: .2px;
+      }
+
+      .wechat{
+        height: 56px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.55);
+        cursor:pointer;
+        user-select:none;
+        font-weight: 850;
+        color: #fff;
+        background: var(--wechat);
+        box-shadow: 0 12px 26px rgba(7,193,96,.18), 0 8px 18px rgba(15,23,42,.08);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap: 10px;
+        transition: transform .12s ease, filter .12s ease;
+        position: relative;
+        overflow:hidden;
+        width: 100%;
+      }
+      .wechat:active{ transform: scale(.99); filter: brightness(.98); }
+      .wechat:before{
+        content:"";
+        position:absolute;
+        inset:-60% -40%;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.26), transparent 55%);
+        transform: rotate(18deg);
+        opacity: .45;
+        pointer-events:none;
+      }
+      .wechat .dot{
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: rgba(255,255,255,.85);
+        box-shadow: 0 0 0 5px rgba(255,255,255,.10);
+      }
+
+      /* 渐进式展开：验证码区域（先隐藏，发送后优雅出现） */
+      .reveal{
+        margin-top: 0;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transform: translateY(-6px);
+        transition:
+          max-height .36s cubic-bezier(.2,.9,.2,1),
+          opacity .22s ease,
+          transform .32s cubic-bezier(.2,.9,.2,1),
+          margin-top .22s ease;
+      }
+      .reveal.show{
+        margin-top: 12px;
+        max-height: 140px;
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .reveal-inner{
+        padding-top: 0;
+        transform: translateY(-2px);
+        transition: transform .32s cubic-bezier(.2,.9,.2,1);
+      }
+      .reveal.show .reveal-inner{ transform: translateY(0); }
+
+      /* 轻量载入骨架：用于“获取验证码后显示”这类渐进加载 */
+      .skeleton{
+        height: var(--control-h);
+        border-radius: 16px;
+        background: linear-gradient(90deg, rgba(255,255,255,.55), rgba(255,255,255,.85), rgba(255,255,255,.55));
+        background-size: 180% 100%;
+        border: 1px solid rgba(17,24,39,.08);
+        box-shadow: inset 0 1px 8px rgba(0,0,0,.03);
+        animation: shimmer 1.05s ease-in-out infinite;
+      }
+      @keyframes shimmer{
+        0%{ background-position: 0% 0; }
+        100%{ background-position: 180% 0; }
+      }
+      .skeleton-row{
+        display:grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+      .skeleton-cell{
+        height: var(--control-h);
+        border-radius: 14px;
+        background: rgba(255,255,255,.55);
+        border: 1px solid rgba(17,24,39,.06);
+        box-shadow: inset 0 1px 8px rgba(0,0,0,.03);
+      }
+
+      .agree-row{
+        margin-top: 12px;
+        display:flex;
+        align-items:flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 12px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.62);
+        border: 1px solid rgba(17,24,39,.08);
+      }
+      .agree-left{
+        display:flex;
+        flex-direction: column;
+        gap: 4px;
+        flex:1;
+        min-width: 0;
+      }
+      .agree-title{
+        font-size: 12px;
+        font-weight: 850;
+        color: #111827;
+      }
+      .agree-desc{
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.3;
+      }
+      .agree-desc a{
+        color:#2563eb;
+        font-weight: 800;
+        text-decoration:none;
+      }
+      .switch{
+        width: 46px;
+        height: 28px;
+        border-radius: 999px;
+        background: rgba(17,24,39,.12);
+        border: 1px solid rgba(17,24,39,.10);
+        position:relative;
+        cursor:pointer;
+        flex: 0 0 auto;
+        transition: background .16s ease, box-shadow .16s ease;
+        margin-top: 2px;
+      }
+      .switch:active{ transform: scale(.99); }
+      .switch.on{
+        background: rgba(7,193,96,.28);
+        box-shadow: 0 0 0 4px rgba(7,193,96,.14);
+      }
+      .knob{
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        position:absolute;
+        top: 2px; left: 2px;
+        box-shadow: 0 10px 18px rgba(15,23,42,.18);
+        transition: transform .18s cubic-bezier(.2,.9,.2,1);
+      }
+      .switch.on .knob{ transform: translateX(18px); }
+
+      .divider{
+        height:1px;
+        background: rgba(17,24,39,.10);
+        margin: 14px 0;
+      }
+
+      .bottom-actions{
+        margin-top:auto;
+        display:flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 10px 6px 2px 6px;
+      }
+      .bottom-note{
+        text-align:center;
+        color: rgba(107,114,128,.92);
+        font-size:12px;
+        line-height: 1.25;
+      }
+      /* 底部按钮区入场 */
+      .bottom-actions.enter{
+        animation: bottom-enter .40s cubic-bezier(.2,.9,.2,1) both;
+      }
+      @keyframes bottom-enter{
+        from{ opacity: 0; transform: translateY(10px); }
+        to{ opacity: 1; transform: translateY(0); }
+      }
+
+      /* Toast */
+      .toast{
+        position:absolute;
+        left: 50%;
+        bottom: calc(12px + var(--safe-bottom));
+        transform: translateX(-50%) translateY(12px);
+        opacity:0;
+        pointer-events:none;
+        background: rgba(17,24,39,.90);
+        color:#fff;
+        padding: 10px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        box-shadow: var(--shadow2);
+        transition: opacity .18s ease, transform .18s ease;
+      }
+      .toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
+
+      /* Modal */
+      .modal-mask{
+        position:absolute;
+        inset:0;
+        background: rgba(15,23,42,.38);
+        backdrop-filter: blur(8px);
+        opacity:0;
+        pointer-events:none;
+        transition: opacity .18s ease;
+        display:flex;
+        align-items:flex-end;
+        justify-content:center;
+        padding: 14px 14px calc(14px + var(--safe-bottom)) 14px;
+      }
+      .modal-mask.show{ opacity:1; pointer-events:auto; }
+      .modal{
+        width: 100%;
+        border-radius: 24px;
+        background: rgba(255,255,255,.92);
+        border: 1px solid rgba(255,255,255,.85);
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+        transform: translateY(14px);
+        opacity:0;
+        transition: transform .22s cubic-bezier(.2,.9,.2,1), opacity .18s ease;
+        overflow:hidden;
+      }
+      .modal-mask.show .modal{ transform: translateY(0); opacity:1; }
+      .modal-body{ padding: 16px 16px 12px 16px; }
+      .modal-title{
+        font-size: 16px;
+        font-weight: 900;
+        margin: 0;
+      }
+      .modal-text{
+        margin: 8px 0 0 0;
+        font-size: 13px;
+        color: #374151;
+        line-height: 1.45;
+      }
+      .modal-actions{
+        display:flex;
+        gap: 10px;
+        padding: 12px 12px 12px 12px;
+        border-top: 1px solid rgba(17,24,39,.08);
+      }
+      .modal-actions button{
+        flex:1;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(17,24,39,.10);
+        background: rgba(255,255,255,.72);
+        font-weight: 900;
+        cursor:pointer;
+      }
+      .modal-actions button.primary{
+        border: 0;
+        background: linear-gradient(135deg, rgba(99,179,255,.92), rgba(255,119,179,.92));
+        color: #0b1220;
+      }
+      .modal-actions button:active{ transform: scale(.99); }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="topbar">
+        <div class="nav-btn" id="navBack" title="返回" style="visibility:hidden">
+          <div class="nav-icon"></div>
+        </div>
+        <div style="width:42px"></div>
+      </div>
+
+      <div class="screens">
+        <!-- Login -->
+        <section class="screen" id="screenLogin">
+          <div class="brand">
+            <div class="logo"></div>
+            <div class="brand-text">
+              <div class="title">WashClub</div>
+              <div class="sub">更现代、更清晰的登录体验（原型）</div>
+            </div>
+          </div>
+
+          <div class="card" id="loginCard">
+            <div class="card-inner">
+              <div class="headline">
+                <h2>登录</h2>
+                <p id="loginSub">请选择登录方式</p>
+              </div>
+
+              <div class="mode-tabs" role="tablist" aria-label="登录方式">
+                <div class="tab active" id="tabCode" role="tab" aria-selected="true">验证码登录</div>
+                <div class="tab" id="tabPwd" role="tab" aria-selected="false">密码登录</div>
+              </div>
+
+              <div class="field">
+                <div class="label-row">
+                  <div class="label">手机号</div>
+                  <div class="hint">仅用于登录与账号识别</div>
+                </div>
+                <div class="input-group" id="phoneGroup">
+                  <input class="input" id="phone" inputmode="numeric" maxlength="11" placeholder="请输入 11 位手机号" />
+                  <button class="btn ghost send-code" id="btnSendCode">获取验证码</button>
+                </div>
+              </div>
+
+              <div class="mode-area">
+                <div class="panel-wrap code-wrap">
+                  <div class="mode-panel">
+                    <div class="field reveal" id="areaCode" style="margin-top:0">
+                      <div class="reveal-inner">
+                        <div class="label-row">
+                          <div class="label">验证码</div>
+                          <div class="hint">6 位短信验证码</div>
+                        </div>
+                        <input id="codeHidden" inputmode="numeric" maxlength="6" style="position:absolute; opacity:0; pointer-events:none; height:0; width:0" />
+                        <div class="seg-code" id="segCode" aria-label="验证码输入">
+                          <div class="cell caret"> </div>
+                          <div class="cell"> </div>
+                          <div class="cell"> </div>
+                          <div class="cell"> </div>
+                          <div class="cell"> </div>
+                          <div class="cell"> </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="panel-wrap pwd-wrap">
+                  <div class="mode-panel">
+                    <div class="field" id="areaPwd" style="margin-top:0">
+                      <div class="label-row">
+                        <div class="label">密码</div>
+                        <button class="btn link" id="btnForgot">忘记密码</button>
+                      </div>
+                      <input class="input" id="pwd" type="password" placeholder="请输入登录密码（≥6位）" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="agree-row" id="agreeRow">
+                <div class="agree-left">
+                  <div class="agree-title">同意协议并允许自动注册</div>
+                  <div class="agree-desc">
+                    我已阅读并同意 <a href="javascript:void(0)" id="termsLink">《用户协议》</a>，未注册的手机号将为我自动创建账号。
+                  </div>
+                </div>
+                <div class="switch" id="agreeSwitch" role="switch" aria-checked="false" tabindex="0">
+                  <div class="knob"></div>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="actions">
+                <button class="primary" id="btnLogin" disabled>输入手机号并获取验证码</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bottom-actions">
+            <button class="wechat" id="btnWechat">
+              <span class="dot"></span>
+              微信一键登录
+            </button>
+            <div class="bottom-note">
+              原型：未同意时会弹窗询问是否同意（确认后自动开启）
+            </div>
+          </div>
+        </section>
+
+        <!-- Reset Password -->
+        <section class="screen off-right" id="screenReset">
+          <div class="brand">
+            <div class="logo"></div>
+            <div class="brand-text">
+              <div class="title">WashClub</div>
+              <div class="sub">修改密码 · 找回账号后继续使用</div>
+            </div>
+          </div>
+
+          <div class="card" id="resetCard">
+            <div class="card-inner">
+              <div class="headline">
+                <h2>重置登录密码</h2>
+                <p>验证手机号后设置新密码</p>
+              </div>
+
+              <div class="field">
+                <div class="label-row">
+                  <div class="label">手机号</div>
+                  <div class="hint">请输入你绑定的手机号</div>
+                </div>
+                <div class="input-group" id="rPhoneGroup">
+                  <input class="input" id="rPhone" inputmode="numeric" maxlength="11" placeholder="请输入 11 位手机号" />
+                  <button class="btn ghost send-code" id="btnSendResetCode">获取验证码</button>
+                </div>
+              </div>
+
+              <!-- 获取验证码后再显示：验证码（分段，风格与登录一致） -->
+              <div class="field reveal" id="rAreaCode">
+                <div class="reveal-inner">
+                  <div class="label-row">
+                    <div class="label">短信验证码</div>
+                    <div class="hint">6 位验证码</div>
+                  </div>
+                  <div id="rCodeLoading" style="display:none">
+                    <div class="skeleton-row" aria-hidden="true">
+                      <div class="skeleton-cell"></div>
+                      <div class="skeleton-cell"></div>
+                      <div class="skeleton-cell"></div>
+                      <div class="skeleton-cell"></div>
+                      <div class="skeleton-cell"></div>
+                      <div class="skeleton-cell"></div>
+                    </div>
+                  </div>
+                  <div id="rCodeInput">
+                    <input id="rCodeHidden" inputmode="numeric" maxlength="6" style="position:absolute; opacity:0; pointer-events:none; height:0; width:0" />
+                    <div class="seg-code" id="rSegCode" aria-label="短信验证码输入">
+                      <div class="cell caret"> </div>
+                      <div class="cell"> </div>
+                      <div class="cell"> </div>
+                      <div class="cell"> </div>
+                      <div class="cell"> </div>
+                      <div class="cell"> </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 验证码输入满 6 位后显示：新密码 -->
+              <div class="field reveal" id="rAreaPwd1">
+                <div class="reveal-inner">
+                  <div class="label-row">
+                    <div class="label">新密码</div>
+                    <div class="hint">至少 6 位</div>
+                  </div>
+                  <input class="input" id="rPwd1" type="password" placeholder="设置新密码" />
+                </div>
+              </div>
+
+              <!-- 新密码满足条件后显示：确认新密码（含载入动画） -->
+              <div class="field reveal" id="rAreaPwd2">
+                <div class="reveal-inner">
+                  <div class="label-row">
+                    <div class="label">确认新密码</div>
+                    <div class="hint">请再输入一次</div>
+                  </div>
+                  <div id="rPwd2Loading" style="display:none">
+                    <div class="skeleton" aria-hidden="true"></div>
+                  </div>
+                  <div id="rPwd2Input">
+                    <input class="input" id="rPwd2" type="password" placeholder="再次输入新密码" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+              <div class="actions">
+                <button class="primary" id="btnResetSubmit" disabled>提交并返回登录</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="toast" id="toast"></div>
+        <div class="modal-mask" id="modalMask" aria-hidden="true">
+          <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-body">
+              <p class="modal-title" id="modalTitle">提示</p>
+              <p class="modal-text" id="modalText">内容</p>
+            </div>
+            <div class="modal-actions">
+              <button id="modalCancel">暂不同意</button>
+              <button class="primary" id="modalOk">同意并继续</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const state = {
+        screen: "login", // login | reset
+        mode: "code",    // code | pwd
+        agree: false,
+        loginCountdown: 0,
+        resetCountdown: 0,
+        pendingAction: null,
+        code: "",
+        codeAreaVisible: false,
+        rCode: "",
+        rCodeAreaVisible: false,
+        rPwd1AreaVisible: false,
+        rPwd2AreaVisible: false,
+        rPwd2Loading: false,
+      };
+
+      const toastEl = $("toast");
+      let toastTimer = null;
+      function toast(msg){
+        clearTimeout(toastTimer);
+        toastEl.textContent = msg;
+        toastEl.classList.add("show");
+        toastTimer = setTimeout(()=> toastEl.classList.remove("show"), 1800);
+      }
+
+      // Modal (confirm to agree)
+      const modal = {
+        open({ title, text, okText="同意并继续", cancelText="暂不同意", onOk, onCancel }){
+          $("modalTitle").textContent = title;
+          $("modalText").textContent = text;
+          $("modalOk").textContent = okText;
+          $("modalCancel").textContent = cancelText;
+          $("modalMask").classList.add("show");
+          $("modalMask").setAttribute("aria-hidden", "false");
+          modal._onOk = onOk;
+          modal._onCancel = onCancel;
+        },
+        close(){
+          $("modalMask").classList.remove("show");
+          $("modalMask").setAttribute("aria-hidden", "true");
+          modal._onOk = null;
+          modal._onCancel = null;
+        },
+        _onOk: null,
+        _onCancel: null,
+      };
+      $("modalOk").addEventListener("click", ()=>{ const fn = modal._onOk; modal.close(); fn && fn(); });
+      $("modalCancel").addEventListener("click", ()=>{ const fn = modal._onCancel; modal.close(); fn && fn(); });
+      $("modalMask").addEventListener("click", (e)=>{ if(e.target === $("modalMask")) modal.close(); });
+
+      function setScreen(next){
+        state.screen = next;
+        const isLogin = next === "login";
+        $("screenLogin").classList.toggle("off-left", !isLogin);
+        $("screenLogin").classList.toggle("off-right", false);
+        $("screenReset").classList.toggle("off-right", isLogin);
+        $("screenReset").classList.toggle("off-left", false);
+        $("navBack").style.visibility = isLogin ? "hidden" : "visible";
+
+        // 轻微整体动效：每次切换页面，当前页卡片与底部按钮区轻柔入场一次
+        const playEnter = (el) => {
+          if (!el) return;
+          el.classList.remove("enter");
+          // 触发 reflow 以重启动画
+          void el.offsetWidth;
+          el.classList.add("enter");
+        };
+        if (isLogin){
+          playEnter($("loginCard"));
+          playEnter($("screenLogin")?.querySelector?.(".bottom-actions"));
+        } else {
+          playEnter($("resetCard"));
+        }
+      }
+      $("navBack").addEventListener("click", ()=> setScreen("login"));
+
+      function setMode(next){
+        state.mode = next;
+        const isCode = next === "code";
+        $("app").dataset.mode = next;
+        $("tabCode").classList.toggle("active", isCode);
+        $("tabPwd").classList.toggle("active", !isCode);
+        $("tabCode").setAttribute("aria-selected", String(isCode));
+        $("tabPwd").setAttribute("aria-selected", String(!isCode));
+        // 密码登录时：按钮在输入组内平滑收起（不占位）
+        $("btnSendCode").classList.toggle("hidden", !isCode);
+        $("loginSub").textContent = isCode ? "使用短信验证码快速登录" : "输入密码登录（可找回）";
+        if(!isCode){
+          state.code = "";
+          renderCodeCells();
+        }
+        // 验证码登录：默认先隐藏验证码区域，发送后再显示
+        if(isCode){
+          setCodeAreaVisible(false);
+          updateLoginPrimary();
+        }else{
+          setCodeAreaVisible(false);
+          updateLoginPrimary();
+        }
+        updateSendCodeBtn();
+      }
+      $("tabCode").addEventListener("click", ()=> setMode("code"));
+      $("tabPwd").addEventListener("click", ()=> setMode("pwd"));
+
+      function setAgree(next){
+        state.agree = next;
+        $("agreeSwitch").classList.toggle("on", next);
+        $("agreeSwitch").setAttribute("aria-checked", String(next));
+      }
+      $("agreeSwitch").addEventListener("click", ()=> setAgree(!state.agree));
+      $("agreeSwitch").addEventListener("keydown", (e)=>{
+        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); setAgree(!state.agree); }
+      });
+
+      $("termsLink").addEventListener("click", ()=>{
+        modal.open({
+          title: "用户协议（原型）",
+          text: "这里是用户协议展示位：在小程序里会跳转到 WebView 页面展示真实协议。",
+          okText: "知道了",
+          cancelText: "关闭",
+          onOk(){},
+          onCancel(){},
+        });
+      });
+
+      function ensureAgreeThen(action){
+        if(state.agree) return action();
+        state.pendingAction = action;
+        modal.open({
+          title: "是否同意协议？",
+          text: "继续登录需要你同意《用户协议》，并知晓未注册手机号将自动创建账号。",
+          okText: "同意并继续",
+          cancelText: "暂不",
+          onOk(){
+            setAgree(true);
+            const fn = state.pendingAction;
+            state.pendingAction = null;
+            fn && fn();
+          },
+          onCancel(){
+            state.pendingAction = null;
+            toast("已取消");
+          }
+        });
+      }
+
+      function onlyDigits(s){ return String(s || "").replace(/\D+/g, ""); }
+      function isPhoneOk(p){ return /^\d{11}$/.test(p); }
+
+      function setCodeAreaVisible(next){
+        state.codeAreaVisible = next;
+        $("areaCode").classList.toggle("show", next);
+        if(!next){
+          state.code = "";
+          $("codeHidden").value = "";
+          renderCodeCells();
+        }
+      }
+
+      function updateSendCodeBtn(){
+        const isCode = state.mode === "code";
+        const p = $("phone").value.trim();
+        const disabled = !isCode || !isPhoneOk(p) || state.loginCountdown > 0;
+        $("btnSendCode").disabled = disabled;
+      }
+
+      function updateLoginPrimary(){
+        const p = $("phone").value.trim();
+        const btn = $("btnLogin");
+        if(state.mode === "code"){
+          if(!state.codeAreaVisible){
+            btn.disabled = true;
+            btn.textContent = "输入手机号并获取验证码";
+            return;
+          }
+          const ok = isPhoneOk(p) && /^\d{6}$/.test(state.code);
+          btn.disabled = !ok;
+          btn.textContent = ok ? "登录" : "输入验证码登录";
+          return;
+        }
+        // 密码登录
+        const pwd = $("pwd").value || "";
+        const ok = isPhoneOk(p) && pwd.length >= 6;
+        btn.disabled = !ok;
+        btn.textContent = "登录";
+      }
+
+      // Login code segmented input
+      function renderCodeCells(){
+        const cells = $("segCode").querySelectorAll(".cell");
+        const v = state.code;
+        const caretIndex = Math.min(v.length, 5);
+        cells.forEach((c, idx)=>{
+          c.classList.toggle("caret", idx === caretIndex && v.length < 6);
+          c.textContent = v[idx] ? v[idx] : " ";
+        });
+      }
+      renderCodeCells();
+      $("segCode").addEventListener("click", ()=>{
+        $("codeHidden").focus();
+      });
+      $("codeHidden").addEventListener("input", (e)=>{
+        state.code = onlyDigits(e.target.value).slice(0, 6);
+        e.target.value = state.code;
+        renderCodeCells();
+        updateLoginPrimary();
+      });
+      $("phone").addEventListener("input", (e)=>{
+        e.target.value = onlyDigits(e.target.value).slice(0, 11);
+        updateSendCodeBtn();
+        updateLoginPrimary();
+      });
+      $("rPhone").addEventListener("input", (e)=>{
+        e.target.value = onlyDigits(e.target.value).slice(0, 11);
+        updateResetSendCodeBtn();
+        updateResetPrimary();
+      });
+
+      // Reset: segmented code input (same style as login)
+      renderResetCodeCells();
+      $("rSegCode").addEventListener("click", ()=>{
+        $("rCodeHidden").focus();
+      });
+      $("rCodeHidden").addEventListener("input", (e)=>{
+        state.rCode = onlyDigits(e.target.value).slice(0, 6);
+        e.target.value = state.rCode;
+        renderResetCodeCells();
+        // 6 位后：仅允许显示“新密码”，但不抢焦点（避免打断输入节奏）
+        if(/^\d{6}$/.test(state.rCode)) setResetPwd1AreaVisible(true);
+        else { setResetPwd1AreaVisible(false); setResetPwd2AreaVisible(false); }
+        updateResetPrimary();
+      });
+
+      // 新密码：输入过程中不自动弹确认框；仅在“用户输入完成/离开输入框”后再展示确认框
+      $("rPwd1").addEventListener("input", ()=>{
+        const p1 = $("rPwd1").value || "";
+        if(p1.length < 6) setResetPwd2AreaVisible(false);
+        updateResetPrimary();
+      });
+      $("rPwd1").addEventListener("blur", ()=>{
+        const p1 = $("rPwd1").value || "";
+        if(p1.length >= 6){
+          if(!state.rPwd2AreaVisible){
+            setResetPwd2AreaVisible(true);
+            // 载入动画：确认密码输入框出现前短暂 shimmer
+            showResetPwd2Loading(380);
+          }
+        }else{
+          setResetPwd2AreaVisible(false);
+        }
+        updateResetPrimary();
+      });
+      $("rPwd2").addEventListener("input", ()=> updateResetPrimary());
+      function renderResetCodeCells(){
+        const cells = $("rSegCode").querySelectorAll(".cell");
+        const v = state.rCode;
+        const caretIndex = Math.min(v.length, 5);
+        cells.forEach((c, idx)=>{
+          c.classList.toggle("caret", idx === caretIndex && v.length < 6);
+          c.textContent = v[idx] ? v[idx] : " ";
+        });
+      }
+      function setResetCodeAreaVisible(next){
+        state.rCodeAreaVisible = next;
+        $("rAreaCode").classList.toggle("show", next);
+        if(!next){
+          state.rCode = "";
+          $("rCodeHidden").value = "";
+          renderResetCodeCells();
+        }
+      }
+      function setResetPwd1AreaVisible(next){
+        state.rPwd1AreaVisible = next;
+        $("rAreaPwd1").classList.toggle("show", next);
+        if(!next){
+          $("rPwd1").value = "";
+        }
+      }
+      function setResetPwd2AreaVisible(next){
+        state.rPwd2AreaVisible = next;
+        $("rAreaPwd2").classList.toggle("show", next);
+        if(!next){
+          $("rPwd2").value = "";
+        }
+      }
+
+      function showResetCodeLoading(ms){
+        $("rCodeLoading").style.display = "";
+        $("rCodeInput").style.display = "none";
+        setTimeout(()=>{
+          $("rCodeLoading").style.display = "none";
+          $("rCodeInput").style.display = "";
+          try { $("rCodeHidden").focus(); } catch {}
+        }, ms);
+      }
+      function showResetPwd2Loading(ms){
+        $("rPwd2Loading").style.display = "";
+        $("rPwd2Input").style.display = "none";
+        setTimeout(()=>{
+          $("rPwd2Loading").style.display = "none";
+          $("rPwd2Input").style.display = "";
+        }, ms);
+      }
+
+      function updateResetSendCodeBtn(){
+        const p = $("rPhone").value.trim();
+        const disabled = !isPhoneOk(p) || state.resetCountdown > 0;
+        $("btnSendResetCode").disabled = disabled;
+      }
+      function updateResetPrimary(){
+        const p = $("rPhone").value.trim();
+        const okPhone = isPhoneOk(p);
+        const okCode = /^\d{6}$/.test(state.rCode);
+        const p1 = $("rPwd1").value || "";
+        const p2 = $("rPwd2").value || "";
+        const okPwd1 = p1.length >= 6;
+        const okPwd2 = okPwd1 && p1 === p2;
+        $("btnResetSubmit").disabled = !(okPhone && okCode && okPwd2);
+      }
+
+      // Countdown helpers
+      function startCountdown(kind, seconds){
+        const key = kind === "login" ? "loginCountdown" : "resetCountdown";
+        state[key] = seconds;
+        const btn = kind === "login" ? $("btnSendCode") : $("btnSendResetCode");
+        btn.disabled = true;
+        const t = setInterval(()=>{
+          state[key] -= 1;
+          if(state[key] <= 0){
+            clearInterval(t);
+            btn.disabled = false;
+            btn.textContent = "获取验证码";
+            if(kind === "login") updateSendCodeBtn();
+            return;
+          }
+          btn.textContent = `${state[key]}s`;
+        }, 1000);
+        btn.textContent = `${seconds}s`;
+      }
+
+      // Actions
+      $("btnSendCode").addEventListener("click", ()=>{
+        const p = $("phone").value.trim();
+        if(!isPhoneOk(p)) return toast("请输入正确手机号");
+        if(state.loginCountdown > 0) return;
+        toast("验证码已发送（原型）");
+        startCountdown("login", 60);
+        // 发送成功后：优雅展开验证码区域 + 自动聚焦
+        setCodeAreaVisible(true);
+        updateLoginPrimary();
+        setTimeout(()=> $("codeHidden").focus(), 160);
+      });
+
+      $("btnSendResetCode").addEventListener("click", ()=>{
+        const p = $("rPhone").value.trim();
+        if(!isPhoneOk(p)) return toast("请输入正确手机号");
+        if(state.resetCountdown > 0) return;
+        toast("验证码已发送（原型）");
+        startCountdown("reset", 60);
+        // 渐进式：先展示载入动画，再显示验证码输入
+        setResetCodeAreaVisible(true);
+        setResetPwd1AreaVisible(false);
+        setResetPwd2AreaVisible(false);
+        showResetCodeLoading(520);
+        updateResetPrimary();
+      });
+
+      $("btnForgot").addEventListener("click", ()=>{
+        // 把登录页手机号带过去，减少用户重复输入
+        const p = $("phone").value.trim();
+        if(p) $("rPhone").value = p;
+        setScreen("reset");
+      });
+
+      function loginAction(){
+        const p = $("phone").value.trim();
+        if(!isPhoneOk(p)) return toast("请输入正确手机号");
+
+        if(state.mode === "code"){
+          if(!state.codeAreaVisible) return toast("请先获取验证码");
+          if(!/^\d{6}$/.test(state.code)) return toast("请输入 6 位验证码");
+          toast("登录成功（原型）");
+          return;
+        }
+        const pwd = $("pwd").value || "";
+        if(pwd.length < 6) return toast("密码至少 6 位");
+        toast("登录成功（原型）");
+      }
+      $("btnLogin").addEventListener("click", ()=> ensureAgreeThen(loginAction));
+
+      $("btnWechat").addEventListener("click", ()=>{
+        ensureAgreeThen(()=> toast("微信一键登录（原型）"));
+      });
+
+      $("btnResetSubmit").addEventListener("click", ()=>{
+        const p = $("rPhone").value.trim();
+        const c = state.rCode;
+        const p1 = $("rPwd1").value || "";
+        const p2 = $("rPwd2").value || "";
+        if(!isPhoneOk(p)) return toast("请输入正确手机号");
+        if(!/^\d{6}$/.test(c)) return toast("请输入 6 位验证码");
+        if(p1.length < 6) return toast("新密码至少 6 位");
+        if(p1 !== p2) return toast("两次密码不一致");
+        toast("修改成功（原型）");
+        setTimeout(()=> setScreen("login"), 500);
+      });
+
+      // Init
+      setScreen("login");
+      setMode("code");
+      setAgree(false);
+      updateSendCodeBtn();
+      updateLoginPrimary();
+      // Reset init
+      setResetCodeAreaVisible(false);
+      setResetPwd1AreaVisible(false);
+      setResetPwd2AreaVisible(false);
+      renderResetCodeCells();
+      updateResetSendCodeBtn();
+      updateResetPrimary();
+
+      // 首次进入：给登录页卡片和底部按钮区一个轻微入场
+      try {
+        $("loginCard").classList.add("enter");
+        $("screenLogin")?.querySelector?.(".bottom-actions")?.classList.add("enter");
+      } catch {}
+    </script>
+  </body>
+</html>
+
+

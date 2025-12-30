@@ -1,235 +1,638 @@
 <template>
 	<view class="page">
 		<view v-if="topSpacerHeight" :style="{ height: topSpacerHeight + 'px' }" />
-		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="goBack">
+
+		<!-- 左上角返回按钮：登录页返回上一页；重置页返回登录 -->
+		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="onTapNavBack">
 			<image class="nav-back-icon" src="/static/icons/back.png" />
 		</view>
-		<view v-if="showNotice" class="card notice-card" :style="{ top: (statusBarHeight + 64) + 'px' }">
-			<text class="notice-close" @tap="showNotice=false">×</text>
-			<image class="notice-icon" src="/static/icons/warning.png" mode="widthFix" />
-			<view class="notice-body">
-				<view class="notice-title">重要提醒</view>
-				<view class="notice-paragraph">
-					<text class="notice-text">首次使用新版小程序且有洗车计次卡未用完的老用户，请务必使用</text>
-					<text class="highlight">微信一键登录</text>
-					<text class="notice-text">并授权选择</text>
-					<text class="highlight">购买洗车卡时登记的手机号</text>
-					<text class="notice-text">，否则洗车卡数据无法正常同步。如有疑问请咨询店员处理。</text>
-				</view>
-			</view>
-		</view>
-		<view class="center">
-			<view class="card login-card" :class="{ pulse: cardPulse }">
-				<view class="title">登录</view>
-				<view class="hint">请输入手机号</view>
 
-				<!-- 手机号 + 验证码/密码 切换 -->
-				<view class="row">
-					<input class="input" type="number" maxlength="11" v-model="phone" placeholder="手机号" />
-					<view v-if="mode==='code'" class="btn ghost" @tap="onSendCode">{{ countdown>0 ? `${countdown}s` : '获取验证码' }}</view>
-				</view>
-				<transition name="mode-fade-slide">
-					<view v-if="mode==='code'" key="code" class="row code-row">
-						<text class="label">验证码</text>
-						<view class="code-input" @tap="focusCodeInput">
-							<input class="hidden-code-input" type="number" maxlength="6" :focus="codeFocus" :value="secret" @input="onCodeInput" @focus="isCodeFocused=true" @blur="onCodeBlur" cursor-spacing="20" />
-							<view class="code-cells">
-								<view v-for="i in 6" :key="i" class="code-cell" :class="{ filled: i <= secret.length, caret: i === secret.length + 1 && isCodeFocused }">
-									<text class="digit">{{ secret[i-1] || '' }}</text>
+		<view class="screens">
+			<!-- 登录 Screen -->
+			<view class="screen" :class="{ 'off-left': screen !== 'login' }">
+				<view class="card" :class="{ enter: loginEnter }">
+					<view class="card-inner">
+						<view class="headline">
+							<view class="h2">登录</view>
+							<text class="headline-sub">{{ mode === 'code' ? '使用短信验证码快速登录' : '输入密码登录' }}</text>
+						</view>
+
+						<view class="mode-tabs" role="tablist" aria-label="登录方式">
+							<view class="tab" :class="{ active: mode === 'code' }" role="tab" :aria-selected="String(mode === 'code')" @tap="setMode('code')">验证码登录</view>
+							<view class="tab" :class="{ active: mode === 'pwd' }" role="tab" :aria-selected="String(mode === 'pwd')" @tap="setMode('pwd')">密码登录</view>
+						</view>
+
+						<view class="field">
+							<view class="label-row">
+								<view class="label">手机号</view>
+								<view class="hint">仅用于登录与账号识别</view>
+							</view>
+							<view class="input-group" :class="{ focused: phoneGroupFocused }">
+								<input
+									class="input"
+									inputmode="numeric"
+									maxlength="11"
+									:value="phone"
+									placeholder="请输入 11 位手机号"
+									@input="onPhoneInput"
+									@focus="phoneGroupFocused = true"
+									@blur="phoneGroupFocused = false"
+								/>
+								<button class="btn ghost send-code" :class="{ hidden: mode !== 'code' }" :disabled="sendCodeDisabled" @tap="onSendCode">
+									{{ sendCodeText }}
+								</button>
+							</view>
+						</view>
+
+						<!-- 模式切换动画（对齐原型）：code/pwd 两个 panel 都在，只切换可见与高度 -->
+						<view class="mode-area" :class="mode === 'code' ? 'mode-code' : 'mode-pwd'">
+							<view class="panel-wrap code-wrap">
+								<view class="mode-panel">
+									<view class="field reveal" :class="{ show: codeAreaVisible }" style="margin-top: 0">
+										<view class="reveal-inner">
+											<view class="label-row">
+												<view class="label">验证码</view>
+												<view class="hint">6 位短信验证码</view>
+											</view>
+
+											<input
+												class="hidden-code-input"
+												type="number"
+												maxlength="6"
+												:focus="codeFocus"
+												:value="code"
+												@input="onCodeInput"
+												@focus="isCodeFocused = true"
+												@blur="onCodeBlur"
+												cursor-spacing="20"
+											/>
+
+											<view class="seg-code" :class="{ focused: isCodeFocused }" @tap="focusCodeInput">
+												<view
+													v-for="i in 6"
+													:key="i"
+													class="cell"
+													:class="{
+														filled: i <= code.length,
+														caret: i === Math.min(code.length + 1, 6) && code.length < 6 && isCodeFocused
+													}"
+												>
+													<text>{{ code[i - 1] || ' ' }}</text>
+												</view>
+											</view>
+										</view>
+									</view>
+								</view>
+							</view>
+
+							<view class="panel-wrap pwd-wrap">
+								<view class="mode-panel">
+									<view class="field pwd-field">
+										<view class="label-row">
+											<view class="label">密码</view>
+											<view class="btn link" @tap="goResetScreen">忘记密码</view>
+										</view>
+										<input class="input" :password="true" :value="pwd" placeholder="请输入登录密码（≥6位）" @input="onPwdInput" />
+									</view>
 								</view>
 							</view>
 						</view>
+
+						<view class="agree-row">
+							<view class="agree-left">
+								<view class="agree-title">同意协议并允许自动注册</view>
+								<view class="agree-desc">
+									我已阅读并同意 <text class="agree-link" @tap.stop="openTerms">《用户协议》</text>，未注册的手机号将为我自动创建账号。
+								</view>
+							</view>
+							<view class="switch" :class="{ on: agree }" role="switch" :aria-checked="String(agree)" @tap="setAgree(!agree)">
+								<view class="knob" />
+							</view>
+						</view>
+
+						<view class="divider" />
+
+						<view class="actions">
+							<button class="primary" :disabled="primaryDisabled" @tap="onTapPrimary">
+								<text class="btn-title">{{ primaryText }}</text>
+							</button>
+						</view>
 					</view>
-					<view v-else key="pwd" class="row">
-						<text class="label">密码</text>
-						<input class="input flex1" :password="true" v-model="secret" placeholder="登录密码" />
+				</view>
+
+				<view class="bottom-actions" :class="{ enter: loginEnter }">
+					<!-- #ifdef MP-WEIXIN -->
+					<button
+						v-if="agree"
+						class="wechat"
+						open-type="getPhoneNumber"
+						@getphonenumber="onGotPhoneNumber"
+					>
+						<view class="dot" />
+						微信一键登录
+					</button>
+					<button v-else class="wechat" @tap="onTapWechatPrecheck">
+						<view class="dot" />
+						微信一键登录
+					</button>
+					<!-- #endif -->
+					<!-- #ifndef MP-WEIXIN -->
+					<view class="wechat" @tap="wechatLogin">
+						<view class="dot" />
+						微信一键登录
 					</view>
-				</transition>
-
-				<view class="switch-row">
-					<view class="link pill" @tap="toggleMode">切换{{ mode==='code' ? '密码' : '验证码' }}登录</view>
-					<view v-if="mode==='pwd'" class="link soft" @tap="onTapForgot">忘记密码</view>
+					<!-- #endif -->
 				</view>
+			</view>
 
-				<view class="agreements" @tap="agreeTerms = !agreeTerms">
-					<view class="dot" :class="{ checked: agreeTerms }" />
-					<text>已阅读并同意</text>
-					<text class="link" @tap.stop="openTerms">《用户协议》</text>
-				</view>
-				<view class="agreements" @tap="agreeAuto = !agreeAuto">
-					<view class="dot" :class="{ checked: agreeAuto }" />
-					<text>未注册账号将自动注册账号</text>
-				</view>
+			<!-- 重置密码 Screen -->
+			<view class="screen" :class="{ 'off-right': screen !== 'reset' }">
+				<view class="card" :class="{ enter: resetEnter }">
+					<view class="card-inner">
+						<view class="headline">
+							<view class="h2">重置登录密码</view>
+							<text class="headline-sub">验证手机号后设置新密码</text>
+						</view>
 
-				<!-- 独立登录按钮（支持验证码/密码） -->
-				<view class="primary" @tap="mode==='code' ? loginByCode() : loginByPwd()">登录</view>
+						<view class="field">
+							<view class="label-row">
+								<view class="label">手机号</view>
+								<view class="hint">请输入你绑定的手机号</view>
+							</view>
+							<view class="input-group" :class="{ focused: rPhoneGroupFocused }">
+								<input
+									class="input"
+									inputmode="numeric"
+									maxlength="11"
+									:value="rPhone"
+									placeholder="请输入 11 位手机号"
+									@input="onRPhoneInput"
+									@focus="rPhoneGroupFocused = true"
+									@blur="rPhoneGroupFocused = false"
+								/>
+								<button class="btn ghost send-code" :disabled="rSendCodeDisabled" @tap="onRSendCode">
+									{{ rSendCodeText }}
+								</button>
+							</view>
+						</view>
+
+						<view class="field reveal" :class="{ show: rCodeAreaVisible }">
+							<view class="reveal-inner">
+								<view class="label-row">
+									<view class="label">短信验证码</view>
+									<view class="hint">6 位验证码</view>
+								</view>
+
+								<view v-if="rCodeLoading" class="skeleton-row" aria-hidden="true">
+									<view v-for="i in 6" :key="i" class="skeleton-cell" />
+								</view>
+
+								<view v-else>
+									<input
+										class="hidden-code-input"
+										type="number"
+										maxlength="6"
+										:focus="rCodeFocus"
+										:value="rCode"
+										@input="onRCodeInput"
+										@focus="rIsCodeFocused = true"
+										@blur="onRCodeBlur"
+										cursor-spacing="20"
+									/>
+
+									<view class="seg-code" :class="{ focused: rIsCodeFocused }" @tap="focusRCodeInput">
+										<view
+											v-for="i in 6"
+											:key="i"
+											class="cell"
+											:class="{
+												filled: i <= rCode.length,
+												caret: i === Math.min(rCode.length + 1, 6) && rCode.length < 6 && rIsCodeFocused
+											}"
+										>
+											<text>{{ rCode[i - 1] || ' ' }}</text>
+										</view>
+									</view>
+								</view>
+							</view>
+						</view>
+
+						<view class="field reveal" :class="{ show: rPwd1AreaVisible }">
+							<view class="reveal-inner">
+								<view class="label-row">
+									<view class="label">新密码</view>
+									<view class="hint">至少 6 位</view>
+								</view>
+								<input class="input" :password="true" :value="rPwd1" placeholder="设置新密码" @input="onRPwd1Input" @blur="onRPwd1Blur" />
+							</view>
+						</view>
+
+						<view class="field reveal" :class="{ show: rPwd2AreaVisible }">
+							<view class="reveal-inner">
+								<view class="label-row">
+									<view class="label">确认新密码</view>
+									<view class="hint">请再输入一次</view>
+								</view>
+
+								<view v-if="rPwd2Loading" class="skeleton" aria-hidden="true" />
+								<input v-else class="input" :password="true" :value="rPwd2" placeholder="再次输入新密码" @input="onRPwd2Input" />
+							</view>
+						</view>
+
+						<view class="divider" />
+						<view class="actions">
+							<button class="primary" :disabled="rPrimaryDisabled" @tap="onRSubmit">
+								<text class="btn-title">提交并返回登录</text>
+							</button>
+						</view>
+					</view>
+				</view>
 			</view>
 		</view>
 
-		<!-- 底部独立：微信一键登录 -->
-		<view class="bottom">
-			<!-- 仅微信小程序端展示真实按钮 -->
-			<!-- #ifdef MP-WEIXIN -->
-			<button v-if="agreeTerms && agreeAuto" class="wechat-btn" open-type="getPhoneNumber" @getphonenumber="onGotPhoneNumber"><image class="wechat-icon" src="/static/icons/wechat.png" />微信一键登录</button>
-			<button v-else class="wechat-btn" @tap="onTapWechatPrecheck"><image class="wechat-icon" src="/static/icons/wechat.png" />微信一键登录</button>
-			<!-- #endif -->
-			<!-- #ifndef MP-WEIXIN -->
-			<view class="wechat-btn" @tap="wechatLogin"><image class="wechat-icon" src="/static/icons/wechat.png" />微信一键登录</view>
-			<!-- #endif -->
+		<!-- 自定义确认弹窗：同意协议（MP/H5 风格统一，参考原型） -->
+		<view class="modal-mask" :class="{ show: agreeModalVisible }" @tap="onAgreeModalMaskTap">
+			<view class="modal" role="dialog" aria-modal="true" @tap.stop>
+				<view class="modal-body">
+					<view class="modal-title">是否同意协议？</view>
+					<view class="modal-text">继续登录需要你同意《用户协议》，并知晓未注册手机号将自动创建账号。</view>
+				</view>
+				<view class="modal-actions">
+					<button class="modal-btn" @tap="onAgreeModalCancel">暂不</button>
+					<button class="modal-btn primary" @tap="onAgreeModalOk">同意并继续</button>
+				</view>
+			</view>
 		</view>
 	</view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { API_BASE, saveAuth } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 import {
 	authControllerLogin,
 	authControllerLoginByCode,
+	authControllerResetPassword,
 	authControllerSendLoginCode,
 	authControllerWechatOneTap,
 	memberControllerSetActive,
 } from '@wash/api-client';
 
-// 兼容 TS 识别 uni 全局对象
 declare const uni: any;
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
-const mode = ref<'code'|'pwd'>('code');
-const phone = ref('');
-const secret = ref('');
-const agreeTerms = ref(false);
-const agreeAuto = ref(false);
-const countdown = ref(0);
-const showNotice = ref(true);
+// 合并页：屏幕切换
+const screen = ref<'login' | 'reset'>('login');
+const loginEnter = ref(false);
+const resetEnter = ref(false);
+function triggerEnter(which: 'login' | 'reset') {
+	if (which === 'login') loginEnter.value = false;
+	if (which === 'reset') resetEnter.value = false;
+	setTimeout(() => {
+		if (which === 'login') loginEnter.value = true;
+		if (which === 'reset') resetEnter.value = true;
+		setTimeout(() => {
+			if (which === 'login') loginEnter.value = false;
+			if (which === 'reset') resetEnter.value = false;
+		}, 450);
+	}, 0);
+}
+function setScreen(next: 'login' | 'reset') {
+	if (screen.value === next) return;
+	screen.value = next;
+	triggerEnter(next);
+}
+function goLoginScreen() {
+	setScreen('login');
+}
+function goResetScreen() {
+	// 把登录页手机号带过去，减少重复输入
+	if (!rPhone.value && phone.value) rPhone.value = phone.value;
+	setScreen('reset');
+}
 
-// 分段验证码输入与动画控制
+function onTapNavBack() {
+	// reset -> login
+	if (screen.value === 'reset') {
+		goLoginScreen();
+		return;
+	}
+	// login -> back (fallback to /me tab)
+	try {
+		uni.navigateBack();
+		return;
+	} catch {}
+	try {
+		uni.switchTab({ url: '/pages/me/index' });
+	} catch {}
+}
+
+onLoad((q: any) => {
+	const next = String(q?.screen || '').trim();
+	if (next === 'reset') setTimeout(() => setScreen('reset'), 0);
+	const p = String(q?.phone || '').replace(/\D+/g, '').slice(0, 11);
+	if (p) {
+		phone.value = p;
+		rPhone.value = p;
+	}
+});
+
+function onlyDigits(s: any) {
+	return String(s ?? '').replace(/\D+/g, '');
+}
+
+// ====== 登录 ======
+const mode = ref<'code' | 'pwd'>('code');
+const phone = ref('');
+const code = ref('');
+const pwd = ref('');
+const agree = ref(false);
+
+const phoneGroupFocused = ref(false);
+const codeAreaVisible = ref(false);
 const codeFocus = ref(false);
 const isCodeFocused = ref(false);
-const cardPulse = ref(false);
 
-function focusCodeInput(){ codeFocus.value = true; }
-function onCodeInput(e: any){
-    const v: string = String(e?.detail?.value ?? e?.target?.value ?? '');
-    const digits = v.replace(/\D+/g, '').slice(0, 6);
-    secret.value = digits;
-}
-function onCodeBlur(){ isCodeFocused.value = false; codeFocus.value = false; }
+const loginCountdown = ref(0);
+let loginTimer: ReturnType<typeof setInterval> | null = null;
 
-function toggleMode(){
-    mode.value = mode.value === 'pwd' ? 'code' : 'pwd';
-    // 切换时清空密钥并触发轻微卡片动画
-    secret.value = '';
-    cardPulse.value = true; setTimeout(()=>{ cardPulse.value = false; }, 220);
-}
-function onTapForgot(){
-	// 仅跳转到修改密码占位页（页面仅界面即可）
-	cardPulse.value = true; setTimeout(()=>{ cardPulse.value = false; navigate('/pages/reset-password/index'); }, 200);
+const phoneOk = computed(() => /^\d{11}$/.test(phone.value));
+const codeOk = computed(() => /^\d{6}$/.test(code.value));
+const pwdOk = computed(() => (pwd.value || '').length >= 6);
+
+function setAgree(next: boolean) {
+	agree.value = next;
 }
 
-function openTerms(){
-	try{
+// ====== 协议确认弹窗（自定义，替代 uni.showModal） ======
+const agreeModalVisible = ref(false);
+let agreePendingAction: null | (() => Promise<void> | void) = null;
+function openAgreeModal(action: () => Promise<void> | void) {
+	agreePendingAction = action;
+	agreeModalVisible.value = true;
+}
+function closeAgreeModal() {
+	agreeModalVisible.value = false;
+	agreePendingAction = null;
+}
+function onAgreeModalMaskTap() {
+	closeAgreeModal();
+}
+async function onAgreeModalOk() {
+	const fn = agreePendingAction;
+	closeAgreeModal();
+	setAgree(true);
+	if (fn) await fn();
+}
+function onAgreeModalCancel() {
+	closeAgreeModal();
+	uni.showToast({ title: '已取消', icon: 'none' });
+}
+
+function setMode(next: 'code' | 'pwd') {
+	if (mode.value === next) return;
+	mode.value = next;
+	// 切换模式：不保留验证码/密码，且验证码区域回到“发送后再显示”
+	code.value = '';
+	pwd.value = '';
+	codeAreaVisible.value = false;
+	codeFocus.value = false;
+	isCodeFocused.value = false;
+}
+
+function onPhoneInput(e: any) {
+	const v = onlyDigits(e?.detail?.value ?? e?.target?.value).slice(0, 11);
+	phone.value = v;
+	// 改手机号时：验证码区域回到初始状态
+	if (!phoneOk.value) {
+		codeAreaVisible.value = false;
+		code.value = '';
+	}
+}
+function onPwdInput(e: any) {
+	pwd.value = String(e?.detail?.value ?? e?.target?.value ?? '');
+}
+
+function focusCodeInput() {
+	if (mode.value !== 'code') return;
+	if (!codeAreaVisible.value) return;
+	codeFocus.value = true;
+}
+function onCodeInput(e: any) {
+	const v = onlyDigits(e?.detail?.value ?? e?.target?.value).slice(0, 6);
+	code.value = v;
+}
+function onCodeBlur() {
+	isCodeFocused.value = false;
+	codeFocus.value = false;
+}
+
+async function ensureAgreeThen(action: () => Promise<void> | void) {
+	if (agree.value) return await action();
+	openAgreeModal(action);
+}
+
+const sendCodeDisabled = computed(() => mode.value !== 'code' || !phoneOk.value || loginCountdown.value > 0);
+const sendCodeText = computed(() => (loginCountdown.value > 0 ? `${loginCountdown.value}s` : '获取验证码'));
+
+const primaryDisabled = computed(() => {
+	if (mode.value === 'code') {
+		// 对齐原型：未展开验证码区时主按钮不可点
+		if (!phoneOk.value) return true;
+		if (!codeAreaVisible.value) return true;
+		return !(phoneOk.value && codeOk.value);
+	}
+	// 密码登录：手机号与密码均满足才可点击
+	return !(phoneOk.value && pwdOk.value);
+});
+const primaryText = computed(() => {
+	if (mode.value === 'code') {
+		if (!codeAreaVisible.value) return '输入手机号并获取验证码';
+		return phoneOk.value && codeOk.value ? '登录' : '输入验证码登录';
+	}
+	return '登录';
+});
+
+async function onTapPrimary() {
+	await ensureAgreeThen(async () => {
+		if (mode.value === 'code') {
+			// 更贴近原型：未展开验证码区域时，点击主按钮可直接触发发送验证码
+			if (!codeAreaVisible.value) return await onSendCode();
+			return await loginByCode();
+		}
+		return await loginByPwd();
+	});
+}
+
+function openTerms() {
+	try {
 		const url = `${API_BASE}/system/public/miniapp-terms`;
-		// 统一跳转到通用 webview 页面
 		const encoded = encodeURIComponent(url);
 		// #ifdef H5
-		if (typeof window !== 'undefined'){ window.open(url, '_blank'); return; }
+		if (typeof window !== 'undefined') {
+			(window as any).open(url, '_blank');
+			return;
+		}
 		// #endif
 		uni.navigateTo({ url: `/pages/webview/index?url=${encoded}&title=${encodeURIComponent('用户协议')}` });
-	}catch{}
+	} catch {}
 }
 
-function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/reset-password/index' | '/pages/store/index'){
+function navigate(url: '/pages/index/index' | '/pages/me/index' | '/pages/store/index') {
 	// #ifdef H5
-	if (typeof window !== 'undefined') { window.location.hash = `#${url}`; return; }
+	if (typeof window !== 'undefined') {
+		(window as any).location.hash = `#${url}`;
+		return;
+	}
 	// #endif
 	const isTab = url === '/pages/index/index' || url === '/pages/store/index' || url === '/pages/me/index';
-	if (isTab) { try { uni.switchTab({ url }); return; } catch {} }
+	if (isTab) {
+		try {
+			uni.switchTab({ url });
+			return;
+		} catch {}
+	}
 	uni.navigateTo({ url });
 }
 
-async function onSendCode(){
+async function onSendCode() {
 	if (mode.value !== 'code') return;
-	if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
-	if (countdown.value > 0) return;
+	if (!phoneOk.value) {
+		uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+		return;
+	}
+	if (loginCountdown.value > 0) return;
 	try {
 		await authControllerSendLoginCode({ phone: phone.value } as any);
 		uni.showToast({ title: '验证码已发送', icon: 'success' });
-		countdown.value = 60;
-		const timer = setInterval(()=>{
-			countdown.value -= 1;
-			if (countdown.value <= 0) clearInterval(timer);
+		// 发送成功后：优雅展开验证码区域 + 聚焦
+		codeAreaVisible.value = true;
+		code.value = '';
+		isCodeFocused.value = false;
+		codeFocus.value = false;
+		setTimeout(() => {
+			codeFocus.value = true;
+		}, 120);
+
+		if (loginTimer) clearInterval(loginTimer);
+		loginCountdown.value = 60;
+		loginTimer = setInterval(() => {
+			loginCountdown.value -= 1;
+			if (loginCountdown.value <= 0) {
+				loginCountdown.value = 0;
+				if (loginTimer) clearInterval(loginTimer);
+				loginTimer = null;
+			}
 		}, 1000);
-	} catch (e:any) {
-		uni.showToast({ title: e?.message?.slice(0,30) || '发送失败', icon: 'none' });
+	} catch (e: any) {
+		uni.showToast({ title: e?.message?.slice(0, 30) || '发送失败', icon: 'none' });
 	}
 }
 
-async function loginByPwd(){
-	if (!agreeTerms.value || !agreeAuto.value) {
-		uni.showModal({ title: '提示', content: '请先勾选同意《用户协议》并确认“未注册账号将自动注册账号”。', showCancel: false });
+async function loginByPwd() {
+	if (mode.value !== 'pwd') return;
+	if (!phoneOk.value) {
+		uni.showToast({ title: '请输入正确手机号', icon: 'none' });
 		return;
 	}
-	if (mode.value !== 'pwd') return;
-	if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
-	if (secret.value.length < 6) { uni.showToast({ title: '密码至少6位', icon: 'none' }); return; }
+	if (!pwdOk.value) {
+		uni.showToast({ title: '密码至少6位', icon: 'none' });
+		return;
+	}
 	try {
-		const data = (await authControllerLogin({ phone: phone.value, password: secret.value } as any) as unknown) as { token: string; user: any };
+		const data = (await authControllerLogin({ phone: phone.value, password: pwd.value } as any)) as unknown as { token: string; user: any };
 		saveAuth(data.token, data.user);
-		// 登录后立即上报活跃
-		try { await memberControllerSetActive({} as any); } catch {}
-		// 通知全局刷新（H5/小程序兼容）
-		try { uni.$emit?.('auth:changed'); } catch {}
+		try {
+			await memberControllerSetActive({} as any);
+		} catch {}
+		try {
+			uni.$emit?.('auth:changed');
+		} catch {}
 		uni.showToast({ title: '登录成功', icon: 'success' });
-		// 返回我的页面，避免清栈，tab 页使用 switchTab
-		setTimeout(()=>{
-			try { uni.switchTab({ url: '/pages/me/index' }); } catch { navigate('/pages/me/index'); }
+		setTimeout(() => {
+			try {
+				uni.switchTab({ url: '/pages/me/index' });
+			} catch {
+				navigate('/pages/me/index');
+			}
 		}, 300);
-	} catch (e:any) {
-		uni.showToast({ title: e?.message?.slice(0,30) || '登录失败', icon: 'none' });
+	} catch (e: any) {
+		uni.showToast({ title: e?.message?.slice(0, 30) || '登录失败', icon: 'none' });
 	}
 }
 
-// 短信验证码登录
-async function loginByCode(){
-    if (!agreeTerms.value || !agreeAuto.value) {
-        uni.showModal({ title: '提示', content: '请先勾选同意《用户协议》并确认“未注册账号将自动注册账号”。', showCancel: false });
-        return;
-    }
-    if (mode.value !== 'code') return;
-    if (!/^\d{11}$/.test(phone.value)) { uni.showToast({ title: '请输入正确手机号', icon: 'none' }); return; }
-    if (!/^\d{6}$/.test(secret.value)) { uni.showToast({ title: '请输入6位验证码', icon: 'none' }); return; }
-    try {
-        const data = (await authControllerLoginByCode({ phone: phone.value, code: secret.value } as any) as unknown) as { token: string; user: any; createdNew?: boolean };
-        saveAuth(data.token, data.user);
-        try { await memberControllerSetActive({} as any); } catch {}
-        try { uni.$emit?.('auth:changed'); } catch {}
-        uni.showToast({ title: '登录成功', icon: 'success' });
-        setTimeout(()=>{ try { uni.switchTab({ url: '/pages/me/index' }); } catch { navigate('/pages/me/index'); } }, 300);
-    } catch (e:any) {
-        uni.showToast({ title: e?.message?.slice(0,30) || '登录失败', icon: 'none' });
-    }
+async function loginByCode() {
+	if (mode.value !== 'code') return;
+	if (!phoneOk.value) {
+		uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+		return;
+	}
+	if (!codeAreaVisible.value) {
+		uni.showToast({ title: '请先获取验证码', icon: 'none' });
+		return;
+	}
+	if (!codeOk.value) {
+		uni.showToast({ title: '请输入6位验证码', icon: 'none' });
+		return;
+	}
+	try {
+		const data = (await authControllerLoginByCode({ phone: phone.value, code: code.value } as any)) as unknown as { token: string; user: any };
+		saveAuth(data.token, data.user);
+		try {
+			await memberControllerSetActive({} as any);
+		} catch {}
+		try {
+			uni.$emit?.('auth:changed');
+		} catch {}
+		uni.showToast({ title: '登录成功', icon: 'success' });
+		setTimeout(() => {
+			try {
+				uni.switchTab({ url: '/pages/me/index' });
+			} catch {
+				navigate('/pages/me/index');
+			}
+		}, 300);
+	} catch (e: any) {
+		uni.showToast({ title: e?.message?.slice(0, 30) || '登录失败', icon: 'none' });
+	}
 }
 
 // 非小程序端兜底
-function wechatLogin(){ uni.showToast({ title: '请在微信小程序内使用', icon: 'none' }); }
-
-function onTapWechatPrecheck(){
-	uni.showModal({ title: '提示', content: '请先勾选同意《用户协议》并确认“未注册账号将自动注册账号”。', showCancel: false });
+function wechatLogin() {
+	uni.showToast({ title: '请在微信小程序内使用', icon: 'none' });
 }
 
-// 微信一键登录流程
-async function onGotPhoneNumber(e: any){
+function onTapWechatPrecheck() {
+	// 不同于旧实现：这里走 ensureAgreeThen，保证“同意并继续”按钮真的会生效（并开启开关）
+	ensureAgreeThen(async () => {
+		uni.showToast({ title: '已同意，请再次点击微信一键登录', icon: 'none' });
+	});
+}
+
+function pickWechatPhoneCode(e: any): string | null {
+	// uniapp/微信事件结构可能有差异：尽可能兼容
+	const d = e?.detail ?? e ?? {};
+	const c =
+		d?.code ||
+		d?.phoneCode ||
+		d?.data?.code ||
+		d?.detail?.code ||
+		d?.detail?.data?.code ||
+		null;
+	return c ? String(c) : null;
+}
+
+async function onGotPhoneNumber(e: any) {
 	let loadingShown = false;
-	// 必须先勾选协议与自动注册
-	if (!agreeTerms.value || !agreeAuto.value) {
-		uni.showModal({ title: '提示', content: '请先勾选同意《用户协议》并确认“未注册账号将自动注册账号”。', showCancel: false });
+	if (!agree.value) {
+		onTapWechatPrecheck();
 		return;
 	}
 	try {
-		const errMsg: string = e?.detail?.errMsg || '';
+		const errMsg: string = String(e?.detail?.errMsg || e?.errMsg || '');
 		if (!/getPhoneNumber:ok/.test(errMsg)) {
 			const errno = e?.detail?.errno;
 			if (errno === 1400001) {
@@ -239,22 +642,50 @@ async function onGotPhoneNumber(e: any){
 			}
 			return;
 		}
-		const phoneCode: string = e?.detail?.code;
-		if (!phoneCode) { uni.showToast({ title: '获取手机号失败', icon: 'none' }); return; }
-		try { uni.showLoading({ title: '正在登录…', mask: true }); loadingShown = true; } catch {}
 
-		// 获取 jsCode（wx.login）
+		const phoneCode = pickWechatPhoneCode(e);
+		if (!phoneCode) {
+			// 关键修复：给出更明确提示，避免“授权后直接失败”没有线索
+			let keys = '';
+			try {
+				const detailKeys = Object.keys(e?.detail || {}).slice(0, 12);
+				keys = detailKeys.length ? `（detail 字段：${detailKeys.join(', ')}）` : '';
+			} catch {}
+			uni.showModal({
+				title: '获取手机号失败',
+				content: `未拿到手机号组件返回的 code。请确认微信版本/基础库版本支持手机号能力，或稍后重试。${keys}`,
+				showCancel: false,
+			});
+			return;
+		}
+
+		try {
+			uni.showLoading({ title: '正在登录…', mask: true });
+			loadingShown = true;
+		} catch {}
+
 		const loginRes = await new Promise<{ code: string }>((resolve, reject) => {
 			uni.login({ provider: 'weixin', success: resolve, fail: reject });
 		});
 		const jsCode = loginRes?.code;
-		if (!jsCode) { if (loadingShown) { try { uni.hideLoading(); } catch {} } uni.showToast({ title: '拉取登录码失败', icon: 'none' }); return; }
+		if (!jsCode) {
+			if (loadingShown) {
+				try {
+					uni.hideLoading();
+				} catch {}
+			}
+			uni.showToast({ title: '拉取登录码失败', icon: 'none' });
+			return;
+		}
 
-		// 调用后端一键登录接口
-		const resp = (await authControllerWechatOneTap({ phoneCode, jsCode } as any) as unknown) as any;
+		const resp = (await authControllerWechatOneTap({ phoneCode, jsCode } as any)) as unknown as any;
 		if (resp?.ok === false && resp?.code === 'OPENID_BOUND_CONFLICT') {
 			const masked = resp?.maskedPhone || '';
-			if (loadingShown) { try { uni.hideLoading(); } catch {} }
+			if (loadingShown) {
+				try {
+					uni.hideLoading();
+				} catch {}
+			}
 			await new Promise<void>((resolve) => {
 				uni.showModal({
 					title: '登录失败',
@@ -267,9 +698,17 @@ async function onGotPhoneNumber(e: any){
 		}
 		if (resp?.ok && resp?.token) {
 			saveAuth(resp.token, resp.user);
-			try { await memberControllerSetActive({} as any); } catch {}
-			try { uni.$emit?.('auth:changed'); } catch {}
-			if (loadingShown) { try { uni.hideLoading(); } catch {} }
+			try {
+				await memberControllerSetActive({} as any);
+			} catch {}
+			try {
+				uni.$emit?.('auth:changed');
+			} catch {}
+			if (loadingShown) {
+				try {
+					uni.hideLoading();
+				} catch {}
+			}
 
 			const needWelcome = resp?.createdNew === false && resp?.justBoundOpenId === true;
 			if (needWelcome) {
@@ -285,73 +724,853 @@ async function onGotPhoneNumber(e: any){
 				uni.showToast({ title: '登录成功', icon: 'success' });
 			}
 
-			setTimeout(()=>{ try { uni.switchTab({ url: '/pages/me/index' }); } catch { navigate('/pages/me/index'); } }, 300);
+			setTimeout(() => {
+				try {
+					uni.switchTab({ url: '/pages/me/index' });
+				} catch {
+					navigate('/pages/me/index');
+				}
+			}, 300);
 			return;
 		}
 		throw new Error('登录失败');
 	} catch (err: any) {
-		if (loadingShown) { try { uni.hideLoading(); } catch {} }
-		uni.showToast({ title: err?.message?.slice(0,30) || '登录失败', icon: 'none' });
+		if (loadingShown) {
+			try {
+				uni.hideLoading();
+			} catch {}
+		}
+		uni.showToast({ title: err?.message?.slice(0, 30) || '登录失败', icon: 'none' });
 	}
 }
-function goBack(){
-	try { uni.navigateBack(); return; } catch {}
-	try { uni.switchTab({ url: '/pages/me/index' }); } catch {}
+
+// ====== 重置密码（合并到同页） ======
+const rPhone = ref('');
+const rPhoneGroupFocused = ref(false);
+const rCode = ref('');
+const rPwd1 = ref('');
+const rPwd2 = ref('');
+
+const rCodeAreaVisible = ref(false);
+const rCodeLoading = ref(false);
+const rPwd1AreaVisible = ref(false);
+const rPwd2AreaVisible = ref(false);
+const rPwd2Loading = ref(false);
+
+const rCodeFocus = ref(false);
+const rIsCodeFocused = ref(false);
+
+const rCountdown = ref(0);
+let rTimer: ReturnType<typeof setInterval> | null = null;
+let rCodeLoadingT: ReturnType<typeof setTimeout> | null = null;
+let rPwd2LoadingT: ReturnType<typeof setTimeout> | null = null;
+
+const rPhoneOk = computed(() => /^\d{11}$/.test(rPhone.value));
+const rCodeOk = computed(() => /^\d{6}$/.test(rCode.value));
+const rPwd1Ok = computed(() => (rPwd1.value || '').length >= 6);
+const rPwd2Ok = computed(() => rPwd1Ok.value && rPwd1.value === rPwd2.value);
+
+const rSendCodeDisabled = computed(() => !rPhoneOk.value || rCountdown.value > 0);
+const rSendCodeText = computed(() => (rCountdown.value > 0 ? `${rCountdown.value}s` : '获取验证码'));
+const rPrimaryDisabled = computed(() => !(rPhoneOk.value && rCodeOk.value && rPwd2Ok.value));
+
+function onRPhoneInput(e: any) {
+	rPhone.value = onlyDigits(e?.detail?.value ?? e?.target?.value).slice(0, 11);
+	if (!rPhoneOk.value) {
+		rCodeAreaVisible.value = false;
+		rCode.value = '';
+		rPwd1AreaVisible.value = false;
+		rPwd2AreaVisible.value = false;
+		rPwd1.value = '';
+		rPwd2.value = '';
+	}
 }
+function focusRCodeInput() {
+	if (!rCodeAreaVisible.value || rCodeLoading.value) return;
+	rCodeFocus.value = true;
+}
+function onRCodeInput(e: any) {
+	rCode.value = onlyDigits(e?.detail?.value ?? e?.target?.value).slice(0, 6);
+}
+function onRCodeBlur() {
+	rIsCodeFocused.value = false;
+	rCodeFocus.value = false;
+}
+function onRPwd1Input(e: any) {
+	rPwd1.value = String(e?.detail?.value ?? e?.target?.value ?? '');
+	if (!rPwd1Ok.value) {
+		rPwd2AreaVisible.value = false;
+		rPwd2Loading.value = false;
+		rPwd2.value = '';
+	}
+}
+function onRPwd1Blur() {
+	if (!rPwd1Ok.value) {
+		rPwd2AreaVisible.value = false;
+		rPwd2Loading.value = false;
+		rPwd2.value = '';
+		return;
+	}
+	if (!rPwd2AreaVisible.value) {
+		rPwd2AreaVisible.value = true;
+		rPwd2Loading.value = true;
+		if (rPwd2LoadingT) clearTimeout(rPwd2LoadingT);
+		rPwd2LoadingT = setTimeout(() => {
+			rPwd2Loading.value = false;
+		}, 380);
+	}
+}
+function onRPwd2Input(e: any) {
+	rPwd2.value = String(e?.detail?.value ?? e?.target?.value ?? '');
+}
+watch(rCodeOk, (ok) => {
+	if (ok) {
+		rPwd1AreaVisible.value = true;
+	} else {
+		rPwd1AreaVisible.value = false;
+		rPwd2AreaVisible.value = false;
+		rPwd2Loading.value = false;
+		rPwd1.value = '';
+		rPwd2.value = '';
+	}
+});
+
+async function onRSendCode() {
+	if (!rPhoneOk.value) {
+		uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+		return;
+	}
+	if (rCountdown.value > 0) return;
+	try {
+		await authControllerSendLoginCode({ phone: rPhone.value, purpose: 'resetPwd' } as any);
+		uni.showToast({ title: '验证码已发送', icon: 'success' });
+		triggerEnter('reset');
+		rCodeAreaVisible.value = true;
+		rCode.value = '';
+		rIsCodeFocused.value = false;
+		rCodeFocus.value = false;
+		rPwd1AreaVisible.value = false;
+		rPwd2AreaVisible.value = false;
+		rPwd2Loading.value = false;
+		rPwd1.value = '';
+		rPwd2.value = '';
+
+		rCodeLoading.value = true;
+		if (rCodeLoadingT) clearTimeout(rCodeLoadingT);
+		rCodeLoadingT = setTimeout(() => {
+			rCodeLoading.value = false;
+			setTimeout(() => (rCodeFocus.value = true), 80);
+		}, 520);
+
+		if (rTimer) clearInterval(rTimer);
+		rCountdown.value = 60;
+		rTimer = setInterval(() => {
+			rCountdown.value -= 1;
+			if (rCountdown.value <= 0) {
+				rCountdown.value = 0;
+				if (rTimer) clearInterval(rTimer);
+				rTimer = null;
+			}
+		}, 1000);
+	} catch (e: any) {
+		uni.showToast({ title: e?.message?.slice(0, 30) || '发送失败', icon: 'none' });
+	}
+}
+
+async function onRSubmit() {
+	if (!rPhoneOk.value) {
+		uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+		return;
+	}
+	if (!rCodeOk.value) {
+		uni.showToast({ title: '请输入 6 位验证码', icon: 'none' });
+		return;
+	}
+	if (!rPwd1Ok.value) {
+		uni.showToast({ title: '新密码至少 6 位', icon: 'none' });
+		return;
+	}
+	if (!rPwd2Ok.value) {
+		uni.showToast({ title: '两次密码不一致', icon: 'none' });
+		return;
+	}
+	try {
+		await authControllerResetPassword({ phone: rPhone.value, code: rCode.value, newPassword: rPwd1.value } as any);
+		uni.showToast({ title: '修改成功', icon: 'success' });
+		setTimeout(() => {
+			setScreen('login');
+			// 回到登录后保留手机号，方便直接登录
+			phone.value = rPhone.value;
+			mode.value = 'pwd';
+			pwd.value = '';
+			code.value = '';
+			codeAreaVisible.value = false;
+		}, 450);
+	} catch (e: any) {
+		uni.showToast({ title: e?.message?.slice(0, 30) || '修改失败', icon: 'none' });
+	}
+}
+
+onUnmounted(() => {
+	if (loginTimer) clearInterval(loginTimer);
+	loginTimer = null;
+	if (rTimer) clearInterval(rTimer);
+	rTimer = null;
+	if (rCodeLoadingT) clearTimeout(rCodeLoadingT);
+	rCodeLoadingT = null;
+	if (rPwd2LoadingT) clearTimeout(rPwd2LoadingT);
+	rPwd2LoadingT = null;
+});
 </script>
 
 <style>
-.page { min-height:100vh; padding: 24rpx; background: linear-gradient(180deg, #e9f5ff, #fff0f6); }
-.nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }
-.nav-back-icon { width: 56rpx; height: 56rpx; }
-.center { min-height: calc(100vh - 220rpx); display:flex; align-items:center; justify-content:center; }
-.login-card { width: 88%; max-width: 680rpx; padding: 32rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); }
-.login-card.pulse { animation: card-pulse .22s ease; }
-.title { font-size: 32rpx; font-weight: 700; margin-bottom: 12rpx; }
-.hint { color:#6b7280; margin-bottom: 16rpx; }
-.row { display:flex; align-items:center; gap: 16rpx; margin-bottom: 16rpx; }
-.label { width: 120rpx; color:#374151; }
-.input { flex:1; height: 80rpx; border-radius: 20rpx; background: rgba(255,255,255,.85); border:2rpx solid #e5e7eb; padding: 0 20rpx; box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.04); }
-.input.flex1 { flex:1; }
-.btn.ghost { padding: 14rpx 20rpx; border-radius: 999rpx; border:2rpx solid #e5e7eb; background: rgba(255,255,255,.92); box-shadow: 0 6rpx 16rpx rgba(0,0,0,.06); }
-.switch-row { display:flex; justify-content: space-between; margin: 8rpx 0 16rpx; color:#2563eb; }
-.link { color:#2563eb; }
-.link.pill { padding: 8rpx 16rpx; border-radius: 999rpx; background: rgba(255,255,255,.92); border:2rpx solid #bfdbfe; box-shadow: 0 4rpx 12rpx rgba(0,0,0,.05); }
-.link.soft { color:#374151; opacity:.9; }
-.agreements { display:flex; align-items:center; gap: 12rpx; margin: 8rpx 0; color:#374151; }
-.dot { width: 28rpx; height: 28rpx; border-radius: 50%; border:2rpx solid #e5e7eb; background:#fff; box-shadow: inset 0 0 0 0 #a8d8ff; transition: box-shadow .15s ease; }
-.dot.checked { box-shadow: inset 0 0 0 12rpx #a8d8ff; }
-.primary { margin-top: 16rpx; text-align:center; padding: 22rpx 0; border-radius: 999rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.08); color:#0b1220; font-weight: 600; }
-.bottom { position: fixed; left: 24rpx; right: 24rpx; bottom: calc(env(safe-area-inset-bottom) + 24rpx); }
-.wechat-btn { text-align:center; padding: 22rpx 0; border-radius: 999rpx; background: #07c160; color: #fff; box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, .25); display:flex; align-items:center; justify-content:center; gap: 12rpx; }
-.wechat-icon { width: 36rpx; height: 36rpx; }
-.card { background:#fff; border-radius:24rpx; box-shadow:0 8rpx 24rpx rgba(0,0,0,0.06); }
-.card.login-card { background: linear-gradient(135deg, #a8d8ff, #ffc9de); }
-@keyframes card-pulse { 0% { transform: scale(1); } 50% { transform: scale(0.995); } 100% { transform: scale(1); } }
-/* 提醒卡片 */
-.notice-card { position: fixed; left: 24rpx; right: 24rpx; padding: 28rpx 28rpx 24rpx 28rpx; margin: 0; border-radius: 24rpx; background: linear-gradient(180deg, #fffbea, #fffaf0); border: 2rpx solid #fde68a; box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.12); z-index: 900; }
-.notice-icon { width: 48rpx; height: 48rpx; }
-.notice-close { position: absolute; top: 12rpx; right: 12rpx; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; color: #92400e; background: rgba(253, 230, 138, .6); border-radius: 999rpx; font-size: 32rpx; }
-.notice-body { padding-left: 96rpx; margin-left: 0; }
-.notice-title { font-size: 30rpx; font-weight: 700; color: #92400e; }
-.notice-paragraph { margin-top: 8rpx; line-height: 1.6; color: #7c2d12; }
-.notice-text { color: #7c2d12; }
-.highlight { color: #b45309; font-weight: 700; }
-.notice-icon { position: absolute; left: 28rpx; top: 28rpx; width: 56rpx; height: 56rpx; }
-/* 验证码分段输入 */
-.code-row { align-items: center; }
-.code-row .label { line-height: 84rpx; }
-.code-input { position: relative; flex:1; }
-.hidden-code-input { position: fixed; opacity:0; width:1px; height:1px; left:-9999px; top:-9999px; background: transparent; border: 0; outline: none; color: transparent; caret-color: transparent; -webkit-text-fill-color: transparent; -webkit-tap-highlight-color: transparent; }
-.code-cells { display:flex; align-items:center; justify-content: space-between; gap: 12rpx; }
-.code-cell { flex:1; height: 84rpx; border-radius: 16rpx; background: rgba(255,255,255,.85); border:2rpx solid #e5e7eb; display:flex; align-items:center; justify-content:center; box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.04); }
-.code-cell.filled { border-color:#93c5fd; background:#ffffff; }
-.code-cell.caret { border-color:#2563eb; box-shadow: 0 0 0 4rpx rgba(37,99,235,.12) inset; }
-.digit { font-size: 34rpx; font-weight: 700; color:#111827; }
-/* 切换动效 */
-.mode-fade-slide-enter-active, .mode-fade-slide-leave-active { transition: all .2s ease; }
-.mode-fade-slide-enter-from { opacity: 0; transform: translateY(6rpx); }
-.mode-fade-slide-leave-to { opacity: 0; transform: translateY(-6rpx); }
+.page {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	padding: 24rpx;
+	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+	background: linear-gradient(180deg, #e9f5ff, #fff0f6);
+}
+
+.nav-back {
+	position: fixed;
+	left: 16rpx;
+	z-index: 1000;
+	padding: 8rpx;
+}
+.nav-back-icon {
+	width: 56rpx;
+	height: 56rpx;
+}
+
+/* 合并页屏幕切换（对齐原型） */
+.screens {
+	position: relative;
+	flex: 1;
+	margin-top: 12rpx;
+}
+.screen {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 18rpx;
+	transform: translateX(0);
+	opacity: 1;
+	pointer-events: auto;
+	transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.24s ease;
+}
+.screen.off-left {
+	transform: translateX(-12%);
+	opacity: 0;
+	pointer-events: none;
+}
+.screen.off-right {
+	transform: translateX(12%);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.card {
+	border-radius: 24rpx;
+	background: rgba(255, 255, 255, 0.88);
+	border: 2rpx solid rgba(255, 255, 255, 0.8);
+	box-shadow: 0 18rpx 46rpx rgba(15, 23, 42, 0.12);
+	overflow: hidden;
+	width: 100%;
+	max-width: 680rpx;
+	margin-left: auto;
+	margin-right: auto;
+}
+.card.enter {
+	animation: card-enter 0.38s ease both;
+}
+@keyframes card-enter {
+	from {
+		opacity: 0;
+		transform: translateY(10rpx);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+.card-inner {
+	padding: 28rpx;
+}
+
+.headline {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16rpx;
+	margin-bottom: 18rpx;
+}
+.h2 {
+	font-size: 40rpx;
+	font-weight: 800;
+	color: #0b1220;
+}
+.headline-sub {
+	font-size: 24rpx;
+	color: #6b7280;
+}
+
+.mode-tabs {
+	display: flex;
+	gap: 12rpx;
+	padding: 10rpx;
+	border-radius: 999rpx;
+	/* 参考原型：更轻的半透明底 + 更克制的描边 + 毛玻璃 */
+	background: rgba(255, 255, 255, 0.55);
+	border: 2rpx solid rgba(255, 255, 255, 0.7);
+	backdrop-filter: blur(12px);
+	box-shadow: 0 10rpx 18rpx rgba(15, 23, 42, 0.08);
+}
+.tab {
+	flex: 1;
+	height: 72rpx;
+	border-radius: 999rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 24rpx;
+	font-weight: 800;
+	color: #374151;
+	transition: background 0.16s ease, transform 0.12s ease, color 0.16s ease;
+	/* 默认态更像“胶囊内的文字”，不需要强背景 */
+	background: transparent;
+}
+.tab.active {
+	color: #0b1220;
+	background: linear-gradient(135deg, rgba(99, 179, 255, 0.75), rgba(255, 119, 179, 0.65));
+	box-shadow: 0 10rpx 18rpx rgba(15, 23, 42, 0.12);
+}
+.tab:active {
+	transform: scale(0.99);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 12rpx;
+	margin-top: 18rpx;
+}
+.label-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12rpx;
+}
+.label {
+	font-size: 24rpx;
+	color: #374151;
+	font-weight: 650;
+}
+.hint {
+	font-size: 24rpx;
+	color: #6b7280;
+}
+
+.input {
+	height: 96rpx;
+	width: 100%;
+	border-radius: 20rpx;
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	background: rgba(255, 255, 255, 0.92);
+	box-shadow: inset 0 2rpx 10rpx rgba(0, 0, 0, 0.04);
+	padding: 0 24rpx;
+	font-size: 28rpx;
+	box-sizing: border-box;
+	display: block;
+	line-height: 96rpx;
+}
+.input-group {
+	width: 100%;
+	display: flex;
+	align-items: stretch;
+	border-radius: 24rpx;
+	overflow: hidden;
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	background: rgba(255, 255, 255, 0.92);
+}
+.input-group.focused {
+	border-color: rgba(37, 99, 235, 0.25);
+}
+.input-group .input {
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	flex: 1;
+	min-width: 0;
+}
+
+.btn {
+	height: 96rpx;
+	border-radius: 999rpx;
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	background: rgba(255, 255, 255, 0.82);
+	padding: 0 24rpx;
+	font-size: 24rpx;
+	font-weight: 800;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	white-space: nowrap;
+}
+.btn::after,
+.primary::after,
+.wechat::after {
+	border: 0 !important;
+}
+.btn:disabled {
+	opacity: 0.55;
+}
+.btn.link {
+	border: 0;
+	background: transparent;
+	padding: 0;
+	height: 48rpx;
+	min-height: 48rpx;
+	font-weight: 800;
+	color: #2563eb;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+}
+.pwd-field {
+	margin-top: 0;
+}
+.input-group .btn {
+	border: 0;
+	border-left: 2rpx solid rgba(17, 24, 39, 0.1);
+	border-radius: 0;
+	background: rgba(255, 255, 255, 0.86);
+}
+.input-group .send-code {
+	max-width: 260rpx;
+	opacity: 1;
+	transform: translateX(0);
+	transition: max-width 0.28s ease, opacity 0.18s ease, transform 0.28s ease, padding 0.28s ease, border-color 0.18s ease;
+}
+.input-group .send-code.hidden {
+	max-width: 0;
+	padding-left: 0;
+	padding-right: 0;
+	opacity: 0;
+	transform: translateX(10rpx);
+	border-left-color: transparent;
+	pointer-events: none;
+}
+
+/* 模式切换动画（对齐原型的 panel-wrap） */
+.mode-area {
+	margin-top: 12rpx;
+	/* 让切换区域更像一个“独立模块”（参考原型整体质感） */
+	padding: 14rpx;
+	/* 关键：抵消左右 padding 造成的“内容变窄”，让内部输入框宽度与手机号输入框一致 */
+	margin-left: -14rpx;
+	margin-right: -14rpx;
+	border-radius: 24rpx;
+	background: rgba(255, 255, 255, 0.55);
+	border: 2rpx solid rgba(255, 255, 255, 0.7);
+	backdrop-filter: blur(12px);
+}
+.panel-wrap {
+	max-height: 0;
+	opacity: 0;
+	overflow: hidden;
+	transform: translateY(10rpx);
+	transition: max-height 0.34s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.18s ease, transform 0.34s cubic-bezier(0.2, 0.9, 0.2, 1);
+	pointer-events: none;
+	will-change: max-height, opacity, transform;
+	backface-visibility: hidden;
+	transform: translateY(10rpx) translateZ(0);
+}
+.mode-panel {
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+.mode-area.mode-code .code-wrap {
+	max-height: 420rpx;
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+.mode-area.mode-pwd .pwd-wrap {
+	max-height: 220rpx;
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+.reveal {
+	margin-top: 0;
+	max-height: 0;
+	opacity: 0;
+	overflow: hidden;
+	transform: translateY(-8rpx);
+	transition: max-height 0.36s ease, opacity 0.22s ease, transform 0.32s ease, margin-top 0.22s ease;
+}
+.reveal.show {
+	margin-top: 18rpx;
+	max-height: 300rpx;
+	opacity: 1;
+	transform: translateY(0);
+}
+.hidden-code-input {
+	position: fixed;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+	left: -9999px;
+	top: -9999px;
+}
+.seg-code {
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 12rpx;
+}
+.cell {
+	height: 96rpx;
+	border-radius: 18rpx;
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	background: rgba(255, 255, 255, 0.92);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 32rpx;
+	font-weight: 900;
+	color: #111827;
+}
+.cell.filled {
+	border-color: rgba(37, 99, 235, 0.22);
+}
+.cell.caret {
+	border-color: rgba(37, 99, 235, 0.35);
+	box-shadow: 0 0 0 6rpx rgba(99, 179, 255, 0.16) inset;
+}
+
+.agree-row {
+	margin-top: 18rpx;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16rpx;
+	padding: 18rpx;
+	border-radius: 24rpx;
+	background: rgba(255, 255, 255, 0.72);
+	border: 2rpx solid rgba(17, 24, 39, 0.06);
+}
+.agree-left {
+	flex: 1;
+	min-width: 0;
+}
+.agree-title {
+	font-size: 24rpx;
+	font-weight: 900;
+	color: #111827;
+	margin-bottom: 6rpx;
+}
+.agree-desc {
+	font-size: 24rpx;
+	color: #6b7280;
+	line-height: 1.3;
+}
+.agree-link {
+	color: #2563eb;
+	font-weight: 900;
+}
+.switch {
+	width: 92rpx;
+	height: 56rpx;
+	border-radius: 999rpx;
+	background: rgba(17, 24, 39, 0.12);
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	position: relative;
+	margin-top: 4rpx;
+}
+.switch.on {
+	background: rgba(7, 193, 96, 0.28);
+	/* 原型：开启态外侧有柔和高光圈 */
+	box-shadow: 0 0 0 8rpx rgba(7, 193, 96, 0.14);
+}
+.knob {
+	width: 44rpx;
+	height: 44rpx;
+	border-radius: 50%;
+	background: #fff;
+	position: absolute;
+	top: 50%;
+	left: 6rpx;
+	transform: translateY(-50%);
+	box-shadow: 0 10rpx 18rpx rgba(15, 23, 42, 0.18);
+	transition: transform 0.18s ease;
+}
+.switch.on .knob {
+	transform: translate(36rpx, -50%);
+}
+
+.divider {
+	height: 2rpx;
+	background: rgba(17, 24, 39, 0.1);
+	margin: 22rpx 0;
+}
+.actions {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	width: 100%;
+	margin-top: 14rpx;
+}
+.primary {
+	height: 104rpx;
+	border-radius: 999rpx;
+	/* 原型：更克制的描边 */
+	border: 2rpx solid rgba(255, 255, 255, 0.55);
+	font-weight: 900;
+	color: #0b1220;
+	background: linear-gradient(135deg, rgba(99, 179, 255, 0.96), rgba(255, 119, 179, 0.94));
+	box-shadow:
+		0 22rpx 50rpx rgba(99, 179, 255, 0.18),
+		0 22rpx 50rpx rgba(255, 119, 179, 0.14),
+		0 8rpx 18rpx rgba(15, 23, 42, 0.1);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.16s ease;
+	position: relative;
+	overflow: hidden;
+	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+	padding: 0 34rpx;
+	/* 对齐原型：按钮更克制，不要看起来像居中大块 */
+	min-width: 320rpx;
+	width: auto;
+	margin-left: auto;
+	box-sizing: border-box;
+}
+.primary::before {
+	content: '';
+	position: absolute;
+	inset: -60% -40%;
+	background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.65), transparent 55%),
+		radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.35), transparent 55%);
+	transform: rotate(18deg);
+	opacity: 0.55;
+	pointer-events: none;
+}
+.primary::after {
+	content: '';
+	position: absolute;
+	/* 原型：内高光更细 */
+	inset: 1px;
+	border-radius: 999rpx;
+	box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, 0.55);
+	pointer-events: none;
+}
+.primary:active {
+	transform: translateY(2rpx) scale(0.99);
+	filter: brightness(0.98);
+	box-shadow:
+		0 16rpx 38rpx rgba(99, 179, 255, 0.16),
+		0 16rpx 38rpx rgba(255, 119, 179, 0.12),
+		0 6rpx 14rpx rgba(15, 23, 42, 0.1);
+}
+.primary:disabled,
+.primary[disabled] {
+	cursor: not-allowed;
+	filter: grayscale(0.15);
+	opacity: 0.62;
+	box-shadow: 0 10rpx 22rpx rgba(15, 23, 42, 0.1);
+	background: linear-gradient(135deg, rgba(148, 163, 184, 0.55), rgba(203, 213, 225, 0.55));
+}
+.primary:disabled {
+	opacity: 0.62;
+	background: linear-gradient(135deg, rgba(148, 163, 184, 0.55), rgba(203, 213, 225, 0.55));
+}
+.btn-title {
+	font-size: 30rpx;
+	font-weight: 950;
+}
+
+/* 底部区域不再强制贴底，避免小屏“被挤出屏幕” */
+.bottom-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+	padding: 0;
+	width: 100%;
+	max-width: 680rpx;
+	margin-left: auto;
+	margin-right: auto;
+	box-sizing: border-box;
+}
+.bottom-actions.enter {
+	animation: bottom-enter 0.4s ease both;
+}
+@keyframes bottom-enter {
+	from {
+		opacity: 0;
+		transform: translateY(12rpx);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+.wechat {
+	height: 104rpx;
+	border-radius: 999rpx;
+	border: 2rpx solid rgba(255, 255, 255, 0.55);
+	font-weight: 900;
+	color: #fff;
+	background: #07c160;
+	box-shadow: 0 18rpx 34rpx rgba(7, 193, 96, 0.18), 0 8rpx 18rpx rgba(15, 23, 42, 0.08);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 16rpx;
+	width: 100%;
+	position: relative;
+	overflow: hidden;
+	padding: 0 20rpx;
+	transition: transform 0.12s ease, filter 0.12s ease;
+	box-sizing: border-box;
+}
+.wechat:active {
+	transform: scale(0.99);
+	filter: brightness(0.98);
+}
+.wechat::before {
+	content: '';
+	position: absolute;
+	inset: -60% -40%;
+	background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 55%);
+	transform: rotate(18deg);
+	opacity: 0.45;
+	pointer-events: none;
+}
+.wechat .dot {
+	width: 18rpx;
+	height: 18rpx;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.85);
+	box-shadow: 0 0 0 10rpx rgba(255, 255, 255, 0.1);
+}
+
+/* 重置页骨架（沿用原页面） */
+.skeleton {
+	height: 96rpx;
+	border-radius: 20rpx;
+	background: linear-gradient(90deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55));
+	background-size: 180% 100%;
+	border: 2rpx solid rgba(17, 24, 39, 0.06);
+	animation: shimmer 1.05s ease-in-out infinite;
+}
+@keyframes shimmer {
+	0% {
+		background-position: 0% 0;
+	}
+	100% {
+		background-position: 180% 0;
+	}
+}
+.skeleton-row {
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 12rpx;
+}
+.skeleton-cell {
+	height: 96rpx;
+	border-radius: 18rpx;
+	background: rgba(255, 255, 255, 0.55);
+	border: 2rpx solid rgba(17, 24, 39, 0.04);
+}
+
+/* 自定义协议弹窗（参考原型） */
+.modal-mask {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	width: 100vw;
+	background: rgba(15, 23, 42, 0.38);
+	backdrop-filter: blur(8px);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.18s ease;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	padding: 24rpx;
+	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+	z-index: 2000;
+	box-sizing: border-box;
+}
+.modal-mask.show {
+	opacity: 1;
+	pointer-events: auto;
+}
+.modal {
+	width: 100%;
+	max-width: 680rpx;
+	border-radius: 24rpx;
+	background: rgba(255, 255, 255, 0.92);
+	border: 2rpx solid rgba(255, 255, 255, 0.85);
+	box-shadow: 0 18rpx 46rpx rgba(15, 23, 42, 0.18);
+	transform: translateY(14rpx);
+	opacity: 0;
+	transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.18s ease;
+	overflow: hidden;
+	margin-left: auto;
+	margin-right: auto;
+	box-sizing: border-box;
+}
+.modal-mask.show .modal {
+	transform: translateY(0);
+	opacity: 1;
+}
+.modal-body {
+	padding: 28rpx 28rpx 18rpx 28rpx;
+}
+.modal-title {
+	font-size: 32rpx;
+	font-weight: 900;
+	color: #111827;
+}
+.modal-text {
+	margin-top: 14rpx;
+	font-size: 26rpx;
+	color: #374151;
+	line-height: 1.5;
+}
+.modal-actions {
+	display: flex;
+	gap: 18rpx;
+	padding: 18rpx;
+	border-top: 2rpx solid rgba(17, 24, 39, 0.08);
+}
+.modal-btn {
+	flex: 1;
+	height: 88rpx;
+	border-radius: 999rpx;
+	border: 2rpx solid rgba(17, 24, 39, 0.1);
+	background: rgba(255, 255, 255, 0.72);
+	font-weight: 900;
+	color: #111827;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.modal-btn.primary {
+	border: 0;
+	background: linear-gradient(135deg, rgba(99, 179, 255, 0.92), rgba(255, 119, 179, 0.92));
+	color: #0b1220;
+}
 </style>
 
 
