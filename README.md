@@ -8,6 +8,25 @@
 [![NestJS](https://img.shields.io/badge/NestJS-10.3.10-red)](https://nestjs.com/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.4.31-green)](https://vuejs.org/)
 
+## 🖼️ 屏幕截图
+
+### 📱 小程序（mini2-7）
+
+> 说明：以下为小程序端关键页面截图（`/screenshots/mini2.png` ~ `mini7.png`）。
+
+|  |  |  |
+|---|---|---|
+| <img src="./screenshots/mini2.png" alt="小程序截图 mini2" width="240" /> | <img src="./screenshots/mini3.png" alt="小程序截图 mini3" width="240" /> | <img src="./screenshots/mini4.png" alt="小程序截图 mini4" width="240" /> |
+| <img src="./screenshots/mini5.png" alt="小程序截图 mini5" width="240" /> | <img src="./screenshots/mini6.png" alt="小程序截图 mini6" width="240" /> | <img src="./screenshots/mini7.png" alt="小程序截图 mini7" width="240" /> |
+
+### 💼 管理后台（Web Admin）
+
+<img src="./screenshots/webadmin.png" alt="管理后台截图 webadmin" width="900" />
+
+### 💰 收银台（Web POS）
+
+<img src="./screenshots/pos.png" alt="收银台截图 pos" width="900" />
+
 ## 📈 更新日志
 ### V1.2.0 正式版 (2025-10-09)
 
