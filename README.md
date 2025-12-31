@@ -1,6 +1,7 @@
 #  巨科汽车美容管理系统
 
 > 0代码基础小白基于AI从零开发的一体化汽车服务行业门店管理平台 - 基于 NestJS + Vue 3 + uni-app 的现代化 Monorepo 架构
+
 > 由于这个项目从头到现在都是靠AI一点一点摸索出来，本人只有最基础的电脑知识。README文档也大部分由AI生成，但项目我本人已经在生产环境使用（超级小体量），所以可靠和稳定性都无法保证。同时也欢迎大佬帮助完善此项目，我深知全靠AI搓起来的这个项目安全性稳定性都无法保证。开发此项目起因是我想自制一个自家店铺用的会员营销小程序，任何功能都可以随自己想法。联系我请发邮件至chen_nanzhi#qq.com
  
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4.5-blue)](https://www.typescriptlang.org/)
