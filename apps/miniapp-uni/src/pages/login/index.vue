@@ -18,14 +18,13 @@
 						</view>
 
 						<view class="mode-tabs" role="tablist" aria-label="登录方式">
-							<view class="tab" :class="{ active: mode === 'code' }" role="tab" :aria-selected="String(mode === 'code')" @tap="setMode('code')">验证码登录</view>
-							<view class="tab" :class="{ active: mode === 'pwd' }" role="tab" :aria-selected="String(mode === 'pwd')" @tap="setMode('pwd')">密码登录</view>
+							<view class="tab" :class="{ active: mode === 'code' }" role="tab" :aria-selected="mode === 'code'" @tap="setMode('code')">验证码登录</view>
+							<view class="tab" :class="{ active: mode === 'pwd' }" role="tab" :aria-selected="mode === 'pwd'" @tap="setMode('pwd')">密码登录</view>
 						</view>
 
 						<view class="field">
 							<view class="label-row">
 								<view class="label">手机号</view>
-								<view class="hint">仅用于登录与账号识别</view>
 							</view>
 							<view class="input-group" :class="{ focused: phoneGroupFocused }">
 								<input
@@ -105,7 +104,7 @@
 									我已阅读并同意 <text class="agree-link" @tap.stop="openTerms">《用户协议》</text>，未注册的手机号将为我自动创建账号。
 								</view>
 							</view>
-							<view class="switch" :class="{ on: agree }" role="switch" :aria-checked="String(agree)" @tap="setAgree(!agree)">
+							<view class="switch" :class="{ on: agree }" role="switch" :aria-checked="agree" @tap="setAgree(!agree)">
 								<view class="knob" />
 							</view>
 						</view>
@@ -450,8 +449,8 @@ const primaryDisabled = computed(() => {
 });
 const primaryText = computed(() => {
 	if (mode.value === 'code') {
-		if (!codeAreaVisible.value) return '输入手机号并获取验证码';
-		return phoneOk.value && codeOk.value ? '登录' : '输入验证码登录';
+		if (!codeAreaVisible.value) return '请输入手机号并获取验证码';
+		return phoneOk.value && codeOk.value ? '登录' : '请输入验证码登录';
 	}
 	return '登录';
 });
