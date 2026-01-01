@@ -44,7 +44,8 @@
 				</el-sub-menu>
 				<el-sub-menu index="/notification">
 					<template #title><el-icon style="margin-right:6px;"><Bell /></el-icon>消息通知</template>
-					<el-menu-item index="/notification/templates"><el-icon style="margin-right:6px;"><Setting /></el-icon>通知配置</el-menu-item>
+					<el-menu-item v-if="can('notification-overview')" index="/notification/overview"><el-icon style="margin-right:6px;"><Bell /></el-icon>消息总览</el-menu-item>
+					<el-menu-item v-if="can('notification-templates')" index="/notification/templates"><el-icon style="margin-right:6px;"><Setting /></el-icon>通知配置</el-menu-item>
 				</el-sub-menu>
 				<el-sub-menu index="/store">
 					<template #title><el-icon style="margin-right:6px;"><Goods /></el-icon>商店管理</template>
@@ -395,7 +396,9 @@ function addTabByRoute(){
 		'/system/basic':'基础设置',
 		'/system/admins':'后台管理员',
 		'/system/files':'文件管理',
-		'/system/sms':'短信管理'
+		'/system/sms':'短信管理',
+		'/notification/overview':'消息总览',
+		'/notification/templates':'通知配置'
 	};
 	const metaTitle = (r.meta as any)?.title as string | undefined;
 	let title = mapTitle[path] || metaTitle || '页面';
@@ -426,6 +429,7 @@ function addTabByRoute(){
 	if (path.startsWith('/coupon/')) { crumbs.push('卡券管理'); if (path.includes('/groups')) crumbs.push('分组管理'); if (path.includes('/list')) crumbs.push('卡券列表'); if (path.includes('/member-coupons')) crumbs.push('会员卡券'); }
 	if (path.startsWith('/coupon/logs')) { crumbs.push('卡券管理'); crumbs.push('卡券流水'); }
 	if (path.startsWith('/system/')) { crumbs.push('系统设置'); if (path.includes('/basic')) crumbs.push('基础设置'); if (path.includes('/roles')) crumbs.push('后台角色'); if (path.includes('/admins')) crumbs.push('后台管理员'); if (path.includes('/files')) crumbs.push('文件管理'); if (path.includes('/sms')) crumbs.push('短信管理'); }
+	if (path.startsWith('/notification/')) { crumbs.push('消息通知'); if (path.includes('/overview')) crumbs.push('消息总览'); if (path.includes('/templates')) crumbs.push('通知配置'); }
 	if (crumbs.length===0) crumbs.push('首页');
 	breadcrumbList.value = crumbs;
 }

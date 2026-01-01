@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service.js';
 import { NotificationGateway } from './notification.gateway.js';
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
+import { WxappSubscribeService } from './wxapp-subscribe.service.js';
 
 type CreateNotificationInput = {
     title: string;
@@ -23,7 +24,7 @@ export class NotificationService {
     private notifyDbSchedulerTimer?: any;
     
 
-    constructor(private prisma: PrismaService, private gateway: NotificationGateway) {
+    constructor(private prisma: PrismaService, private gateway: NotificationGateway, private wxapp: WxappSubscribeService) {
         try{
             const url = process.env.REDIS_URL || '';
             const host = process.env.REDIS_HOST || '127.0.0.1';
@@ -471,6 +472,38 @@ export class NotificationService {
         return this.notifyAndBroadcast({ title, content, type: typeKey, linkPath: linkPath ?? null, target });
     }
 
+    // ============ WXAPP：微信小程序订阅消息 ============
+    async sendWxappWashCardConsume(params: {
+        memberId: number;
+        typeKey?: string; // 默认 WASH_CARD_CONSUME
+        project: string;
+        timesText: string; // 例如 "2次"
+        consumeAt?: Date;
+        expiryAtText?: string | null;
+        remainingText: string; // 短字段，例如 "8次" 或 "多卡"
+        pageVars?: Record<string, any>;
+    }){
+        try{
+            const typeKey = String(params.typeKey || 'WASH_CARD_CONSUME').trim();
+            const memberId = Number(params.memberId||0);
+            if (!memberId) return { ok:false, skipped:true } as any;
+            return await this.wxapp.sendWashCardConsume({
+                memberId,
+                typeKey,
+                vars: {
+                    project: params.project,
+                    times: params.timesText,
+                    consumeAt: params.consumeAt || new Date(),
+                    expiryAtText: params.expiryAtText ?? null,
+                    remainingText: params.remainingText,
+                    pageVars: params.pageVars || {},
+                }
+            });
+        }catch{
+            return { ok:false } as any;
+        }
+    }
+
     async listForAdmin(userId: number, params?: { status?: 'UNREAD' | 'READ'; take?: number; skip?: number }) {
         return this.prisma.notification.findMany({
             where: { targetType: 'ADMIN' as any, targetUserId: userId, status: params?.status as any },
@@ -506,6 +539,123 @@ export class NotificationService {
         if (item.status === 'READ') return { ok: true };
         await this.prisma.notification.update({ where: { id: item.id }, data: { status: 'READ' as any, readAt: new Date() } });
         return { ok: true };
+    }
+
+    // ============ 管理后台：消息总览（跨用户/跨会员） ============
+    async adminOverview(params?: { from?: Date | null; to?: Date | null }) {
+        const createdAt: any = {};
+        if (params?.from) createdAt.gte = params.from;
+        if (params?.to) createdAt.lte = params.to;
+        const hasRange = !!params?.from || !!params?.to;
+        const createdAtWhere = hasRange ? { createdAt } : undefined;
+
+        const notifAdminWhere: any = { targetType: 'ADMIN' as any, ...(createdAtWhere || {}) };
+        const notifMemberWhere: any = { targetType: 'MEMBER' as any, ...(createdAtWhere || {}) };
+        const wxappWhere: any = { ...(createdAtWhere || {}) };
+
+        const [
+            adminTotal, adminUnread, adminRead,
+            memberTotal, memberUnread, memberRead,
+            wxTotal, wxSuccess,
+        ] = await Promise.all([
+            this.prisma.notification.count({ where: notifAdminWhere }),
+            this.prisma.notification.count({ where: { ...notifAdminWhere, status: 'UNREAD' as any } }),
+            this.prisma.notification.count({ where: { ...notifAdminWhere, status: 'READ' as any } }),
+
+            this.prisma.notification.count({ where: notifMemberWhere }),
+            this.prisma.notification.count({ where: { ...notifMemberWhere, status: 'UNREAD' as any } }),
+            this.prisma.notification.count({ where: { ...notifMemberWhere, status: 'READ' as any } }),
+
+            (this.prisma as any).wxappSubscribeSendLog.count({ where: wxappWhere }),
+            (this.prisma as any).wxappSubscribeSendLog.count({ where: { ...wxappWhere, errcode: 0 } }),
+        ]);
+
+        const wxFailed = Math.max(0, Number(wxTotal || 0) - Number(wxSuccess || 0));
+
+        return {
+            ok: true,
+            admin: { total: adminTotal, unread: adminUnread, read: adminRead },
+            member: { total: memberTotal, unread: memberUnread, read: memberRead },
+            wxapp: { total: wxTotal, success: wxSuccess, failed: wxFailed },
+        };
+    }
+
+    async adminOverviewList(params: {
+        channel: 'ADMIN' | 'MEMBER' | 'WXAPP';
+        status?: 'UNREAD' | 'READ';
+        result?: 'SUCCESS' | 'FAILED';
+        typeKey?: string;
+        q?: string;
+        memberId?: number;
+        from?: Date | null;
+        to?: Date | null;
+        take: number;
+        skip: number;
+    }) {
+        const take = Math.max(1, Math.min(200, Number(params.take || 20)));
+        const skip = Math.max(0, Number(params.skip || 0));
+
+        const createdAt: any = {};
+        if (params?.from) createdAt.gte = params.from;
+        if (params?.to) createdAt.lte = params.to;
+        const hasRange = !!params?.from || !!params?.to;
+        const createdAtWhere = hasRange ? { createdAt } : undefined;
+
+        const q = String(params.q || '').trim();
+        const typeKey = String(params.typeKey || '').trim();
+
+        if (params.channel === 'WXAPP') {
+            const where: any = { ...(createdAtWhere || {}) };
+            if (typeKey) where.typeKey = typeKey;
+            if (params.memberId) where.memberId = Number(params.memberId);
+            if (q) {
+                where.OR = [
+                    { typeKey: { contains: q } },
+                    { templateId: { contains: q } },
+                    { page: { contains: q } },
+                    { errmsg: { contains: q } },
+                    { msgid: { contains: q } },
+                ];
+            }
+            if (params.result === 'SUCCESS') where.errcode = 0;
+            if (params.result === 'FAILED') where.NOT = [{ errcode: 0 }];
+
+            const [total, list] = await Promise.all([
+                (this.prisma as any).wxappSubscribeSendLog.count({ where }),
+                (this.prisma as any).wxappSubscribeSendLog.findMany({
+                    where,
+                    orderBy: { id: 'desc' },
+                    take,
+                    skip,
+                }),
+            ]);
+            return { ok: true, total, list };
+        }
+
+        // ADMIN / MEMBER 站内通知
+        const where: any = { targetType: params.channel as any, ...(createdAtWhere || {}) };
+        if (params.status) where.status = params.status as any;
+        if (typeKey) where.type = typeKey;
+        if (params.channel === 'MEMBER' && params.memberId) where.targetMemberId = Number(params.memberId);
+        if (q) {
+            where.OR = [
+                { title: { contains: q } },
+                { content: { contains: q } },
+                { type: { contains: q } },
+                { linkPath: { contains: q } },
+            ];
+        }
+
+        const [total, list] = await Promise.all([
+            this.prisma.notification.count({ where }),
+            this.prisma.notification.findMany({
+                where,
+                orderBy: { id: 'desc' },
+                take,
+                skip,
+            }),
+        ]);
+        return { ok: true, total, list };
     }
 }
 

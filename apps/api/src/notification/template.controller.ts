@@ -34,8 +34,25 @@ export class NotificationTemplateController {
     @ApiOperation({ summary: '创建模板' })
     @RequirePerm('notification-templates' as any)
     async create(@Body() dto: NotificationTemplateCreateDto){
-        const data = { typeKey: String(dto.typeKey||'').trim(), titleTemplate: String(dto.titleTemplate||''), contentTemplate: String(dto.contentTemplate||''), enabled: dto.enabled!==false, channel: (dto.channel||'MEMBER'), uiDuration: dto.uiDuration==null? null: Number(dto.uiDuration), uiType: dto.uiType||null, uiPosition: dto.uiPosition||null } as any;
+        const data = {
+            typeKey: String(dto.typeKey||'').trim(),
+            titleTemplate: String(dto.titleTemplate||''),
+            contentTemplate: String(dto.contentTemplate||''),
+            enabled: dto.enabled!==false,
+            channel: (dto.channel||'MEMBER'),
+            uiDuration: dto.uiDuration==null? null: Number(dto.uiDuration),
+            uiType: dto.uiType||null,
+            uiPosition: dto.uiPosition||null,
+            wxTemplateId: dto.wxTemplateId==null ? null : String(dto.wxTemplateId||'').trim(),
+            wxPagePathTemplate: dto.wxPagePathTemplate==null ? null : String(dto.wxPagePathTemplate||'').trim(),
+            wxMiniprogramState: dto.wxMiniprogramState==null ? null : String(dto.wxMiniprogramState||'').trim(),
+            wxLang: dto.wxLang==null ? null : String(dto.wxLang||'').trim(),
+        } as any;
         if (!data.typeKey) throw new Error('缺少类型');
+        // WXAPP 通道基础校验：必须提供 wxTemplateId
+        if (String(data.channel).toUpperCase() === 'WXAPP') {
+            if (!data.wxTemplateId) throw new Error('WXAPP 模板必须配置 wxTemplateId');
+        }
         // 允许同一 typeKey/channel 多个模板并存；若启用则关闭其他启用模板，保持单一启用
         const created = await this.prisma.notificationTemplate.create({ data });
         if (created.enabled) {
@@ -58,7 +75,20 @@ export class NotificationTemplateController {
         if (dto.uiDuration!==undefined) data.uiDuration = (dto.uiDuration==null? null: Number(dto.uiDuration));
         if (dto.uiType!==undefined) data.uiType = dto.uiType || null;
         if (dto.uiPosition!==undefined) data.uiPosition = dto.uiPosition || null;
+        if (dto.wxTemplateId!==undefined) data.wxTemplateId = (dto.wxTemplateId==null ? null : String(dto.wxTemplateId||'').trim());
+        if (dto.wxPagePathTemplate!==undefined) data.wxPagePathTemplate = (dto.wxPagePathTemplate==null ? null : String(dto.wxPagePathTemplate||'').trim());
+        if (dto.wxMiniprogramState!==undefined) data.wxMiniprogramState = (dto.wxMiniprogramState==null ? null : String(dto.wxMiniprogramState||'').trim());
+        if (dto.wxLang!==undefined) data.wxLang = (dto.wxLang==null ? null : String(dto.wxLang||'').trim());
         const updated = await this.prisma.notificationTemplate.update({ where: { id }, data });
+        // WXAPP 通道启用校验：enabled=true 时必须有 wxTemplateId
+        if (String(updated.channel).toUpperCase() === 'WXAPP' && updated.enabled) {
+            const wxid = String((updated as any).wxTemplateId || '').trim();
+            if (!wxid) {
+                // 回滚启用，避免出现“已启用但无法发送”的坏配置
+                await this.prisma.notificationTemplate.update({ where: { id: updated.id }, data: { enabled: false } });
+                throw new Error('WXAPP 模板启用失败：缺少 wxTemplateId');
+            }
+        }
         // 若启用为 true，则关闭同 typeKey 其他模板
         if (updated.enabled) {
             await this.prisma.notificationTemplate.updateMany({ where: { typeKey: updated.typeKey, channel: updated.channel, NOT: { id: updated.id } }, data: { enabled: false } });

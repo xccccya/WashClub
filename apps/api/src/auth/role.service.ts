@@ -39,6 +39,7 @@ export type AdminMenuKey =
 	| 'member-coupons'
 	| 'coupon-logs'
 	| 'notification-templates'
+	| 'notification-overview'
 	// 预留：运营统计概览
 	| 'dashboard-metrics';
 
@@ -123,6 +124,7 @@ export class AdminRoleService {
 			{ key: 'system-files', name: '文件管理', path: '/system/files' },
 			{ key: 'system-sms', name: '短信管理', path: '/system/sms' },
 			{ key: 'system-employees', name: '员工配置', path: '/system/employees' },
+			{ key: 'notification-overview', name: '消息总览', path: '/notification/overview' },
 			{ key: 'notification-templates', name: '通知配置', path: '/notification/templates' },
 			{ key: 'service-queue', name: '服务队列', path: '/service-queue' },
 			{ key: 'content-notices', name: '滚动通知', path: '/content/notices' },

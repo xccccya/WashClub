@@ -170,7 +170,16 @@ export class OrderPaymentService {
             const orderNo = order.no;
             let plate = '';
             try { const v = await tx.vehicle.findUnique({ where: { id: order.vehicleId! }, select: { plateNumber: true } }); plate = v?.plateNumber || ''; } catch {}
-            const opText = (operatorUserId ? `操作人#${operatorUserId}` : '系统');
+            let opText = '系统';
+            if (operatorUserId) {
+                try{
+                    const u:any = await tx.user.findUnique({ where: { id: operatorUserId }, select: { id:true, name:true, phone:true } as any });
+                    const nick = String(u?.name || '').trim() || String(u?.phone || '').trim();
+                    opText = nick ? `操作人：${nick}` : `操作人：#${operatorUserId}`;
+                }catch{
+                    opText = `操作人：#${operatorUserId}`;
+                }
+            }
             const remarkBase = `订单${orderNo}${plate?`/车辆${plate}`:''}，${opText}`;
 
             // 扣减并写日志（同一事务）
@@ -235,6 +244,75 @@ export class OrderPaymentService {
                 { title:'洗车卡支付划扣成功', content:`订单 ${ord?.no||''} 使用洗车卡划扣 ${times} 次，抵扣￥${amountStr}` },
                 `/pages/order/detail?id=${ord?.id||0}`
             );
+
+            // 微信小程序订阅消息：次卡消费通知（39297）
+            try{
+                // 消费项目：优先拼接洗车项目名称
+                let project = '';
+                try{
+                    const items:any[] = await this.prisma.orderItem.findMany({ where: { orderId }, select: { productId:true, name:true, quantity:true } as any });
+                    const productIds = (items||[]).map(it=>it.productId).filter((v:any)=> typeof v === 'number');
+                    const products:any[] = productIds.length ? await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id:true, isCarWash:true } as any }) : [];
+                    const flag = new Map<number, boolean>(products.map(p=> [Number(p.id), !!(p as any).isCarWash]));
+                    const parts: string[] = [];
+                    for (const it of (items||[])){
+                        const pid = Number(it.productId||0);
+                        if (pid && flag.get(pid)) {
+                            const q = Math.max(1, Number(it.quantity||1));
+                            const nm = String(it.name||'').trim();
+                            if (nm) parts.push(q>1 ? `${nm}×${q}` : nm);
+                        }
+                    }
+                    project = parts.join('、');
+                }catch{}
+                if (!project) project = ord?.no ? `订单${ord.no}次卡消费` : '次卡消费';
+
+                // 仅一张卡时展示“有效期至/剩余次数”；多卡则展示简化文本
+                const uniqueCardCount = Array.from(new Set(plan.map(p=> `${p.type}:${p.cardId}`))).length;
+                let expiryAtText: string | null = null;
+                let remainingText = '多卡';
+                const pageVars: any = {};
+                if (uniqueCardCount === 1 && plan.length >= 1) {
+                    const only = plan[0];
+                    if (only.type === 'MEMBER') {
+                        const c:any = await this.prisma.washCard.findUnique({ where: { id: only.cardId }, select: { id:true, remainingTimes:true, expiryAt:true } as any });
+                        if (c) {
+                            remainingText = `${Math.max(0, Number(c.remainingTimes||0))}次`;
+                            try{
+                                const ex = c.expiryAt ? new Date(c.expiryAt as any) : null;
+                                if (ex && !isNaN(ex.getTime())) {
+                                    const y=ex.getFullYear(); const m=String(ex.getMonth()+1).padStart(2,'0'); const d=String(ex.getDate()).padStart(2,'0');
+                                    expiryAtText = `${y}-${m}-${d}`;
+                                }
+                            }catch{}
+                            pageVars.cardId = Number(c.id||0);
+                        }
+                    } else {
+                        const c:any = await this.prisma.groupWashCard.findUnique({ where: { id: only.cardId }, select: { id:true, remainingTimes:true, expiryAt:true } as any });
+                        if (c) {
+                            remainingText = `${Math.max(0, Number(c.remainingTimes||0))}次`;
+                            try{
+                                const ex = c.expiryAt ? new Date(c.expiryAt as any) : null;
+                                if (ex && !isNaN(ex.getTime())) {
+                                    const y=ex.getFullYear(); const m=String(ex.getMonth()+1).padStart(2,'0'); const d=String(ex.getDate()).padStart(2,'0');
+                                    expiryAtText = `${y}-${m}-${d}`;
+                                }
+                            }catch{}
+                        }
+                    }
+                }
+
+                await this.notifier.sendWxappWashCardConsume({
+                    memberId: Number(ord?.memberId||0),
+                    typeKey: 'WASH_CARD_CONSUME',
+                    project,
+                    timesText: `${Math.max(0, times)}次`,
+                    consumeAt: new Date(),
+                    expiryAtText,
+                    remainingText,
+                    pageVars,
+                } as any);
+            }catch{}
         }catch{}
 
         return res;
@@ -252,7 +330,7 @@ export class OrderPaymentService {
         if (timesNeeded <= 0) throw new BadRequestException('该订单无洗车项目，无需划扣');
 
         // 付款主体集合：若指定 payerMemberId，则仅在其名下（含共享）找卡；否则按自动（集团优先）规则
-        return await this.prisma.$transaction(async (tx)=>{
+        const res = await this.prisma.$transaction(async (tx)=>{
             const order = await tx.order.findUnique({ where: { id: orderId } });
             if (!order || order.payStatus !== 'UNPAID') throw new BadRequestException('订单状态已变更');
 
@@ -322,7 +400,16 @@ export class OrderPaymentService {
             const ordNo = order.no;
             let plate = '';
             try { const v = await tx.vehicle.findUnique({ where: { id: order.vehicleId! }, select: { plateNumber: true } }); plate = v?.plateNumber || ''; } catch {}
-            const opText = (operatorUserId ? `操作人#${operatorUserId}` : '系统');
+            let opText = '系统';
+            if (operatorUserId) {
+                try{
+                    const u:any = await tx.user.findUnique({ where: { id: operatorUserId }, select: { id:true, name:true, phone:true } as any });
+                    const nick = String(u?.name || '').trim() || String(u?.phone || '').trim();
+                    opText = nick ? `操作人：${nick}` : `操作人：#${operatorUserId}`;
+                }catch{
+                    opText = `操作人：#${operatorUserId}`;
+                }
+            }
             const remarkBase = `订单${ordNo}${plate?`/车辆${plate}`:''}，${opText}`;
             for (const it of plan) {
                 if (it.type === 'MEMBER') {
@@ -359,6 +446,80 @@ export class OrderPaymentService {
 
             return { ok: true, settlement: settlementAuto, requiredTimes: timesNeeded, plan } as any;
         });
+
+        // 微信小程序订阅消息：次卡消费通知（39297）
+        try{
+            const ord:any = await this.prisma.order.findUnique({ where: { id: orderId }, select: { id:true, no:true, memberId:true } });
+            const plan = Array.isArray((res as any)?.plan) ? (res as any).plan as Array<{ type:'GROUP'|'MEMBER'; cardId:number; used:number }> : [];
+            const times = Number(((res as any)?.requiredTimes)||timesNeeded||0);
+
+            // 消费项目：优先拼接洗车项目名称
+            let project = '';
+            try{
+                const items:any[] = await this.prisma.orderItem.findMany({ where: { orderId }, select: { productId:true, name:true, quantity:true } as any });
+                const productIds = (items||[]).map(it=>it.productId).filter((v:any)=> typeof v === 'number');
+                const products:any[] = productIds.length ? await this.prisma.product.findMany({ where: { id: { in: productIds } }, select: { id:true, isCarWash:true } as any }) : [];
+                const flag = new Map<number, boolean>(products.map(p=> [Number(p.id), !!(p as any).isCarWash]));
+                const parts: string[] = [];
+                for (const it of (items||[])){
+                    const pid = Number(it.productId||0);
+                    if (pid && flag.get(pid)) {
+                        const q = Math.max(1, Number(it.quantity||1));
+                        const nm = String(it.name||'').trim();
+                        if (nm) parts.push(q>1 ? `${nm}×${q}` : nm);
+                    }
+                }
+                project = parts.join('、');
+            }catch{}
+            if (!project) project = ord?.no ? `订单${ord.no}次卡消费` : '次卡消费';
+
+            const uniqueCardCount = Array.from(new Set(plan.map(p=> `${p.type}:${p.cardId}`))).length;
+            let expiryAtText: string | null = null;
+            let remainingText = '多卡';
+            const pageVars: any = {};
+            if (uniqueCardCount === 1 && plan.length >= 1) {
+                const only = plan[0];
+                if (only.type === 'MEMBER') {
+                    const c:any = await this.prisma.washCard.findUnique({ where: { id: only.cardId }, select: { id:true, remainingTimes:true, expiryAt:true } as any });
+                    if (c) {
+                        remainingText = `${Math.max(0, Number(c.remainingTimes||0))}次`;
+                        try{
+                            const ex = c.expiryAt ? new Date(c.expiryAt as any) : null;
+                            if (ex && !isNaN(ex.getTime())) {
+                                const y=ex.getFullYear(); const m=String(ex.getMonth()+1).padStart(2,'0'); const d=String(ex.getDate()).padStart(2,'0');
+                                expiryAtText = `${y}-${m}-${d}`;
+                            }
+                        }catch{}
+                        pageVars.cardId = Number(c.id||0);
+                    }
+                } else {
+                    const c:any = await this.prisma.groupWashCard.findUnique({ where: { id: only.cardId }, select: { id:true, remainingTimes:true, expiryAt:true } as any });
+                    if (c) {
+                        remainingText = `${Math.max(0, Number(c.remainingTimes||0))}次`;
+                        try{
+                            const ex = c.expiryAt ? new Date(c.expiryAt as any) : null;
+                            if (ex && !isNaN(ex.getTime())) {
+                                const y=ex.getFullYear(); const m=String(ex.getMonth()+1).padStart(2,'0'); const d=String(ex.getDate()).padStart(2,'0');
+                                expiryAtText = `${y}-${m}-${d}`;
+                            }
+                        }catch{}
+                    }
+                }
+            }
+
+            await this.notifier.sendWxappWashCardConsume({
+                memberId: Number(ord?.memberId||0),
+                typeKey: 'WASH_CARD_CONSUME',
+                project,
+                timesText: `${Math.max(0, times)}次`,
+                consumeAt: new Date(),
+                expiryAtText,
+                remainingText,
+                pageVars,
+            } as any);
+        }catch{}
+
+        return res;
     }
 
     // 获取会员微信openid

@@ -53,6 +53,27 @@ export class NotificationTemplateCreateDto {
 	@IsInt()
 	@Min(0)
 	uiDuration?: number | null;
+
+	// ====== WXAPP 通道：微信订阅消息配置 ======
+	@ApiPropertyOptional({ description: 'WXAPP 通道：微信订阅消息 TemplateId', example: 'YWsR4q9nW4cIbo6CZQanut-A94erfJOnfwqhxDcQMxQ' })
+	@IsOptional()
+	@IsString()
+	wxTemplateId?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：小程序跳转 page（支持 {{var}} 渲染）', example: '/pages/washcard/detail?id={{cardId}}' })
+	@IsOptional()
+	@IsString()
+	wxPagePathTemplate?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：miniprogram_state', example: 'formal' })
+	@IsOptional()
+	@IsString()
+	wxMiniprogramState?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：lang', example: 'zh_CN' })
+	@IsOptional()
+	@IsString()
+	wxLang?: string | null;
 }
 
 export class NotificationTemplateUpdateDto {
@@ -87,6 +108,27 @@ export class NotificationTemplateUpdateDto {
 	@IsInt()
 	@Min(0)
 	uiDuration?: number | null;
+
+	// ====== WXAPP 通道：微信订阅消息配置 ======
+	@ApiPropertyOptional({ description: 'WXAPP 通道：微信订阅消息 TemplateId' })
+	@IsOptional()
+	@IsString()
+	wxTemplateId?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：小程序跳转 page（支持 {{var}} 渲染）' })
+	@IsOptional()
+	@IsString()
+	wxPagePathTemplate?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：miniprogram_state' })
+	@IsOptional()
+	@IsString()
+	wxMiniprogramState?: string | null;
+
+	@ApiPropertyOptional({ description: 'WXAPP 通道：lang' })
+	@IsOptional()
+	@IsString()
+	wxLang?: string | null;
 }
 
 export class NotificationTemplateVariablesQueryDto {

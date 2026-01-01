@@ -151,7 +151,72 @@
 				</el-dialog>
 			</el-tab-pane>
 			<el-tab-pane label="微信小程序订阅消息通知" name="wxapp">
-				<div style="padding:12px 0;color:#909399;">订阅消息通知：占位中，稍后支持配置。</div>
+				<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+					<el-input v-model="q3" placeholder="按类型/TemplateId搜索" style="width:320px;" @keyup.enter="loadWxapp" />
+					<el-button type="primary" @click="loadWxapp">搜索</el-button>
+					<el-button @click="openWxappCreate">新增模板</el-button>
+				</div>
+				<el-table :data="listWxapp" style="width:100%">
+					<el-table-column prop="id" label="ID" width="80" />
+					<el-table-column prop="typeKey" label="类型" width="260">
+						<template #default="{ row }">
+							<span>{{ wxappLabelOf(row.typeKey) }}</span>
+						</template>
+					</el-table-column>
+					<el-table-column prop="wxTemplateId" label="TemplateId" min-width="380" />
+					<el-table-column prop="wxPagePathTemplate" label="page(可选)" min-width="260" />
+					<el-table-column prop="enabled" label="启用" width="120">
+						<template #default="{ row }">
+							<el-switch v-model="row.enabled" @change="onWxappToggle(row)" />
+						</template>
+					</el-table-column>
+					<el-table-column label="操作" width="220">
+						<template #default="{ row }">
+							<el-button size="small" @click="openWxappEdit(row)">编辑</el-button>
+							<el-popconfirm title="确定删除该模板吗？" @confirm="delWxappTpl(row)">
+								<template #reference>
+									<el-button size="small" type="danger" plain>删除</el-button>
+								</template>
+							</el-popconfirm>
+						</template>
+					</el-table-column>
+				</el-table>
+
+				<el-dialog v-model="dlgWxappVisible" :title="dlgWxappMode==='create'?'新增订阅消息模板':'编辑订阅消息模板'" width="860px">
+					<el-form :model="formWxapp" label-width="140px">
+						<el-form-item label="类型键" v-if="dlgWxappMode==='create'">
+							<el-select v-model="formWxapp.typeKey" placeholder="选择类型键">
+								<el-option v-for="k in wxappKeys" :key="k.key" :label="k.label" :value="k.key" />
+							</el-select>
+						</el-form-item>
+						<el-form-item label="微信 TemplateId">
+							<el-input v-model="formWxapp.wxTemplateId" placeholder="如：YWsR4q9nW4cIbo6CZQanut-A94erfJOnfwqhxDcQMxQ" />
+						</el-form-item>
+						<el-form-item label="跳转 page(可选)">
+							<el-input v-model="formWxapp.wxPagePathTemplate" placeholder="如：pages/washcard/detail?id={{cardId}}" />
+							<div style="color:#909399;font-size:12px;margin-top:6px;">
+								page 支持 <code v-pre>{{var}}</code> 渲染；建议用于跳转到次卡详情页。
+							</div>
+						</el-form-item>
+						<el-form-item label="miniprogram_state">
+							<el-select v-model="formWxapp.wxMiniprogramState" placeholder="formal">
+								<el-option label="formal(正式)" value="formal" />
+								<el-option label="trial(体验)" value="trial" />
+								<el-option label="developer(开发)" value="developer" />
+							</el-select>
+						</el-form-item>
+						<el-form-item label="lang">
+							<el-input v-model="formWxapp.wxLang" placeholder="zh_CN" />
+						</el-form-item>
+						<el-form-item label="启用">
+							<el-switch v-model="formWxapp.enabled" />
+						</el-form-item>
+					</el-form>
+					<template #footer>
+						<el-button @click="dlgWxappVisible=false">取消</el-button>
+						<el-button type="primary" @click="onWxappSave">保存</el-button>
+					</template>
+				</el-dialog>
 			</el-tab-pane>
 			<el-tab-pane label="通知类型设置" name="types">
 				<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -212,7 +277,7 @@ import { ElNotification } from 'element-plus';
 type Tpl = { id:number; typeKey:string; titleTemplate:string; contentTemplate:string; enabled:boolean };
 const list = ref<Tpl[]>([]);
 const q = ref('');
-const activeTab = ref<'user'|'admin'|'wxapp'>('user');
+const activeTab = ref<'user'|'admin'|'wxapp'|'types'>('user');
 
 type AdminTpl = { id:number; typeKey:string; titleTemplate:string; contentTemplate:string; enabled:boolean; uiType?:string|null; uiPosition?:string|null; uiDuration?:number|null };
 const listAdmin = ref<AdminTpl[]>([]);
@@ -231,6 +296,11 @@ const defaultKeys = [
     { key:'REFUND_ARRIVED', label:'退款到账' },
     { key:'WASH_CARD_PAY_DEDUCT', label:'洗车卡支付划扣' },
     { key:'WASH_CARD_DEDUCT', label:'洗车卡划扣' },
+];
+
+// WXAPP：订阅消息模板类型
+const wxappKeys = [
+	{ key:'WASH_CARD_CONSUME', label:'次卡消费通知（39297）' },
 ];
 
 async function load(){
@@ -386,6 +456,106 @@ function previewAdmin(row?: AdminTpl){
 }
 
 onMounted(()=>{ loadAdmin(); });
+
+// WXAPP：CRUD
+type WxappTpl = { id:number; typeKey:string; enabled:boolean; wxTemplateId?:string|null; wxPagePathTemplate?:string|null; wxMiniprogramState?:string|null; wxLang?:string|null };
+const listWxapp = ref<WxappTpl[]>([]);
+const q3 = ref('');
+const dlgWxappVisible = ref(false);
+const dlgWxappMode = ref<'create'|'edit'>('create');
+const formWxapp = ref<Partial<WxappTpl> & { typeKey?:string; enabled:boolean; wxTemplateId?:string; wxPagePathTemplate?:string; wxMiniprogramState?:string; wxLang?:string }>({ enabled: true, wxMiniprogramState: 'formal', wxLang: 'zh_CN' });
+
+function wxappLabelOf(k:string){
+	const f = wxappKeys.find(it=>it.key===k);
+	return f ? f.label : k;
+}
+
+async function loadWxapp(){
+	try{
+		const params: any = { q: q3.value || undefined, channel: 'WXAPP' };
+		const arr:any[] = (await notificationTemplateControllerList(params) as unknown) as any[];
+		listWxapp.value = Array.isArray(arr) ? (arr as any) : [];
+	}catch{
+		listWxapp.value = [];
+	}
+}
+
+function openWxappCreate(){
+	dlgWxappMode.value = 'create';
+	formWxapp.value = {
+		enabled: true,
+		typeKey: wxappKeys[0].key,
+		wxTemplateId: '',
+		wxPagePathTemplate: 'pages/washcard/detail?id={{cardId}}',
+		wxMiniprogramState: 'formal',
+		wxLang: 'zh_CN',
+	};
+	dlgWxappVisible.value = true;
+}
+function openWxappEdit(row: WxappTpl){
+	dlgWxappMode.value = 'edit';
+	formWxapp.value = {
+		id: row.id,
+		typeKey: row.typeKey,
+		enabled: !!row.enabled,
+		wxTemplateId: (row as any).wxTemplateId || '',
+		wxPagePathTemplate: (row as any).wxPagePathTemplate || '',
+		wxMiniprogramState: (row as any).wxMiniprogramState || 'formal',
+		wxLang: (row as any).wxLang || 'zh_CN',
+	};
+	dlgWxappVisible.value = true;
+}
+
+async function onWxappSave(){
+	try{
+		const payload: any = {
+			enabled: formWxapp.value.enabled !== false,
+			wxTemplateId: String(formWxapp.value.wxTemplateId || '').trim(),
+			wxPagePathTemplate: String(formWxapp.value.wxPagePathTemplate || '').trim() || null,
+			wxMiniprogramState: String(formWxapp.value.wxMiniprogramState || '').trim() || null,
+			wxLang: String(formWxapp.value.wxLang || '').trim() || null,
+		};
+		if (!payload.wxTemplateId) { ElMessage.error('请填写微信 TemplateId'); return; }
+		if (dlgWxappMode.value === 'create') {
+			// 注意：后端 DTO 仍要求 titleTemplate/contentTemplate（WXAPP 实际不使用），这里填展示用占位
+			await notificationTemplateControllerCreate({
+				typeKey: formWxapp.value.typeKey,
+				channel: 'WXAPP',
+				titleTemplate: wxappLabelOf(String(formWxapp.value.typeKey||'')),
+				contentTemplate: 'WXAPP_SUBSCRIBE',
+				...payload,
+			} as any);
+		} else {
+			await notificationTemplateControllerUpdate(String(formWxapp.value.id), payload as any);
+		}
+		ElMessage.success('已保存');
+		dlgWxappVisible.value = false;
+		loadWxapp();
+	}catch(e:any){
+		ElMessage.error(String(e?.message || '保存失败'));
+	}
+}
+
+async function onWxappToggle(row: WxappTpl){
+	try{
+		await notificationTemplateControllerUpdate(String(row.id), { enabled: !!row.enabled } as any);
+		ElMessage.success('已更新');
+		loadWxapp();
+	}catch{
+		ElMessage.error('更新失败');
+	}
+}
+async function delWxappTpl(row: WxappTpl){
+	try{
+		await notificationTemplateControllerRemove(String(row.id));
+		ElMessage.success('已删除');
+		loadWxapp();
+	}catch{
+		ElMessage.error('删除失败');
+	}
+}
+
+onMounted(()=>{ loadWxapp(); });
 
 // 类型设置 API
 async function loadTypeSettings(){

@@ -3,8 +3,11 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
+import { WxappSubscribeService } from './wxapp-subscribe.service.js';
 import {
 	NotificationListQueryDto,
+	NotificationAdminOverviewListQueryDto,
+	NotificationAdminOverviewQueryDto,
 	NotificationMarkReadDto,
 	NotificationUnreadCountResponseDto,
 	NotificationUpsertTypeSettingDto,
@@ -13,9 +16,31 @@ import {
 @ApiTags('notification')
 @Controller('notification')
 export class NotificationController {
-    constructor(private service: NotificationService, private jwt: JwtService, private prisma: PrismaService) {}
+    constructor(private service: NotificationService, private jwt: JwtService, private prisma: PrismaService, private wxapp: WxappSubscribeService) {}
 
-    private async parseAuth(authHeader?: string): Promise<{ type: 'admin'|'member'; sub: number }> {
+	private parseDateStart(input?: string | null): Date | null {
+		try{
+			const s = String(input || '').trim();
+			if (!s) return null;
+			const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+			if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+			const d = new Date(s);
+			return isNaN(d.getTime()) ? null : d;
+		}catch{ return null; }
+	}
+
+	private parseDateEnd(input?: string | null): Date | null {
+		try{
+			const s = String(input || '').trim();
+			if (!s) return null;
+			const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+			if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+			const d = new Date(s);
+			return isNaN(d.getTime()) ? null : d;
+		}catch{ return null; }
+	}
+
+    private async parseAuth(authHeader?: string): Promise<{ type: 'admin'|'member'; sub: number; permissions?: string[] }> {
         const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
         if (!m) throw new BadRequestException('未登录');
         const token = m[1];
@@ -27,6 +52,8 @@ export class NotificationController {
             const user = await this.prisma.user.findUnique({ where: { id: sub }, include: { roleRef: true } });
             if (!user) throw new BadRequestException('账号不存在');
             if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new BadRequestException('角色已被禁用');
+			const permissions: string[] = Array.isArray((user as any).roleRef?.permissions) ? (((user as any).roleRef?.permissions) as any) : [];
+			return { type, sub, permissions };
         } else {
             const member = await this.prisma.member.findUnique({ where: { id: sub } });
             if (!member) throw new BadRequestException('会员不存在');
@@ -82,6 +109,44 @@ export class NotificationController {
         return this.service.markReadAll({ kind:'MEMBER', memberId: sub });
     }
 
+	// ============ 管理后台：消息总览 ============
+	@Get('admin/overview')
+	@ApiOperation({ summary: '消息总览：三通道发送量统计（管理员）' })
+	async adminOverview(@Headers('authorization') authHeader?: string, @Query() query?: NotificationAdminOverviewQueryDto){
+		const { type, permissions } = await this.parseAuth(authHeader);
+		if (type !== 'admin') throw new BadRequestException('无权限');
+		if (!(permissions?.includes('*') || permissions?.includes('notification-overview'))) throw new BadRequestException('无权限');
+		const from = this.parseDateStart((query as any)?.from);
+		const to = this.parseDateEnd((query as any)?.to);
+		return this.service.adminOverview({ from, to });
+	}
+
+	@Get('admin/overview/list')
+	@ApiOperation({ summary: '消息总览：详情列表（管理员）' })
+	async adminOverviewList(@Headers('authorization') authHeader?: string, @Query() query?: NotificationAdminOverviewListQueryDto){
+		const { type, permissions } = await this.parseAuth(authHeader);
+		if (type !== 'admin') throw new BadRequestException('无权限');
+		if (!(permissions?.includes('*') || permissions?.includes('notification-overview'))) throw new BadRequestException('无权限');
+		const from = this.parseDateStart((query as any)?.from);
+		const to = this.parseDateEnd((query as any)?.to);
+		const take = Math.max(1, Math.min(200, Number((query as any)?.take ?? 20)));
+		const skip = Math.max(0, Number((query as any)?.skip ?? 0));
+		const channel = String((query as any)?.channel || '').trim() as any;
+		if (!['ADMIN','MEMBER','WXAPP'].includes(channel)) throw new BadRequestException('channel无效');
+		return this.service.adminOverviewList({
+			channel,
+			status: (query as any)?.status as any,
+			result: (query as any)?.result as any,
+			typeKey: String((query as any)?.typeKey || '').trim() || undefined,
+			q: String((query as any)?.q || '').trim() || undefined,
+			memberId: (query as any)?.memberId ? Number((query as any)?.memberId) : undefined,
+			from,
+			to,
+			take,
+			skip,
+		});
+	}
+
     // ============ 类型设置管理（管理员） ============
     @Get('type-settings')
     @ApiOperation({ summary: '通知类型设置列表（管理员）' })
@@ -120,6 +185,8 @@ export class NotificationController {
             { typeKey:'WASH_CARD_PAY_DEDUCT', channel:'MEMBER' },
             { typeKey:'WASH_CARD_DEDUCT', channel:'MEMBER' },
             { typeKey:'ADMIN_NEW_ORDER', channel:'ADMIN' },
+            // 订阅消息：次卡消费通知（39297）
+            { typeKey:'WASH_CARD_CONSUME', channel:'WXAPP' },
         ] as Array<{ typeKey:string; channel:'MEMBER'|'ADMIN'|'WXAPP' }>;
         const created: any[] = [];
         for (const it of types){
@@ -129,6 +196,28 @@ export class NotificationController {
             }
         }
         return { ok: true, created: created.length };
+    }
+
+    // ============ WXAPP：订阅消息（会员端） ============
+    @Get('wxapp/template')
+    @ApiOperation({ summary: '获取某个订阅消息模板信息（会员端）' })
+    async getWxappTemplate(@Headers('authorization') authHeader?: string, @Query('typeKey') typeKey?: string){
+        const { type, sub } = await this.parseAuth(authHeader);
+        // 允许管理员调试，但主要给会员端使用
+        if (type !== 'member' && type !== 'admin') throw new BadRequestException('无权限');
+        const key = String(typeKey||'').trim() || 'WASH_CARD_CONSUME';
+        return this.wxapp.getWxappTemplateInfoForMember(key, type === 'member' ? sub : undefined);
+    }
+
+    @Post('wxapp/subscribe-report')
+    @ApiOperation({ summary: '上报用户订阅结果（会员端）' })
+    async reportWxappSubscribe(@Headers('authorization') authHeader: string, @Body() body: { templateId: string; status: string }){
+        const { type, sub } = await this.parseAuth(authHeader);
+        if (type !== 'member') throw new BadRequestException('无权限');
+        const templateId = String((body as any)?.templateId||'').trim();
+        const status = String((body as any)?.status||'').trim();
+        if (!templateId || !status) throw new BadRequestException('参数无效');
+        return this.wxapp.reportSubscribeStatus(sub, templateId, status);
     }
 
 }

@@ -36,6 +36,7 @@ import GroupCards from './pages/GroupCards.vue';
 import GroupBalance from './pages/GroupBalance.vue';
 import SystemEmployees from './pages/SystemEmployees.vue';
 import NotificationTemplates from './pages/NotificationTemplates.vue';
+import NotificationOverview from './pages/NotificationOverview.vue';
 import { API_BASE } from './config';
 
 const router = createRouter({
@@ -80,6 +81,7 @@ const router = createRouter({
 				{ path: '/system/sms', component: SystemSms, meta: { perm: 'system-sms', title: '短信管理' } },
 				{ path: '/system/employees', component: SystemEmployees, meta: { perm: 'system-employees', title: '员工配置' } },
 				{ path: '/notification/templates', component: NotificationTemplates, meta: { perm: 'notification-templates', title: '通知配置' } },
+				{ path: '/notification/overview', component: NotificationOverview, meta: { perm: 'notification-overview', title: '消息总览' } },
 				// ====== 新增：集团客户 ======
 				{ path: '/groups', component: GroupList, meta: { perm: 'group', title: '集团客户' } },
 				{ path: '/groups/vehicles', component: GroupVehicles, meta: { perm: 'group-vehicles', title: '集团车辆' } },

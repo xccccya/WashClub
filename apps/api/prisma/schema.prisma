@@ -112,6 +112,9 @@ model Member {
 
   // 反向关联：员工绑定（一个会员最多绑定一个员工）
   employee Employee?
+
+  // 反向关联：微信小程序订阅消息偏好
+  wxappSubscribePreferences WxappSubscribePreference[]
 }
 
 model MemberLevel {
@@ -1611,6 +1614,13 @@ model NotificationTemplate {
   // MEMBER: 会员用户端通知；ADMIN: 管理端通知；WXAPP: 小程序订阅消息
   channel         String    @default("MEMBER")
 
+  // ====== WXAPP 频道：微信小程序订阅消息配置 ======
+  // 仅在 channel=WXAPP 时使用
+  wxTemplateId         String?  @db.VarChar(128)  // 微信订阅消息 TemplateId
+  wxPagePathTemplate   String?  @db.VarChar(512)  // 小程序跳转 page（支持 {{var}} 渲染）
+  wxMiniprogramState   String?  @db.VarChar(32)   // formal / trial / developer
+  wxLang               String?  @db.VarChar(16)   // zh_CN 等
+
   // 管理端通知的展示属性（Element Plus Notification）
   // 仅在 channel=ADMIN 时生效
   uiDuration      Int?
@@ -1633,6 +1643,49 @@ model NotificationTypeSetting {
   defaultUi  Json?
 
   @@unique([typeKey, channel])
+}
+
+// =====================
+// 微信小程序订阅消息：会员订阅状态与发送日志
+// =====================
+
+model WxappSubscribePreference {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memberId   Int
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // 微信订阅消息 template_id
+  templateId String   @db.VarChar(128)
+  // accept / reject / ban / acceptWithAudio / acceptWithAlert 等（来源：wx.requestSubscribeMessage / wx.getSetting）
+  status     String   @db.VarChar(32)
+
+  @@unique([memberId, templateId])
+  @@index([templateId])
+}
+
+model WxappSubscribeSendLog {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+
+  typeKey    String   @db.VarChar(64)
+  memberId   Int?
+  openid     String?  @db.VarChar(128)
+  templateId String   @db.VarChar(128)
+  page       String?  @db.VarChar(512)
+
+  payload    Json?
+
+  // 微信返回
+  errcode    Int?
+  errmsg     String?  @db.VarChar(256)
+  msgid      String?  @db.VarChar(64)
+
+  @@index([typeKey, createdAt])
+  @@index([memberId, createdAt])
+  @@index([templateId, createdAt])
 }
 
 // =====================
