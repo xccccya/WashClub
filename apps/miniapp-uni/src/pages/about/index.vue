@@ -29,12 +29,26 @@
 			<view class="changelog-header">
 				<view class="title">更新日志</view>
 			</view>
-			<view class="changelog-body" :class="{ collapsed: collapsed && shouldShowCollapse }" :style="collapsed ? ('max-height:' + collapsedMaxPx + 'px') : ''">
-				<!-- 统一使用 rich-text，避免小程序端第三方组件渲染差异 -->
-				<rich-text :nodes="htmlContent" class="changelog-richtext" />
-				<view v-if="collapsed && shouldShowCollapse" class="changelog-fade"></view>
+			<view class="changelog-wrap" :class="{ 'is-collapsed': collapsed && shouldShowCollapse, 'is-expanded': !collapsed }">
+				<!-- 折叠时：限定高度 + 内部滚动；展开时：高度自适应，由页面滚动 -->
+				<scroll-view
+					class="changelog-body"
+					:scroll-y="collapsed && shouldShowCollapse"
+					:scroll-with-animation="true"
+					:style="(collapsed && shouldShowCollapse) ? ('height:' + collapsedMaxPx + 'px') : ''"
+					@scroll="onChangelogScroll"
+				>
+					<!-- 统一使用 rich-text，避免小程序端第三方组件渲染差异 -->
+					<view class="changelog-content">
+						<rich-text :nodes="htmlContent" class="changelog-richtext" />
+					</view>
+				</scroll-view>
+				<view v-if="collapsed && shouldShowCollapse && !changelogAtBottom" class="changelog-fade"></view>
 			</view>
-			<view v-if="shouldShowCollapse" class="changelog-toggle" @tap="collapsed = !collapsed">{{ collapsed ? '展开全部' : '收起' }}</view>
+			<view v-if="shouldShowCollapse" class="changelog-actions">
+				<view v-if="collapsed && !changelogAtBottom" class="changelog-hint">上滑可查看更多</view>
+				<view class="changelog-toggle" @tap="collapsed = !collapsed">{{ collapsed ? '展开全部' : '收起' }}</view>
+			</view>
 		</view>
 	</view>
 </template>
@@ -156,6 +170,8 @@ onMounted(async () => {
 const collapsed = ref(true);
 const shouldShowCollapse = ref(false);
 const collapsedMaxPx = ref(600);
+const changelogContentHeightPx = ref(0);
+const changelogAtBottom = ref(false);
 
 function measureCollapse(){
 	try{
@@ -166,12 +182,29 @@ function measureCollapse(){
 		setTimeout(() => {
 			try{
 				const query = uni.createSelectorQuery?.();
-				query?.select?.('.changelog-body')?.boundingClientRect?.((rect:any) => {
-					if (rect && rect.height) { shouldShowCollapse.value = rect.height > collapsedMaxPx.value + 20; }
+				// 注意：容器（scroll-view）在折叠时高度固定，需测量内容真实高度
+				query?.select?.('.changelog-content')?.boundingClientRect?.((rect:any) => {
+					const h = Number(rect?.height || 0);
+					changelogContentHeightPx.value = h > 0 ? h : 0;
+					shouldShowCollapse.value = h > collapsedMaxPx.value + 20;
+					// 重新测量后，默认认为未滚到底（避免残留状态导致遮罩异常）
+					changelogAtBottom.value = false;
 				});
 				query?.exec?.();
 			}catch{}
 		}, 200);
+	}catch{}
+}
+
+function onChangelogScroll(e: any){
+	try{
+		if (!(collapsed.value && shouldShowCollapse.value)) { changelogAtBottom.value = false; return; }
+		const top = Number(e?.detail?.scrollTop || 0);
+		const contentH = Number(changelogContentHeightPx.value || 0);
+		const viewH = Number(collapsedMaxPx.value || 0);
+		// 预留一点阈值，避免最后一屏刚好贴边时遮罩挡住内容
+		const threshold = 16;
+		changelogAtBottom.value = contentH > 0 ? (top >= (contentH - viewH - threshold)) : false;
 	}catch{}
 }
 </script>
@@ -202,10 +235,45 @@ function measureCollapse(){
 .changelog-card { margin-top: 24rpx; }
 .changelog-header { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12rpx; }
 .changelog-header .title { font-size: 32rpx; font-weight: 800; color:#111827; }
-.changelog-body { position: relative; overflow: hidden; }
-.changelog-body.collapsed { overflow: hidden; }
-.changelog-fade { pointer-events:none; position:absolute; left:0; right:0; bottom:0; height: 120rpx; background: linear-gradient(180deg, rgba(255,255,255,0), #fff 60%); }
-.changelog-toggle { margin-top: 12rpx; text-align:center; color:#2563eb; font-size: 26rpx; }
+.changelog-wrap {
+	position: relative;
+	border-radius: 20rpx;
+	background: rgba(255,255,255,0.86);
+	border: 2rpx solid rgba(229, 231, 235, 0.9);
+	box-shadow: inset 0 0 0 2rpx rgba(255,255,255,0.6);
+	overflow: hidden;
+}
+.changelog-body { box-sizing: border-box; }
+.changelog-content { padding: 18rpx 18rpx 12rpx; }
+.changelog-wrap.is-expanded .changelog-content { padding-bottom: 18rpx; }
+.changelog-fade {
+	pointer-events:none;
+	position:absolute;
+	left:0; right:0; bottom:0;
+	height: 140rpx;
+	background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.92) 65%, rgba(255,255,255,1) 100%);
+}
+.changelog-actions{
+	display:flex;
+	align-items:center;
+	justify-content: space-between;
+	gap: 16rpx;
+	margin-top: 14rpx;
+}
+.changelog-hint{
+	color:#6b7280;
+	font-size: 24rpx;
+}
+.changelog-toggle{
+	flex: 0 0 auto;
+	padding: 14rpx 22rpx;
+	border-radius: 999rpx;
+	font-size: 26rpx;
+	font-weight: 800;
+	color:#1d4ed8;
+	background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.06));
+	border: 2rpx solid rgba(59,130,246,0.22);
+}
 
 /* 优化排版：统一段落与标题、列表、引用、代码块样式 */
 /* 小程序端不推荐标签选择器，改用类名控制 */

@@ -53,7 +53,18 @@
 					</div>
 				</div>
 				<el-descriptions :column="2" border size="small" class="section-desc">
-					<el-descriptions-item label="订单号">{{ data?.no || '-' }}</el-descriptions-item>
+					<el-descriptions-item label="订单号">
+						<span>{{ data?.no || '-' }}</span>
+						<el-button
+							v-if="data?.no"
+							class="copy-btn"
+							text
+							title="复制订单号"
+							@click.stop="copyOrderNo"
+						>
+							<el-icon><component :is="getIcon('CopyDocument')" /></el-icon>
+						</el-button>
+					</el-descriptions-item>
 					<el-descriptions-item label="类型">{{ displayType(data?.type) }}</el-descriptions-item>
 					<el-descriptions-item label="状态">{{ statusLabel(data?.status) }}</el-descriptions-item>
 					<el-descriptions-item label="支付状态">
@@ -404,6 +415,32 @@ function fmtMoney(v: any){
 		return n.toFixed(2);
 	}catch{
 		return '0.00';
+	}
+}
+
+async function copyOrderNo(){
+	try{
+		const no = String(data.value?.no || '').trim();
+		if (!no){ ElMessage.error('订单号为空'); return; }
+		if (navigator?.clipboard?.writeText){
+			await navigator.clipboard.writeText(no);
+			ElMessage.success('已复制订单号');
+			return;
+		}
+		// 兼容：降级方案
+		const ta = document.createElement('textarea');
+		ta.value = no;
+		ta.style.position = 'fixed';
+		ta.style.opacity = '0';
+		document.body.appendChild(ta);
+		ta.focus();
+		ta.select();
+		const ok = document.execCommand('copy');
+		document.body.removeChild(ta);
+		if (ok) ElMessage.success('已复制订单号');
+		else ElMessage.error('复制失败');
+	}catch(e:any){
+		ElMessage.error(String(e?.message || e || '复制失败'));
 	}
 }
 async function fetchDetail(){
@@ -862,6 +899,10 @@ const exchangeShipments = computed(() => {
 .back-btn{
 	padding-left: 0;
 	font-weight: 600;
+}
+.copy-btn{
+	margin-left: 6px;
+	padding: 0 4px;
 }
 .order-detail__no{ font-weight: 700; color:#303133; }
 .order-detail__sections{

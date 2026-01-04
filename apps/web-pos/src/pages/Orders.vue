@@ -43,7 +43,7 @@
 				<el-table-column prop="id" label="ID" width="80" />
 				<el-table-column prop="no" label="订单号" min-width="260">
 					<template #default="{ row }">
-						<span class="link" :class="{ deleted: !!row.deletedAt }" title="双击查看详情" @dblclick="openByNo(row.no)" @click="copyNo(row.no)">{{ row.no }}</span>
+						<span class="link" :class="{ deleted: !!row.deletedAt }" title="点击查看详情" @click="openByNo(row.no)">{{ row.no }}</span>
 					</template>
 				</el-table-column>
 				<el-table-column label="类型" width="120" class-name="col-type">
@@ -305,7 +305,7 @@ function remainSeconds(row:any): number {
     }catch{ return 0; }
 }
 function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
-async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
+// 订单号点击即跳转详情，不在列表页提供复制操作（避免与跳转冲突）
 
 function ordersRowClass({ row }: any){
 	const classes: string[] = [];
@@ -519,7 +519,7 @@ onUnmounted(()=>{
 .table-scroll{ overflow:auto; overscroll-behavior: contain; touch-action: pan-y; border-radius:12px; border:1px solid var(--el-border-color); box-shadow: 0 2px 10px rgba(0,0,0,.04); }
 .orders-table :deep(.cell-flex){ display:flex; align-items:center; gap:6px; }
 .orders-table :deep(.col-type .cell){ overflow: visible; text-overflow: clip; }
-.link{ color: var(--app-primary); cursor: pointer; text-decoration: underline; }
+.link{ color: var(--app-primary); cursor: pointer; text-decoration: none; }
 .link.deleted{ color: #909399; text-decoration: line-through; }
 .pager-bar{ display:flex; justify-content:flex-end; padding:8px 4px 0; background: transparent; }
 .money{ font-variant-numeric: tabular-nums; }
