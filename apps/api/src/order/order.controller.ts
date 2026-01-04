@@ -162,7 +162,9 @@ export class OrderController {
         return { id: order.id, no: order.no };
     }
 
-    @Get(':id(\\d+)')
+    // NestJS 11 + path-to-regexp v8 不再支持在路由路径里写正则（如 :id(\\d+)）
+    // 改为普通参数，并使用 ParseIntPipe 做数字校验
+    @Get(':id')
     async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
         const o = await this.orders.getOrder(id);
         // 非管理员请求：隐藏代客下单的管理员快照信息

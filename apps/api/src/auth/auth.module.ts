@@ -17,7 +17,9 @@ import { FileModule } from '../file/file.module.js';
 	imports: [
 		JwtModule.register({
 			secret: resolveJwtSecretEnv(),
-			signOptions: { expiresIn: resolveJwtExpiresInEnv() },
+			// NestJS 11 的 jsonwebtoken 类型对 expiresIn 更严格（StringValue | number），
+			// 但本项目允许通过环境变量传入 '7d'/'15m' 等字符串，这里做一次显式类型收敛。
+			signOptions: { expiresIn: resolveJwtExpiresInEnv() as any },
 		}),
 		FileModule,
 	],

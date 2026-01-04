@@ -43,3 +43,5 @@ apps/api/cert/
 unichlog.md
 SDK-统一调用重构指南与提示词.md
 项目总结-现状评估-2025-12.md
+apps/miniapp-uni/src/assets/changelog.html
+apps/miniapp-uni/src/assets/changelog.ts

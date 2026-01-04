@@ -1,11 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma.service.js';
 import { AdminGuard } from './admin.guard.js';
 import { RequirePerm } from './perm.decorator.js';
 import { Prisma } from '@prisma/client';
 
-type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth';
+type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth' | 'lastMonth';
 
 function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
     const now = new Date();
@@ -33,6 +33,12 @@ function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
             const endDt = new Date(endYear, endMonthNorm, 1, 0, 0, 0, 0);
             return { start, end: endDt };
         }
+        case 'lastMonth': {
+            const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            const firstOfLastMonth = new Date(firstOfThisMonth);
+            firstOfLastMonth.setMonth(firstOfLastMonth.getMonth() - 1);
+            return { start: firstOfLastMonth, end: firstOfThisMonth };
+        }
         case 'today':
         default: {
             const start = startOfToday;
@@ -42,7 +48,7 @@ function getRange(range: RangeKey | undefined): { start: Date; end: Date } {
     }
 }
 
-function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; base: 'yesterday'|'prev7'|'prev30'|'lastMonth' } {
+function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; base: 'yesterday'|'prev7'|'prev30'|'lastMonth'|'prevMonth' } {
     const now = new Date();
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
@@ -64,6 +70,14 @@ function getPrevRange(range: RangeKey | undefined): { start: Date; end: Date; ba
             const firstOfLastMonth = new Date(firstOfThisMonth);
             firstOfLastMonth.setMonth(firstOfLastMonth.getMonth() - 1);
             return { start: firstOfLastMonth, end: firstOfThisMonth, base: 'lastMonth' };
+        }
+        case 'lastMonth': {
+            const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            const firstOfLastMonth = new Date(firstOfThisMonth);
+            firstOfLastMonth.setMonth(firstOfLastMonth.getMonth() - 1);
+            const firstOfPrevMonth = new Date(firstOfLastMonth);
+            firstOfPrevMonth.setMonth(firstOfPrevMonth.getMonth() - 1);
+            return { start: firstOfPrevMonth, end: firstOfLastMonth, base: 'prevMonth' };
         }
         case 'today':
         default: {
@@ -91,6 +105,69 @@ function formatLocalDate(d: Date): string {
     return `${y}-${m}-${da}`;
 }
 
+function parseLocalDateOnly(s: string): Date | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim());
+    if (!m) return null;
+    const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3]);
+    if (!y || !mo || !d) return null;
+    const dt = new Date(y, mo - 1, d, 0, 0, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    return dt;
+}
+
+function parseMonthOnly(s: string): { year: number; month0: number } | null {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(s || '').trim());
+    if (!m) return null;
+    const y = Number(m[1]); const mo = Number(m[2]);
+    if (!y || !mo || mo < 1 || mo > 12) return null;
+    return { year: y, month0: mo - 1 };
+}
+
+function resolveRange(args: {
+    rangeKey?: RangeKey;
+    startStr?: string;
+    endStr?: string;
+    monthStr?: string;
+}): { start: Date; end: Date; prevStart: Date; prevEnd: Date; base: 'yesterday'|'prev7'|'prev30'|'lastMonth'|'prevMonth'|'prevPeriod'; range: RangeKey | 'custom' | 'month' } {
+    const { rangeKey, startStr, endStr, monthStr } = args;
+
+    // 1) month（YYYY-MM）
+    if (monthStr) {
+        const ym = parseMonthOnly(monthStr);
+        if (!ym) throw new Error('month 参数无效（期望 YYYY-MM）');
+        const start = new Date(ym.year, ym.month0, 1, 0, 0, 0, 0);
+        const end = new Date(ym.year, ym.month0 + 1, 1, 0, 0, 0, 0);
+        const prevStart = new Date(ym.year, ym.month0 - 1, 1, 0, 0, 0, 0);
+        const prevEnd = start;
+        return { start, end, prevStart, prevEnd, base: 'lastMonth', range: 'month' };
+    }
+
+    // 2) start/end（ISO 或 YYYY-MM-DD），区间为 [start, end)
+    if (startStr || endStr) {
+        const start =
+            parseLocalDateOnly(startStr || '') ??
+            (startStr ? new Date(startStr) : null) ??
+            null;
+        const end =
+            parseLocalDateOnly(endStr || '') ??
+            (endStr ? new Date(endStr) : null) ??
+            null;
+        if (!start || !end) throw new Error('start/end 参数无效');
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('start/end 参数无效');
+        if (start.getTime() >= end.getTime()) throw new Error('start 必须小于 end');
+        const span = end.getTime() - start.getTime();
+        const prevEnd = start;
+        const prevStart = new Date(start.getTime() - span);
+        return { start, end, prevStart, prevEnd, base: 'prevPeriod', range: 'custom' };
+    }
+
+    // 3) range 预置
+    const rk: RangeKey = (rangeKey || 'today') as RangeKey;
+    const { start, end } = getRange(rk);
+    const { start: prevStart, end: prevEnd, base } = getPrevRange(rk);
+    return { start, end, prevStart, prevEnd, base, range: rk };
+}
+
 @ApiTags('system')
 @Controller('system')
 @UseGuards(AdminGuard)
@@ -99,12 +176,18 @@ export class MetricsController {
 
     @Get('metrics/overview')
     @ApiOperation({ summary: '运营概览指标（订单数/支付金额/洗车数量(总)/洗车卡划扣/活跃会员/新增会员）' })
+    @ApiQuery({ name: 'range', required: false, enum: ['today','last7','last30','thisMonth','lastMonth'], description: '预置时间范围（与 start/end、month 互斥；优先级：month > start/end > range）' })
+    @ApiQuery({ name: 'month', required: false, description: '指定月份（YYYY-MM），区间为该月 [01 00:00, 下月01 00:00)' })
+    @ApiQuery({ name: 'start', required: false, description: '自定义开始时间（ISO 或 YYYY-MM-DD），区间为 [start, end)' })
+    @ApiQuery({ name: 'end', required: false, description: '自定义结束时间（ISO 或 YYYY-MM-DD），区间为 [start, end)' })
     @RequirePerm('dashboard-metrics')
     async overview(
         @Query('range') rangeKey?: RangeKey,
+        @Query('start') startStr?: string,
+        @Query('end') endStr?: string,
+        @Query('month') monthStr?: string,
     ) {
-        const { start, end } = getRange(rangeKey || 'today');
-        const { start: prevStart, end: prevEnd, base } = getPrevRange(rangeKey || 'today');
+        const { start, end, prevStart, prevEnd, base, range } = resolveRange({ rangeKey, startStr, endStr, monthStr });
         // 订单数：按已支付订单
         const orderCountPromise = this.prisma.order.count({ where: { payStatus: 'PAID' as any, paidAt: { gte: start, lt: end }, deletedAt: null } });
 
@@ -283,7 +366,7 @@ export class MetricsController {
         const cumulativeWashCount = cumulativeWashSales + cumulativeWashcardDeductTimes;
 
         return {
-            range: rangeKey || 'today',
+            range,
             startAt: start.toISOString(),
             endAt: end.toISOString(),
             orderCount,
@@ -359,12 +442,23 @@ export class MetricsController {
 
     @Get('metrics/series')
     @ApiOperation({ summary: '时间序列：订单笔数/净支付金额/洗车卡划扣次数/洗车数量(总)（近7日/近一月/本月）' })
+    @ApiQuery({ name: 'metric', required: true, enum: ['orders','payments','washcard','washcount'] })
+    @ApiQuery({ name: 'range', required: false, enum: ['today','last7','last30','thisMonth','lastMonth'], description: '预置时间范围（与 start/end、month 互斥；优先级：month > start/end > range）' })
+    @ApiQuery({ name: 'month', required: false, description: '指定月份（YYYY-MM），区间为该月 [01 00:00, 下月01 00:00)' })
+    @ApiQuery({ name: 'start', required: false, description: '自定义开始时间（ISO 或 YYYY-MM-DD），区间为 [start, end)' })
+    @ApiQuery({ name: 'end', required: false, description: '自定义结束时间（ISO 或 YYYY-MM-DD），区间为 [start, end)' })
     @RequirePerm('dashboard-metrics')
     async series(
         @Query('metric') metric: 'orders'|'payments'|'washcard'|'washcount',
         @Query('range') rangeKey?: RangeKey,
+        @Query('start') startStr?: string,
+        @Query('end') endStr?: string,
+        @Query('month') monthStr?: string,
     ) {
-        const { start, end } = getRange(rangeKey || 'last7');
+        const { start, end, range } = resolveRange({ rangeKey: (rangeKey || 'last7') as any, startStr, endStr, monthStr });
+        // 防御：避免超长区间导致递归 CTE/聚合过慢
+        const days = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+        if (days > 370) throw new Error('时间区间过大（请缩小到 370 天以内）');
         const sDateStr = formatLocalDate(start);
         const eDateStr = formatLocalDate(end);
         if (metric === 'orders') {
@@ -386,7 +480,7 @@ export class MetricsController {
                 ORDER BY dd.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.c || 0) })) };
+            return { range, startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.c || 0) })) };
         }
         if (metric === 'payments') {
             // 净支付：每日支付总额 - 每日退款成功总额
@@ -418,7 +512,7 @@ export class MetricsController {
                 SELECT net.d AS d, CASE WHEN net.amt < 0 THEN 0 ELSE net.amt END AS amt FROM net ORDER BY net.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.amt || 0) })) };
+            return { range, startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.amt || 0) })) };
         }
         if (metric === 'washcard') {
             const rows: Array<{ d: Date; t: number }> = await this.prisma.$queryRaw(
@@ -457,7 +551,7 @@ export class MetricsController {
                 ORDER BY dd.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.t || 0) })) };
+            return { range, startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.t || 0) })) };
         }
         if (metric === 'washcount') {
             // 洗车数量(总) = 洗车服务销量(排除用卡结算) + 洗车卡划扣(个人+集团)
@@ -508,9 +602,9 @@ export class MetricsController {
                 SELECT agg.d AS d, agg.v AS v FROM agg ORDER BY agg.d;
                 `
             );
-            return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.v || 0) })) };
+            return { range, startAt: start.toISOString(), endAt: end.toISOString(), points: rows.map(r=>({ date: formatLocalDate(new Date(r.d)), value: Number(r.v || 0) })) };
         }
-        return { range: rangeKey || 'last7', startAt: start.toISOString(), endAt: end.toISOString(), points: [] };
+        return { range, startAt: start.toISOString(), endAt: end.toISOString(), points: [] };
     }
 
     @Get('metrics/top-products')

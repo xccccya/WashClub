@@ -4,13 +4,13 @@
     "/health": {
       "get": {
         "operationId": "AppController_health",
-        "summary": "健康检查",
         "parameters": [],
         "responses": {
           "200": {
             "description": "ok"
           }
         },
+        "summary": "健康检查",
         "tags": [
           "health"
         ]
@@ -19,7 +19,6 @@
     "/auth/login": {
       "post": {
         "operationId": "AuthController_login",
-        "summary": "会员登录（账号+密码）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -36,6 +35,7 @@
             "description": ""
           }
         },
+        "summary": "会员登录（账号+密码）",
         "tags": [
           "auth"
         ]
@@ -44,7 +44,6 @@
     "/auth/send-code": {
       "post": {
         "operationId": "AuthController_sendLoginCode",
-        "summary": "发送短信验证码（登录/注册/重置/换号）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -61,6 +60,7 @@
             "description": ""
           }
         },
+        "summary": "发送短信验证码（登录/注册/重置/换号）",
         "tags": [
           "auth"
         ]
@@ -69,7 +69,6 @@
     "/auth/login/code": {
       "post": {
         "operationId": "AuthController_loginByCode",
-        "summary": "短信验证码登录/注册",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -86,6 +85,7 @@
             "description": ""
           }
         },
+        "summary": "短信验证码登录/注册",
         "tags": [
           "auth"
         ]
@@ -94,7 +94,6 @@
     "/auth/reset-password": {
       "post": {
         "operationId": "AuthController_resetPassword",
-        "summary": "重置会员密码（短信验证码）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -111,6 +110,7 @@
             "description": ""
           }
         },
+        "summary": "重置会员密码（短信验证码）",
         "tags": [
           "auth"
         ]
@@ -119,7 +119,6 @@
     "/auth/change-phone": {
       "post": {
         "operationId": "AuthController_changePhone",
-        "summary": "更换会员手机号（短信验证码）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -136,6 +135,7 @@
             "description": ""
           }
         },
+        "summary": "更换会员手机号（短信验证码）",
         "tags": [
           "auth"
         ]
@@ -144,7 +144,6 @@
     "/auth/wechat/resolve-phone": {
       "post": {
         "operationId": "AuthController_resolvePhone",
-        "summary": "微信手机号组件 code 换取手机号",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -161,6 +160,7 @@
             "description": ""
           }
         },
+        "summary": "微信手机号组件 code 换取手机号",
         "tags": [
           "auth"
         ]
@@ -169,7 +169,6 @@
     "/auth/wechat/one-tap": {
       "post": {
         "operationId": "AuthController_wechatOneTap",
-        "summary": "微信一键登录（手机号校验 + openid）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -186,6 +185,7 @@
             "description": ""
           }
         },
+        "summary": "微信一键登录（手机号校验 + openid）",
         "tags": [
           "auth"
         ]
@@ -194,7 +194,6 @@
     "/auth/admin/login": {
       "post": {
         "operationId": "AuthController_adminLogin",
-        "summary": "管理员登录（账号+密码）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -211,6 +210,7 @@
             "description": ""
           }
         },
+        "summary": "管理员登录（账号+密码）",
         "tags": [
           "auth"
         ]
@@ -219,7 +219,6 @@
     "/auth/admin/update-nickname": {
       "post": {
         "operationId": "AuthController_updateAdminNickname",
-        "summary": "管理员修改昵称",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -236,6 +235,7 @@
             "description": ""
           }
         },
+        "summary": "管理员修改昵称",
         "tags": [
           "auth"
         ]
@@ -244,7 +244,6 @@
     "/auth/admin/update-password": {
       "post": {
         "operationId": "AuthController_updateAdminPassword",
-        "summary": "管理员修改密码",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -261,6 +260,7 @@
             "description": ""
           }
         },
+        "summary": "管理员修改密码",
         "tags": [
           "auth"
         ]
@@ -269,7 +269,6 @@
     "/auth/admin/update-avatar": {
       "post": {
         "operationId": "AuthController_updateAdminAvatar",
-        "summary": "管理员更换头像",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -286,6 +285,22 @@
             "description": ""
           }
         },
+        "summary": "管理员更换头像",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/admin/me": {
+      "get": {
+        "operationId": "AuthController_adminMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "管理员登录态校验（验签）",
         "tags": [
           "auth"
         ]
@@ -294,20 +309,19 @@
     "/system/roles": {
       "get": {
         "operationId": "AdminRoleController_listRoles",
-        "summary": "角色列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "角色列表",
         "tags": [
           "system"
         ]
       },
       "post": {
         "operationId": "AdminRoleController_createRole",
-        "summary": "创建角色",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -324,6 +338,7 @@
             "description": ""
           }
         },
+        "summary": "创建角色",
         "tags": [
           "system"
         ]
@@ -332,7 +347,6 @@
     "/system/roles/{id}": {
       "put": {
         "operationId": "AdminRoleController_updateRole",
-        "summary": "更新角色",
         "parameters": [
           {
             "name": "id",
@@ -358,13 +372,13 @@
             "description": ""
           }
         },
+        "summary": "更新角色",
         "tags": [
           "system"
         ]
       },
       "delete": {
         "operationId": "AdminRoleController_removeRole",
-        "summary": "删除角色",
         "parameters": [
           {
             "name": "id",
@@ -380,6 +394,7 @@
             "description": ""
           }
         },
+        "summary": "删除角色",
         "tags": [
           "system"
         ]
@@ -388,20 +403,19 @@
     "/system/admins": {
       "get": {
         "operationId": "AdminRoleController_listAdmins",
-        "summary": "管理员列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "管理员列表",
         "tags": [
           "system"
         ]
       },
       "post": {
         "operationId": "AdminRoleController_createAdmin",
-        "summary": "创建管理员",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -418,6 +432,7 @@
             "description": ""
           }
         },
+        "summary": "创建管理员",
         "tags": [
           "system"
         ]
@@ -426,7 +441,6 @@
     "/system/admins/{id}": {
       "put": {
         "operationId": "AdminRoleController_updateAdmin",
-        "summary": "更新管理员",
         "parameters": [
           {
             "name": "id",
@@ -452,13 +466,13 @@
             "description": ""
           }
         },
+        "summary": "更新管理员",
         "tags": [
           "system"
         ]
       },
       "delete": {
         "operationId": "AdminRoleController_removeAdmin",
-        "summary": "删除管理员",
         "parameters": [
           {
             "name": "id",
@@ -474,6 +488,7 @@
             "description": ""
           }
         },
+        "summary": "删除管理员",
         "tags": [
           "system"
         ]
@@ -482,13 +497,13 @@
     "/system/menus": {
       "get": {
         "operationId": "AdminRoleController_listMenus",
-        "summary": "系统菜单清单",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "系统菜单清单",
         "tags": [
           "system"
         ]
@@ -497,7 +512,6 @@
     "/system/sms-codes": {
       "get": {
         "operationId": "SmsAdminController_listSmsCodes",
-        "summary": "短信验证码记录列表（仅查询）",
         "parameters": [
           {
             "name": "phone",
@@ -545,6 +559,7 @@
             "description": ""
           }
         },
+        "summary": "短信验证码记录列表（仅查询）",
         "tags": [
           "system"
         ]
@@ -553,12 +568,46 @@
     "/system/metrics/overview": {
       "get": {
         "operationId": "MetricsController_overview",
-        "summary": "运营概览指标（订单数/支付金额/洗车数量(总)/洗车卡划扣/活跃会员/新增会员）",
         "parameters": [
           {
             "name": "range",
-            "required": true,
+            "required": false,
             "in": "query",
+            "description": "预置时间范围（与 start/end、month 互斥；优先级：month > start/end > range）",
+            "schema": {
+              "enum": [
+                "today",
+                "last7",
+                "last30",
+                "thisMonth",
+                "lastMonth"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "required": false,
+            "in": "query",
+            "description": "自定义开始时间（ISO 或 YYYY-MM-DD），区间为 [start, end)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "required": false,
+            "in": "query",
+            "description": "自定义结束时间（ISO 或 YYYY-MM-DD），区间为 [start, end)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "指定月份（YYYY-MM），区间为该月 [01 00:00, 下月01 00:00)",
             "schema": {
               "type": "string"
             }
@@ -569,6 +618,7 @@
             "description": ""
           }
         },
+        "summary": "运营概览指标（订单数/支付金额/洗车数量(总)/洗车卡划扣/活跃会员/新增会员）",
         "tags": [
           "system"
         ]
@@ -577,7 +627,6 @@
     "/system/metrics/daily": {
       "get": {
         "operationId": "MetricsController_daily",
-        "summary": "按日营收（CTE补零时间序列）",
         "parameters": [
           {
             "name": "start",
@@ -601,6 +650,7 @@
             "description": ""
           }
         },
+        "summary": "按日营收（CTE补零时间序列）",
         "tags": [
           "system"
         ]
@@ -609,20 +659,60 @@
     "/system/metrics/series": {
       "get": {
         "operationId": "MetricsController_series",
-        "summary": "时间序列：订单笔数/净支付金额/洗车卡划扣次数/洗车数量(总)（近7日/近一月/本月）",
         "parameters": [
           {
             "name": "metric",
             "required": true,
             "in": "query",
             "schema": {
+              "enum": [
+                "orders",
+                "payments",
+                "washcard",
+                "washcount"
+              ],
               "type": "string"
             }
           },
           {
             "name": "range",
-            "required": true,
+            "required": false,
             "in": "query",
+            "description": "预置时间范围（与 start/end、month 互斥；优先级：month > start/end > range）",
+            "schema": {
+              "enum": [
+                "today",
+                "last7",
+                "last30",
+                "thisMonth",
+                "lastMonth"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "required": false,
+            "in": "query",
+            "description": "自定义开始时间（ISO 或 YYYY-MM-DD），区间为 [start, end)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "required": false,
+            "in": "query",
+            "description": "自定义结束时间（ISO 或 YYYY-MM-DD），区间为 [start, end)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "指定月份（YYYY-MM），区间为该月 [01 00:00, 下月01 00:00)",
             "schema": {
               "type": "string"
             }
@@ -633,6 +723,7 @@
             "description": ""
           }
         },
+        "summary": "时间序列：订单笔数/净支付金额/洗车卡划扣次数/洗车数量(总)（近7日/近一月/本月）",
         "tags": [
           "system"
         ]
@@ -641,7 +732,6 @@
     "/system/metrics/top-products": {
       "get": {
         "operationId": "MetricsController_topProducts",
-        "summary": "商品销量Top-N（窗口函数可扩展）",
         "parameters": [
           {
             "name": "start",
@@ -681,6 +771,7 @@
             "description": ""
           }
         },
+        "summary": "商品销量Top-N（窗口函数可扩展）",
         "tags": [
           "system"
         ]
@@ -689,7 +780,6 @@
     "/file/list": {
       "get": {
         "operationId": "FileController_list",
-        "summary": "列出指定目录下的文件（默认public）",
         "parameters": [
           {
             "name": "dir",
@@ -705,6 +795,7 @@
             "description": ""
           }
         },
+        "summary": "列出指定目录下的文件（默认public）",
         "tags": [
           "file"
         ]
@@ -713,7 +804,6 @@
     "/file/upload": {
       "post": {
         "operationId": "FileController_upload",
-        "summary": "上传文件到指定目录（默认public）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -739,6 +829,7 @@
             "description": ""
           }
         },
+        "summary": "上传文件到指定目录（默认public）",
         "tags": [
           "file"
         ]
@@ -747,7 +838,6 @@
     "/file/{path}": {
       "delete": {
         "operationId": "FileController_remove",
-        "summary": "删除指定路径文件",
         "parameters": [
           {
             "name": "path",
@@ -763,6 +853,7 @@
             "description": ""
           }
         },
+        "summary": "删除指定路径文件",
         "tags": [
           "file"
         ]
@@ -771,7 +862,6 @@
     "/assets": {
       "get": {
         "operationId": "AssetController_list",
-        "summary": "文件资产分页查询",
         "parameters": [
           {
             "name": "page",
@@ -819,6 +909,7 @@
             "description": ""
           }
         },
+        "summary": "文件资产分页查询",
         "tags": [
           "assets"
         ]
@@ -827,7 +918,6 @@
     "/assets/{id}": {
       "get": {
         "operationId": "AssetController_detail",
-        "summary": "文件详情",
         "parameters": [
           {
             "name": "id",
@@ -843,13 +933,13 @@
             "description": ""
           }
         },
+        "summary": "文件详情",
         "tags": [
           "assets"
         ]
       },
       "patch": {
         "operationId": "AssetController_update",
-        "summary": "更新文件元数据（重命名/公开性/标签）",
         "parameters": [
           {
             "name": "id",
@@ -875,13 +965,13 @@
             "description": ""
           }
         },
+        "summary": "更新文件元数据（重命名/公开性/标签）",
         "tags": [
           "assets"
         ]
       },
       "delete": {
         "operationId": "AssetController_remove",
-        "summary": "删除文件（软删；存在引用时禁止）",
         "parameters": [
           {
             "name": "id",
@@ -897,6 +987,7 @@
             "description": ""
           }
         },
+        "summary": "删除文件（软删；存在引用时禁止）",
         "tags": [
           "assets"
         ]
@@ -905,7 +996,6 @@
     "/assets/upload": {
       "post": {
         "operationId": "AssetController_upload",
-        "summary": "上传文件（去重；返回资产；支持自动标签）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -937,6 +1027,7 @@
             "description": ""
           }
         },
+        "summary": "上传文件（去重；返回资产；支持自动标签）",
         "tags": [
           "assets"
         ]
@@ -945,7 +1036,6 @@
     "/assets/{id}/references": {
       "get": {
         "operationId": "AssetController_listRef",
-        "summary": "查看文件引用列表",
         "parameters": [
           {
             "name": "id",
@@ -961,6 +1051,7 @@
             "description": ""
           }
         },
+        "summary": "查看文件引用列表",
         "tags": [
           "assets"
         ]
@@ -969,7 +1060,6 @@
     "/assets/{id}/thumbnail": {
       "get": {
         "operationId": "AssetController_thumb",
-        "summary": "获取缩略图（图片重定向）",
         "parameters": [
           {
             "name": "id",
@@ -985,6 +1075,7 @@
             "description": ""
           }
         },
+        "summary": "获取缩略图（图片重定向）",
         "tags": [
           "assets"
         ]
@@ -993,7 +1084,6 @@
     "/assets/{id}/thumbnails": {
       "post": {
         "operationId": "AssetController_genThumbs",
-        "summary": "生成缩略图（占位：仅回显待生成尺寸）",
         "parameters": [
           {
             "name": "id",
@@ -1019,6 +1109,7 @@
             "description": ""
           }
         },
+        "summary": "生成缩略图（占位：仅回显待生成尺寸）",
         "tags": [
           "assets"
         ]
@@ -1027,7 +1118,6 @@
     "/assets/thumbnails/bulk": {
       "post": {
         "operationId": "AssetController_bulkThumbs",
-        "summary": "批量预热缩略图（生成常用尺寸）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -1044,6 +1134,7 @@
             "description": ""
           }
         },
+        "summary": "批量预热缩略图（生成常用尺寸）",
         "tags": [
           "assets"
         ]
@@ -1052,7 +1143,6 @@
     "/assets/thumbnails/cleanup": {
       "post": {
         "operationId": "AssetController_cleanup",
-        "summary": "清理变体缩略图并重置 variants",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -1069,6 +1159,7 @@
             "description": ""
           }
         },
+        "summary": "清理变体缩略图并重置 variants",
         "tags": [
           "assets"
         ]
@@ -1077,7 +1168,6 @@
     "/assets/{id}/bindings": {
       "post": {
         "operationId": "AssetController_bind",
-        "summary": "绑定业务引用",
         "parameters": [
           {
             "name": "id",
@@ -1103,6 +1193,7 @@
             "description": ""
           }
         },
+        "summary": "绑定业务引用",
         "tags": [
           "assets"
         ]
@@ -1111,7 +1202,6 @@
     "/assets/{id}/bindings/{bid}": {
       "delete": {
         "operationId": "AssetController_unBind",
-        "summary": "解绑业务引用",
         "parameters": [
           {
             "name": "id",
@@ -1135,6 +1225,7 @@
             "description": ""
           }
         },
+        "summary": "解绑业务引用",
         "tags": [
           "assets"
         ]
@@ -1143,13 +1234,13 @@
     "/assets/system/status": {
       "get": {
         "operationId": "AssetController_getSystemStatus",
-        "summary": "获取文件系统状态和改进清单",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取文件系统状态和改进清单",
         "tags": [
           "assets"
         ]
@@ -1158,7 +1249,6 @@
     "/member/list": {
       "get": {
         "operationId": "MemberController_list",
-        "summary": "会员列表（分页/关键词）",
         "parameters": [
           {
             "name": "page",
@@ -1190,6 +1280,7 @@
             "description": ""
           }
         },
+        "summary": "会员列表（分页/关键词）",
         "tags": [
           "member"
         ]
@@ -1198,13 +1289,13 @@
     "/member/_sync-guest-owner": {
       "post": {
         "operationId": "MemberController_syncGuestOrderOwner",
-        "summary": "同步游客订单占位账号（根据环境变量 GUEST_MEMBER_ID）",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "同步游客订单占位账号（根据环境变量 GUEST_MEMBER_ID）",
         "tags": [
           "member"
         ]
@@ -1213,13 +1304,13 @@
     "/member/_guest-owner": {
       "get": {
         "operationId": "MemberController_getGuestOrderOwner",
-        "summary": "获取当前游客订单占位账号信息（根据环境变量）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取当前游客订单占位账号信息（根据环境变量）",
         "tags": [
           "member"
         ]
@@ -1228,7 +1319,6 @@
     "/member/me/profile": {
       "get": {
         "operationId": "MemberController_me",
-        "summary": "查询当前会员资料（支持token参数）",
         "parameters": [
           {
             "name": "token",
@@ -1244,6 +1334,7 @@
             "description": ""
           }
         },
+        "summary": "查询当前会员资料（支持token参数）",
         "tags": [
           "member"
         ]
@@ -1252,7 +1343,6 @@
     "/member/me/growth-logs": {
       "get": {
         "operationId": "MemberController_getGrowthLogs",
-        "summary": "查询当前会员成长值日志（持久化）",
         "parameters": [
           {
             "name": "limit",
@@ -1276,6 +1366,7 @@
             "description": ""
           }
         },
+        "summary": "查询当前会员成长值日志（持久化）",
         "tags": [
           "member"
         ]
@@ -1284,7 +1375,6 @@
     "/member/me/points-logs": {
       "get": {
         "operationId": "MemberController_getPointsLogs",
-        "summary": "查询当前会员积分日志（持久化）",
         "parameters": [
           {
             "name": "limit",
@@ -1308,6 +1398,7 @@
             "description": ""
           }
         },
+        "summary": "查询当前会员积分日志（持久化）",
         "tags": [
           "member"
         ]
@@ -1316,7 +1407,6 @@
     "/member/me/points-stats": {
       "get": {
         "operationId": "MemberController_getPointsStats",
-        "summary": "查询当前会员积分统计（当前/本月使用/本月获得）",
         "parameters": [
           {
             "name": "token",
@@ -1332,6 +1422,7 @@
             "description": ""
           }
         },
+        "summary": "查询当前会员积分统计（当前/本月使用/本月获得）",
         "tags": [
           "member"
         ]
@@ -1340,7 +1431,6 @@
     "/member/{id}/growth-logs": {
       "get": {
         "operationId": "MemberController_getGrowthLogsByMember",
-        "summary": "根据会员ID查询成长值日志（管理后台使用）",
         "parameters": [
           {
             "name": "id",
@@ -1364,6 +1454,7 @@
             "description": ""
           }
         },
+        "summary": "根据会员ID查询成长值日志（管理后台使用）",
         "tags": [
           "member"
         ]
@@ -1372,7 +1463,6 @@
     "/member/{id}/growth-adjust": {
       "post": {
         "operationId": "MemberController_adjustGrowth",
-        "summary": "管理员手动调整成长值（正负均可），记录备注",
         "parameters": [
           {
             "name": "id",
@@ -1406,6 +1496,7 @@
             "description": ""
           }
         },
+        "summary": "管理员手动调整成长值（正负均可），记录备注",
         "tags": [
           "member"
         ]
@@ -1414,7 +1505,6 @@
     "/member/me/active": {
       "post": {
         "operationId": "MemberController_setActive",
-        "summary": "心跳：设置会员在线活跃状态",
         "parameters": [
           {
             "name": "token",
@@ -1430,6 +1520,7 @@
             "description": ""
           }
         },
+        "summary": "心跳：设置会员在线活跃状态",
         "tags": [
           "member"
         ]
@@ -1438,7 +1529,6 @@
     "/member/{id}": {
       "get": {
         "operationId": "MemberController_get",
-        "summary": "获取会员详情",
         "parameters": [
           {
             "name": "id",
@@ -1454,13 +1544,13 @@
             "description": ""
           }
         },
+        "summary": "获取会员详情",
         "tags": [
           "member"
         ]
       },
       "put": {
         "operationId": "MemberController_update",
-        "summary": "更新会员资料",
         "parameters": [
           {
             "name": "id",
@@ -1486,13 +1576,13 @@
             "description": ""
           }
         },
+        "summary": "更新会员资料",
         "tags": [
           "member"
         ]
       },
       "delete": {
         "operationId": "MemberController_remove",
-        "summary": "删除会员",
         "parameters": [
           {
             "name": "id",
@@ -1508,6 +1598,7 @@
             "description": ""
           }
         },
+        "summary": "删除会员",
         "tags": [
           "member"
         ]
@@ -1516,7 +1607,6 @@
     "/member/create": {
       "post": {
         "operationId": "MemberController_create",
-        "summary": "创建会员",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -1533,6 +1623,7 @@
             "description": ""
           }
         },
+        "summary": "创建会员",
         "tags": [
           "member"
         ]
@@ -1541,7 +1632,6 @@
     "/member/{id}/password": {
       "put": {
         "operationId": "MemberController_setPassword",
-        "summary": "设置/重置会员密码（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -1567,6 +1657,7 @@
             "description": ""
           }
         },
+        "summary": "设置/重置会员密码（管理员）",
         "tags": [
           "member"
         ]
@@ -1575,26 +1666,26 @@
     "/member-level": {
       "get": {
         "operationId": "MemberLevelController_list",
-        "summary": "会员等级列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "会员等级列表",
         "tags": [
           "member-level"
         ]
       },
       "post": {
         "operationId": "MemberLevelController_create",
-        "summary": "创建会员等级",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "创建会员等级",
         "tags": [
           "member-level"
         ]
@@ -1603,7 +1694,6 @@
     "/member-level/{id}": {
       "put": {
         "operationId": "MemberLevelController_update",
-        "summary": "更新会员等级",
         "parameters": [
           {
             "name": "id",
@@ -1619,13 +1709,13 @@
             "description": ""
           }
         },
+        "summary": "更新会员等级",
         "tags": [
           "member-level"
         ]
       },
       "delete": {
         "operationId": "MemberLevelController_remove",
-        "summary": "删除会员等级",
         "parameters": [
           {
             "name": "id",
@@ -1641,6 +1731,7 @@
             "description": ""
           }
         },
+        "summary": "删除会员等级",
         "tags": [
           "member-level"
         ]
@@ -1649,26 +1740,26 @@
     "/member-level/_growth-config": {
       "get": {
         "operationId": "MemberLevelController_getGrowthConfig",
-        "summary": "获取成长值换算配置",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取成长值换算配置",
         "tags": [
           "member-level"
         ]
       },
       "post": {
         "operationId": "MemberLevelController_saveGrowthConfig",
-        "summary": "保存成长值换算配置",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "保存成长值换算配置",
         "tags": [
           "member-level"
         ]
@@ -1677,20 +1768,19 @@
     "/member-category": {
       "get": {
         "operationId": "MemberCategoryController_list",
-        "summary": "会员分类列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "会员分类列表",
         "tags": [
           "member-category"
         ]
       },
       "post": {
         "operationId": "MemberCategoryController_create",
-        "summary": "创建会员分类",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -1707,6 +1797,7 @@
             "description": ""
           }
         },
+        "summary": "创建会员分类",
         "tags": [
           "member-category"
         ]
@@ -1715,7 +1806,6 @@
     "/member-category/{id}": {
       "put": {
         "operationId": "MemberCategoryController_update",
-        "summary": "更新会员分类",
         "parameters": [
           {
             "name": "id",
@@ -1741,13 +1831,13 @@
             "description": ""
           }
         },
+        "summary": "更新会员分类",
         "tags": [
           "member-category"
         ]
       },
       "delete": {
         "operationId": "MemberCategoryController_remove",
-        "summary": "删除会员分类",
         "parameters": [
           {
             "name": "id",
@@ -1763,6 +1853,7 @@
             "description": ""
           }
         },
+        "summary": "删除会员分类",
         "tags": [
           "member-category"
         ]
@@ -1771,20 +1862,19 @@
     "/member-tag": {
       "get": {
         "operationId": "MemberTagController_list",
-        "summary": "会员标签列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "会员标签列表",
         "tags": [
           "member-tag"
         ]
       },
       "post": {
         "operationId": "MemberTagController_create",
-        "summary": "创建会员标签",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -1801,6 +1891,7 @@
             "description": ""
           }
         },
+        "summary": "创建会员标签",
         "tags": [
           "member-tag"
         ]
@@ -1809,7 +1900,6 @@
     "/member-tag/{id}": {
       "put": {
         "operationId": "MemberTagController_update",
-        "summary": "更新会员标签",
         "parameters": [
           {
             "name": "id",
@@ -1835,13 +1925,13 @@
             "description": ""
           }
         },
+        "summary": "更新会员标签",
         "tags": [
           "member-tag"
         ]
       },
       "delete": {
         "operationId": "MemberTagController_remove",
-        "summary": "删除会员标签",
         "parameters": [
           {
             "name": "id",
@@ -1857,6 +1947,7 @@
             "description": ""
           }
         },
+        "summary": "删除会员标签",
         "tags": [
           "member-tag"
         ]
@@ -1865,7 +1956,6 @@
     "/member-tag/{id}/members": {
       "get": {
         "operationId": "MemberTagController_members",
-        "summary": "标签下的会员列表（分页/关键词）",
         "parameters": [
           {
             "name": "id",
@@ -1905,6 +1995,7 @@
             "description": ""
           }
         },
+        "summary": "标签下的会员列表（分页/关键词）",
         "tags": [
           "member-tag"
         ]
@@ -1913,7 +2004,6 @@
     "/vehicle/list": {
       "get": {
         "operationId": "VehicleController_adminList",
-        "summary": "车辆列表（管理员，分页/关键词）",
         "parameters": [
           {
             "name": "page",
@@ -1954,11 +2044,11 @@
             "description": "范围：仅会员车辆/全部",
             "schema": {
               "default": "member",
+              "type": "string",
               "enum": [
                 "member",
                 "all"
-              ],
-              "type": "string"
+              ]
             }
           },
           {
@@ -1977,6 +2067,7 @@
             "description": ""
           }
         },
+        "summary": "车辆列表（管理员，分页/关键词）",
         "tags": [
           "vehicle"
         ]
@@ -1985,7 +2076,6 @@
     "/vehicle/member/{memberId}": {
       "get": {
         "operationId": "VehicleController_listByMember",
-        "summary": "按会员ID查询车辆",
         "parameters": [
           {
             "name": "memberId",
@@ -2001,13 +2091,13 @@
             "description": ""
           }
         },
+        "summary": "按会员ID查询车辆",
         "tags": [
           "vehicle"
         ]
       },
       "post": {
         "operationId": "VehicleController_createForMember",
-        "summary": "为会员新增车辆（管理员）",
         "parameters": [
           {
             "name": "memberId",
@@ -2033,6 +2123,7 @@
             "description": ""
           }
         },
+        "summary": "为会员新增车辆（管理员）",
         "tags": [
           "vehicle"
         ]
@@ -2041,7 +2132,6 @@
     "/vehicle/member/by-phone": {
       "post": {
         "operationId": "VehicleController_createForMemberByPhone",
-        "summary": "按手机号为会员新增车辆（管理员）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2058,6 +2148,7 @@
             "description": ""
           }
         },
+        "summary": "按手机号为会员新增车辆（管理员）",
         "tags": [
           "vehicle"
         ]
@@ -2066,7 +2157,6 @@
     "/vehicle/{id}": {
       "put": {
         "operationId": "VehicleController_updateVehicle",
-        "summary": "修改车辆信息",
         "parameters": [
           {
             "name": "id",
@@ -2092,13 +2182,13 @@
             "description": ""
           }
         },
+        "summary": "修改车辆信息",
         "tags": [
           "vehicle"
         ]
       },
       "delete": {
         "operationId": "VehicleController_remove",
-        "summary": "删除车辆",
         "parameters": [
           {
             "name": "id",
@@ -2114,6 +2204,7 @@
             "description": ""
           }
         },
+        "summary": "删除车辆",
         "tags": [
           "vehicle"
         ]
@@ -2122,7 +2213,6 @@
     "/vehicle/{id}/set-default": {
       "post": {
         "operationId": "VehicleController_setDefault",
-        "summary": "设置默认车辆",
         "parameters": [
           {
             "name": "id",
@@ -2138,6 +2228,7 @@
             "description": ""
           }
         },
+        "summary": "设置默认车辆",
         "tags": [
           "vehicle"
         ]
@@ -2146,7 +2237,6 @@
     "/vehicle/search": {
       "get": {
         "operationId": "VehicleController_search",
-        "summary": "模糊搜索车牌（管理端/队列）",
         "parameters": [
           {
             "name": "q",
@@ -2175,6 +2265,7 @@
             "description": ""
           }
         },
+        "summary": "模糊搜索车牌（管理端/队列）",
         "tags": [
           "vehicle"
         ]
@@ -2183,7 +2274,6 @@
     "/vehicle/guest/create": {
       "post": {
         "operationId": "VehicleController_createGuest",
-        "summary": "创建游客车辆",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2200,6 +2290,7 @@
             "description": ""
           }
         },
+        "summary": "创建游客车辆",
         "tags": [
           "vehicle"
         ]
@@ -2208,7 +2299,6 @@
     "/vehicle/{id}/bind-member/{memberId}": {
       "post": {
         "operationId": "VehicleController_bindMember",
-        "summary": "将游客车辆绑定到会员",
         "parameters": [
           {
             "name": "id",
@@ -2232,6 +2322,7 @@
             "description": ""
           }
         },
+        "summary": "将游客车辆绑定到会员",
         "tags": [
           "vehicle"
         ]
@@ -2240,7 +2331,6 @@
     "/vehicle/{id}/rebind": {
       "post": {
         "operationId": "VehicleController_adminRebind",
-        "summary": "一键换绑车辆（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2264,6 +2354,7 @@
             "description": ""
           }
         },
+        "summary": "一键换绑车辆（管理员）",
         "tags": [
           "vehicle"
         ]
@@ -2272,7 +2363,6 @@
     "/vehicle/me/list": {
       "get": {
         "operationId": "VehicleController_myVehicles",
-        "summary": "我的车辆列表（会员端）",
         "parameters": [
           {
             "name": "token",
@@ -2288,6 +2378,7 @@
             "description": ""
           }
         },
+        "summary": "我的车辆列表（会员端）",
         "tags": [
           "vehicle"
         ]
@@ -2296,7 +2387,6 @@
     "/vehicle/me/create": {
       "post": {
         "operationId": "VehicleController_myCreate",
-        "summary": "新增我的车辆（会员端）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2313,6 +2403,7 @@
             "description": ""
           }
         },
+        "summary": "新增我的车辆（会员端）",
         "tags": [
           "vehicle"
         ]
@@ -2321,7 +2412,6 @@
     "/wash-card/list": {
       "get": {
         "operationId": "WashCardController_adminList",
-        "summary": "洗车卡列表（管理员，分页/关键词/按会员）",
         "parameters": [
           {
             "name": "page",
@@ -2361,6 +2451,7 @@
             "description": ""
           }
         },
+        "summary": "洗车卡列表（管理员，分页/关键词/按会员）",
         "tags": [
           "wash-card"
         ]
@@ -2369,7 +2460,6 @@
     "/wash-card/{id}": {
       "get": {
         "operationId": "WashCardController_adminGet",
-        "summary": "洗车卡详情（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2385,13 +2475,13 @@
             "description": ""
           }
         },
+        "summary": "洗车卡详情（管理员）",
         "tags": [
           "wash-card"
         ]
       },
       "delete": {
         "operationId": "WashCardController_adminDelete",
-        "summary": "删除洗车卡（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2407,6 +2497,7 @@
             "description": ""
           }
         },
+        "summary": "删除洗车卡（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2415,13 +2506,13 @@
     "/wash-card/create": {
       "post": {
         "operationId": "WashCardController_adminCreate",
-        "summary": "创建洗车卡（管理员）",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "创建洗车卡（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2430,7 +2521,6 @@
     "/wash-card/{id}/add": {
       "post": {
         "operationId": "WashCardController_adminAdd",
-        "summary": "增加洗车卡次数（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2446,6 +2536,7 @@
             "description": ""
           }
         },
+        "summary": "增加洗车卡次数（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2454,7 +2545,6 @@
     "/wash-card/{id}/deduct": {
       "post": {
         "operationId": "WashCardController_adminDeduct",
-        "summary": "扣减洗车卡次数（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2470,6 +2560,7 @@
             "description": ""
           }
         },
+        "summary": "扣减洗车卡次数（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2478,7 +2569,6 @@
     "/wash-card/{id}/logs": {
       "get": {
         "operationId": "WashCardController_adminLogs",
-        "summary": "洗车卡变更记录（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2510,6 +2600,7 @@
             "description": ""
           }
         },
+        "summary": "洗车卡变更记录（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2518,7 +2609,6 @@
     "/wash-card/{id}/shares": {
       "get": {
         "operationId": "WashCardController_adminShares",
-        "summary": "共享成员列表（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2534,13 +2624,13 @@
             "description": ""
           }
         },
+        "summary": "共享成员列表（管理员）",
         "tags": [
           "wash-card"
         ]
       },
       "post": {
         "operationId": "WashCardController_adminAddShare",
-        "summary": "添加共享成员（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2556,6 +2646,7 @@
             "description": ""
           }
         },
+        "summary": "添加共享成员（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2564,7 +2655,6 @@
     "/wash-card/{id}/shares/{memberId}/remove": {
       "post": {
         "operationId": "WashCardController_adminRemoveShare",
-        "summary": "移除共享成员（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2588,6 +2678,7 @@
             "description": ""
           }
         },
+        "summary": "移除共享成员（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2596,7 +2687,6 @@
     "/wash-card/{id}/set-default": {
       "post": {
         "operationId": "WashCardController_adminSetDefault",
-        "summary": "设置会员默认洗车卡（管理员）",
         "parameters": [
           {
             "name": "id",
@@ -2612,6 +2702,7 @@
             "description": ""
           }
         },
+        "summary": "设置会员默认洗车卡（管理员）",
         "tags": [
           "wash-card"
         ]
@@ -2620,7 +2711,6 @@
     "/wash-card/me/list": {
       "get": {
         "operationId": "WashCardController_myList",
-        "summary": "我的洗车卡列表（会员端）",
         "parameters": [
           {
             "name": "token",
@@ -2636,6 +2726,7 @@
             "description": ""
           }
         },
+        "summary": "我的洗车卡列表（会员端）",
         "tags": [
           "wash-card"
         ]
@@ -2644,7 +2735,6 @@
     "/wash-card/me/{id}": {
       "get": {
         "operationId": "WashCardController_myGet",
-        "summary": "我的洗车卡详情（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -2668,6 +2758,7 @@
             "description": ""
           }
         },
+        "summary": "我的洗车卡详情（会员端）",
         "tags": [
           "wash-card"
         ]
@@ -2676,7 +2767,6 @@
     "/wash-card/me/{id}/logs": {
       "get": {
         "operationId": "WashCardController_myLogs",
-        "summary": "我的洗车卡记录（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -2716,6 +2806,7 @@
             "description": ""
           }
         },
+        "summary": "我的洗车卡记录（会员端）",
         "tags": [
           "wash-card"
         ]
@@ -2724,7 +2815,6 @@
     "/wash-card/me/{id}/set-default": {
       "post": {
         "operationId": "WashCardController_mySetDefault",
-        "summary": "设置我的默认洗车卡（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -2748,6 +2838,7 @@
             "description": ""
           }
         },
+        "summary": "设置我的默认洗车卡（会员端）",
         "tags": [
           "wash-card"
         ]
@@ -2756,7 +2847,6 @@
     "/address/list": {
       "get": {
         "operationId": "AddressController_adminList",
-        "summary": "收货地址列表（管理员，分页/关键词）",
         "parameters": [
           {
             "name": "page",
@@ -2788,6 +2878,7 @@
             "description": ""
           }
         },
+        "summary": "收货地址列表（管理员，分页/关键词）",
         "tags": [
           "address"
         ]
@@ -2796,7 +2887,6 @@
     "/address/member/{memberId}": {
       "get": {
         "operationId": "AddressController_listByMember",
-        "summary": "按会员ID查询收货地址（管理员）",
         "parameters": [
           {
             "name": "memberId",
@@ -2812,6 +2902,7 @@
             "description": ""
           }
         },
+        "summary": "按会员ID查询收货地址（管理员）",
         "tags": [
           "address"
         ]
@@ -2820,7 +2911,6 @@
     "/address/me/list": {
       "get": {
         "operationId": "AddressController_myList",
-        "summary": "我的收货地址列表（会员端）",
         "parameters": [
           {
             "name": "token",
@@ -2836,6 +2926,7 @@
             "description": ""
           }
         },
+        "summary": "我的收货地址列表（会员端）",
         "tags": [
           "address"
         ]
@@ -2844,7 +2935,6 @@
     "/address/me/create": {
       "post": {
         "operationId": "AddressController_myCreate",
-        "summary": "新增我的收货地址（会员端）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2861,6 +2951,7 @@
             "description": ""
           }
         },
+        "summary": "新增我的收货地址（会员端）",
         "tags": [
           "address"
         ]
@@ -2869,7 +2960,6 @@
     "/address/me/{id}": {
       "put": {
         "operationId": "AddressController_myUpdate",
-        "summary": "修改我的收货地址（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -2895,13 +2985,13 @@
             "description": ""
           }
         },
+        "summary": "修改我的收货地址（会员端）",
         "tags": [
           "address"
         ]
       },
       "delete": {
         "operationId": "AddressController_myDelete",
-        "summary": "删除我的收货地址（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -2917,6 +3007,7 @@
             "description": ""
           }
         },
+        "summary": "删除我的收货地址（会员端）",
         "tags": [
           "address"
         ]
@@ -2925,7 +3016,6 @@
     "/address/admin/create": {
       "post": {
         "operationId": "AddressController_adminCreate",
-        "summary": "管理员创建收货地址（支持指定会员或使用游客会员）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2942,6 +3032,7 @@
             "description": ""
           }
         },
+        "summary": "管理员创建收货地址（支持指定会员或使用游客会员）",
         "tags": [
           "address"
         ]
@@ -2950,7 +3041,6 @@
     "/address/admin/{id}": {
       "put": {
         "operationId": "AddressController_adminUpdate",
-        "summary": "管理员修改收货地址",
         "parameters": [
           {
             "name": "id",
@@ -2976,13 +3066,13 @@
             "description": ""
           }
         },
+        "summary": "管理员修改收货地址",
         "tags": [
           "address"
         ]
       },
       "delete": {
         "operationId": "AddressController_adminDelete",
-        "summary": "管理员删除收货地址",
         "parameters": [
           {
             "name": "id",
@@ -2998,6 +3088,7 @@
             "description": ""
           }
         },
+        "summary": "管理员删除收货地址",
         "tags": [
           "address"
         ]
@@ -3006,7 +3097,6 @@
     "/cart/me/list": {
       "get": {
         "operationId": "CartController_myList",
-        "summary": "我的购物车列表（可选仅勾选）",
         "parameters": [
           {
             "name": "token",
@@ -3030,6 +3120,7 @@
             "description": ""
           }
         },
+        "summary": "我的购物车列表（可选仅勾选）",
         "tags": [
           "cart"
         ]
@@ -3038,7 +3129,6 @@
     "/cart/me/add": {
       "post": {
         "operationId": "CartController_myAdd",
-        "summary": "加入购物车（会员端）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3055,6 +3145,7 @@
             "description": ""
           }
         },
+        "summary": "加入购物车（会员端）",
         "tags": [
           "cart"
         ]
@@ -3063,7 +3154,6 @@
     "/cart/me/{id}": {
       "put": {
         "operationId": "CartController_myUpdate",
-        "summary": "更新购物车条目（数量/勾选/SKU）",
         "parameters": [
           {
             "name": "id",
@@ -3089,13 +3179,13 @@
             "description": ""
           }
         },
+        "summary": "更新购物车条目（数量/勾选/SKU）",
         "tags": [
           "cart"
         ]
       },
       "delete": {
         "operationId": "CartController_myDelete",
-        "summary": "删除购物车条目（会员端）",
         "parameters": [
           {
             "name": "id",
@@ -3111,6 +3201,7 @@
             "description": ""
           }
         },
+        "summary": "删除购物车条目（会员端）",
         "tags": [
           "cart"
         ]
@@ -3119,7 +3210,6 @@
     "/cart/me/toggle-all": {
       "post": {
         "operationId": "CartController_toggleAll",
-        "summary": "全选/全不选（会员端）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3136,6 +3226,7 @@
             "description": ""
           }
         },
+        "summary": "全选/全不选（会员端）",
         "tags": [
           "cart"
         ]
@@ -3144,13 +3235,13 @@
     "/cart/me/clear-checked": {
       "delete": {
         "operationId": "CartController_clearChecked",
-        "summary": "清空已勾选条目（会员端）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "清空已勾选条目（会员端）",
         "tags": [
           "cart"
         ]
@@ -3242,7 +3333,6 @@
     "/member-signin/me": {
       "post": {
         "operationId": "MemberSignInController_signInMe",
-        "summary": "会员签到（自助）",
         "parameters": [
           {
             "name": "authorization",
@@ -3258,6 +3348,7 @@
             "description": ""
           }
         },
+        "summary": "会员签到（自助）",
         "tags": [
           "member-signin"
         ]
@@ -3266,13 +3357,13 @@
     "/member-signin/by-admin": {
       "post": {
         "operationId": "MemberSignInController_signInByAdmin",
-        "summary": "管理员代为签到",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "管理员代为签到",
         "tags": [
           "member-signin"
         ]
@@ -3281,7 +3372,6 @@
     "/member-signin/logs": {
       "get": {
         "operationId": "MemberSignInController_list",
-        "summary": "查询签到日志（按会员或日期）",
         "parameters": [
           {
             "name": "memberId",
@@ -3305,6 +3395,7 @@
             "description": ""
           }
         },
+        "summary": "查询签到日志（按会员或日期）",
         "tags": [
           "member-signin"
         ]
@@ -3313,7 +3404,6 @@
     "/member-signin/me/status": {
       "get": {
         "operationId": "MemberSignInController_meStatus",
-        "summary": "会员签到状态（自助）",
         "parameters": [
           {
             "name": "authorization",
@@ -3329,6 +3419,7 @@
             "description": ""
           }
         },
+        "summary": "会员签到状态（自助）",
         "tags": [
           "member-signin"
         ]
@@ -3337,7 +3428,6 @@
     "/member-signin/me/month": {
       "get": {
         "operationId": "MemberSignInController_meMonth",
-        "summary": "会员签到日历（自助）",
         "parameters": [
           {
             "name": "authorization",
@@ -3361,6 +3451,7 @@
             "description": ""
           }
         },
+        "summary": "会员签到日历（自助）",
         "tags": [
           "member-signin"
         ]
@@ -3369,26 +3460,26 @@
     "/member-signin/config": {
       "get": {
         "operationId": "MemberSignInController_getConfig",
-        "summary": "读取签到奖励配置",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "读取签到奖励配置",
         "tags": [
           "member-signin"
         ]
       },
       "post": {
         "operationId": "MemberSignInController_saveConfig",
-        "summary": "保存签到奖励配置",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "保存签到奖励配置",
         "tags": [
           "member-signin"
         ]
@@ -3397,7 +3488,6 @@
     "/member-signin/member-status": {
       "get": {
         "operationId": "MemberSignInController_getMemberStatus",
-        "summary": "查询会员签到统计状态",
         "parameters": [
           {
             "name": "memberId",
@@ -3413,6 +3503,7 @@
             "description": ""
           }
         },
+        "summary": "查询会员签到统计状态",
         "tags": [
           "member-signin"
         ]
@@ -3421,20 +3512,19 @@
     "/member-points/config": {
       "get": {
         "operationId": "MemberPointsController_getConfig",
-        "summary": "获取积分配置",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取积分配置",
         "tags": [
           "member-points"
         ]
       },
       "post": {
         "operationId": "MemberPointsController_save",
-        "summary": "保存积分配置",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3451,6 +3541,7 @@
             "description": ""
           }
         },
+        "summary": "保存积分配置",
         "tags": [
           "member-points"
         ]
@@ -3459,7 +3550,6 @@
     "/member-points/logs": {
       "get": {
         "operationId": "MemberPointsController_listLogs",
-        "summary": "查询积分日志",
         "parameters": [
           {
             "name": "memberId",
@@ -3483,6 +3573,7 @@
             "description": ""
           }
         },
+        "summary": "查询积分日志",
         "tags": [
           "member-points"
         ]
@@ -3491,7 +3582,6 @@
     "/member-points/adjust": {
       "post": {
         "operationId": "MemberPointsController_adjust",
-        "summary": "后台调整指定会员积分（正负均可）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3508,6 +3598,7 @@
             "description": ""
           }
         },
+        "summary": "后台调整指定会员积分（正负均可）",
         "tags": [
           "member-points"
         ]
@@ -3516,7 +3607,6 @@
     "/notification/list": {
       "get": {
         "operationId": "NotificationController_list",
-        "summary": "拉取我的通知列表（管理员或会员）",
         "parameters": [
           {
             "name": "authorization",
@@ -3532,11 +3622,11 @@
             "in": "query",
             "description": "状态筛选",
             "schema": {
+              "type": "string",
               "enum": [
                 "UNREAD",
                 "READ"
-              ],
-              "type": "string"
+              ]
             }
           },
           {
@@ -3565,6 +3655,7 @@
             "description": "通知列表"
           }
         },
+        "summary": "拉取我的通知列表（管理员或会员）",
         "tags": [
           "notification"
         ]
@@ -3573,7 +3664,6 @@
     "/notification/unread-count": {
       "get": {
         "operationId": "NotificationController_unreadCount",
-        "summary": "获取未读数",
         "parameters": [
           {
             "name": "authorization",
@@ -3596,6 +3686,7 @@
             }
           }
         },
+        "summary": "获取未读数",
         "tags": [
           "notification"
         ]
@@ -3604,7 +3695,6 @@
     "/notification/mark-read": {
       "post": {
         "operationId": "NotificationController_markRead",
-        "summary": "标记为已读",
         "parameters": [
           {
             "name": "authorization",
@@ -3630,6 +3720,7 @@
             "description": ""
           }
         },
+        "summary": "标记为已读",
         "tags": [
           "notification"
         ]
@@ -3638,7 +3729,6 @@
     "/notification/by-id/{id}": {
       "get": {
         "operationId": "NotificationController_detail",
-        "summary": "获取单条通知详情（管理员或会员）",
         "parameters": [
           {
             "name": "authorization",
@@ -3662,6 +3752,7 @@
             "description": ""
           }
         },
+        "summary": "获取单条通知详情（管理员或会员）",
         "tags": [
           "notification"
         ]
@@ -3670,7 +3761,6 @@
     "/notification/mark-read-all": {
       "post": {
         "operationId": "NotificationController_markReadAll",
-        "summary": "全部标记已读",
         "parameters": [
           {
             "name": "authorization",
@@ -3686,6 +3776,186 @@
             "description": ""
           }
         },
+        "summary": "全部标记已读",
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/notification/admin/overview": {
+      "get": {
+        "operationId": "NotificationController_adminOverview",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "开始日期（YYYY-MM-DD 或 ISO 字符串）",
+            "schema": {
+              "example": "2026-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "结束日期（YYYY-MM-DD 或 ISO 字符串）",
+            "schema": {
+              "example": "2026-01-31",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "消息总览：三通道发送量统计（管理员）",
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/notification/admin/overview/list": {
+      "get": {
+        "operationId": "NotificationController_adminOverviewList",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "query",
+            "description": "消息通道",
+            "schema": {
+              "example": "ADMIN",
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "MEMBER",
+                "WXAPP"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "站内通知状态筛选（仅 ADMIN/MEMBER）",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UNREAD",
+                "READ"
+              ]
+            }
+          },
+          {
+            "name": "result",
+            "required": false,
+            "in": "query",
+            "description": "WXAPP 发送结果（仅 WXAPP）",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUCCESS",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "typeKey",
+            "required": false,
+            "in": "query",
+            "description": "类型筛选：站内通知为 type；WXAPP 为 typeKey",
+            "schema": {
+              "example": "ORDER_PAID",
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "关键字：标题/内容/type 等模糊匹配",
+            "schema": {
+              "example": "次卡",
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "required": false,
+            "in": "query",
+            "description": "会员ID（仅 MEMBER/WXAPP）",
+            "schema": {
+              "example": 1001,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "开始日期（YYYY-MM-DD 或 ISO 字符串）",
+            "schema": {
+              "example": "2026-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "结束日期（YYYY-MM-DD 或 ISO 字符串）",
+            "schema": {
+              "example": "2026-01-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "take",
+            "required": false,
+            "in": "query",
+            "description": "拉取条数，1~200",
+            "schema": {
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "skip",
+            "required": false,
+            "in": "query",
+            "description": "跳过条数",
+            "schema": {
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "消息总览：详情列表（管理员）",
         "tags": [
           "notification"
         ]
@@ -3694,7 +3964,6 @@
     "/notification/type-settings": {
       "get": {
         "operationId": "NotificationController_listTypeSettings",
-        "summary": "通知类型设置列表（管理员）",
         "parameters": [
           {
             "name": "authorization",
@@ -3718,6 +3987,7 @@
             "description": ""
           }
         },
+        "summary": "通知类型设置列表（管理员）",
         "tags": [
           "notification"
         ]
@@ -3726,7 +3996,6 @@
     "/notification/type-settings/upsert": {
       "post": {
         "operationId": "NotificationController_upsertTypeSetting",
-        "summary": "创建或更新通知类型设置（管理员）",
         "parameters": [
           {
             "name": "authorization",
@@ -3752,6 +4021,7 @@
             "description": ""
           }
         },
+        "summary": "创建或更新通知类型设置（管理员）",
         "tags": [
           "notification"
         ]
@@ -3760,7 +4030,6 @@
     "/notification/type-settings/init": {
       "post": {
         "operationId": "NotificationController_initTypeSettings",
-        "summary": "初始化常见通知类型设置（管理员）",
         "parameters": [
           {
             "name": "authorization",
@@ -3776,6 +4045,63 @@
             "description": ""
           }
         },
+        "summary": "初始化常见通知类型设置（管理员）",
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/notification/wxapp/template": {
+      "get": {
+        "operationId": "NotificationController_getWxappTemplate",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "typeKey",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "获取某个订阅消息模板信息（会员端）",
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/notification/wxapp/subscribe-report": {
+      "post": {
+        "operationId": "NotificationController_reportWxappSubscribe",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "上报用户订阅结果（会员端）",
         "tags": [
           "notification"
         ]
@@ -3784,7 +4110,6 @@
     "/notification/template/list": {
       "get": {
         "operationId": "NotificationTemplateController_list",
-        "summary": "模板列表",
         "parameters": [
           {
             "name": "q",
@@ -3801,12 +4126,12 @@
             "in": "query",
             "description": "通道筛选",
             "schema": {
+              "type": "string",
               "enum": [
                 "MEMBER",
                 "ADMIN",
                 "WXAPP"
-              ],
-              "type": "string"
+              ]
             }
           }
         ],
@@ -3815,6 +4140,7 @@
             "description": "模板列表"
           }
         },
+        "summary": "模板列表",
         "tags": [
           "notification-template"
         ]
@@ -3823,7 +4149,6 @@
     "/notification/template/create": {
       "post": {
         "operationId": "NotificationTemplateController_create",
-        "summary": "创建模板",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -3840,6 +4165,7 @@
             "description": ""
           }
         },
+        "summary": "创建模板",
         "tags": [
           "notification-template"
         ]
@@ -3848,7 +4174,6 @@
     "/notification/template/{id}": {
       "put": {
         "operationId": "NotificationTemplateController_update",
-        "summary": "更新模板",
         "parameters": [
           {
             "name": "id",
@@ -3874,13 +4199,13 @@
             "description": ""
           }
         },
+        "summary": "更新模板",
         "tags": [
           "notification-template"
         ]
       },
       "delete": {
         "operationId": "NotificationTemplateController_remove",
-        "summary": "删除模板",
         "parameters": [
           {
             "name": "id",
@@ -3896,6 +4221,7 @@
             "description": ""
           }
         },
+        "summary": "删除模板",
         "tags": [
           "notification-template"
         ]
@@ -3904,7 +4230,6 @@
     "/notification/template/variables": {
       "get": {
         "operationId": "NotificationTemplateController_variables",
-        "summary": "模板类型的变量清单",
         "parameters": [
           {
             "name": "typeKey",
@@ -3922,6 +4247,7 @@
             "description": ""
           }
         },
+        "summary": "模板类型的变量清单",
         "tags": [
           "notification-template"
         ]
@@ -3930,7 +4256,6 @@
     "/content/notices": {
       "get": {
         "operationId": "ScrollNoticeController_list",
-        "summary": "滚动公告列表（可按类型筛选）",
         "parameters": [
           {
             "name": "type",
@@ -3946,19 +4271,20 @@
             "description": ""
           }
         },
+        "summary": "滚动公告列表（可按类型筛选）",
         "tags": [
           "content"
         ]
       },
       "post": {
         "operationId": "ScrollNoticeController_create",
-        "summary": "创建滚动公告",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "创建滚动公告",
         "tags": [
           "content"
         ]
@@ -3967,7 +4293,6 @@
     "/content/notices/{id}": {
       "put": {
         "operationId": "ScrollNoticeController_update",
-        "summary": "更新滚动公告",
         "parameters": [
           {
             "name": "id",
@@ -3983,13 +4308,13 @@
             "description": ""
           }
         },
+        "summary": "更新滚动公告",
         "tags": [
           "content"
         ]
       },
       "delete": {
         "operationId": "ScrollNoticeController_remove",
-        "summary": "删除滚动公告",
         "parameters": [
           {
             "name": "id",
@@ -4005,6 +4330,7 @@
             "description": ""
           }
         },
+        "summary": "删除滚动公告",
         "tags": [
           "content"
         ]
@@ -4013,7 +4339,6 @@
     "/content/notices/{id}/enable": {
       "post": {
         "operationId": "ScrollNoticeController_enable",
-        "summary": "启用指定公告（自动禁用同类型其他）",
         "parameters": [
           {
             "name": "id",
@@ -4029,6 +4354,7 @@
             "description": ""
           }
         },
+        "summary": "启用指定公告（自动禁用同类型其他）",
         "tags": [
           "content"
         ]
@@ -4037,7 +4363,6 @@
     "/content/notices/active": {
       "get": {
         "operationId": "ScrollNoticeController_active",
-        "summary": "小程序端：获取某类型当前启用公告",
         "parameters": [
           {
             "name": "type",
@@ -4053,6 +4378,7 @@
             "description": ""
           }
         },
+        "summary": "小程序端：获取某类型当前启用公告",
         "tags": [
           "content"
         ]
@@ -4061,13 +4387,13 @@
     "/content/car/brands": {
       "get": {
         "operationId": "CarDataController_getBrands",
-        "summary": "车型品牌列表（含缓存）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "车型品牌列表（含缓存）",
         "tags": [
           "content"
         ]
@@ -4076,7 +4402,6 @@
     "/content/car/series": {
       "get": {
         "operationId": "CarDataController_getSeries",
-        "summary": "车型车系列表（按品牌，含缓存）",
         "parameters": [
           {
             "name": "brandId",
@@ -4092,6 +4417,7 @@
             "description": ""
           }
         },
+        "summary": "车型车系列表（按品牌，含缓存）",
         "tags": [
           "content"
         ]
@@ -4100,7 +4426,6 @@
     "/content/weather": {
       "get": {
         "operationId": "WeatherController_getWeather",
-        "summary": "天气：实时与预报（高德API）",
         "parameters": [
           {
             "name": "city",
@@ -4116,6 +4441,7 @@
             "description": ""
           }
         },
+        "summary": "天气：实时与预报（高德API）",
         "tags": [
           "content"
         ]
@@ -4124,7 +4450,6 @@
     "/content/banners": {
       "get": {
         "operationId": "AdBannerController_list",
-        "summary": "广告位列表（可按启用状态筛选）",
         "parameters": [
           {
             "name": "enabled",
@@ -4140,19 +4465,20 @@
             "description": ""
           }
         },
+        "summary": "广告位列表（可按启用状态筛选）",
         "tags": [
           "content"
         ]
       },
       "post": {
         "operationId": "AdBannerController_create",
-        "summary": "创建广告位",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "创建广告位",
         "tags": [
           "content"
         ]
@@ -4161,7 +4487,6 @@
     "/content/banners/{id}": {
       "put": {
         "operationId": "AdBannerController_update",
-        "summary": "更新广告位",
         "parameters": [
           {
             "name": "id",
@@ -4177,13 +4502,13 @@
             "description": ""
           }
         },
+        "summary": "更新广告位",
         "tags": [
           "content"
         ]
       },
       "delete": {
         "operationId": "AdBannerController_remove",
-        "summary": "删除广告位",
         "parameters": [
           {
             "name": "id",
@@ -4199,6 +4524,7 @@
             "description": ""
           }
         },
+        "summary": "删除广告位",
         "tags": [
           "content"
         ]
@@ -4207,7 +4533,6 @@
     "/content/banners/{id}/enable": {
       "post": {
         "operationId": "AdBannerController_setEnable",
-        "summary": "启用/禁用广告位",
         "parameters": [
           {
             "name": "id",
@@ -4223,6 +4548,7 @@
             "description": ""
           }
         },
+        "summary": "启用/禁用广告位",
         "tags": [
           "content"
         ]
@@ -4231,13 +4557,13 @@
     "/content/banners/active": {
       "get": {
         "operationId": "AdBannerController_active",
-        "summary": "小程序端：获取已启用广告位列表",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "小程序端：获取已启用广告位列表",
         "tags": [
           "content"
         ]
@@ -4246,7 +4572,6 @@
     "/content/district": {
       "get": {
         "operationId": "DistrictController_getDistrict",
-        "summary": "行政区查询（代理高德API）",
         "parameters": [
           {
             "name": "keywords",
@@ -4286,6 +4611,7 @@
             "description": ""
           }
         },
+        "summary": "行政区查询（代理高德API）",
         "tags": [
           "content"
         ]
@@ -4294,13 +4620,13 @@
     "/queue/list": {
       "get": {
         "operationId": "QueueController_list",
-        "summary": "服务队列列表（进行中/待处理）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "服务队列列表（进行中/待处理）",
         "tags": [
           "queue"
         ]
@@ -4309,13 +4635,13 @@
     "/queue/summary": {
       "get": {
         "operationId": "QueueController_summary",
-        "summary": "队列摘要统计",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "队列摘要统计",
         "tags": [
           "queue"
         ]
@@ -4324,13 +4650,13 @@
     "/queue/eta-summary": {
       "get": {
         "operationId": "QueueController_etaSummary",
-        "summary": "ETA 顶部汇总（按类型展示，按资源组计算）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "ETA 顶部汇总（按类型展示，按资源组计算）",
         "tags": [
           "queue"
         ]
@@ -4339,13 +4665,13 @@
     "/queue/add": {
       "post": {
         "operationId": "QueueController_add",
-        "summary": "添加到队列（支持多种模式）",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "添加到队列（支持多种模式）",
         "tags": [
           "queue"
         ]
@@ -4354,7 +4680,6 @@
     "/queue/create-service-order-and-enqueue": {
       "post": {
         "operationId": "QueueController_createServiceOrderAndEnqueue",
-        "summary": "创建服务订单并入队（先服务后付）",
         "parameters": [
           {
             "name": "authorization",
@@ -4370,6 +4695,7 @@
             "description": ""
           }
         },
+        "summary": "创建服务订单并入队（先服务后付）",
         "tags": [
           "queue"
         ]
@@ -4378,7 +4704,6 @@
     "/queue/{id}/set-current": {
       "post": {
         "operationId": "QueueController_setCurrent",
-        "summary": "设置当前执行任务索引",
         "parameters": [
           {
             "name": "id",
@@ -4394,6 +4719,7 @@
             "description": ""
           }
         },
+        "summary": "设置当前执行任务索引",
         "tags": [
           "queue"
         ]
@@ -4402,7 +4728,6 @@
     "/queue/{id}/finish-task": {
       "post": {
         "operationId": "QueueController_finishTask",
-        "summary": "完成当前任务节点",
         "parameters": [
           {
             "name": "id",
@@ -4418,6 +4743,7 @@
             "description": ""
           }
         },
+        "summary": "完成当前任务节点",
         "tags": [
           "queue"
         ]
@@ -4426,7 +4752,6 @@
     "/queue/{id}/confirm-complete": {
       "post": {
         "operationId": "QueueController_confirmComplete",
-        "summary": "确认整单已完成",
         "parameters": [
           {
             "name": "id",
@@ -4442,6 +4767,7 @@
             "description": ""
           }
         },
+        "summary": "确认整单已完成",
         "tags": [
           "queue"
         ]
@@ -4450,7 +4776,6 @@
     "/queue/{id}/start-first": {
       "post": {
         "operationId": "QueueController_startFirst",
-        "summary": "开始第一步任务",
         "parameters": [
           {
             "name": "id",
@@ -4466,6 +4791,7 @@
             "description": ""
           }
         },
+        "summary": "开始第一步任务",
         "tags": [
           "queue"
         ]
@@ -4474,7 +4800,6 @@
     "/queue/{id}": {
       "delete": {
         "operationId": "QueueController_remove",
-        "summary": "移出队列/取消",
         "parameters": [
           {
             "name": "id",
@@ -4490,6 +4815,7 @@
             "description": ""
           }
         },
+        "summary": "移出队列/取消",
         "tags": [
           "queue"
         ]
@@ -4498,26 +4824,26 @@
     "/queue-types": {
       "get": {
         "operationId": "QueueTypeController_list",
-        "summary": "队列类型列表（含步骤与可用商品）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "队列类型列表（含步骤与可用商品）",
         "tags": [
           "queue-types"
         ]
       },
       "post": {
         "operationId": "QueueTypeController_create",
-        "summary": "创建队列类型",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "创建队列类型",
         "tags": [
           "queue-types"
         ]
@@ -4526,7 +4852,6 @@
     "/queue-types/{id}": {
       "put": {
         "operationId": "QueueTypeController_update",
-        "summary": "更新队列类型",
         "parameters": [
           {
             "name": "id",
@@ -4542,13 +4867,13 @@
             "description": ""
           }
         },
+        "summary": "更新队列类型",
         "tags": [
           "queue-types"
         ]
       },
       "delete": {
         "operationId": "QueueTypeController_remove",
-        "summary": "删除队列类型（若已被使用则拒绝）",
         "parameters": [
           {
             "name": "id",
@@ -4564,6 +4889,7 @@
             "description": ""
           }
         },
+        "summary": "删除队列类型（若已被使用则拒绝）",
         "tags": [
           "queue-types"
         ]
@@ -4572,7 +4898,6 @@
     "/queue-types/{id}/steps": {
       "put": {
         "operationId": "QueueTypeController_setSteps",
-        "summary": "设置队列类型的步骤（覆盖式）",
         "parameters": [
           {
             "name": "id",
@@ -4588,6 +4913,7 @@
             "description": ""
           }
         },
+        "summary": "设置队列类型的步骤（覆盖式）",
         "tags": [
           "queue-types"
         ]
@@ -4596,7 +4922,6 @@
     "/queue-types/{id}/products": {
       "put": {
         "operationId": "QueueTypeController_setProducts",
-        "summary": "设置队列类型的可用服务商品（覆盖式）",
         "parameters": [
           {
             "name": "id",
@@ -4612,6 +4937,7 @@
             "description": ""
           }
         },
+        "summary": "设置队列类型的可用服务商品（覆盖式）",
         "tags": [
           "queue-types"
         ]
@@ -5805,7 +6131,6 @@
     "/group": {
       "post": {
         "operationId": "GroupController_create",
-        "summary": "创建集团（含首位管理员）",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -5822,6 +6147,7 @@
             "description": ""
           }
         },
+        "summary": "创建集团（含首位管理员）",
         "tags": [
           "Group"
         ]
@@ -5979,7 +6305,6 @@
       },
       "post": {
         "operationId": "GroupMemberController_add",
-        "summary": "添加成员（可批量）",
         "parameters": [
           {
             "name": "id",
@@ -6005,6 +6330,7 @@
             "description": ""
           }
         },
+        "summary": "添加成员（可批量）",
         "tags": [
           "GroupMember"
         ]
@@ -6146,7 +6472,6 @@
       },
       "post": {
         "operationId": "GroupVehicleController_create",
-        "summary": "为集团新增车辆（直绑集团）",
         "parameters": [
           {
             "name": "id",
@@ -6172,6 +6497,7 @@
             "description": ""
           }
         },
+        "summary": "为集团新增车辆（直绑集团）",
         "tags": [
           "GroupVehicle"
         ]
@@ -6297,7 +6623,6 @@
     "/group/{id}/balance/adjust": {
       "post": {
         "operationId": "GroupBalanceController_adjust",
-        "summary": "手工调账（正/负）",
         "parameters": [
           {
             "name": "id",
@@ -6323,6 +6648,7 @@
             "description": ""
           }
         },
+        "summary": "手工调账（正/负）",
         "tags": [
           "GroupBalance"
         ]
@@ -6331,7 +6657,6 @@
     "/group/{id}/balance/recharge": {
       "post": {
         "operationId": "GroupBalanceController_createRecharge",
-        "summary": "创建集团余额充值订单（FK）",
         "parameters": [
           {
             "name": "id",
@@ -6357,6 +6682,7 @@
             "description": ""
           }
         },
+        "summary": "创建集团余额充值订单（FK）",
         "tags": [
           "GroupBalance"
         ]
@@ -6386,7 +6712,6 @@
       },
       "post": {
         "operationId": "GroupCardController_create",
-        "summary": "新购集团洗车卡（直接入账次数）",
         "parameters": [
           {
             "name": "id",
@@ -6412,6 +6737,7 @@
             "description": ""
           }
         },
+        "summary": "新购集团洗车卡（直接入账次数）",
         "tags": [
           "GroupCard"
         ]
@@ -6420,7 +6746,6 @@
     "/group/{id}/cards/{cardId}/add": {
       "post": {
         "operationId": "GroupCardController_add",
-        "summary": "集团洗车卡加次（后台）",
         "parameters": [
           {
             "name": "id",
@@ -6454,6 +6779,7 @@
             "description": ""
           }
         },
+        "summary": "集团洗车卡加次（后台）",
         "tags": [
           "GroupCard"
         ]
@@ -6462,7 +6788,6 @@
     "/group/{id}/cards/{cardId}/consume": {
       "post": {
         "operationId": "GroupCardController_consume",
-        "summary": "集团洗车卡扣次（后台/收银台）",
         "parameters": [
           {
             "name": "id",
@@ -6496,6 +6821,7 @@
             "description": ""
           }
         },
+        "summary": "集团洗车卡扣次（后台/收银台）",
         "tags": [
           "GroupCard"
         ]
@@ -6504,7 +6830,6 @@
     "/group/{id}/cards/{cardId}/logs": {
       "get": {
         "operationId": "GroupCardController_logs",
-        "summary": "集团洗车卡日志列表",
         "parameters": [
           {
             "name": "id",
@@ -6544,6 +6869,7 @@
             "description": ""
           }
         },
+        "summary": "集团洗车卡日志列表",
         "tags": [
           "GroupCard"
         ]
@@ -6552,7 +6878,6 @@
     "/group/{id}/cards/{cardId}": {
       "delete": {
         "operationId": "GroupCardController_remove",
-        "summary": "删除集团洗车卡",
         "parameters": [
           {
             "name": "id",
@@ -6576,6 +6901,7 @@
             "description": ""
           }
         },
+        "summary": "删除集团洗车卡",
         "tags": [
           "GroupCard"
         ]
@@ -6584,7 +6910,6 @@
     "/group/miniapp/me/summary": {
       "get": {
         "operationId": "GroupMiniappController_myGroupSummary",
-        "summary": "我的集团概览（名称/图标/余额/卡余次等）",
         "parameters": [
           {
             "name": "token",
@@ -6600,6 +6925,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团概览（名称/图标/余额/卡余次等）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6608,7 +6934,6 @@
     "/group/miniapp/me/ledger": {
       "get": {
         "operationId": "GroupMiniappController_myGroupLedger",
-        "summary": "我的集团余额明细（最近 N 条）",
         "parameters": [
           {
             "name": "limit",
@@ -6632,6 +6957,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团余额明细（最近 N 条）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6640,7 +6966,6 @@
     "/group/miniapp/me/cards": {
       "get": {
         "operationId": "GroupMiniappController_myGroupCards",
-        "summary": "我的集团洗车卡列表（只读）",
         "parameters": [
           {
             "name": "token",
@@ -6656,6 +6981,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团洗车卡列表（只读）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6664,7 +6990,6 @@
     "/group/miniapp/me/card/{cardId}": {
       "get": {
         "operationId": "GroupMiniappController_myGroupCardDetail",
-        "summary": "我的集团洗车卡详情",
         "parameters": [
           {
             "name": "cardId",
@@ -6688,6 +7013,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团洗车卡详情",
         "tags": [
           "MiniappGroup"
         ]
@@ -6696,7 +7022,6 @@
     "/group/miniapp/me/card/{cardId}/logs": {
       "get": {
         "operationId": "GroupMiniappController_myGroupCardLogs",
-        "summary": "我的集团洗车卡日志",
         "parameters": [
           {
             "name": "cardId",
@@ -6736,6 +7061,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团洗车卡日志",
         "tags": [
           "MiniappGroup"
         ]
@@ -6744,7 +7070,6 @@
     "/group/miniapp/me/admins": {
       "get": {
         "operationId": "GroupMiniappController_myGroupAdmins",
-        "summary": "我的集团管理员列表（小程序展示）",
         "parameters": [
           {
             "name": "token",
@@ -6760,6 +7085,7 @@
             "description": ""
           }
         },
+        "summary": "我的集团管理员列表（小程序展示）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6768,7 +7094,6 @@
     "/group/miniapp/me/recharge": {
       "post": {
         "operationId": "GroupMiniappController_myGroupRecharge",
-        "summary": "发起集团余额充值订单（FK），返回订单号",
         "parameters": [
           {
             "name": "amount",
@@ -6792,6 +7117,7 @@
             "description": ""
           }
         },
+        "summary": "发起集团余额充值订单（FK），返回订单号",
         "tags": [
           "MiniappGroup"
         ]
@@ -6800,7 +7126,6 @@
     "/group/miniapp/me/members": {
       "get": {
         "operationId": "GroupMiniappController_myGroupMembers",
-        "summary": "我的集团成员列表（管理员可见更多操作）",
         "parameters": [
           {
             "name": "token",
@@ -6816,13 +7141,13 @@
             "description": ""
           }
         },
+        "summary": "我的集团成员列表（管理员可见更多操作）",
         "tags": [
           "MiniappGroup"
         ]
       },
       "post": {
         "operationId": "GroupMiniappController_addMemberByPhone",
-        "summary": "按手机号添加集团成员（管理员）",
         "parameters": [
           {
             "name": "phone",
@@ -6846,6 +7171,7 @@
             "description": ""
           }
         },
+        "summary": "按手机号添加集团成员（管理员）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6854,7 +7180,6 @@
     "/group/miniapp/me/lookup-member-by-phone": {
       "get": {
         "operationId": "GroupMiniappController_lookupMemberByPhone",
-        "summary": "根据手机号查找会员（添加前预览）",
         "parameters": [
           {
             "name": "phone",
@@ -6878,6 +7203,7 @@
             "description": ""
           }
         },
+        "summary": "根据手机号查找会员（添加前预览）",
         "tags": [
           "MiniappGroup"
         ]
@@ -6886,7 +7212,6 @@
     "/group/miniapp/me/members/remove": {
       "post": {
         "operationId": "GroupMiniappController_removeMember",
-        "summary": "移除集团成员（管理员）",
         "parameters": [
           {
             "name": "memberId",
@@ -6910,6 +7235,7 @@
             "description": ""
           }
         },
+        "summary": "移除集团成员（管理员）",
         "tags": [
           "MiniappGroup"
         ]
@@ -7362,7 +7688,6 @@
     "/coupons/logs": {
       "get": {
         "operationId": "CouponController_listLogs",
-        "summary": "卡券流水列表",
         "parameters": [
           {
             "name": "page",
@@ -7402,6 +7727,7 @@
             "description": ""
           }
         },
+        "summary": "卡券流水列表",
         "tags": [
           "Coupon"
         ]
@@ -7410,7 +7736,6 @@
     "/coupons": {
       "get": {
         "operationId": "CouponController_list",
-        "summary": "卡券列表",
         "parameters": [
           {
             "name": "groupId",
@@ -7442,13 +7767,13 @@
             "description": ""
           }
         },
+        "summary": "卡券列表",
         "tags": [
           "Coupon"
         ]
       },
       "post": {
         "operationId": "CouponController_create",
-        "summary": "创建卡券",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -7465,6 +7790,7 @@
             "description": ""
           }
         },
+        "summary": "创建卡券",
         "tags": [
           "Coupon"
         ]
@@ -7473,7 +7799,6 @@
     "/coupons/{id}": {
       "get": {
         "operationId": "CouponController_get",
-        "summary": "卡券详情",
         "parameters": [
           {
             "name": "id",
@@ -7489,13 +7814,13 @@
             "description": ""
           }
         },
+        "summary": "卡券详情",
         "tags": [
           "Coupon"
         ]
       },
       "put": {
         "operationId": "CouponController_update",
-        "summary": "更新卡券",
         "parameters": [
           {
             "name": "id",
@@ -7521,13 +7846,13 @@
             "description": ""
           }
         },
+        "summary": "更新卡券",
         "tags": [
           "Coupon"
         ]
       },
       "delete": {
         "operationId": "CouponController_remove",
-        "summary": "删除卡券",
         "parameters": [
           {
             "name": "id",
@@ -7543,6 +7868,7 @@
             "description": ""
           }
         },
+        "summary": "删除卡券",
         "tags": [
           "Coupon"
         ]
@@ -7551,7 +7877,6 @@
     "/coupons/{id}/issue": {
       "post": {
         "operationId": "CouponController_issue",
-        "summary": "发放优惠券到指定会员",
         "parameters": [
           {
             "name": "id",
@@ -7577,6 +7902,7 @@
             "description": ""
           }
         },
+        "summary": "发放优惠券到指定会员",
         "tags": [
           "Coupon"
         ]
@@ -7585,7 +7911,6 @@
     "/member-coupons": {
       "get": {
         "operationId": "MemberCouponAdminController_list",
-        "summary": "会员优惠券实例列表",
         "parameters": [
           {
             "name": "page",
@@ -7641,6 +7966,7 @@
             "description": ""
           }
         },
+        "summary": "会员优惠券实例列表",
         "tags": [
           "MemberCoupons"
         ]
@@ -7649,7 +7975,6 @@
     "/member-coupons/{id}": {
       "get": {
         "operationId": "MemberCouponAdminController_get",
-        "summary": "会员优惠券详情",
         "parameters": [
           {
             "name": "id",
@@ -7665,13 +7990,13 @@
             "description": ""
           }
         },
+        "summary": "会员优惠券详情",
         "tags": [
           "MemberCoupons"
         ]
       },
       "delete": {
         "operationId": "MemberCouponAdminController_remove",
-        "summary": "删除会员优惠券实例",
         "parameters": [
           {
             "name": "id",
@@ -7687,6 +8012,7 @@
             "description": ""
           }
         },
+        "summary": "删除会员优惠券实例",
         "tags": [
           "MemberCoupons"
         ]
@@ -7695,7 +8021,6 @@
     "/member-coupons/{id}/expiry": {
       "put": {
         "operationId": "MemberCouponAdminController_updateExpiry",
-        "summary": "修改有效期（开始/结束时间）",
         "parameters": [
           {
             "name": "id",
@@ -7721,6 +8046,7 @@
             "description": ""
           }
         },
+        "summary": "修改有效期（开始/结束时间）",
         "tags": [
           "MemberCoupons"
         ]
@@ -7729,7 +8055,6 @@
     "/coupon/miniapp/claimable": {
       "get": {
         "operationId": "MiniappCouponController_listClaimable",
-        "summary": "小程序可领取优惠券列表（含售罄/达上限标记）",
         "parameters": [
           {
             "name": "token",
@@ -7745,6 +8070,7 @@
             "description": ""
           }
         },
+        "summary": "小程序可领取优惠券列表（含售罄/达上限标记）",
         "tags": [
           "MiniappCoupons"
         ]
@@ -7753,7 +8079,6 @@
     "/coupon/miniapp/mine": {
       "get": {
         "operationId": "MiniappCouponController_myCoupons",
-        "summary": "小程序：我的优惠券列表",
         "parameters": [
           {
             "name": "token",
@@ -7793,6 +8118,7 @@
             "description": ""
           }
         },
+        "summary": "小程序：我的优惠券列表",
         "tags": [
           "MiniappCoupons"
         ]
@@ -7801,7 +8127,6 @@
     "/coupon/miniapp/{id}/claim": {
       "post": {
         "operationId": "MiniappCouponController_claim",
-        "summary": "小程序领取优惠券",
         "parameters": [
           {
             "name": "id",
@@ -7825,6 +8150,7 @@
             "description": ""
           }
         },
+        "summary": "小程序领取优惠券",
         "tags": [
           "MiniappCoupons"
         ]
@@ -7833,7 +8159,6 @@
     "/coupon/miniapp/applicable": {
       "post": {
         "operationId": "MiniappCouponController_applicable",
-        "summary": "计算购物车/商品可用优惠券与预计折扣（预计算，不持久化）",
         "parameters": [
           {
             "name": "token",
@@ -7859,6 +8184,7 @@
             "description": ""
           }
         },
+        "summary": "计算购物车/商品可用优惠券与预计折扣（预计算，不持久化）",
         "tags": [
           "MiniappCoupons"
         ]
@@ -7867,13 +8193,13 @@
     "/system/public/site-setting": {
       "get": {
         "operationId": "SystemSettingController_getPublicSetting",
-        "summary": "公共-获取站点基础设置",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "公共-获取站点基础设置",
         "tags": [
           "system"
         ]
@@ -7882,13 +8208,13 @@
     "/system/public/bing-wallpaper": {
       "get": {
         "operationId": "SystemSettingController_getBingWallpaper",
-        "summary": "公共-获取必应每日壁纸URL",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "公共-获取必应每日壁纸URL",
         "tags": [
           "system"
         ]
@@ -7897,20 +8223,19 @@
     "/system/site-setting": {
       "get": {
         "operationId": "SystemSettingController_getSetting",
-        "summary": "获取站点基础设置",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取站点基础设置",
         "tags": [
           "system"
         ]
       },
       "post": {
         "operationId": "SystemSettingController_saveSetting",
-        "summary": "保存站点基础设置",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -7927,6 +8252,7 @@
             "description": ""
           }
         },
+        "summary": "保存站点基础设置",
         "tags": [
           "system"
         ]
@@ -7935,13 +8261,13 @@
     "/system/public/business-status": {
       "get": {
         "operationId": "SystemSettingController_getPublicBusinessStatus",
-        "summary": "公共-获取当前营业状态",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "公共-获取当前营业状态",
         "tags": [
           "system"
         ]
@@ -7950,26 +8276,26 @@
     "/system/miniapp-terms": {
       "get": {
         "operationId": "SystemSettingController_getMiniappTerms",
-        "summary": "获取小程序用户协议（HTML）",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "获取小程序用户协议（HTML）",
         "tags": [
           "system"
         ]
       },
       "post": {
         "operationId": "SystemSettingController_saveMiniappTerms",
-        "summary": "保存小程序用户协议（HTML）",
         "parameters": [],
         "responses": {
           "201": {
             "description": ""
           }
         },
+        "summary": "保存小程序用户协议（HTML）",
         "tags": [
           "system"
         ]
@@ -7978,13 +8304,13 @@
     "/system/public/miniapp-terms": {
       "get": {
         "operationId": "SystemSettingController_getPublicMiniappTerms",
-        "summary": "公共-输出小程序用户协议HTML",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "summary": "公共-输出小程序用户协议HTML",
         "tags": [
           "system"
         ]
@@ -7993,7 +8319,6 @@
     "/system/employees/list": {
       "get": {
         "operationId": "SystemEmployeeController_list",
-        "summary": "员工列表（分页/关键词）",
         "parameters": [
           {
             "name": "page",
@@ -8033,6 +8358,7 @@
             "description": ""
           }
         },
+        "summary": "员工列表（分页/关键词）",
         "tags": [
           "system"
         ]
@@ -8041,7 +8367,6 @@
     "/system/employees": {
       "post": {
         "operationId": "SystemEmployeeController_create",
-        "summary": "新增员工：从现有会员绑定",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -8058,6 +8383,7 @@
             "description": ""
           }
         },
+        "summary": "新增员工：从现有会员绑定",
         "tags": [
           "system"
         ]
@@ -8066,7 +8392,6 @@
     "/system/employees/{id}": {
       "put": {
         "operationId": "SystemEmployeeController_update",
-        "summary": "编辑员工：姓名/职务/启用状态",
         "parameters": [
           {
             "name": "id",
@@ -8092,13 +8417,13 @@
             "description": ""
           }
         },
+        "summary": "编辑员工：姓名/职务/启用状态",
         "tags": [
           "system"
         ]
       },
       "delete": {
         "operationId": "SystemEmployeeController_remove",
-        "summary": "删除员工",
         "parameters": [
           {
             "name": "id",
@@ -8114,6 +8439,7 @@
             "description": ""
           }
         },
+        "summary": "删除员工",
         "tags": [
           "system"
         ]
@@ -8122,7 +8448,6 @@
     "/system/employees/lookup-member-by-phone": {
       "get": {
         "operationId": "SystemEmployeeController_lookupMember",
-        "summary": "根据手机号查找会员（用于新增员工前预览）",
         "parameters": [
           {
             "name": "phone",
@@ -8138,6 +8463,7 @@
             "description": ""
           }
         },
+        "summary": "根据手机号查找会员（用于新增员工前预览）",
         "tags": [
           "system"
         ]
@@ -8146,7 +8472,6 @@
     "/system/miniapp/employee/profile": {
       "get": {
         "operationId": "SystemMiniappEmployeeController_myEmployeeProfile",
-        "summary": "查询当前会员的员工档案（用于前端入口判断）",
         "parameters": [
           {
             "name": "token",
@@ -8162,6 +8487,7 @@
             "description": ""
           }
         },
+        "summary": "查询当前会员的员工档案（用于前端入口判断）",
         "tags": [
           "MiniappEmployee"
         ]
@@ -8170,7 +8496,6 @@
     "/system/miniapp/employee/overview": {
       "get": {
         "operationId": "SystemMiniappEmployeeController_overview",
-        "summary": "员工-基础运营概览（今日/近7/近30/本月/上月）",
         "parameters": [
           {
             "name": "range",
@@ -8194,6 +8519,7 @@
             "description": ""
           }
         },
+        "summary": "员工-基础运营概览（今日/近7/近30/本月/上月）",
         "tags": [
           "MiniappEmployee"
         ]
@@ -8202,7 +8528,6 @@
     "/system/miniapp/employee/daily": {
       "get": {
         "operationId": "SystemMiniappEmployeeController_daily",
-        "summary": "员工-按日指标列表（净支付/洗车卡划扣/洗车数量合计）",
         "parameters": [
           {
             "name": "range",
@@ -8242,6 +8567,7 @@
             "description": ""
           }
         },
+        "summary": "员工-按日指标列表（净支付/洗车卡划扣/洗车数量合计）",
         "tags": [
           "MiniappEmployee"
         ]
@@ -9454,6 +9780,26 @@
             "type": "object",
             "description": "ADMIN 通道：展示时长(ms)",
             "example": 4500
+          },
+          "wxTemplateId": {
+            "type": "object",
+            "description": "WXAPP 通道：微信订阅消息 TemplateId",
+            "example": "YWsR4q9nW4cIbo6CZQanut-A94erfJOnfwqhxDcQMxQ"
+          },
+          "wxPagePathTemplate": {
+            "type": "object",
+            "description": "WXAPP 通道：小程序跳转 page（支持 {{var}} 渲染）",
+            "example": "/pages/washcard/detail?id={{cardId}}"
+          },
+          "wxMiniprogramState": {
+            "type": "object",
+            "description": "WXAPP 通道：miniprogram_state",
+            "example": "formal"
+          },
+          "wxLang": {
+            "type": "object",
+            "description": "WXAPP 通道：lang",
+            "example": "zh_CN"
           }
         },
         "required": [
@@ -9491,6 +9837,22 @@
             "type": "object",
             "description": "ADMIN 通道：展示时长(ms)",
             "example": 4500
+          },
+          "wxTemplateId": {
+            "type": "object",
+            "description": "WXAPP 通道：微信订阅消息 TemplateId"
+          },
+          "wxPagePathTemplate": {
+            "type": "object",
+            "description": "WXAPP 通道：小程序跳转 page（支持 {{var}} 渲染）"
+          },
+          "wxMiniprogramState": {
+            "type": "object",
+            "description": "WXAPP 通道：miniprogram_state"
+          },
+          "wxLang": {
+            "type": "object",
+            "description": "WXAPP 通道：lang"
           }
         }
       },

@@ -10,7 +10,7 @@
 		</view>
 
 		<!-- 二级筛选：根据主分类动态变化，仅展示UI -->
-		<scroll-view scroll-x class="filters" show-scrollbar="false">
+		<scroll-view scroll-x class="filters" :show-scrollbar="false">
 			<view class="filter-chip" v-for="f in currentFilters" :key="f" :class="{ active: f===activeFilter }" @tap="setFilter(f)">{{ f }}</view>
 		</scroll-view>
 
@@ -435,6 +435,23 @@ onShow(async()=>{
 .tab.active::after { content:''; position:absolute; left: 25%; right: 25%; bottom: 0; height: 6rpx; background: linear-gradient(90deg, #a8d8ff, #ffc9de); border-radius: 999rpx; }
 
 .filters { white-space: nowrap; margin: 16rpx 0 8rpx 0; }
+
+/* H5：scroll-view 会渲染成 uni-scroll-view，真正滚动的是内部 .uni-scroll-view */
+.filters::-webkit-scrollbar,
+.filters .uni-scroll-view::-webkit-scrollbar,
+uni-scroll-view.filters::-webkit-scrollbar,
+uni-scroll-view.filters .uni-scroll-view::-webkit-scrollbar {
+	width: 0;
+	height: 0;
+	display: none;
+}
+.filters,
+.filters .uni-scroll-view,
+uni-scroll-view.filters,
+uni-scroll-view.filters .uni-scroll-view {
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
 .filter-chip { display:inline-flex; align-items:center; padding: 12rpx 20rpx; margin-right: 16rpx; border-radius: 999rpx; background:#ffffff; border: 2rpx dashed #e5e7eb; color:#374151; font-size: 24rpx; }
 .filter-chip.active { border-color: #77bfff; background:#f7fbff; }
 

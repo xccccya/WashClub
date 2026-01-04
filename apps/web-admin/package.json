@@ -14,17 +14,17 @@
     "@wash/api-client": "workspace:*",
     "@wash/shared-ui": "workspace:*",
     "@wash/shared-utils": "workspace:*",
-    "@zxing/library": "^0.20.0",
+    "@zxing/library": "^0.21.3",
     "echarts": "^6.0.0",
-    "element-plus": "^2.11.1",
+    "element-plus": "^2.13.0",
     "quill": "^2.0.3",
-    "vue": "^3.4.31",
-    "vue-echarts": "6",
-    "vue-router": "^4.3.2"
+    "vue": "^3.5.26",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.5",
-    "typescript": "^5.4.5",
-    "vite": "^5.3.1"
+    "@vitejs/plugin-vue": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
   }
 }
