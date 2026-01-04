@@ -803,6 +803,13 @@ export class OrderService {
                     orderBy: { id: 'desc' },
                     include: { coupon: true, memberCoupon: true }
                 },
+                // 订单关联的积分日志（仅用于后台展示；控制器会对非管理员剔除）
+                // 仅选择必要字段，避免把积分日志的其它潜在敏感信息带到响应中
+                pointsLogs: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 200,
+                    select: { id: true, createdAt: true, change: true, source: true, desc: true },
+                } as any,
                 proxyAdminUser: { select: { id: true, name: true, phone: true } }
             }
         });
@@ -824,6 +831,11 @@ export class OrderService {
                     orderBy: { id: 'desc' },
                     include: { coupon: true, memberCoupon: true }
                 },
+                pointsLogs: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 200,
+                    select: { id: true, createdAt: true, change: true, source: true, desc: true },
+                } as any,
                 proxyAdminUser: { select: { id: true, name: true, phone: true } }
             }
         });

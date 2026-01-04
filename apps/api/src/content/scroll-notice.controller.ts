@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ScrollNoticeService, NoticeType } from './scroll-notice.service.js';
+import { CreateScrollNoticeDto, UpdateScrollNoticeDto } from './scroll-notice.dto.js';
 
 @ApiTags('content')
 @Controller('content')
@@ -15,12 +16,12 @@ export class ScrollNoticeController {
     // 管理端：创建
     @Post('notices')
     @ApiOperation({ summary: '创建滚动公告' })
-    create(@Body() body: { type: NoticeType; content: string; enabled?: boolean }) { return this.service.create(body); }
+    create(@Body() body: CreateScrollNoticeDto) { return this.service.create(body); }
 
     // 管理端：更新
     @Put('notices/:id')
     @ApiOperation({ summary: '更新滚动公告' })
-    update(@Param('id') id: string, @Body() body: { content?: string; enabled?: boolean }) { return this.service.update(Number(id), body); }
+    update(@Param('id') id: string, @Body() body: UpdateScrollNoticeDto) { return this.service.update(Number(id), body); }
 
     // 管理端：删除
     @Delete('notices/:id')

@@ -218,7 +218,8 @@ function mapScaleToType(scale: string): { main: string; sub: string }{
 }
 
 async function loadDetail(){
-	const list = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any[];
+	// token 由 http client 自动从 uni storage 注入到 Authorization
+	const list = await vehicleControllerMyVehicles({} as any) as any[];
 	const item = (list||[]).find(x=>x.id === id.value);
 	if (item) {
 		plate.value = item.plateNumber || '';

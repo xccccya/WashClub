@@ -11,11 +11,11 @@
     "build:mp-weixin": "uni build -p mp-weixin"
   },
   "dependencies": {
-    "@dcloudio/uni-app": "3.0.0-alpha-4070620250731002",
-    "@dcloudio/uni-components": "3.0.0-alpha-3000020210521001",
-    "@dcloudio/uni-h5": "3.0.0-alpha-4070620250731002",
-    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-4070620250731002",
-    "@dcloudio/uni-ui": "^1.5.11",
+    "@dcloudio/uni-app": "3.0.0-alpha-5000020260104004",
+    "@dcloudio/uni-components": "3.0.0-alpha-5000020260104004",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5000020260104004",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5000020260104004",
+    "@dcloudio/uni-ui": "1.5.11",
     "@wash/api-client": "workspace:*",
     "@wash/shared-utils": "workspace:*",
     "mp-html": "^2.5.2",
@@ -23,9 +23,10 @@
     "vue": "^3.5.26"
   },
   "devDependencies": {
-    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-4070620250731002",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5000020260104004",
+    "@dcloudio/types": "3.4.28",
     "sass": "^1.97.1",
     "typescript": "^5.9.3",
-    "vite": "^5.3.1"
+    "vite": "5.2.8"
   }
 }

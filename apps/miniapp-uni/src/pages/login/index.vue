@@ -930,6 +930,8 @@ onUnmounted(() => {
 	padding: 24rpx;
 	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
 	background: linear-gradient(180deg, #e9f5ff, #fff0f6);
+	/* H5：避免因 100vw/滚动条等导致的横向溢出，让卡片真正居中 */
+	overflow-x: hidden;
 }
 
 .nav-back {
@@ -1496,7 +1498,8 @@ onUnmounted(() => {
 	right: 0;
 	bottom: 0;
 	left: 0;
-	width: 100vw;
+	/* H5：避免 100vw 包含滚动条导致轻微横向溢出/偏移 */
+	width: 100%;
 	background: rgba(15, 23, 42, 0.38);
 	backdrop-filter: blur(8px);
 	opacity: 0;

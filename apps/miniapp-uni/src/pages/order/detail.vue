@@ -103,7 +103,7 @@
 		<view class="card" v-if="order">
 			<view class="sub-title">金额汇总</view>
 			<view class="kv"><text class="k">商品总额</text><text class="v">¥{{ formatPrice(order.totalAmount) }}</text></view>
-			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(order.discountAmount) }}</text></view>
+			<view class="kv"><text class="k">优惠</text><text class="v">-¥{{ formatPrice(discountTotalAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).memberDiscountAmount && Number((order as any).memberDiscountAmount)>0"><text class="k">会员折扣</text><text class="v">-¥{{ formatPrice((order as any).memberDiscountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).cashierDiscountAmount && Number((order as any).cashierDiscountAmount)>0"><text class="k">收银立减</text><text class="v">-¥{{ formatPrice((order as any).cashierDiscountAmount) }}</text></view>
 			<view class="kv kv--sub" v-if="(order as any).pointsAmount && Number((order as any).pointsAmount)>0"><text class="k">积分抵扣</text><text class="v">-¥{{ formatPrice((order as any).pointsAmount) }}</text></view>
@@ -260,6 +260,32 @@ const couponDisplayList = computed(() => {
         if (ci && (ci.name || ci.discountApplied)) return [{ name: ci.name || '优惠券', amount: Number(ci.discountApplied||0) }];
         return [];
     }catch{ return []; }
+});
+
+function toAmount(v: unknown): number {
+	const n = Number(v);
+	return Number.isFinite(n) ? n : 0;
+}
+
+// 优惠汇总：优先以明细字段累计（会员/收银/积分/洗车卡/券），并保守兜底到 order.discountAmount
+const discountTotalAmount = computed<number>(() => {
+	try {
+		const o: any = order.value;
+		if (!o) return 0;
+
+		const sumKnown =
+			Math.max(0, toAmount(o.memberDiscountAmount)) +
+			Math.max(0, toAmount(o.cashierDiscountAmount)) +
+			Math.max(0, toAmount(o.pointsAmount)) +
+			Math.max(0, toAmount(o.washCardDeductAmount)) +
+			(couponDisplayList.value || []).reduce((s, c) => s + Math.max(0, toAmount((c as any)?.amount)), 0);
+
+		const fallback = Math.max(0, toAmount(o.discountAmount));
+		// 取两者较大值，避免后端新增优惠类型但前端暂未展示明细时汇总被低估
+		return Math.max(sumKnown, fallback);
+	} catch {
+		return 0;
+	}
 });
 const traceList = ref<Array<{ datetime: string; remark: string }>>([]);
 const mainTraceStatusDesc = ref<string>('');

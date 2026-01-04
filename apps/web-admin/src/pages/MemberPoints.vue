@@ -61,8 +61,8 @@
 
 		<el-dialog v-model="cfgVisible" title="积分规则配置" width="520px">
 			<el-form :model="cfg" label-width="220px">
-				<el-form-item label="每1分获取积分（整数）">
-					<el-input-number v-model="cfg.pointsPerFen" :min="0" :step="1" :precision="0" style="width:180px;" />
+				<el-form-item label="每1元获取积分（整数）">
+					<el-input-number v-model="cfg.pointsPerYuan" :min="0" :step="1" :precision="0" style="width:180px;" />
 				</el-form-item>
 				<el-form-item label="100积分抵扣金额（元）">
 					<el-input-number v-model="cfg.pointsFenPerPointYuan" :min="0" :step="0.01" :precision="2" style="width:180px;" />
@@ -191,15 +191,16 @@ async function fetchLogs(){
 }
 
 const cfgVisible = ref(false);
-const cfg = ref<{ pointsPerFen:number; pointsFenPerPoint:number; pointsMaxDeductFenPerOrder:number; pointsFenPerPointYuan:number; pointsMaxDeductYuan:number }>({ pointsPerFen: 1, pointsFenPerPoint: 0, pointsMaxDeductFenPerOrder: 0, pointsFenPerPointYuan: 0, pointsMaxDeductYuan: 0 });
+const cfg = ref<{ pointsPerYuan:number; pointsFenPerPoint:number; pointsMaxDeductFenPerOrder:number; pointsFenPerPointYuan:number; pointsMaxDeductYuan:number }>({ pointsPerYuan: 0, pointsFenPerPoint: 0, pointsMaxDeductFenPerOrder: 0, pointsFenPerPointYuan: 0, pointsMaxDeductYuan: 0 });
 
 async function openConfig(){
   try{
     const res:any = (await memberPointsControllerGetConfig() as unknown) as any;
     const fenPerPoint = Number(res?.pointsFenPerPoint || 0);
     const maxFen = Number(res?.pointsMaxDeductFenPerOrder || 0);
-    // 允许配置为 0（关闭消费得积分），因此不能用 || 1 作为回退
-    cfg.value.pointsPerFen = Number(res?.pointsPerFen ?? 1);
+    // pointsPerYuan：新版字段；若后端尚未返回（或迁移未跑），则按旧字段 pointsPerFen * 100 兜底
+    const legacyPerFen = Number(res?.pointsPerFen ?? 0);
+    cfg.value.pointsPerYuan = Math.max(0, Math.floor(Number(res?.pointsPerYuan ?? 0))) || (Math.max(0, Math.floor(legacyPerFen)) * 100);
     cfg.value.pointsFenPerPoint = fenPerPoint;
     cfg.value.pointsMaxDeductFenPerOrder = maxFen;
     cfg.value.pointsFenPerPointYuan = +(fenPerPoint / 100).toFixed(2);
@@ -210,7 +211,7 @@ async function openConfig(){
 async function saveConfig(){
   try{
     const payload = {
-      pointsPerFen: cfg.value.pointsPerFen,
+      pointsPerYuan: cfg.value.pointsPerYuan,
       pointsFenPerPoint: (cfg.value.pointsFenPerPointYuan || 0) * 100,
       pointsMaxDeductFenPerOrder: (cfg.value.pointsMaxDeductYuan || 0) * 100,
     };

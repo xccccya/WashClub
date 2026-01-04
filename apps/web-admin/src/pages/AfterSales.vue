@@ -1,7 +1,7 @@
 <template>
 	<BasePage title="售后申请">
 		<template #actions>
-			<el-input v-model="keyword" placeholder="搜索订单号/手机号" clearable style="width:240px;" />
+			<el-input v-model="keyword" placeholder="搜索订单号/手机号" clearable style="width:240px;" @keyup.enter="fetchList" />
 			<el-select v-model="status" placeholder="状态" style="width:180px; margin-left:8px;">
 				<el-option label="全部" value="" />
 				<el-option label="待审核" value="PENDING" />
@@ -14,7 +14,7 @@
 				<span style="vertical-align: middle;">刷新</span>
 			</el-button>
 		</template>
-		<el-table :data="rows" stripe style="width:100%">
+		<el-table :data="rows" stripe style="width:100%" v-loading="loading">
 			<el-table-column prop="id" label="ID" width="80" />
 			<el-table-column prop="order.no" label="订单号" width="280">
 				<template #default="{ row }">
@@ -42,7 +42,7 @@
 						<el-icon><View /></el-icon>
 						<span>详情</span>
 					</el-button>
-					<el-button v-if="row.status==='PENDING'" size="small" type="success" @click="openAudit(row, true)">
+					<el-button v-if="row.status==='PENDING'" size="small" type="success" @click="openAudit(row)">
 						<el-icon><Check /></el-icon>
 						<span>通过</span>
 					</el-button>
@@ -147,6 +147,7 @@ const router = useRouter();
 
 type Row = any;
 const rows = ref<Row[]>([]);
+const loading = ref(false);
 const keyword = ref('');
 const status = ref('');
 const detailVisible = ref(false);
@@ -191,14 +192,34 @@ function zhReason(code?: string){
 function headOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(0, Math.max(0, s.length-6)); }catch{ return String(no||''); } }
 function tailOrderNo(no?: string){ try{ const s=String(no||''); return s.slice(-6); }catch{ return ''; } }
 
+function unwrapList(resp: unknown): any[] {
+	// 兼容多种后端/SDK返回结构：数组 / {data:[]} / {data:{list:[]}} / {list:[]} / {items:[]}
+	// 之所以需要兼容，是因为 OpenAPI 里该接口缺少明确 schema，生成的 SDK 类型不可靠。
+	const r: any = resp as any;
+	if (Array.isArray(r)) return r;
+	if (Array.isArray(r?.data)) return r.data;
+	if (Array.isArray(r?.data?.list)) return r.data.list;
+	if (Array.isArray(r?.list)) return r.list;
+	if (Array.isArray(r?.items)) return r.items;
+	return [];
+}
+
 async function fetchList(){
-	const list = await (orderControllerListAfterSales({ status: status.value || undefined } as any) as any);
-	let data: any[] = Array.isArray(list) ? list : [];
-	if (keyword.value.trim()){
-		const kw = keyword.value.trim();
-		data = data.filter(it => String(it?.order?.no||'').includes(kw) || String(it?.member?.phone||'').includes(kw));
+	loading.value = true;
+	try{
+		const resp = await (orderControllerListAfterSales({ status: status.value || undefined } as any) as any);
+		let data: any[] = unwrapList(resp);
+		if (keyword.value.trim()){
+			const kw = keyword.value.trim();
+			data = data.filter(it => String(it?.order?.no||'').includes(kw) || String(it?.member?.phone||'').includes(kw));
+		}
+		rows.value = data;
+	}catch(e:any){
+		rows.value = [];
+		ElMessage.error(String(e?.message || '售后列表加载失败'));
+	}finally{
+		loading.value = false;
 	}
-	rows.value = data;
 }
 
 function openOrder(orderNo?: string){
@@ -207,7 +228,7 @@ function openOrder(orderNo?: string){
     window.open(href, '_blank');
 }
 function view(row: any){ current.value = row; detailVisible.value = true; }
-function openAudit(row: any, approve: boolean){
+function openAudit(row: any){
     auditRow.value = row; auditDialog.value = true;
     auditRefundMode.value = 'FULL'; auditRefundAmountText.value = '';
     // 重置换货发货表单并拉取快递公司
@@ -238,72 +259,76 @@ function openAudit(row: any, approve: boolean){
 }
 async function confirmAudit(){
     if (auditSubmitting.value) return;
-    auditSubmitting.value = true;
     if (!auditRow.value) return;
     const afr = auditRow.value;
-    // 先审核通过
-    // 审核通过：如为微信渠道，附带部分退款金额（若选择部分退款）
+
+	// 审核通过：如为微信渠道，附带部分退款金额（若选择部分退款）
     let amountPayload: number | undefined = undefined;
     const ord0 = afr.order || {};
     if (afr.type==='REFUND' && (ord0.payMethod==='WECHAT_JSAPI' || ord0.payMethod==='WECHAT_MICROPAY')){
         if (auditRefundMode.value === 'FULL'){
-            if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); auditDialog.value=false; fetchList(); return; }
+            if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); return; }
             amountPayload = Number(ord0.payAmount||0);
         } else {
             const raw = (auditRefundAmountText.value||'').trim().replace(',', '.');
-            if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); auditDialog.value=false; fetchList(); return; }
+            if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); return; }
             const v = Number(raw);
-            if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); auditDialog.value=false; fetchList(); return; }
-            if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); auditDialog.value=false; fetchList(); return; }
+            if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); return; }
+            if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
             amountPayload = v;
         }
     }
-    await orderControllerAuditAfterSales(Number(afr.id), { body: { approve: true, amount: amountPayload } } as any);
-    try{
-        const ord = afr.order || {};
-        if (afr.type==='REFUND' && ord.payMethod === 'WECHAT_JSAPI'){
-            let amount: number | undefined = undefined;
-            if (auditRefundMode.value === 'FULL'){
-                if (auditHasPartial.value){ ElMessage.error('已发生部分退款，不能再使用全额退款'); auditDialog.value=false; fetchList(); return; }
-                amount = Number(ord.payAmount||0);
-            } else {
-                const raw = (auditRefundAmountText.value||'').trim().replace(',', '.');
-                if (!/^\d+(\.\d{1,2})?$/.test(raw)) { ElMessage.error('金额格式不正确，最多保留2位小数'); auditDialog.value=false; fetchList(); return; }
-                const v = Number(raw);
-                if (!isFinite(v) || v < 0.01){ ElMessage.error('部分退款金额至少为0.01'); auditDialog.value=false; fetchList(); return; }
-                if (v > auditRefundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); auditDialog.value=false; fetchList(); return; }
-                amount = v;
-            }
-            const resp:any = await (orderControllerWechatRefund(Number(ord.id), { body: { reason: '售后退款', amount } } as any) as any);
-            if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
-        } else if (afr.type==='REFUND' && ord.payMethod==='WECHAT_MICROPAY'){
-            // 审核接口已触发渠道退款，这里不再重复调用退款接口
-            ElMessage.success('已提交渠道退款');
-        } else if (afr.type==='REFUND') {
-            // 非微信：内部退款
-            await orderControllerWechatRefund(Number(afr.orderId), { body: { reason: '售后退款' } } as any);
-            ElMessage.success('已退款');
-        } else if (afr.type==='EXCHANGE') {
-            // 换货：提交换货发货信息（独立于订单原始发货）
-            const body:any = { noExpress: !!exNoExpress.value };
-            if (!exNoExpress.value){
-                if (!exCompanyCode.value){ ElMessage.error('请选择快递公司'); auditDialog.value=false; fetchList(); return; }
-                if (!exTrackingNo.value.trim()){ ElMessage.error('请填写运单号'); auditDialog.value=false; fetchList(); return; }
-                body.companyCode = exCompanyCode.value; body.trackingNo = exTrackingNo.value; body.companyName = (deliveryCompanies.value.find(it=>it.code===exCompanyCode.value)?.name)||undefined;
-                if (isSFCompany(exCompanyCode.value)){
-                    body.contactSenderPhoneMasked = exSenderPhoneMasked.value || undefined;
-                    body.contactReceiverPhoneMasked = exReceiverPhoneMasked.value || undefined;
-                }
-            }
-            await orderControllerShipExchange(Number(afr.id), { body } as any);
-            ElMessage.success('换货发货信息已提交');
-        }
-    }catch{} finally {
-        auditSubmitting.value = false;
-    }
-    auditDialog.value = false; fetchList();
+
+    auditSubmitting.value = true;
+	try{
+		// 先审核通过
+		await orderControllerAuditAfterSales(Number(afr.id), { body: { approve: true, amount: amountPayload } } as any);
+
+		const ord = afr.order || {};
+		if (afr.type==='REFUND' && ord.payMethod === 'WECHAT_JSAPI'){
+			const amount = amountPayload; // FULL/PART 已在上方统一校验
+			const resp:any = await (orderControllerWechatRefund(Number(ord.id), { body: { reason: '售后退款', amount } } as any) as any);
+			if (resp?.ok){ ElMessage.success('退款已提交'); } else { ElMessage.error(resp?.error || '退款申请失败'); }
+		} else if (afr.type==='REFUND' && ord.payMethod==='WECHAT_MICROPAY'){
+			// 审核接口已触发渠道退款，这里不再重复调用退款接口
+			ElMessage.success('已提交渠道退款');
+		} else if (afr.type==='REFUND') {
+			// 非微信：内部退款
+			await orderControllerWechatRefund(Number(afr.orderId), { body: { reason: '售后退款' } } as any);
+			ElMessage.success('已退款');
+		} else if (afr.type==='EXCHANGE') {
+			// 换货：提交换货发货信息（独立于订单原始发货）
+			const body:any = { noExpress: !!exNoExpress.value };
+			if (!exNoExpress.value){
+				if (!exCompanyCode.value){ ElMessage.error('请选择快递公司'); return; }
+				if (!exTrackingNo.value.trim()){ ElMessage.error('请填写运单号'); return; }
+				body.companyCode = exCompanyCode.value; body.trackingNo = exTrackingNo.value; body.companyName = (deliveryCompanies.value.find(it=>it.code===exCompanyCode.value)?.name)||undefined;
+				if (isSFCompany(exCompanyCode.value)){
+					body.contactSenderPhoneMasked = exSenderPhoneMasked.value || undefined;
+					body.contactReceiverPhoneMasked = exReceiverPhoneMasked.value || undefined;
+				}
+			}
+			await orderControllerShipExchange(Number(afr.id), { body } as any);
+			ElMessage.success('换货发货信息已提交');
+		}
+
+		auditDialog.value = false;
+		await fetchList();
+	}catch(e:any){
+		ElMessage.error(String(e?.message || '操作失败'));
+	}finally{
+		auditSubmitting.value = false;
+	}
 }
-async function audit(row: any, approve: boolean){ await orderControllerAuditAfterSales(Number(row.id), { body: { approve } } as any); ElMessage.success('已提交'); fetchList(); }
+async function audit(row: any, approve: boolean){
+	try{
+		await orderControllerAuditAfterSales(Number(row.id), { body: { approve } } as any);
+		ElMessage.success('已提交');
+		await fetchList();
+	}catch(e:any){
+		ElMessage.error(String(e?.message || '操作失败'));
+	}
+}
 
 function addrDisplay(info: any){
 	try{

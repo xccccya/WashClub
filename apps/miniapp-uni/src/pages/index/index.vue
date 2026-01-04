@@ -3,8 +3,11 @@
 		<view v-if="topSpacerHeight" :style="{ height: topSpacerHeight + 'px' }" />
 		<!-- 顶部滚动公告 -->
 		<view class="card notice-card" v-if="noticeHome">
-			<view class="marquee">
-				<text class="marquee-text">{{ noticeHome }}</text>
+			<view class="notice-row">
+				<uni-icons class="notice-speaker" type="sound" :size="18" color="rgba(15,23,42,0.72)" />
+				<view class="marquee">
+					<text class="marquee-text">{{ noticeHome }}</text>
+				</view>
 			</view>
 		</view>
 		<!-- 顶部欢迎卡片：问候 + 天气 + 洗车建议 + 营业状态 -->
@@ -208,8 +211,19 @@ function navigateToPath(path: string){
 // 已切换为系统 tabBar
 
 async function loadDefaultPlate(){
+	// 未登录时不请求“我的车辆列表”，避免产生 401 噪音
+	const t = getToken();
+	if (!t) {
+		plateNo.value = '-';
+		brand.value = '';
+		series.value = '';
+		brandImage.value = '';
+		hasCar.value = false;
+		return;
+	}
 	try {
-		const vehicles = (await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as unknown as any[]);
+		// token 已由 @wash/shared-utils 自动从 uni storage 注入到 Authorization 头中，无需 query 传参
+		const vehicles = (await vehicleControllerMyVehicles({} as any) as unknown as any[]);
 		const def = Array.isArray(vehicles) ? vehicles.find(v=>v.isDefault) || vehicles[0] : null;
 		plateNo.value = def?.plateNumber || '-';
 		brand.value = def?.brand || '';
@@ -235,10 +249,16 @@ async function loadDefaultPlate(){
 // #ifdef MP-WEIXIN || H5
 // 首页仅静默刷新资料，不强制登录
 onShow(async ()=>{ loggedIn.value = !!getToken(); const ok = await checkAuthAndRefresh({ redirectIfExpired: false }); if (ok) loggedIn.value = true; });
+function normalizeNotice(s: unknown): string {
+	return String(s ?? '')
+		.replace(/\r?\n+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
 onShow(async ()=>{
 	try {
 		const active = await scrollNoticeControllerActive({ type: 'home' } as any) as any;
-		noticeHome.value = active?.content || '';
+		noticeHome.value = normalizeNotice(active?.content || '');
 	} catch {}
 });
 // #endif
@@ -427,49 +447,113 @@ async function loadQueueSummary(){
 .page {
 	min-height: 100vh;
 	padding: 24rpx 24rpx 0 24rpx;
-	background: linear-gradient(180deg, #e9f5ff 0%, #fff0f6 100%);
+	/* 更克制的品牌渐变：降低饱和与对比，让内容更“高级” */
+	background: linear-gradient(180deg, #eff7ff 0%, #fff3f7 56%, #ffffff 100%);
 	box-sizing: border-box;
 	padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx);
     overflow-x: hidden;
 }
 
 .card {
-	background: #ffffff;
-	border-radius: 24rpx;
-	padding: 24rpx;
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+	/* 统一卡片语言：干净、克制的白底 + 轻边框 + 轻阴影（避免高光影响可读性） */
+	background: rgba(255, 255, 255, 0.96);
+	border-radius: 26rpx;
+	padding: 26rpx;
+	box-shadow:
+		0 10rpx 24rpx rgba(15, 23, 42, 0.05),
+		0 2rpx 10rpx rgba(15, 23, 42, 0.03);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
 	margin-bottom: 24rpx;
+	position: relative;
+	overflow: hidden; /* 兼容内部圆角裁切（不再叠加高光层） */
+}
+/* H5 支持时增加轻微磨砂（小程序会忽略，不影响） */
+@supports ((-webkit-backdrop-filter: blur(6px)) or (backdrop-filter: blur(6px))) {
+	.card { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 }
 
 .car-card {
-	background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%);
+	/* 更低对比的柔和底色，保证文字对比度 */
+	background: linear-gradient(
+		135deg,
+		rgba(168, 216, 255, 0.16) 0%,
+		rgba(255, 209, 232, 0.12) 55%,
+		rgba(255, 255, 255, 0.96) 100%
+	);
 }
 
 .card-title {
 	font-size: 28rpx;
-	font-weight: 600;
-	color: #2b2f36;
+	font-weight: 700;
+	color: #0f172a;
+	letter-spacing: .2rpx;
 }
 
 /* 顶部公告 */
-.notice-card { padding: 16rpx 24rpx; }
-.marquee { overflow: hidden; white-space: nowrap; }
-.marquee-text { display: inline-block; padding-left: 100%; animation: scroll-left 12s linear infinite; color: #374151; }
+/* 滚动公告：与页面卡片风格一致的“轻质感”，并增加克制的视觉引导 */
+.notice-card {
+	padding: 16rpx 20rpx 16rpx 24rpx;
+	/* 用“顶部细渐变描边”替代左侧强调条，更克制耐看 */
+	background: linear-gradient(
+		180deg,
+		rgba(59, 130, 246, 0.06) 0%,
+		rgba(236, 72, 153, 0.04) 24%,
+		rgba(255, 255, 255, 0.92) 70%
+	);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.05);
+	overflow: hidden;
+	position: relative;
+}
+.notice-card::before{
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	height: 6rpx;
+	background: linear-gradient(90deg, rgba(59, 130, 246, 0.32), rgba(236, 72, 153, 0.26));
+}
+.notice-row{
+	display:flex;
+	align-items:center;
+	gap: 12rpx;
+}
+.notice-speaker{
+	flex: 0 0 auto;
+	opacity: .92;
+	transform: translateY(0.5rpx);
+}
+.marquee { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+.marquee-text {
+	display: inline-block;
+	padding-left: 100%;
+	animation: scroll-left 14s linear infinite;
+	color: #1f2937;
+	font-size: 24rpx;
+	font-weight: 700;
+	white-space: nowrap !important;
+	word-break: keep-all;
+	overflow-wrap: normal;
+}
 @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
 .header-card {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	background: linear-gradient(135deg, #a8d8ff, #ffc9de);
+	/* 去除高光光斑，降低底色饱和度，增强可读性 */
+	background: linear-gradient(135deg, #edf7ff 0%, #fff2f8 58%, rgba(255,255,255,0.98) 100%);
 	color: #1f2937;
 	padding: 28rpx;
 	overflow: hidden;
+	position: relative;
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
 }
 .header-top{ width:100%; display:flex; align-items:flex-start; justify-content:space-between; gap: 16rpx; }
-.biz-badge{ display:inline-flex; align-items:center; gap:8rpx; padding: 6rpx 10rpx; border-radius: 999rpx; background:#fff; border:2rpx solid #e5e7eb; }
+.biz-badge{ display:inline-flex; align-items:center; gap:8rpx; padding: 6rpx 12rpx; border-radius: 999rpx; background: rgba(255,255,255,0.92); border: 1rpx solid rgba(148,163,184,0.22); box-shadow: 0 6rpx 14rpx rgba(15,23,42,0.05); }
 .biz-badge .dot{ width: 12rpx; height: 12rpx; border-radius: 50%; }
-.biz-badge .text{ font-size: 22rpx; font-weight: 600; }
+.biz-badge .text{ font-size: 22rpx; font-weight: 800; letter-spacing: .2rpx; }
 .biz-badge[data-type="OPEN"]{ background:#ecfdf5; border-color:#86efac; color:#065f46; }
 .biz-badge[data-type="OPEN"] .dot{ background:#16a34a; }
 .biz-badge[data-type="REST"]{ background:#f1f5f9; border-color:#cbd5e1; color:#334155; }
@@ -479,22 +563,71 @@ async function loadQueueSummary(){
 .biz-badge[data-type="PAUSED"]{ background:#fef2f2; border-color:#fecaca; color:#7f1d1d; }
 .biz-badge[data-type="PAUSED"] .dot{ background:#ef4444; }
 .greet-col { display:flex; flex-direction: column; gap: 8rpx; }
-.greeting { font-size: 30rpx; font-weight: 600; }
-.greet-sub { font-size: 24rpx; color: #374151; opacity: .9; }
-.weather-box { margin-top: 16rpx; width: 100%; background: rgba(255,255,255,.7); border-radius: 20rpx; padding: 18rpx 20rpx; box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.04); box-sizing: border-box; }
+.greeting { font-size: 34rpx; font-weight: 900; line-height: 1.22; letter-spacing: .6rpx; }
+.greet-sub { font-size: 24rpx; color: rgba(15, 23, 42, 0.72); line-height: 1.38; }
+.weather-box {
+	margin-top: 16rpx;
+	width: 100%;
+	background: rgba(255,255,255,0.90);
+	border-radius: 22rpx;
+	padding: 18rpx 20rpx;
+	box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.035);
+	box-sizing: border-box;
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+}
 .weather-row { display:flex; align-items: flex-end; justify-content: space-between; gap: 12rpx; width: 100%; box-sizing: border-box; }
 .weather-left { display:flex; flex-direction: column; gap: 6rpx; }
-.city { font-size: 26rpx; color: #0f172a; font-weight: 700; letter-spacing: 1rpx; }
-.temp { font-size: 56rpx; font-weight: 800; color: #0b1220; line-height: 1; }
-.desc { font-size: 24rpx; color: #475569; }
-.mini-metrics { margin-top: 8rpx; display:flex; align-items:center; gap: 10rpx; color:#64748b; font-size: 22rpx; }
+.city { font-size: 26rpx; color: #0f172a; font-weight: 800; letter-spacing: 1rpx; }
+.temp { font-size: 58rpx; font-weight: 900; color: #0b1220; line-height: 1; }
+.desc { font-size: 24rpx; color: #475569; line-height: 1.35; }
+.mini-metrics { margin-top: 10rpx; display:flex; align-items:center; gap: 10rpx; color:#64748b; font-size: 22rpx; flex-wrap: wrap; }
 .dot { opacity: .6; }
-.wash-advice { margin-top: 12rpx; display:flex; align-items:center; gap: 10rpx; flex-wrap: wrap; }
-.advice-tag { font-size: 22rpx; padding: 6rpx 10rpx; border-radius: 999rpx; background: #fff; border: 2rpx solid #e5e7eb; color:#374151; }
-.advice-tag.level-good { border-color: #34d399; color: #065f46; background: #ecfdf5; }
-.advice-tag.level-fair { border-color: #fbbf24; color: #78350f; background: #fffbeb; }
-.advice-tag.level-bad { border-color: #f87171; color: #7f1d1d; background: #fef2f2; }
-.advice-text { font-size: 24rpx; color: #111827; }
+.wash-advice {
+	margin-top: 14rpx;
+	width: 100%;
+	display:flex;
+	/* 两行文本时更自然：tag 与第一行基线对齐 */
+	align-items: baseline;
+	gap: 10rpx;
+	/* 关键：容器不换行；文本在自身盒子内多行换行，避免 H5 下 tag/内容“断开” */
+	flex-wrap: nowrap;
+	padding: 10rpx 14rpx;
+	background: rgba(255,255,255,0.90);
+	border-radius: 18rpx;
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	box-sizing: border-box;
+}
+.advice-tag {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	font-size: 22rpx;
+	padding: 6rpx 10rpx;
+	border-radius: 999rpx;
+	background: #fff;
+	border: 1rpx solid rgba(148, 163, 184, 0.22);
+	color:#374151;
+	line-height: 1.15;
+	white-space: nowrap;
+}
+.advice-tag.level-good { border-color: rgba(52, 211, 153, 0.8); color: #065f46; background: rgba(236, 253, 245, 0.92); }
+.advice-tag.level-fair { border-color: rgba(251, 191, 36, 0.85); color: #78350f; background: rgba(255, 251, 235, 0.95); }
+.advice-tag.level-bad { border-color: rgba(248, 113, 113, 0.85); color: #7f1d1d; background: rgba(254, 242, 242, 0.95); }
+.advice-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: 24rpx;
+	color: #111827;
+	line-height: 1.5;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+	/* 最多两行，避免卡片过高（H5/小程序均生效，非支持环境会自然换行） */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+}
 
 .car-card .card-title {
 	margin-bottom: 16rpx;
@@ -503,18 +636,19 @@ async function loadQueueSummary(){
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	background: #f7fbff;
-	border: 2rpx dashed #77bfff;
-	border-radius: 20rpx;
+	background: rgba(255,255,255,0.92);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	border-radius: 22rpx;
 	padding: 28rpx;
 	position: relative;
+	box-shadow: inset 0 2rpx 10rpx rgba(15,23,42,0.03);
 }
 .plate-left { display:flex; align-items:center; gap: 18rpx; }
-.brand-logo { width: 72rpx; height: 72rpx; object-fit: contain; border-radius: 8rpx; background:#fff; border: 2rpx solid #e5e7eb; }
+.brand-logo { width: 72rpx; height: 72rpx; object-fit: contain; border-radius: 12rpx; background:#fff; border: 1rpx solid rgba(148, 163, 184, 0.22); }
 .plate-info { display:flex; flex-direction: column; }
 .plate-text {
 	font-size: 44rpx;
-	font-weight: 700;
+	font-weight: 900;
 	letter-spacing: 4rpx;
 	color: #1f2937;
 }
@@ -526,16 +660,17 @@ async function loadQueueSummary(){
 	width: 72rpx;
 	height: 72rpx;
 	border-radius: 50%;
-	background: linear-gradient(135deg, #a8d8ff, #ffc9de);
+	background: linear-gradient(135deg, rgba(168, 216, 255, 0.95), rgba(255, 201, 222, 0.95));
 	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.08);
+	box-shadow: 0 10rpx 22rpx rgba(15,23,42,0.10);
+	border: 1rpx solid rgba(255,255,255,0.75);
 }
 .plus-v, .plus-h {
 	position: absolute;
-	background: #1f2937;
+	background: rgba(15, 23, 42, 0.86);
 	border-radius: 6rpx;
 }
 .plus-v { width: 6rpx; height: 36rpx; }
@@ -580,25 +715,39 @@ async function loadQueueSummary(){
 	color: #2563eb;
 }
 
-.queue-card { background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
+.queue-card {
+	/* 更克制的底色，避免在排队数据区域产生“眩光感” */
+	background: linear-gradient(
+		135deg,
+		rgba(168, 216, 255, 0.14) 0%,
+		rgba(255, 209, 232, 0.10) 55%,
+		rgba(255, 255, 255, 0.96) 100%
+	);
+}
 .queue-head { display:flex; align-items:center; justify-content: space-between; }
 .queue-title-row { display:flex; align-items:center; gap: 12rpx; }
-.queue-status { padding: 8rpx 12rpx; border-radius: 999rpx; font-size: 22rpx; }
+.queue-status { padding: 8rpx 12rpx; border-radius: 999rpx; font-size: 22rpx; font-weight: 700; }
 .queue-status.free { color:#065f46; background:#ecfdf5; border: 2rpx solid #86efac; }
 .queue-status.busy { color:#7c2d12; background:#fff7ed; border: 2rpx solid #fdba74; }
-.queue-detail-link { font-size: 24rpx; color:#2563eb; }
-.queue-metrics { display:flex; gap: 24rpx; margin-top: 12rpx; }
-.metric { display:flex; align-items:center; gap: 8rpx; background:#ffffff; border:2rpx dashed #e5e7eb; border-radius: 999rpx; padding: 8rpx 12rpx; }
+.queue-detail-link { font-size: 24rpx; color:#2563eb; font-weight: 700; }
+.queue-metrics { display:flex; gap: 20rpx; margin-top: 12rpx; flex-wrap: wrap; }
+.metric { display:flex; align-items:center; gap: 8rpx; background: rgba(255,255,255,0.92); border: 1rpx solid rgba(148, 163, 184, 0.18); border-radius: 999rpx; padding: 8rpx 12rpx; box-shadow: 0 6rpx 14rpx rgba(15,23,42,0.04); }
 .metric .label { font-size: 22rpx; color:#6b7280; }
 .metric .value { font-size: 26rpx; color:#111827; font-weight: 600; }
-.eta-tag { padding: 8rpx 12rpx; border-radius: 999rpx; font-size: 22rpx; color:#1f2937; background:#ffffff; border: 2rpx dashed #77bfff; }
+.eta-tag { padding: 8rpx 12rpx; border-radius: 999rpx; font-size: 22rpx; color:#0f172a; font-weight: 700; background: rgba(255,255,255,0.92); border: 1rpx solid rgba(148, 163, 184, 0.18); box-shadow: 0 6rpx 14rpx rgba(15,23,42,0.04); }
 .queue-progress { margin-top: 12rpx; }
-.queue-progress-bar { width:100%; height:16rpx; background:#eef2ff; border-radius: 999rpx; overflow:hidden; }
+.queue-progress-bar { width:100%; height:16rpx; background: rgba(226, 232, 240, 0.8); border-radius: 999rpx; overflow:hidden; border: 1rpx solid rgba(148, 163, 184, 0.14); }
 .queue-progress-inner { height:100%; background: linear-gradient(90deg, #a8d8ff, #ffc9de); }
 .queue-progress-text { margin-top: 8rpx; display:block; text-align:right; font-size: 22rpx; color:#6b7280; }
-.queue-tips { margin-top: 12rpx; font-size: 24rpx; color:#065f46; background:#ecfdf5; border: 2rpx solid #86efac; padding: 8rpx 12rpx; border-radius: 12rpx; }
+.queue-tips { margin-top: 12rpx; font-size: 24rpx; color:#065f46; background: rgba(236,253,245,0.8); border: 2rpx solid rgba(134,239,172,0.9); padding: 10rpx 12rpx; border-radius: 14rpx; }
 
 .ad-card { padding: 0; overflow: hidden; }
+/* 本次不调整广告横幅卡片（避免受全局 card 风格影响） */
+.ad-card{
+	border: 2rpx solid rgba(255, 255, 255, 0.68);
+	box-shadow: 0 14rpx 34rpx rgba(15, 23, 42, 0.08);
+	background: rgba(255, 255, 255, 0.86);
+}
 .ad-swiper { width: 100%; height: 220rpx; }
 .ad-image { width: 100%; height: 220rpx; display: block; }
 

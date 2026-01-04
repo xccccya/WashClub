@@ -79,9 +79,9 @@ function openEdit(row: Notice){ current.value = row; form.value = { id: row.id, 
 async function onSave(){
 	try{
 		if (current.value?.id) {
-			await scrollNoticeControllerUpdate(String(current.value.id), { content: form.value.content, enabled: form.value.enabled } as any);
+			await scrollNoticeControllerUpdate(String(current.value.id), { content: form.value.content, enabled: form.value.enabled });
 		} else {
-			await scrollNoticeControllerCreate({ type: form.value.type, content: form.value.content, enabled: form.value.enabled } as any);
+			await scrollNoticeControllerCreate({ type: form.value.type, content: form.value.content, enabled: form.value.enabled });
 		}
 		dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AdBannerService, CreateBannerDto, UpdateBannerDto } from './ad-banner.service.js';
+import { AdBannerService } from './ad-banner.service.js';
+import { CreateBannerDto, SetBannerEnableDto, UpdateBannerDto } from './ad-banner.dto.js';
 
 @ApiTags('content')
 @Controller('content')
@@ -30,7 +31,9 @@ export class AdBannerController {
     // 管理端：启用/禁用
     @Post('banners/:id/enable')
     @ApiOperation({ summary: '启用/禁用广告位' })
-    setEnable(@Param('id') id: string, @Body('enabled') enabled?: any) { return this.service.enable(Number(id), String(enabled) !== 'false'); }
+    setEnable(@Param('id') id: string, @Body() body: SetBannerEnableDto) {
+        return this.service.enable(Number(id), String(body?.enabled) !== 'false');
+    }
 
     // 小程序端：获取已启用列表
     @Get('banners/active')

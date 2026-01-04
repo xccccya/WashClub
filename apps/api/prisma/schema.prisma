@@ -176,7 +176,10 @@ model SiteSetting {
   // 会员成长值：每消费 1 元兑换多少成长值（正整数）
   growthPerYuan Int @default(1)
 
-  // 积分：每消费 1 分兑换多少积分（正整数），例如 1 表示 1分=1积分
+  // 积分（新版口径）：每消费 1 元可获得多少积分（正整数）；0 表示未配置（将回退到 pointsPerFen * 100 作为兜底）
+  pointsPerYuan Int @default(0)
+
+  // 积分（旧口径/兼容保留）：每消费 1 分兑换多少积分（正整数），例如 1 表示 1分=1积分
   pointsPerFen Int @default(1)
   // 积分抵扣：1 积分可抵扣多少分（单位：分），例如 100 表示 1 积分=1元
   pointsFenPerPoint Int @default(1)

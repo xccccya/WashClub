@@ -15,12 +15,15 @@ export class ScrollNoticeService {
     }
 
     async create(data: { type: NoticeType; content: string; enabled?: boolean }) {
+        // 双保险：避免被绕过校验时 Prisma 抛 500
+        if (!data?.type || !String(data.type).trim()) throw new BadRequestException('type 必填');
+        if (!data?.content || !String(data.content).trim()) throw new BadRequestException('content 必填');
         const enabled = !!data.enabled;
         return this.prisma.$transaction(async (tx) => {
             if (enabled) {
                 await tx.scrollNotice.updateMany({ where: { type: data.type, enabled: true }, data: { enabled: false } });
             }
-            return tx.scrollNotice.create({ data: { type: data.type, content: data.content, enabled } });
+            return tx.scrollNotice.create({ data: { type: String(data.type).trim() as any, content: String(data.content).trim(), enabled } });
         });
     }
 

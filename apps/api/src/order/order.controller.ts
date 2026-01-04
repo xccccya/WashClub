@@ -162,25 +162,6 @@ export class OrderController {
         return { id: order.id, no: order.no };
     }
 
-    // NestJS 11 + path-to-regexp v8 不再支持在路由路径里写正则（如 :id(\\d+)）
-    // 改为普通参数，并使用 ParseIntPipe 做数字校验
-    @Get(':id')
-    async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
-        const o = await this.orders.getOrder(id);
-        // 非管理员请求：隐藏代客下单的管理员快照信息
-        try{
-            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
-            if (!adminId) {
-                if (o && typeof o === 'object') {
-                    const r = o as Record<string, unknown>;
-                    delete r.proxyAdminUser;
-                    delete r.proxyAdminSnapshot;
-                }
-            }
-        }catch{}
-        return o;
-    }
-
     @Get('by-no/:no')
     async getByNo(@Param('no') no: string, @Headers('authorization') authHeader?: string) {
         const o = await this.orders.getOrderByNo(no);
@@ -191,6 +172,8 @@ export class OrderController {
                     const r = o as Record<string, unknown>;
                     delete r.proxyAdminUser;
                     delete r.proxyAdminSnapshot;
+                    // 积分日志仅后台可见（会员可通过积分明细接口查看）
+                    delete r.pointsLogs;
                 }
             }
         }catch{}
@@ -664,6 +647,29 @@ export class OrderController {
     async query(@Query('com') com?: string, @Query('no') no?: string, @Query('phone') phone?: string){
         if (!no) return { code: 0, msg: 'no required' } as any;
         return await this.tanshu.queryTracking({ com, no, phone });
+    }
+
+    // NestJS 11 + path-to-regexp v8 不再支持在路由路径里写正则（如 :id(\\d+)）
+    // 改为普通参数，并使用 ParseIntPipe 做数字校验
+    //
+    // ⚠️ 注意：本路由必须放在所有“单段静态路由”（如 /_after-sales、/_reviews 等）之后，
+    // 否则会把这些路径误匹配到 :id，触发 ParseIntPipe 报错：Validation failed (numeric string is expected)
+    @Get(':id')
+    async get(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authHeader?: string) {
+        const o = await this.orders.getOrder(id);
+        // 非管理员请求：隐藏代客下单的管理员快照信息
+        try{
+            const adminId = this.extractAdminIdFromAuthHeader(authHeader);
+            if (!adminId) {
+                if (o && typeof o === 'object') {
+                    const r = o as Record<string, unknown>;
+                    delete r.proxyAdminUser;
+                    delete r.proxyAdminSnapshot;
+                    delete r.pointsLogs;
+                }
+            }
+        }catch{}
+        return o;
     }
 
     private extractAdminIdFromAuthHeader(authHeader?: string): number | undefined {

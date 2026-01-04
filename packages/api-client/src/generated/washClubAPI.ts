@@ -34,11 +34,13 @@ import type {
   CouponIssueDto,
   CouponUpdateDto,
   CreateAdminDto,
+  CreateBannerDto,
   CreateEmployeeDto,
   CreateMemberCategoryDto,
   CreateMemberDto,
   CreateMemberTagDto,
   CreateRoleDto,
+  CreateScrollNoticeDto,
   DistrictControllerGetDistrictParams,
   FavoriteControllerAddParams,
   FavoriteControllerMyListParams,
@@ -117,6 +119,7 @@ import type {
   ScrollNoticeControllerActiveParams,
   ScrollNoticeControllerListParams,
   SendCodeDto,
+  SetBannerEnableDto,
   SetMemberPasswordDto,
   SmsAdminControllerListSmsCodesParams,
   StoreCategoryControllerListParams,
@@ -136,6 +139,7 @@ import type {
   UpdateAdminAvatarDto,
   UpdateAdminDto,
   UpdateAssetDto,
+  UpdateBannerDto,
   UpdateEmployeeDto,
   UpdateMemberCategoryDto,
   UpdateMemberCouponExpiryDto,
@@ -144,6 +148,7 @@ import type {
   UpdateNicknameDto,
   UpdatePasswordDto,
   UpdateRoleDto,
+  UpdateScrollNoticeDto,
   VehicleControllerAdminListParams,
   VehicleControllerMyVehiclesParams,
   VehicleControllerSearchParams,
@@ -5942,14 +5947,15 @@ export const getScrollNoticeControllerCreateUrl = () => {
   return `/content/notices`
 }
 
-export const scrollNoticeControllerCreate = async ( options?: RequestInit): Promise<scrollNoticeControllerCreateResponse> => {
+export const scrollNoticeControllerCreate = async (createScrollNoticeDto: CreateScrollNoticeDto, options?: RequestInit): Promise<scrollNoticeControllerCreateResponse> => {
   
   return createHttpClient<scrollNoticeControllerCreateResponse>(getScrollNoticeControllerCreateUrl(),
   {      
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createScrollNoticeDto,)
   }
 );}
 
@@ -5978,14 +5984,16 @@ export const getScrollNoticeControllerUpdateUrl = (id: string,) => {
   return `/content/notices/${id}`
 }
 
-export const scrollNoticeControllerUpdate = async (id: string, options?: RequestInit): Promise<scrollNoticeControllerUpdateResponse> => {
+export const scrollNoticeControllerUpdate = async (id: string,
+    updateScrollNoticeDto: UpdateScrollNoticeDto, options?: RequestInit): Promise<scrollNoticeControllerUpdateResponse> => {
   
   return createHttpClient<scrollNoticeControllerUpdateResponse>(getScrollNoticeControllerUpdateUrl(id),
   {      
     ...options,
-    method: 'PUT'
-    
-    
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateScrollNoticeDto,)
   }
 );}
 
@@ -6294,14 +6302,15 @@ export const getAdBannerControllerCreateUrl = () => {
   return `/content/banners`
 }
 
-export const adBannerControllerCreate = async ( options?: RequestInit): Promise<adBannerControllerCreateResponse> => {
+export const adBannerControllerCreate = async (createBannerDto: CreateBannerDto, options?: RequestInit): Promise<adBannerControllerCreateResponse> => {
   
   return createHttpClient<adBannerControllerCreateResponse>(getAdBannerControllerCreateUrl(),
   {      
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createBannerDto,)
   }
 );}
 
@@ -6330,14 +6339,16 @@ export const getAdBannerControllerUpdateUrl = (id: string,) => {
   return `/content/banners/${id}`
 }
 
-export const adBannerControllerUpdate = async (id: string, options?: RequestInit): Promise<adBannerControllerUpdateResponse> => {
+export const adBannerControllerUpdate = async (id: string,
+    updateBannerDto: UpdateBannerDto, options?: RequestInit): Promise<adBannerControllerUpdateResponse> => {
   
   return createHttpClient<adBannerControllerUpdateResponse>(getAdBannerControllerUpdateUrl(id),
   {      
     ...options,
-    method: 'PUT'
-    
-    
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateBannerDto,)
   }
 );}
 
@@ -6402,14 +6413,16 @@ export const getAdBannerControllerSetEnableUrl = (id: string,) => {
   return `/content/banners/${id}/enable`
 }
 
-export const adBannerControllerSetEnable = async (id: string, options?: RequestInit): Promise<adBannerControllerSetEnableResponse> => {
+export const adBannerControllerSetEnable = async (id: string,
+    setBannerEnableDto: SetBannerEnableDto, options?: RequestInit): Promise<adBannerControllerSetEnableResponse> => {
   
   return createHttpClient<adBannerControllerSetEnableResponse>(getAdBannerControllerSetEnableUrl(id),
   {      
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setBannerEnableDto,)
   }
 );}
 

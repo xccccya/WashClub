@@ -71,7 +71,8 @@ function displayPlate(v: Vehicle){
 async function fetchList(){
 	loading.value = true;
 	try {
-		list.value = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any;
+		// token 由 http client 自动从 uni storage 注入到 Authorization
+		list.value = await vehicleControllerMyVehicles({} as any) as any;
 	} catch (e:any) {
 		list.value = [];
 		uni.showToast({ title: String(e?.message || '车辆列表加载失败').slice(0, 30), icon: 'none' });

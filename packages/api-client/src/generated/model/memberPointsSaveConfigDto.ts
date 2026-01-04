@@ -7,8 +7,13 @@
  */
 
 export interface MemberPointsSaveConfigDto {
-  /** 每 1 分(分)获取积分（整数） */
-  pointsPerFen: number;
+  /** 每 1 元获取积分（整数） */
+  pointsPerYuan: number;
+  /**
+   * 【兼容】每 1 分(分)获取积分（整数，旧字段）
+   * @deprecated
+   */
+  pointsPerFen?: number;
   /** 每 1 积分可抵扣金额（分） */
   pointsFenPerPoint: number;
   /** 单笔订单最多抵扣金额（分），0 表示不限 */

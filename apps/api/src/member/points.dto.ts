@@ -3,11 +3,20 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class MemberPointsSaveConfigDto {
-	@ApiProperty({ description: '每 1 分(分)获取积分（整数）', example: 1 })
+	@ApiProperty({ description: '每 1 元获取积分（整数）', example: 10 })
 	@Type(() => Number)
 	@IsInt()
 	@Min(0)
-	pointsPerFen!: number;
+	pointsPerYuan!: number;
+
+	// 兼容旧字段：历史上用 pointsPerFen（每 1 分获取积分）
+	// 仍允许客户端提交，但后端会忽略该字段（或仅作为 pointsPerYuan 的兜底来源）。
+	@ApiPropertyOptional({ description: '【兼容】每 1 分获取积分（整数，旧字段）', example: 1, nullable: true })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(0)
+	pointsPerFen?: number | null;
 
 	@ApiProperty({ description: '每 1 积分可抵扣金额（分）', example: 50 })
 	@Type(() => Number)

@@ -1,24 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { AssetService } from '../file/asset.service.js';
-
-export interface CreateBannerDto {
-    title?: string | null;
-    imageUrl: string;
-    enabled?: boolean;
-    jumpEnabled?: boolean;
-    linkPath?: string | null;
-    weight?: number;
-}
-
-export interface UpdateBannerDto {
-    title?: string | null;
-    imageUrl?: string;
-    enabled?: boolean;
-    jumpEnabled?: boolean;
-    linkPath?: string | null;
-    weight?: number;
-}
+import type { CreateBannerDto, UpdateBannerDto } from './ad-banner.dto.js';
 
 @Injectable()
 export class AdBannerService {
@@ -34,9 +17,13 @@ export class AdBannerService {
     }
 
     async create(data: CreateBannerDto) {
+        // 双保险：即使 DTO 校验被绕过（例如内部脚本/非 Nest 路径），也不要让 Prisma 抛 500
+        if (!data?.imageUrl || !String(data.imageUrl).trim()) {
+            throw new BadRequestException('imageUrl 必填（请上传横幅图片）');
+        }
         const created = await this.prisma.adBanner.create({ data: {
             title: data.title ?? null,
-            imageUrl: data.imageUrl,
+            imageUrl: String(data.imageUrl).trim(),
             enabled: !!data.enabled,
             jumpEnabled: !!data.jumpEnabled,
             linkPath: data.linkPath ?? null,

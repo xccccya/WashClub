@@ -247,9 +247,16 @@ export class OrderRewardsService {
             // 幂等保护：若该订单已产生过 PAY 类型的积分入账，则不重复入账
             const exists: any[] = await (this.prisma as any).memberPointsLog.findMany({ where: { orderId: order.id, source: 'PAY' }, take: 1 });
             if (!exists || exists.length === 0) {
-                const pointsPerFen = Math.max(0, Math.floor(Number(ss?.pointsPerFen ?? 1)));
-                const amountFen = Math.max(0, Math.floor(amountYuan * 100)); // 转换为分
-                let basePoints = Math.max(0, Math.floor(amountFen * pointsPerFen));
+                // 新口径：每 1 元获得 pointsPerYuan；按整元累计（口径B）
+                // 兜底：若 pointsPerYuan 未配置，则回退到 pointsPerFen * 100（避免线上因配置缺失导致 0 分入账）
+                let pointsPerYuan = Math.max(0, Math.floor(Number(ss?.pointsPerYuan ?? 0)));
+                if (pointsPerYuan <= 0) {
+                    const pointsPerFen = Math.max(0, Math.floor(Number(ss?.pointsPerFen ?? 0)));
+                    pointsPerYuan = pointsPerFen > 0 ? pointsPerFen * 100 : 0;
+                }
+                // 只按整元：例如 1.99 元按 1 元计算；避免浮点误差加一个极小值
+                const wholeYuan = Math.max(0, Math.floor(Number(amountYuan) + 1e-9));
+                let basePoints = Math.max(0, Math.floor(wholeYuan * pointsPerYuan));
                 let multiplier = 1;
                 try {
                     const m: any = await this.prisma.member.findUnique({ where: { id: order.memberId }, select: { id: true, level: { select: { pointsMultiplier: true } } } });

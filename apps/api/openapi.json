@@ -4279,6 +4279,16 @@
       "post": {
         "operationId": "ScrollNoticeController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScrollNoticeDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -4303,6 +4313,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScrollNoticeDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -4473,6 +4493,16 @@
       "post": {
         "operationId": "AdBannerController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBannerDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -4497,6 +4527,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBannerDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -4543,6 +4583,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBannerEnableDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -9853,6 +9903,142 @@
           "wxLang": {
             "type": "object",
             "description": "WXAPP 通道：lang"
+          }
+        }
+      },
+      "CreateScrollNoticeDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "通知类型",
+            "enum": [
+              "home",
+              "store"
+            ],
+            "example": "home"
+          },
+          "content": {
+            "type": "string",
+            "description": "通知内容",
+            "example": "欢迎回到巨科汽车美容～"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否立即启用",
+            "default": false,
+            "example": false
+          }
+        },
+        "required": [
+          "type",
+          "content"
+        ]
+      },
+      "UpdateScrollNoticeDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "通知内容",
+            "example": "今日特惠：洗车立减 10 元"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用",
+            "example": true
+          }
+        }
+      },
+      "CreateBannerDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "object",
+            "description": "可选标题",
+            "nullable": true,
+            "example": "春节活动"
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "图片 URL（/uploads/...）",
+            "example": "/uploads/admin/2026/01/xxx.jpg"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用",
+            "default": false,
+            "example": false
+          },
+          "jumpEnabled": {
+            "type": "boolean",
+            "description": "是否开启跳转",
+            "default": false,
+            "example": false
+          },
+          "linkPath": {
+            "type": "object",
+            "description": "跳转路径（小程序页面路径）",
+            "nullable": true,
+            "example": "/pages/washcard/index"
+          },
+          "weight": {
+            "type": "number",
+            "description": "排序权重（越大越靠前）",
+            "default": 0,
+            "example": 10,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "imageUrl"
+        ]
+      },
+      "UpdateBannerDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "object",
+            "description": "可选标题",
+            "nullable": true,
+            "example": "春节活动"
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "图片 URL（/uploads/...）",
+            "example": "/uploads/admin/2026/01/xxx.jpg"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用",
+            "example": true
+          },
+          "jumpEnabled": {
+            "type": "boolean",
+            "description": "是否开启跳转",
+            "example": true
+          },
+          "linkPath": {
+            "type": "object",
+            "description": "跳转路径（小程序页面路径）",
+            "nullable": true,
+            "example": "/pages/washcard/index"
+          },
+          "weight": {
+            "type": "number",
+            "description": "排序权重（越大越靠前）",
+            "example": 10,
+            "minimum": 0
+          }
+        }
+      },
+      "SetBannerEnableDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用（不传则视为 true，兼容旧行为）",
+            "example": true
           }
         }
       },

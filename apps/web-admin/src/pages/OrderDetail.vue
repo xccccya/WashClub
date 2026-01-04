@@ -1,117 +1,333 @@
 <template>
-	<div>
-		<el-button @click="$router.back()" style="margin-bottom:12px;">返回</el-button>
-		<el-button v-if="canWriteoff() && data?.id" type="danger" @click="writeoffThis">作废/红冲</el-button>
-		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<el-descriptions :column="2" border>
-			<el-descriptions-item label="订单号">{{ data?.no }}</el-descriptions-item>
-			<el-descriptions-item label="类型">{{ displayType(data?.type) }}</el-descriptions-item>
-			<el-descriptions-item label="状态">{{ statusLabel(data?.status) }}</el-descriptions-item>
-			<el-descriptions-item label="支付状态">
-				<span>{{ displayPayStatus(data?.payStatus) }}</span>
-				<el-tag v-if="data?.payStatus==='UNPAID' && remainSeconds(data)>0" type="warning" effect="light" style="margin-left:6px;">倒计时 {{ formatRemain(remainSeconds(data)) }}</el-tag>
-			</el-descriptions-item>
-			<el-descriptions-item label="提醒" v-if="data?.remark && String(data?.remark).includes('系统超时取消')">
-				<span style="color:#b91c1c;">超过15分钟未支付，系统已自动取消</span>
-			</el-descriptions-item>
-			<el-descriptions-item label="支付方式">{{ displayPayMethod(data?.payMethod) }}</el-descriptions-item>
-			<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
-			<el-descriptions-item label="订单总额">{{ data?.totalAmount }}</el-descriptions-item>
-			<el-descriptions-item label="减免金额">{{ data?.discountAmount }}</el-descriptions-item>
-			<el-descriptions-item label="收银立减" v-if="Number((data as any)?.cashierDiscountAmount||0)>0">{{ (data as any)?.cashierDiscountAmount }}</el-descriptions-item>
-			<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">{{ (data as any)?.washCardDeductAmount }}</el-descriptions-item>
-			<el-descriptions-item label="会员折扣减免" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
-			<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>
-			<el-descriptions-item label="支付金额">{{ data?.payAmount }}</el-descriptions-item>
-			<el-descriptions-item label="下单时间">{{ formatDate(data?.createdAt) }}</el-descriptions-item>
-			<el-descriptions-item label="支付时间">{{ formatDate(data?.paidAt) }}</el-descriptions-item>
-			<el-descriptions-item label="会员">{{ data?.member?.name }}（UID: {{ data?.member?.uid }} / {{ data?.member?.phone }}）</el-descriptions-item>
-			<el-descriptions-item v-if="data?.isProxyOrder" label="代客下单">
-				<span>由 {{ data?.proxyAdminSnapshot?.name || data?.proxyAdminUser?.name || '-' }}（{{ data?.proxyAdminSnapshot?.phone || data?.proxyAdminUser?.phone || '-' }}）创建</span>
-			</el-descriptions-item>
-			<el-descriptions-item label="用户备注">{{ (data as any)?.userRemark || '-' }}</el-descriptions-item>
-			<el-descriptions-item label="付款说明">{{ (data as any)?.paymentNote || '-' }}</el-descriptions-item>
-			<el-descriptions-item label="系统备注">{{ data?.remark || '-' }}</el-descriptions-item>
-			<el-descriptions-item label="收货地址" v-if="data?.shippingAddressSnapshot">
-				{{ addrDisplay(data?.shippingAddressSnapshot) }}
-			</el-descriptions-item>
-			<el-descriptions-item label="车辆" v-if="data?.type==='SERVICE'">{{ data?.vehicle?.plateNumber || '-' }}</el-descriptions-item>
-		</el-descriptions>
-		<el-card v-if="(data as any)?.afterSalesRequests?.length" class="box-card" style="margin-top:12px;">
-			<template #header>
-				<div class="card-header"><span>售后/退款</span></div>
-			</template>
-			<el-timeline>
-				<el-timeline-item v-for="it in (data as any).afterSalesRequests" :key="it.id" :timestamp="formatDate(it.createdAt)">
-					类型：{{ zhAftersalesType(it.type) }} / 状态：{{ zhAftersalesStatus(it.status) }}
-				</el-timeline-item>
-			</el-timeline>
-			<div v-if="!((data as any).afterSalesRequests||[]).some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')" style="color:#909399; margin-top:8px;">无进行中售后</div>
-		</el-card>
-
-
-
-		<el-card v-if="(data as any)?.timelines?.length" class="box-card" style="margin-top:12px;">
-			<template #header>
-				<div class="card-header"><span>订单流转</span></div>
-			</template>
-			<el-timeline>
-				<el-timeline-item v-for="it in (data as any).timelines" :key="it.id" :timestamp="formatDate(it.createdAt)">
-					{{ zhEvent(it.event) }}：{{ zhTimelineValue(it.event, it.value, data) }}<span v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</span>
-				</el-timeline-item>
-			</el-timeline>
-		</el-card>
-
-
-
-
-
-		<el-card v-if="(data as any)?.refundRecords?.length" class="box-card" style="margin-top:12px;">
-			<template #header>
-				<div class="card-header" style="display:flex;align-items:center;gap:12px;">
-					<span>退款记录</span>
-					<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowRetryRefund" size="small" type="primary" @click="openRetryRefund">重试渠道退款</el-button>
-					<el-button v-if="(data?.payMethod==='WECHAT_JSAPI' || data?.payMethod==='WECHAT_MICROPAY') && canShowPartialRefund" size="small" @click="openPartialRefund">部分退款</el-button>
+	<div class="order-detail">
+		<div class="order-detail__toolbar">
+			<div class="order-detail__toolbar-left">
+				<el-button class="back-btn" link :icon="getIcon('ArrowLeft')" @click="$router.back()">返回</el-button>
+				<div class="order-detail__toolbar-meta">
+					<div class="order-detail__no">订单号：{{ data?.no || '-' }}</div>
+					<div class="order-detail__status">
+						<el-tag v-if="data?.status" class="status-pill status-pill--order" size="small" effect="light" round :type="orderStatusTagType(data?.status)">
+							<span class="status-pill__k">订单</span><span class="status-pill__v">{{ statusLabel(data?.status) }}</span>
+						</el-tag>
+						<el-tag v-if="data?.payStatus" class="status-pill status-pill--pay" size="small" effect="light" round :type="payStatusTagType(data?.payStatus)">
+							<span class="status-pill__k">支付</span><span class="status-pill__v">{{ displayPayStatus(data?.payStatus) }}</span>
+						</el-tag>
+					</div>
 				</div>
-			</template>
-			<el-table :data="(data as any).refundRecords" size="small" border>
-				<el-table-column prop="id" label="ID" width="80" />
-				<el-table-column prop="amount" label="金额" width="120" />
-				<el-table-column prop="method" label="方式" width="140">
-					<template #default="{ row }">{{ zhRefundMethod(row.method) }}</template>
-				</el-table-column>
-				<el-table-column prop="status" label="状态" width="140">
-					<template #default="{ row }">{{ zhRefundStatus(row.status) }}</template>
-				</el-table-column>
-				<el-table-column prop="outRefundNo" label="商户退款单号" />
-				<el-table-column prop="wechatRefundId" label="微信退款单号" />
-				<el-table-column prop="failedReason" label="失败原因" />
-				<el-table-column label="操作" width="160">
-					<template #default="{ row }">
-						<el-button v-if="canQueryRefund(row)" size="small" @click="queryRefund(row)">查询结果</el-button>
-					</template>
-				</el-table-column>
-			</el-table>
-		</el-card>
+			</div>
+			<div class="order-detail__toolbar-right">
+				<el-button v-if="canWriteoff() && data?.id" type="danger" @click="writeoffThis">作废/红冲</el-button>
+			</div>
+		</div>
 
-		<el-card v-if="(data as any)?.couponRestoreLogs?.length" class="box-card" style="margin-top:12px;">
-			<template #header>
-				<div class="card-header"><span>优惠券恢复记录</span></div>
-			</template>
-			<el-table :data="(data as any).couponRestoreLogs" size="small" border>
-				<el-table-column prop="id" label="ID" width="80" />
-				<el-table-column prop="createdAt" label="时间" width="180">
-					<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-				</el-table-column>
-				<el-table-column prop="remark" label="备注" />
-			</el-table>
-		</el-card>
+		<div class="order-detail__sections">
+			<el-card class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--base">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('Document')" /></el-icon>
+							<span>基础信息</span>
+						</div>
+						<div class="section-header__actions">
+							<el-tag v-if="data?.type" size="small" effect="plain">{{ displayType(data?.type) }}</el-tag>
+							<el-tag v-if="data?.payMethod" size="small" effect="plain" type="info">{{ displayPayMethod(data?.payMethod) }}</el-tag>
+						</div>
+					</div>
+				</template>
+				<div class="base-stats">
+					<div class="stat">
+						<div class="stat__label">支付金额</div>
+						<div class="stat__value stat__value--primary">¥{{ fmtMoney(data?.payAmount) }}</div>
+					</div>
+					<div class="stat">
+						<div class="stat__label">订单总额</div>
+						<div class="stat__value">¥{{ fmtMoney(data?.totalAmount) }}</div>
+					</div>
+					<div class="stat">
+						<div class="stat__label">减免金额</div>
+						<div class="stat__value stat__value--success">-¥{{ fmtMoney(data?.discountAmount) }}</div>
+					</div>
+					<div class="stat stat--right">
+						<div class="stat__label">下单时间</div>
+						<div class="stat__value stat__value--muted">{{ formatDate(data?.createdAt) }}</div>
+					</div>
+				</div>
+				<el-descriptions :column="2" border size="small" class="section-desc">
+					<el-descriptions-item label="订单号">{{ data?.no || '-' }}</el-descriptions-item>
+					<el-descriptions-item label="类型">{{ displayType(data?.type) }}</el-descriptions-item>
+					<el-descriptions-item label="状态">{{ statusLabel(data?.status) }}</el-descriptions-item>
+					<el-descriptions-item label="支付状态">
+						<span>{{ displayPayStatus(data?.payStatus) }}</span>
+						<el-tag v-if="data?.payStatus==='UNPAID' && remainSeconds(data)>0" type="warning" effect="light" style="margin-left:6px;">
+							倒计时 {{ formatRemain(remainSeconds(data)) }}
+						</el-tag>
+					</el-descriptions-item>
+					<el-descriptions-item label="提醒" v-if="data?.remark && String(data?.remark).includes('系统超时取消')">
+						<span class="text-danger">超过15分钟未支付，系统已自动取消</span>
+					</el-descriptions-item>
+					<el-descriptions-item label="支付方式">{{ displayPayMethod(data?.payMethod) }}</el-descriptions-item>
+					<el-descriptions-item label="微信交易单号" v-if="data?.wechatTransactionId">{{ data?.wechatTransactionId }}</el-descriptions-item>
+					<el-descriptions-item label="收银立减" v-if="Number((data as any)?.cashierDiscountAmount||0)>0">{{ (data as any)?.cashierDiscountAmount }}</el-descriptions-item>
+					<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">{{ (data as any)?.washCardDeductAmount }}</el-descriptions-item>
+					<el-descriptions-item label="会员折扣减免" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
+					<el-descriptions-item label="配送费">{{ data?.shippingFee }}</el-descriptions-item>
+					<el-descriptions-item label="支付时间">{{ formatDate(data?.paidAt) }}</el-descriptions-item>
+					<el-descriptions-item label="会员">{{ data?.member?.name }}（UID: {{ data?.member?.uid }} / {{ data?.member?.phone }}）</el-descriptions-item>
+					<el-descriptions-item v-if="data?.isProxyOrder" label="代客下单">
+						<span>由 {{ data?.proxyAdminSnapshot?.name || data?.proxyAdminUser?.name || '-' }}（{{ data?.proxyAdminSnapshot?.phone || data?.proxyAdminUser?.phone || '-' }}）创建</span>
+					</el-descriptions-item>
+					<el-descriptions-item label="用户备注">{{ (data as any)?.userRemark || '-' }}</el-descriptions-item>
+					<el-descriptions-item label="付款说明">{{ (data as any)?.paymentNote || '-' }}</el-descriptions-item>
+					<el-descriptions-item label="系统备注">{{ data?.remark || '-' }}</el-descriptions-item>
+					<el-descriptions-item label="收货地址" v-if="data?.shippingAddressSnapshot">
+						{{ addrDisplay(data?.shippingAddressSnapshot) }}
+					</el-descriptions-item>
+					<el-descriptions-item label="车辆" v-if="data?.type==='SERVICE'">{{ data?.vehicle?.plateNumber || '-' }}</el-descriptions-item>
+				</el-descriptions>
+			</el-card>
+
+			<el-card v-if="(data as any)?.afterSalesRequests?.length" class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--aftersales">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('ChatDotRound')" /></el-icon>
+							<span>售后/退款</span>
+						</div>
+					</div>
+				</template>
+				<el-timeline class="section-timeline">
+					<el-timeline-item v-for="it in (data as any).afterSalesRequests" :key="it.id" :timestamp="formatDate(it.createdAt)">
+						类型：{{ zhAftersalesType(it.type) }} / 状态：{{ zhAftersalesStatus(it.status) }}
+					</el-timeline-item>
+				</el-timeline>
+				<div v-if="!((data as any).afterSalesRequests||[]).some((x:any)=>x.status==='PENDING'||x.status==='APPROVED')" class="text-muted" style="margin-top:8px;">
+					无进行中售后
+				</div>
+			</el-card>
+
+			<el-card v-if="(data as any)?.timelines?.length" class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--timeline">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('List')" /></el-icon>
+							<span>订单流转</span>
+						</div>
+					</div>
+				</template>
+				<el-timeline class="section-timeline">
+					<el-timeline-item v-for="it in (data as any).timelines" :key="it.id" :timestamp="formatDate(it.createdAt)">
+						{{ zhEvent(it.event) }}：{{ zhTimelineValue(it.event, it.value, data) }}<span v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</span>
+					</el-timeline-item>
+				</el-timeline>
+			</el-card>
+
+			<el-card v-if="(data as any)?.refundRecords?.length" class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--refund">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('Money')" /></el-icon>
+							<span>退款记录</span>
+						</div>
+						<div class="section-header__actions">
+							<el-button v-if="data?.payMethod==='WECHAT_JSAPI' && canShowRetryRefund" size="small" type="primary" @click="openRetryRefund">重试渠道退款</el-button>
+							<el-button v-if="(data?.payMethod==='WECHAT_JSAPI' || data?.payMethod==='WECHAT_MICROPAY') && canShowPartialRefund" size="small" @click="openPartialRefund">部分退款</el-button>
+						</div>
+					</div>
+				</template>
+				<el-table :data="(data as any).refundRecords" size="small" border stripe class="section-table">
+					<el-table-column prop="id" label="ID" width="80" />
+					<el-table-column prop="amount" label="金额" width="120" />
+					<el-table-column prop="method" label="方式" width="140">
+						<template #default="{ row }">{{ zhRefundMethod(row.method) }}</template>
+					</el-table-column>
+					<el-table-column prop="status" label="状态" width="140">
+						<template #default="{ row }">{{ zhRefundStatus(row.status) }}</template>
+					</el-table-column>
+					<el-table-column prop="outRefundNo" label="商户退款单号" min-width="220" />
+					<el-table-column prop="wechatRefundId" label="微信退款单号" min-width="220" />
+					<el-table-column prop="failedReason" label="失败原因" min-width="180" />
+					<el-table-column label="操作" width="120" fixed="right">
+						<template #default="{ row }">
+							<el-button v-if="canQueryRefund(row)" size="small" @click="queryRefund(row)">查询</el-button>
+						</template>
+					</el-table-column>
+				</el-table>
+			</el-card>
+
+			<el-card v-if="(data as any)?.couponRestoreLogs?.length" class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--coupon">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('Tickets')" /></el-icon>
+							<span>优惠券恢复记录</span>
+						</div>
+					</div>
+				</template>
+				<el-table :data="(data as any).couponRestoreLogs" size="small" border stripe class="section-table">
+					<el-table-column prop="id" label="ID" width="80" />
+					<el-table-column prop="createdAt" label="时间" width="180">
+						<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+					</el-table-column>
+					<el-table-column prop="remark" label="备注" min-width="240" />
+				</el-table>
+			</el-card>
+
+			<el-card class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--items">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('ShoppingCart')" /></el-icon>
+							<span>订单项</span>
+						</div>
+					</div>
+				</template>
+				<el-table :data="data?.items||[]" border stripe size="small" class="section-table">
+					<el-table-column label="图片" width="80">
+						<template #default="{ row }">
+							<img v-if="row.imageUrl" :src="absUrl(row.imageUrl)" class="item-img" />
+							<span v-else class="text-muted">-</span>
+						</template>
+					</el-table-column>
+					<el-table-column prop="name" label="名称" min-width="160" />
+					<el-table-column prop="specsText" label="规格" min-width="200" />
+					<el-table-column prop="barcode" label="条码" width="160" />
+					<el-table-column prop="price" label="单价" width="120" />
+					<el-table-column prop="discount" label="优惠" width="120" />
+					<el-table-column prop="quantity" label="数量" width="80" />
+				</el-table>
+			</el-card>
+
+			<el-card v-if="data?.type==='SP' || exchangeShipments.length" class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--logistics">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('Van')" /></el-icon>
+							<span>物流信息</span>
+						</div>
+					</div>
+				</template>
+
+				<div v-if="data?.type==='SP'" class="logistics-box">
+					<div v-if="data?.shipNoExpress" class="text-muted">商家已选择无需快递发货</div>
+					<div v-else-if="data?.shipExpressTrackingNo" class="logistics-row">
+						<img v-if="data?.shipExpressCompanyLogo" :src="data?.shipExpressCompanyLogo" class="logistics-logo" />
+						<div class="logistics-main">
+							<div class="logistics-line">快递公司：{{ data?.shipExpressCompanyName || data?.shipExpressCompanyCode || '-' }}</div>
+							<div class="logistics-line">运单号：{{ data?.shipExpressTrackingNo }}</div>
+							<div class="logistics-line" v-if="data?.shippedAt">发货时间：{{ formatDate(data?.shippedAt) }}</div>
+							<div v-if="(data?.shipExpressExtra||{}).editedOnce" class="text-muted" style="margin-top:4px;">
+								提示：该订单的物流单号已在{{ formatDate((data?.shipExpressExtra||{}).editAt) }}进行过一次修改（原单号：{{ (data?.shipExpressExtra||{}).prevTrackingNo||'-' }}）
+							</div>
+						</div>
+						<el-button size="small" type="primary" @click="openTrace">查询物流</el-button>
+					</div>
+					<div v-else class="text-muted">暂无物流信息</div>
+				</div>
+
+				<div v-if="exchangeShipments.length" class="logistics-box" style="margin-top:12px;">
+					<div class="logistics-subtitle">换货物流</div>
+					<div class="exchange-list">
+						<div v-for="(ex,idx) in exchangeShipments" :key="idx" class="exchange-item">
+							<div v-if="ex.noExpress" class="text-muted">无需快递发货</div>
+							<div v-else class="logistics-row" style="gap:10px;">
+								<div class="logistics-main">
+									<div class="logistics-line">快递公司：{{ ex.companyName || ex.companyCode || '-' }}</div>
+									<div class="logistics-line">运单号：{{ ex.trackingNo || '-' }}</div>
+									<div class="logistics-line" v-if="ex.createdAt">发货时间：{{ formatDate(ex.createdAt) }}</div>
+								</div>
+								<el-button v-if="canQueryExchangeTrace(ex)" size="small" type="primary" @click="openExchangeTrace(ex)">查询物流</el-button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</el-card>
+
+			<el-card class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--benefits">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('Present')" /></el-icon>
+							<span>权益与卡券</span>
+						</div>
+					</div>
+				</template>
+				<el-descriptions :column="2" border size="small" class="section-desc">
+					<el-descriptions-item label="使用积分">{{ data?.usedPoints }}</el-descriptions-item>
+					<el-descriptions-item label="积分抵扣金额">{{ data?.pointsAmount }}</el-descriptions-item>
+					<el-descriptions-item label="会员折扣金额" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
+					<el-descriptions-item label="卡券信息">
+						<template v-if="Array.isArray(couponFlows) && couponFlows.length">
+							<div class="coupon-list">
+								<div v-for="flow in couponFlows" :key="flow.id" class="coupon-item">
+									<div class="coupon-left">
+										<div class="coupon-name">{{ flow.snapshot?.couponName || flow.memberCoupon?.name || flow.coupon?.name || flow.snapshot?.memberCouponName || '优惠券' }}</div>
+										<div class="coupon-meta">
+											<span>会员券ID：{{ flow.memberCouponId || flow.snapshot?.memberCouponId || flow.memberCoupon?.id || '-' }}</span>
+											<span v-if="flow.snapshot?.discountApplied != null">减免：¥{{ Number(flow.snapshot.discountApplied).toFixed(2) }}</span>
+										</div>
+									</div>
+									<div class="coupon-right">
+										<el-tag size="small" :type="flowTagType(flow.action)">{{ flowActionText(flow.action) }}</el-tag>
+									</div>
+								</div>
+								<div class="coupon-summary" v-if="couponDiscountSum != null">合计优惠：¥{{ couponDiscountSum.toFixed(2) }}</div>
+							</div>
+						</template>
+						<template v-else>
+							{{ formatCoupon(data?.couponInfo) }}
+							<span v-if="data?.couponInfo?.discountApplied != null" style="margin-left:8px;color:#67C23A;">(减免¥{{ Number(data?.couponInfo?.discountApplied||0).toFixed(2) }})</span>
+						</template>
+					</el-descriptions-item>
+					<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">
+						<span>已用洗车卡抵扣：¥{{ Number((data as any)?.washCardDeductAmount||0).toFixed(2) }}</span>
+					</el-descriptions-item>
+				</el-descriptions>
+			</el-card>
+
+			<el-card class="section-card" shadow="never">
+				<template #header>
+					<div class="section-header section-header--points">
+						<div class="section-title">
+							<el-icon class="section-icon"><component :is="getIcon('TrendCharts')" /></el-icon>
+							<span>积分变动（本订单）</span>
+						</div>
+						<div class="section-header__actions points-chips">
+							<el-tag effect="light" type="success">支付入账 +{{ sumPay }}</el-tag>
+							<el-tag effect="light" type="warning">下单抵扣 -{{ sumUse }}</el-tag>
+							<el-tag effect="light" type="info">退款返还 +{{ sumRefundReturn }}</el-tag>
+							<el-tag effect="light" type="danger">退款扣减 -{{ sumRefundDeduct }}</el-tag>
+							<el-tag effect="dark" :type="netChange>=0?'success':'danger'">净变动 {{ netChange>=0?('+'+netChange):netChange }}</el-tag>
+						</div>
+					</div>
+				</template>
+				<div v-if="!pointsLogs.length" class="text-muted">暂无积分变动记录</div>
+				<el-table v-else :data="pointsLogs" size="small" border stripe class="section-table">
+					<el-table-column prop="createdAt" label="时间" width="180">
+						<template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+					</el-table-column>
+					<el-table-column prop="source" label="来源" width="120">
+						<template #default="{ row }">
+							<el-tag size="small" effect="light" :type="sourceTagType(row)">{{ sourceLabel(row) }}</el-tag>
+						</template>
+					</el-table-column>
+					<el-table-column prop="change" label="变动" width="120" align="right">
+						<template #default="{ row }">
+							<span class="points-change" :class="{ 'points-change--pos': Number(row.change)>=0, 'points-change--neg': Number(row.change)<0 }">
+								{{ Number(row.change)>=0 ? ('+'+Number(row.change)) : Number(row.change) }}
+							</span>
+						</template>
+					</el-table-column>
+					<el-table-column prop="desc" label="备注" min-width="220" />
+				</el-table>
+				<div class="points-card__hint">说明：仅展示与该订单关联（orderId）的一次性积分日志；退款扣减/返还会以 REFUND 记录体现。</div>
+			</el-card>
+		</div>
 
 		<el-dialog v-model="dialogPartial" title="部分退款" width="420px">
 			<el-form label-width="96px">
 				<el-form-item label="退款金额(元)">
 					<el-input v-model="partialAmountText" inputmode="decimal" :placeholder="`输入金额，最低0.01，最高¥${refundableLeft.toFixed(2)}`" />
-					<div style="margin-left:8px;color:#666;">剩余可退：¥{{ refundableLeft.toFixed(2) }}</div>
+					<div class="text-muted" style="margin-left:8px;">剩余可退：¥{{ refundableLeft.toFixed(2) }}</div>
 				</el-form-item>
 				<el-form-item label="原因"><el-input v-model="partialReason" placeholder="可选" /></el-form-item>
 			</el-form>
@@ -120,63 +336,12 @@
 				<el-button type="primary" @click="submitPartialRefund">提交</el-button>
 			</template>
 		</el-dialog>
-		<h4 style="margin-top:16px;">订单项</h4>
-		<el-table :data="data?.items||[]" border size="small" style="width: 100%">
-			<el-table-column label="图片" width="80">
-				<template #default="{ row }">
-					<img v-if="row.imageUrl" :src="absUrl(row.imageUrl)" style="width:48px;height:48px;object-fit:cover;" />
-					<span v-else>-</span>
-				</template>
-			</el-table-column>
-			<el-table-column prop="name" label="名称" />
-			<el-table-column prop="specsText" label="规格" width="200" />
-			<el-table-column prop="barcode" label="条码" width="160" />
-			<el-table-column prop="price" label="单价" width="120" />
-			<el-table-column prop="discount" label="优惠" width="120" />
-			<el-table-column prop="quantity" label="数量" width="80" />
-		</el-table>
-
-		<h4 style="margin-top:16px;">物流信息</h4>
-		<el-card v-if="data?.type==='SP'" class="box-card" shadow="hover">
-			<template #default>
-				<div v-if="data?.shipNoExpress" style="color:#606266;">商家已选择无需快递发货</div>
-				<div v-else-if="data?.shipExpressTrackingNo" style="display:flex;align-items:center;gap:12px;">
-					<img v-if="data?.shipExpressCompanyLogo" :src="data?.shipExpressCompanyLogo" style="width:28px;height:28px;object-fit:contain;" />
-					<div style="flex:1;min-width:0;">
-						<div>快递公司：{{ data?.shipExpressCompanyName || data?.shipExpressCompanyCode || '-' }}</div>
-						<div>运单号：{{ data?.shipExpressTrackingNo }}</div>
-						<div v-if="data?.shippedAt">发货时间：{{ formatDate(data?.shippedAt) }}</div>
-						<div v-if="(data?.shipExpressExtra||{}).editedOnce" style="color:#909399;">提示：该订单的物流单号已在{{ formatDate((data?.shipExpressExtra||{}).editAt) }}进行过一次修改（原单号：{{ (data?.shipExpressExtra||{}).prevTrackingNo||'-' }}）</div>
-					</div>
-					<el-button size="small" type="primary" @click="openTrace">查询物流</el-button>
-				</div>
-				<div v-else style="color:#909399;">暂无物流信息</div>
-			</template>
-		</el-card>
-
-		<!-- 换货物流信息：移动到主物流信息之后，样式与其保持一致 -->
-		<h4 v-if="exchangeShipments.length" style="margin-top:16px;">换货物流信息</h4>
-		<el-card v-if="exchangeShipments.length" class="box-card" shadow="hover">
-			<template #default>
-				<div v-for="(ex,idx) in exchangeShipments" :key="idx" :style="{ padding: '8px 0', borderBottom: idx===exchangeShipments.length-1 ? 'none' : '1px dashed #ebeef5' }">
-					<div v-if="ex.noExpress" style="color:#606266;">无需快递发货</div>
-					<div v-else style="display:flex;align-items:center;gap:12px;">
-						<div style="flex:1;min-width:0;">
-							<div>快递公司：{{ ex.companyName || ex.companyCode || '-' }}</div>
-							<div>运单号：{{ ex.trackingNo || '-' }}</div>
-							<div v-if="ex.createdAt">发货时间：{{ formatDate(ex.createdAt) }}</div>
-						</div>
-						<el-button v-if="canQueryExchangeTrace(ex)" size="small" type="primary" @click="openExchangeTrace(ex)">查询物流</el-button>
-					</div>
-				</div>
-			</template>
-		</el-card>
 
 		<el-dialog v-model="showTrace" title="物流轨迹" width="640px">
 			<el-skeleton v-if="loadingTrace" :rows="4" animated />
 			<div v-else>
-				<div style="margin-bottom:8px;">状态：{{ traceStatusDesc || '-' }}</div>
-				<el-timeline>
+				<div class="text-muted" style="margin-bottom:8px;">状态：{{ traceStatusDesc || '-' }}</div>
+				<el-timeline class="section-timeline">
 					<el-timeline-item v-for="(it,idx) in traceList" :key="idx" :timestamp="it.datetime" placement="top">
 						{{ it.remark }}
 					</el-timeline-item>
@@ -186,47 +351,14 @@
 				<el-button @click="showTrace=false">关闭</el-button>
 			</template>
 		</el-dialog>
-
-		<h4 style="margin-top:16px;">权益与卡券</h4>
-		<el-descriptions :column="2" border>
-			<el-descriptions-item label="使用积分">{{ data?.usedPoints }}</el-descriptions-item>
-			<el-descriptions-item label="积分抵扣金额">{{ data?.pointsAmount }}</el-descriptions-item>
-			<el-descriptions-item label="会员折扣金额" v-if="Number((data as any)?.memberDiscountAmount||0)>0">{{ (data as any)?.memberDiscountAmount }}</el-descriptions-item>
-			<el-descriptions-item label="卡券信息">
-				<template v-if="Array.isArray(couponFlows) && couponFlows.length">
-					<div class="coupon-list">
-						<div v-for="flow in couponFlows" :key="flow.id" class="coupon-item">
-							<div class="coupon-left">
-								<div class="coupon-name">{{ flow.snapshot?.couponName || flow.memberCoupon?.name || flow.coupon?.name || flow.snapshot?.memberCouponName || '优惠券' }}</div>
-								<div class="coupon-meta">
-									<span>会员券ID：{{ flow.memberCouponId || flow.snapshot?.memberCouponId || flow.memberCoupon?.id || '-' }}</span>
-									<span v-if="flow.snapshot?.discountApplied != null">减免：¥{{ Number(flow.snapshot.discountApplied).toFixed(2) }}</span>
-								</div>
-							</div>
-							<div class="coupon-right">
-								<el-tag size="small" :type="flowTagType(flow.action)">{{ flowActionText(flow.action) }}</el-tag>
-							</div>
-						</div>
-						<div class="coupon-summary" v-if="couponDiscountSum != null">合计优惠：¥{{ couponDiscountSum.toFixed(2) }}</div>
-					</div>
-				</template>
-				<template v-else>
-					{{ formatCoupon(data?.couponInfo) }}
-					<span v-if="data?.couponInfo?.discountApplied != null" style="margin-left:8px;color:#67C23A;">(减免¥{{ Number(data?.couponInfo?.discountApplied||0).toFixed(2) }})</span>
-				</template>
-			</el-descriptions-item>
-			<el-descriptions-item label="洗车卡抵扣" v-if="Number((data as any)?.washCardDeductAmount||0)>0">
-				<span>已用洗车卡抵扣：¥{{ Number((data as any)?.washCardDeductAmount||0).toFixed(2) }}</span>
-			</el-descriptions-item>
-		</el-descriptions>
 	</div>
 </template>
 
 <script setup lang="ts">
-function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='PAID') return '已支付'; if(v==='FULFILLED') return '已履约'; if(v==='CLOSED') return '已完成'; if(v==='CANCELLED') return '已取消'; return v || '-'; }
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { absUrl } from '../utils/http';
+import * as EpIcons from '@element-plus/icons-vue';
 import {
 	orderControllerGet,
 	orderControllerGetByNo,
@@ -246,6 +378,34 @@ const showTrace = ref(false);
 const traceList = ref<Array<{ datetime:string; remark:string }>>([]);
 const traceStatusDesc = ref<string>('');
 const loadingTrace = ref(false);
+function getIcon(name: string){
+	return (EpIcons as any)[name] || (EpIcons as any).Document;
+}
+function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='PAID') return '已支付'; if(v==='FULFILLED') return '已履约'; if(v==='CLOSED') return '已完成'; if(v==='CANCELLED') return '已取消'; return v || '-'; }
+function orderStatusTagType(v?: string){
+	const s = String(v || '').toUpperCase();
+	if (s === 'PAID' || s === 'FULFILLED' || s === 'CLOSED') return 'success';
+	if (s === 'CREATED') return 'warning';
+	if (s === 'CANCELLED') return 'info';
+	return 'info';
+}
+function payStatusTagType(v?: string){
+	const s = String(v || '').toUpperCase();
+	if (s === 'PAID') return 'success';
+	if (s === 'UNPAID') return 'warning';
+	if (s === 'REFUNDED' || s === 'PARTIAL_REFUND') return 'info';
+	if (s === 'CANCELLED') return 'info';
+	return 'info';
+}
+function fmtMoney(v: any){
+	try{
+		const n = Number(v ?? 0);
+		if (!Number.isFinite(n)) return '0.00';
+		return n.toFixed(2);
+	}catch{
+		return '0.00';
+	}
+}
 async function fetchDetail(){
     const idParam = route.params.id as string | undefined;
     const noParam = route.params.no as string | undefined;
@@ -267,6 +427,49 @@ async function fetchDetail(){
 }
 onMounted(fetchDetail);
 
+// =========================
+// 本订单积分日志（仅后台返回）
+// =========================
+type PointsLogRow = { id: number; createdAt: string; change: number; source: string; desc?: string | null };
+const pointsLogs = computed<PointsLogRow[]>(() => {
+	try {
+		const rows: any[] = Array.isArray((data.value as any)?.pointsLogs) ? (data.value as any).pointsLogs : [];
+		return rows
+			.map((r) => ({
+				id: Number((r as any)?.id || 0),
+				createdAt: String((r as any)?.createdAt || ''),
+				change: Number((r as any)?.change || 0),
+				source: String((r as any)?.source || ''),
+				desc: (r as any)?.desc ?? null,
+			}))
+			.filter((r) => r.id > 0)
+			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+	} catch {
+		return [];
+	}
+});
+const sumPay = computed(() => pointsLogs.value.filter(r => String(r.source).toUpperCase()==='PAY').reduce((s,r)=> s + Math.max(0, Number(r.change||0)), 0));
+const sumUse = computed(() => pointsLogs.value.filter(r => String(r.source).toUpperCase()==='USE').reduce((s,r)=> s + Math.abs(Math.min(0, Number(r.change||0))), 0));
+const sumRefundReturn = computed(() => pointsLogs.value.filter(r => String(r.source).toUpperCase()==='REFUND' && Number(r.change)>0).reduce((s,r)=> s + Number(r.change||0), 0));
+const sumRefundDeduct = computed(() => pointsLogs.value.filter(r => String(r.source).toUpperCase()==='REFUND' && Number(r.change)<0).reduce((s,r)=> s + Math.abs(Number(r.change||0)), 0));
+const netChange = computed(() => pointsLogs.value.reduce((s,r)=> s + Number(r.change||0), 0));
+function sourceLabel(row: any){
+	const src = String(row?.source||'').toUpperCase();
+	if (src === 'PAY') return '支付入账';
+	if (src === 'USE') return '下单抵扣';
+	if (src === 'REFUND') return Number(row?.change||0) >= 0 ? '退款返还' : '退款扣减';
+	if (src === 'ADMIN') return '后台调整';
+	return src || '-';
+}
+function sourceTagType(row: any){
+	const src = String(row?.source||'').toUpperCase();
+	if (src === 'PAY') return 'success';
+	if (src === 'USE') return 'warning';
+	if (src === 'REFUND') return Number(row?.change||0) >= 0 ? 'info' : 'danger';
+	if (src === 'ADMIN') return 'info';
+	return undefined as any;
+}
+
 function remainSeconds(row:any): number { try{ const exp:any = row?.paymentExpireAt || null; if(!exp) return 0; const t = new Date(exp).getTime(); return Math.max(0, Math.floor((t - Date.now())/1000)); }catch{ return 0; } }
 function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
@@ -276,7 +479,11 @@ async function openRetryRefund(){
     if (!rec) return;
     try{
         await orderControllerRetryRefund(Number(rec?.id||0));
-    }catch{}
+        ElMessage.success('已提交重试，请稍后刷新状态');
+        await fetchDetail();
+    }catch(e:any){
+        ElMessage.error(String(e?.message||e||'重试失败'));
+    }
 }
 
 function canWriteoff(){ try{ const raw = localStorage.getItem('user')||'{}'; const u = JSON.parse(raw||'{}'); const perms = Array.isArray(u?.permissions)?u.permissions:[]; return perms.includes('*') || perms.includes('orders-writeoff'); }catch{ return false; } }
@@ -321,8 +528,12 @@ async function submitPartialRefund(){
     if (v > refundableLeft.value + 1e-6){ ElMessage.error('超出剩余可退金额'); return; }
     try{
         await orderControllerWechatRefund(Number(data.value?.id||0), { body: { reason: partialReason.value || '部分退款', amount: v } } as any);
-        dialogPartial.value = false; fetchDetail();
-    }catch{}
+        ElMessage.success('已提交退款请求');
+        dialogPartial.value = false;
+        fetchDetail();
+    }catch(e:any){
+        ElMessage.error(String(e?.message||e||'提交失败'));
+    }
 }
 
 async function openTrace(){
@@ -363,10 +574,6 @@ async function openExchangeTrace(ex: any){
         loadingTrace.value = false;
     }
 }
-
-// 为换货物流维护独立的查询结果，防止覆盖主物流
-const exchangeTraceMap: Record<string, { list: Array<{ datetime:string; remark:string }>; statusDesc: string }> = {} as any;
-function exchangeKey(ex:any){ return `${ex?.companyCode||''}|${ex?.trackingNo||''}`; }
 
 function formatDate(val: string | null | undefined){
 	if(!val) return '-';
@@ -606,20 +813,151 @@ const exchangeShipments = computed(() => {
         return list.slice().sort((a:any,b:any)=> new Date(b?.createdAt||0).getTime() - new Date(a?.createdAt||0).getTime());
     }catch{ return []; }
 });
-function exchangeShipmentText(ex: any){
-    try{
-        if (!ex) return '-';
-        if (ex.noExpress) return '无需快递';
-        const com = ex.companyName || ex.companyCode || '';
-        const no = ex.trackingNo || '';
-        const phones = [ex?.contact?.senderPhoneMasked, ex?.contact?.receiverPhoneMasked].filter(Boolean).join(' / ');
-        const tail = phones ? `（隐私号：${phones}）` : '';
-        return [com, no].filter(Boolean).join(' / ') + tail;
-    }catch{ return '-'; }
-}
 </script>
 
 <style scoped>
+.order-detail{ padding: 8px 8px 16px; }
+.order-detail__toolbar{
+	display:flex;
+	align-items:flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+	flex-wrap: wrap;
+}
+.order-detail__toolbar-left{
+	display:flex;
+	align-items:center;
+	gap:10px;
+	flex-wrap: wrap;
+	flex: 1 1 560px;
+	min-width: 0;
+}
+.order-detail__toolbar-right{
+	display:flex;
+	align-items:center;
+	justify-content:flex-end;
+	margin-left: auto;
+}
+.order-detail__toolbar-meta{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	flex-wrap: wrap;
+	/* 关键：不允许在同一行被挤到很窄然后内部换行，从而产生“按钮宽度的左侧留白” */
+	flex: 1 0 420px;
+	min-width: 420px;
+}
+.order-detail__status{ display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+.status-pill{ display:inline-flex; align-items:center; }
+.status-pill__k{
+	font-size: 12px;
+	font-weight: 800;
+	opacity: 0.8;
+	padding-right: 6px;
+	margin-right: 6px;
+	border-right: 1px solid rgba(0,0,0,0.10);
+}
+.status-pill__v{ font-weight: 900; letter-spacing: 0.2px; }
+.back-btn{
+	padding-left: 0;
+	font-weight: 600;
+}
+.order-detail__no{ font-weight: 700; color:#303133; }
+.order-detail__sections{
+	display:flex;
+	flex-direction: column;
+	gap: 12px;
+	width:100%;
+	min-width: 0;
+}
+
+.section-card{ border-radius: 10px; }
+.section-header{
+	position: relative;
+	display:flex;
+	align-items:center;
+	justify-content: space-between;
+	gap:12px;
+	--bar-gradient: linear-gradient(180deg, #94a3b8, #64748b);
+	--icon-color: #3b82f6;
+}
+.section-header::before{
+	content:'';
+	position:absolute;
+	left:-16px;
+	top:50%;
+	transform: translateY(-50%);
+	width:4px;
+	height:18px;
+	border-radius: 2px;
+	background: var(--bar-gradient);
+}
+.section-title{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	font-weight: 800;
+	color:#1f2937;
+	letter-spacing: 0.2px;
+}
+.section-icon{ color: var(--icon-color); }
+.section-header__actions{ display:flex; align-items:center; gap:8px; flex-wrap: wrap; justify-content: flex-end; }
+.points-chips :deep(.el-tag){ margin-right: 0; }
+
+.text-muted{ color:#909399; }
+.text-danger{ color:#b91c1c; font-weight: 600; }
+
+.section-header--base{ --bar-gradient: linear-gradient(180deg, #3b82f6, #22c55e); --icon-color:#3b82f6; }
+.section-header--aftersales{ --bar-gradient: linear-gradient(180deg, #a855f7, #ec4899); --icon-color:#a855f7; }
+.section-header--timeline{ --bar-gradient: linear-gradient(180deg, #06b6d4, #3b82f6); --icon-color:#06b6d4; }
+.section-header--refund{ --bar-gradient: linear-gradient(180deg, #f59e0b, #ef4444); --icon-color:#f59e0b; }
+.section-header--coupon{ --bar-gradient: linear-gradient(180deg, #22c55e, #84cc16); --icon-color:#22c55e; }
+.section-header--items{ --bar-gradient: linear-gradient(180deg, #64748b, #334155); --icon-color:#64748b; }
+.section-header--logistics{ --bar-gradient: linear-gradient(180deg, #0ea5e9, #6366f1); --icon-color:#0ea5e9; }
+.section-header--benefits{ --bar-gradient: linear-gradient(180deg, #14b8a6, #22c55e); --icon-color:#14b8a6; }
+.section-header--points{ --bar-gradient: linear-gradient(180deg, #6366f1, #a855f7); --icon-color:#6366f1; }
+
+.base-stats{
+	display:grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+	padding: 10px;
+	border-radius: 10px;
+	background: linear-gradient(180deg, #f8fafc, #ffffff);
+	border: 1px solid #f0f2f5;
+	margin-bottom: 12px;
+}
+.stat{
+	padding: 10px 12px;
+	border-radius: 10px;
+	background:#fff;
+	border: 1px solid #f3f4f6;
+	min-width: 0;
+}
+.stat__label{ color:#6b7280; font-size: 12px; }
+.stat__value{ color:#111827; font-weight: 800; margin-top: 4px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.stat__value--primary{ color:#2563eb; }
+.stat__value--success{ color:#16a34a; }
+.stat__value--muted{ color:#374151; font-weight: 700; }
+.stat--right .stat__value{ font-weight: 700; }
+
+.item-img{ width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #ebeef5; background:#fff; }
+
+.logistics-box{ background:#fafafa; border:1px solid #f0f2f5; border-radius:10px; padding:12px; }
+.logistics-row{ display:flex; align-items:center; gap:12px; }
+.logistics-logo{ width:28px; height:28px; object-fit:contain; }
+.logistics-main{ flex:1; min-width:0; }
+.logistics-line{ color:#303133; line-height: 1.6; }
+.logistics-subtitle{ font-weight: 700; color:#303133; margin-bottom: 8px; }
+.exchange-list{ display:flex; flex-direction: column; gap:10px; }
+.exchange-item{ padding-top: 10px; border-top: 1px dashed #e5e7eb; }
+.exchange-item:first-child{ padding-top: 0; border-top: 0; }
+
+.points-change{ font-weight: 700; }
+.points-change--pos{ color:#16a34a; }
+.points-change--neg{ color:#ef4444; }
+
 .coupon-list{ display:flex; flex-direction: column; gap:8px; }
 .coupon-item{ display:flex; align-items:center; justify-content: space-between; background: #fafafa; border:1px dashed #e5e7eb; border-radius:8px; padding:8px 12px; }
 .coupon-left{ display:flex; flex-direction: column; gap:4px; }
@@ -627,6 +965,30 @@ function exchangeShipmentText(ex: any){
 .coupon-meta{ display:flex; gap:12px; color:#606266; font-size:12px; }
 .coupon-right{ display:flex; align-items:center; gap:8px; }
 .coupon-summary{ text-align:right; color:#67C23A; font-weight:600; margin-top:4px; }
+
+.points-card__hint{ margin-top: 10px; color:#909399; font-size: 12px; }
+
+/* Element Plus 细节统一 */
+.order-detail :deep(.el-card__header){ padding: 12px 16px; border-bottom: 1px solid #f0f2f5; }
+.order-detail :deep(.el-card__body){ padding: 12px 16px; }
+.order-detail :deep(.el-descriptions__label){ color:#606266; }
+.order-detail :deep(.el-table th.el-table__cell){ background:#fafafa; }
+.order-detail :deep(.el-timeline-item__timestamp){ color:#909399; }
+.section-timeline{ margin-top: 4px; }
+
+@media (max-width: 640px){
+	.order-detail__toolbar-meta{
+		flex-basis: 100%;
+		min-width: 0;
+	}
+	.order-detail__toolbar-right{
+		width: 100%;
+	}
+	.base-stats{
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.section-header::before{ left: -12px; }
+}
 </style>
 
 

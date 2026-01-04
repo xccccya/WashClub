@@ -50,7 +50,9 @@
 			<el-table-column prop="id" label="ID" width="60" />
 			<el-table-column prop="no" label="订单号" min-width="280">
 				<template #default="{ row }">
-					<span class="order-no link" :class="{ deleted: !!row.deletedAt }" title="双击查看详情" @dblclick="openByNo(row.no)" @click="copyNo(row.no)">{{ row.no }}</span>
+					<span class="order-no" :class="{ deleted: !!row.deletedAt }" title="点击查看详情" @click="open(row.id)">
+						<span class="order-no__prefix">{{ orderNoPrefix(row.no) }}</span><span class="order-no__suffix">{{ orderNoSuffix(row.no) }}</span>
+					</span>
 				</template>
 			</el-table-column>
 			<el-table-column label="类型" width="100">
@@ -433,7 +435,6 @@ function remainSeconds(row:any): number {
 }
 function formatRemain(sec:number): string { const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0)?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 function open(id:number){ router.push(`/orders/${id}`); }
-function openByNo(no:string){ router.push(`/orders/no/${encodeURIComponent(no)}`); }
 async function close(id:number){
     try { await orderControllerClose(id); ElMessage.success('已关闭'); await fetchList(); }
     catch(e:any){ ElMessage.error(String(e?.message||e||'关闭失败')); }
@@ -791,7 +792,20 @@ async function openRefund(row:any){
 function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; page.value=1; fetchList(); }
 function onPage(p:number){ page.value = p; }
 function onPageSizeChange(s:number){ pageSize.value = s; page.value = 1; }
-async function copyNo(no:string){ try { await navigator.clipboard.writeText(no); ElMessage.success('已复制订单号'); } catch { /* ignore */ } }
+function orderNoPrefix(no: any){
+	try{
+		const s = String(no ?? '');
+		if (s.length <= 4) return '';
+		return s.slice(0, -4);
+	}catch{ return ''; }
+}
+function orderNoSuffix(no: any){
+	try{
+		const s = String(no ?? '');
+		if (s.length <= 4) return s;
+		return s.slice(-4);
+	}catch{ return String(no ?? ''); }
+}
 async function doRefund(){
     if (!currentOrderId.value) return;
     const row = currentOrder.value;
@@ -832,9 +846,11 @@ onUnmounted(()=>{
 
 <style scoped>
 .table-scroll{ overflow:auto; }
-.link{ color: var(--app-primary); cursor: pointer; text-decoration: underline; }
-.link.deleted{ color: #909399; text-decoration: line-through; }
-.order-no{ white-space: nowrap; font-variant-numeric: tabular-nums; }
+.order-no{ white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 15px; color:#303133; cursor: pointer; }
+.order-no:hover{ color: var(--app-primary); }
+.order-no.deleted{ color: #909399; text-decoration: line-through; }
+.order-no__prefix{ opacity: 0.80; font-size: 13px; }
+.order-no__suffix{ font-weight: 800; font-size: 17px; letter-spacing: 0.3px; }
 .orders-pagination{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
 .orders-pagination .pagination-info{ color:#606266; font-size:12px; }
 .dropdown-ref{ display:inline-flex; }

@@ -178,7 +178,8 @@ async function onSubmit(){
         // 若因唯一索引导致失败（同一车牌已存在），尝试查找并改为更新以触发图片保存逻辑
         if (/Vehicle_plateNumber_key|Unique constraint failed/i.test(msg)) {
             try {
-                const list = await vehicleControllerMyVehicles({ token: getToken() || '' } as any) as any[];
+                // token 由 http client 自动从 uni storage 注入到 Authorization
+                const list = await vehicleControllerMyVehicles({} as any) as any[];
                 const exists = (list||[]).find(it => String(it.plateNumber).toUpperCase() === plate.value.trim().toUpperCase());
                 if (exists && exists.id) {
                     await vehicleControllerUpdateVehicle(String(exists.id), payload as any);

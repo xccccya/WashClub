@@ -350,10 +350,16 @@ watch(activeTab, async () => { await fetchCategories(); await fetchProducts(); }
 
 // 公告（保留API对接）
 const noticeStore = ref('');
+function normalizeNotice(s: unknown): string {
+	return String(s ?? '')
+		.replace(/\r?\n+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
 onShow(async () => {
 	try {
 		const active = await scrollNoticeControllerActive({ type: 'store' } as any) as any;
-		noticeStore.value = active?.content || '';
+		noticeStore.value = normalizeNotice(active?.content || '');
 	} catch {}
 	await loadBizHours();
 	await fetchCategories();
@@ -436,7 +442,7 @@ async function addToCartFromList(p:any){
 /* 公告 */
 .notice-card { padding: 16rpx 24rpx; }
 .marquee { overflow:hidden; white-space: nowrap; }
-.marquee-text { display:inline-block; padding-left:100%; animation: scroll-left 12s linear infinite; color:#374151; }
+.marquee-text { display:inline-block; padding-left:100%; animation: scroll-left 12s linear infinite; color:#374151; white-space: nowrap !important; word-break: keep-all; overflow-wrap: normal; }
 @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
 /* 顶部标签 */

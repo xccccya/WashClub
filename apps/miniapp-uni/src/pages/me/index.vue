@@ -27,12 +27,12 @@
 			</view>
 			<view v-if="isLoggedIn" style="position:absolute; right: 112rpx; top: 20rpx;">
 				<view class="msg-btn" @tap.stop="onTapMessages">
-					<image class="msg-icon" src="/static/icons/message.png" mode="aspectFit" />
+					<uni-icons type="chatboxes" :size="22" color="rgba(15,23,42,0.78)" />
 					<view v-if="unreadCount>0" class="msg-badge">{{ unreadCountText }}</view>
 				</view>
 			</view>
 			<view v-if="isLoggedIn" class="setting-btn" @tap.stop="onTapSetting">
-				<image class="setting-icon" src="/static/icons/setting.png" mode="aspectFit" />
+				<uni-icons type="gear" :size="22" color="rgba(15,23,42,0.78)" />
 			</view>
 		</view>
 
@@ -565,9 +565,7 @@ function onTapMessages(){
 .chips-row { display:flex; align-items:center; gap: 16rpx; min-width: 0; }
 .nickname-text { font-size: 36rpx; font-weight: 800; color: #0b1220; letter-spacing: 1rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
 .setting-btn { position: absolute; right: 20rpx; top: 20rpx; width: 56rpx; height: 56rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); display:flex; align-items:center; justify-content:center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
-.setting-icon { width: 40rpx; height: 40rpx; image-rendering: -webkit-optimize-contrast; }
 .msg-btn{ position: relative; width: 56rpx; height: 56rpx; padding: 10rpx; border-radius: 999rpx; background: rgba(255,255,255,0.55); border: 2rpx solid rgba(255,255,255,0.65); display:flex; align-items:center; justify-content:center; box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.08); }
-.msg-icon{ width: 40rpx; height: 40rpx; image-rendering: -webkit-optimize-contrast; }
 .msg-badge{ position:absolute; right:-6rpx; top:-6rpx; width: 28rpx; height: 28rpx; border-radius: 999rpx; background: #ef4444; color:#fff; font-size: 20rpx; display:flex; align-items:center; justify-content:center; box-shadow: 0 2rpx 6rpx rgba(239,68,68,0.35); }
 .uid-line { font-size: 22rpx; color: #374151; padding: 6rpx 10rpx; background: rgba(255,255,255,.8); border: 2rpx dashed #e5e7eb; border-radius: 999rpx; align-self: flex-start; letter-spacing: 1rpx; }
 /* 未登录 CTA */

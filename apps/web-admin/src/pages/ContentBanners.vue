@@ -93,9 +93,9 @@ async function onSave(){
     if (!form.value.imageUrl) { ElMessage.error('请上传横幅图片'); return; }
     try {
         if (current.value?.id) {
-            await adBannerControllerUpdate(String(current.value.id), { title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } as any);
+            await adBannerControllerUpdate(String(current.value.id), { title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight });
         } else {
-            await adBannerControllerCreate({ title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight } as any);
+            await adBannerControllerCreate({ title: form.value.title || null, imageUrl: form.value.imageUrl, enabled: form.value.enabled, jumpEnabled: form.value.jumpEnabled, linkPath: form.value.linkPath || null, weight: form.value.weight });
         }
         dialogVisible.value = false; ElMessage.success('已保存'); fetchList();
     } catch (e:any) {
@@ -106,7 +106,7 @@ async function onSave(){
 
 async function toggleEnable(row: Banner){
     try {
-        await adBannerControllerSetEnable(String(row.id), { enabled: !row.enabled } as any);
+        await adBannerControllerSetEnable(String(row.id), { enabled: !row.enabled });
         ElMessage.success('已更新');
         fetchList();
     } catch (e:any) {
