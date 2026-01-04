@@ -113,6 +113,7 @@ export class NotificationTemplateController {
                 { key:'cardName', label:'洗车卡名称（多张以、分隔）' },
                 { key:'cardNo', label:'洗车卡卡号（多张以、分隔）' },
                 { key:'amount', label:'抵扣金额(元)' },
+                { key:'otherOwners', label:'他人卡卡主（手机号后四位，多个以、分隔；为空表示无他人卡）' },
             ],
             // 洗车卡划扣（用于后台等非支付场景）
             WASH_CARD_DEDUCT: [
@@ -120,6 +121,9 @@ export class NotificationTemplateController {
                 { key:'cardNo', label:'洗车卡卡号' },
                 { key:'times', label:'划扣次数' },
                 { key:'reason', label:'划扣原因' },
+                { key:'orderNo', label:'关联订单号（可选）' },
+                { key:'plateNumber', label:'关联车辆车牌号（可选）' },
+                { key:'usedBy', label:'使用人手机号后四位（掩码，例如 ****1234；可选）' },
             ],
             // 管理通知：新订单提醒
             ADMIN_NEW_ORDER: [ { key:'no', label:'订单号' }, { key:'amount', label:'订单金额(元)' }, { key:'type', label:'订单类型' } ],

@@ -121,7 +121,7 @@
 				<view v-for="(it,idx) in (showAllTimeline ? timelineList : [timelineList[timelineList.length-1]])" :key="it.id" :class="['timeline-row', timelineClass(it)]">
 					<view class="dot"></view>
 					<text class="time">{{ formatTime(it.createdAt) }}</text>
-					<text class="desc">{{ zhEvent(it.event) }}：{{ zhTimelineValue(it.event, it.value, order) }}<text v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</text></text>
+					<text class="desc">{{ zhEvent(it.event) }}：{{ zhTimelineValueWithRemark(it.event, it.value, it.remark, order) }}<text v-if="it.remark">（{{ zhRemark(it.event, it.remark) }}）</text></text>
 				</view>
 			</view>
 			<view class="actions" style="justify-content:flex-start; margin-top:8rpx;">
@@ -832,6 +832,24 @@ function zhTimelineValue(eventType?: string, value?: string, order?: any){
 		if (v==='GROUP_BALANCE_REFUND_CREDIT') return '集团余额退款入账';
 	}
 	return value || '-';
+}
+
+function isOtherWashCardDeductRemark(remark?: string): boolean {
+	try{
+		const raw = String(remark || '');
+		// 后端在“他人卡”场景会在 remark 中写入 “卡主****1234”
+		return /卡主\*{4}\d{4}/.test(raw);
+	}catch{ return false; }
+}
+
+function zhTimelineValueWithRemark(eventType?: string, value?: string, remark?: string, order?: any){
+	const e = String(eventType||'').toUpperCase();
+	const v = String(value||'').toUpperCase();
+	const base = zhTimelineValue(eventType, value, order);
+	if (e==='BENEFITS' && v==='WASHCARD_DEDUCT'){
+		return isOtherWashCardDeductRemark(remark) ? '洗车卡划扣（他人卡）' : '洗车卡划扣';
+	}
+	return base;
 }
 
 function zhRemark(eventType?: string, remark?: string){
