@@ -21,26 +21,44 @@
 			</nav>
 		</aside>
 		<main class="content">
-			<header class="topbar">
-				<div class="tabs">
+			<header class="topbar" :class="{ compact: isCompact }">
+				<div class="topbar__left">
 					<template v-if="isOrdersRoute">
-						<el-tabs v-model="activeTab" @tab-remove="closeTab" @tab-click="onTabClick" class="route-tabs">
+						<el-tabs
+							v-model="activeTab"
+							class="route-tabs"
+							type="card"
+							@tab-remove="closeTab"
+							@tab-click="onTabClick"
+						>
 							<el-tab-pane v-for="t in tabs" :key="t.path" :name="t.path" :label="t.title" :closable="t.closable" />
 						</el-tabs>
 					</template>
 					<template v-else>
-						<el-breadcrumb separator="/">
-							<el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
-						</el-breadcrumb>
+						<div class="crumb">
+							<el-breadcrumb separator="/">
+								<el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
+							</el-breadcrumb>
+						</div>
 					</template>
 				</div>
-				<div class="user">
-					<!-- 营业状态按钮 -->
-					<el-popover placement="bottom-end" trigger="click" :width="320" :show-arrow="false" :teleported="true">
+
+				<div class="topbar__right">
+					<el-space :size="8" alignment="center">
+						<!-- 营业状态 -->
+						<el-popover placement="bottom-end" trigger="click" :width="320" :show-arrow="false" :teleported="true">
 						<template #reference>
-							<el-button class="status-btn" text :title="`营业状态：${businessLabel}`" aria-label="营业状态">
+							<!-- 注意：Popover 的 reference 在触控设备上不要再包一层 Tooltip，否则容易拦截点击导致无法打开面板 -->
+							<el-button
+								class="status-btn"
+								round
+								plain
+								:color="bizColor"
+								aria-label="营业状态"
+								:title="`营业状态：${businessLabel}`"
+							>
 								<span class="dot" :data-type="businessType"></span>
-								<span class="status-text">{{ businessLabel }}</span>
+								<span v-if="!isCompact" class="status-text">{{ businessLabel }}</span>
 							</el-button>
 						</template>
 						<div class="biz-panel">
@@ -69,22 +87,42 @@
 							</div>
 						</div>
 					</el-popover>
-					<div class="notify-bell" title="消息通知" @click="openNotifyDrawer">
-						<el-badge :value="unreadCountText" :hidden="unreadCount===0" class="bell-badge">
-							<el-icon><Bell /></el-icon>
-						</el-badge>
-					</div>
-					<el-dropdown>
-						<span class="user-trigger" title="当前账号">
-							<el-avatar class="user-avatar" :size="28" :src="formatAvatar(avatarUrl)" />
-							<span class="name">{{ userName }}</span>
-						</span>
+
+						<!-- 通知 -->
+						<el-tooltip content="消息通知" placement="bottom" :show-after="250" :disabled="isTouch">
+							<el-badge :value="unreadCountText" :hidden="unreadCount===0" class="bell-badge">
+								<el-button class="icon-btn" text aria-label="消息通知" @click="openNotifyDrawer">
+									<el-icon><Bell /></el-icon>
+								</el-button>
+							</el-badge>
+						</el-tooltip>
+
+						<!-- 全屏（POS 常用） -->
+						<el-tooltip :content="isFullscreen ? '退出全屏' : '进入全屏'" placement="bottom" :show-after="250" :disabled="isTouch">
+							<el-button class="icon-btn" text aria-label="全屏切换" @click="toggleFullscreen">
+								<el-icon><FullScreen /></el-icon>
+							</el-button>
+						</el-tooltip>
+
+						<el-divider direction="vertical" class="topbar__divider" />
+
+						<!-- 用户菜单 -->
+						<el-dropdown trigger="click">
+							<span class="user-trigger" title="当前账号">
+								<el-avatar class="user-avatar" :size="28" :src="formatAvatar(avatarUrl)" />
+								<span v-if="!isCompact" class="name">{{ userName }}</span>
+							</span>
 						<template #dropdown>
 							<el-dropdown-menu>
-								<el-dropdown-item @click="logout"><el-icon><SwitchButton /></el-icon> 退出登录</el-dropdown-item>
+								<el-dropdown-item @click="toggleFullscreen">
+									<el-icon><FullScreen /></el-icon>
+									{{ isFullscreen ? '退出全屏' : '进入全屏' }}
+								</el-dropdown-item>
+								<el-dropdown-item divided @click="logout"><el-icon><SwitchButton /></el-icon> 退出登录</el-dropdown-item>
 							</el-dropdown-menu>
 						</template>
 					</el-dropdown>
+					</el-space>
 				</div>
 			</header>
 			<section class="page-body">
@@ -134,7 +172,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 import { ElMessageBox } from 'element-plus';
-import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell } from '@element-plus/icons-vue';
+import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell, FullScreen } from '@element-plus/icons-vue';
 import {
 	notificationControllerList,
 	notificationControllerMarkRead,
@@ -152,6 +190,9 @@ const userName = computed(()=>{
 	try { return JSON.parse(localStorage.getItem('user')||'{}')?.name || '用户'; } catch { return '用户'; }
 });
 const avatarUrl = ref<string | null>(null);
+const isCompact = ref(false);
+const isFullscreen = ref(false);
+const isTouch = ref(false);
 // 营业状态
 type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
 const businessType = ref<BizStatus>('REST');
@@ -161,6 +202,13 @@ const hoursEnd = ref<string>('18:00');
 const busyEnabled = ref<boolean>(false);
 const pausedEnabled = ref<boolean>(false);
 const savingBiz = ref(false);
+const bizColor = computed(()=>{
+	// Element Plus Button 支持 :color 自定义（更贴合 POS “一眼可辨”）
+	if (businessType.value === 'OPEN') return '#22c55e';
+	if (businessType.value === 'BUSY') return '#f59e0b';
+	if (businessType.value === 'PAUSED') return '#ef4444';
+	return '#94a3b8';
+});
 function onToggleBusy(){ if (busyEnabled.value) pausedEnabled.value = false; }
 function onTogglePaused(){ if (pausedEnabled.value) busyEnabled.value = false; }
 async function reloadBusiness(){
@@ -211,6 +259,31 @@ async function logout(){
 		localStorage.removeItem('token');
 		localStorage.removeItem('user');
 		router.push('/login');
+	}catch{}
+}
+
+function updateCompact(){
+	try{
+		// 13 寸左右平板常见横向宽度：~1024~1366；这里以 1100 作为“紧凑”阈值
+		isCompact.value = window.matchMedia?.('(max-width: 1100px)')?.matches ?? (window.innerWidth <= 1100);
+	}catch{}
+}
+function updateTouch(){
+	try{
+		// coarse 指触控为主的输入设备（平板/手机）
+		isTouch.value = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+	}catch{ isTouch.value = false; }
+}
+function updateFullscreen(){
+	try{ isFullscreen.value = !!document.fullscreenElement; }catch{}
+}
+async function toggleFullscreen(){
+	try{
+		if (document.fullscreenElement){
+			await document.exitFullscreen();
+			return;
+		}
+		await document.documentElement.requestFullscreen({ navigationUI: 'hide' } as any);
 	}catch{}
 }
 
@@ -336,10 +409,23 @@ onMounted(()=>{
     reloadBusiness();
     refreshUnread();
     connectWS();
+	updateCompact();
+	updateTouch();
+	updateFullscreen();
+	try{
+		window.addEventListener('resize', updateCompact, { passive: true } as any);
+		window.addEventListener('resize', updateTouch, { passive: true } as any);
+		document.addEventListener('fullscreenchange', updateFullscreen, { passive: true } as any);
+	}catch{}
 });
 onBeforeUnmount(()=>{
 	window.removeEventListener('pos-set-tab', handleSetTab as any);
     try{ ws?.close(); }catch{} ws=null;
+	try{
+		window.removeEventListener('resize', updateCompact as any);
+		window.removeEventListener('resize', updateTouch as any);
+		document.removeEventListener('fullscreenchange', updateFullscreen as any);
+	}catch{}
 });
 watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 </script>
@@ -352,21 +438,65 @@ watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 .menu-item .label{ font-size:12px; line-height:1; }
 .menu-item.active, .menu-item:hover{ color:#409eff; background: #ecf5ff; }
 .content{ flex:1; display:flex; flex-direction:column; min-width:0; }
-.topbar{ height:60px; background:#fff; border-bottom:1px solid #ebeef5; display:flex; align-items:center; justify-content:space-between; padding:0 14px; }
-.topbar .tabs{ flex:1; min-width:0; }
+.topbar{
+	height:64px;
+	background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
+	border-bottom:1px solid #ebeef5;
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	padding:0 14px;
+	gap:10px;
+	box-shadow: 0 1px 0 rgba(17,24,39,0.03);
+}
+.topbar__left{ flex:1; min-width:0; display:flex; align-items:center; }
+.topbar__right{ flex: 0 0 auto; display:flex; align-items:center; }
+.topbar__divider{ margin: 0 2px; height: 22px; }
+.crumb{ min-width:0; }
 .route-tabs :deep(.el-tabs__nav){ user-select:none; }
+.route-tabs :deep(.el-tabs__header){ margin:0; border-bottom:0; }
+.route-tabs :deep(.el-tabs__nav-wrap){ margin-bottom:0; }
+.route-tabs :deep(.el-tabs__item){
+	border-radius: 10px 10px 0 0;
+	height: 42px;
+	line-height: 42px;
+	padding: 0 12px;
+	font-weight: 700;
+}
+.route-tabs :deep(.el-tabs__item.is-active){ color: var(--el-color-primary); }
+.route-tabs :deep(.el-tabs__item .is-icon-close){
+	/* 触控更好点 */
+	width: 22px;
+	height: 22px;
+	margin-left: 6px;
+	border-radius: 8px;
+}
+.route-tabs :deep(.el-tabs__item .is-icon-close:hover){ background: #eef2f7; }
 .page-body{ flex:1; overflow:auto; padding:12px; }
-.user{ display:flex; align-items:center; gap:8px; }
 .user-trigger{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:9999px; background:#f6f8fb; border:1px solid #ebeef5; transition: background .15s ease, border-color .15s ease; }
 .user-trigger:hover{ background:#f1f5ff; border-color:#e5efff; }
 .user-avatar :deep(img){ border-radius:50%; }
 .name{ font-size:14px; color:#303133; max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
-.notify-bell{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; cursor:pointer; border-radius:10px; }
-.notify-bell:hover{ background:#f6f8fb; }
-.notify-bell :deep(.el-icon){ font-size:22px; color:#606266; }
-.notify-bell:hover :deep(.el-icon){ color:#409eff; }
-.status-btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:9999px; border:1px solid #ebeef5; background:#fff; }
-.status-btn .status-text{ font-weight:700; color:#303133; font-size:13px; }
+.icon-btn{
+	width: 44px;
+	height: 44px;
+	border-radius: 12px;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+.icon-btn :deep(.el-icon){ font-size:22px; color:#606266; }
+.icon-btn:hover{ background:#f6f8fb; }
+.icon-btn:hover :deep(.el-icon){ color:#409eff; }
+.status-btn{
+	min-height: 44px;
+	padding: 0 12px;
+	gap: 8px;
+	font-weight: 800;
+	border-radius: 9999px;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+.status-btn .status-text{ font-weight:800; color:#111827; font-size:13px; letter-spacing:.2px; }
 .status-btn .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
 .status-btn .dot[data-type="OPEN"]{ background:#22c55e; }
 .status-btn .dot[data-type="REST"]{ background:#94a3b8; }
@@ -385,7 +515,11 @@ watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 	.sidebar{ width:76px; }
 	.menu-item{ padding:12px 6px; }
 	.menu-item .label{ font-size:11px; }
-	.topbar{ height:52px; }
+	.topbar{ height:56px; }
+}
+@media (max-width: 1100px){
+	.topbar{ padding: 0 10px; gap: 8px; }
+	.user-trigger{ padding: 4px 6px; }
 }
 /* 抽屉列表样式（触屏适配更大触点） */
 .notify-drawer{ display:flex; flex-direction:column; height:100%; }

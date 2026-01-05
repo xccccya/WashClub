@@ -5,7 +5,6 @@ import { MemberLevelController } from './level.controller.js';
 import { MemberLevelService } from './level.service.js';
 import { MemberTagController } from './tag.controller.js';
 import { MemberTagService } from './tag.service.js';
-import { PrismaService } from '../prisma.service.js';
 import { MemberCategoryController } from './category.controller.js';
 import { MemberCategoryService } from './category.service.js';
 import { JwtModule } from '@nestjs/jwt';
@@ -36,7 +35,7 @@ import { resolveJwtSecretEnv } from '../env.js';
 		NotificationModule,
 	],
 	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController, MemberSignInController, MemberPointsController],
-	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, PrismaService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService, MemberPointsService],
+	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService, MemberPointsService],
 	exports: [VehicleService, WashCardService],
 })
 export class MemberModule {}

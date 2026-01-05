@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module.js';
-import { PrismaService } from '../prisma.service.js';
 import { FileModule } from '../file/file.module.js';
 import { GroupController } from './group.controller.js';
 import { GroupMiniappController } from './miniapp.controller.js';
@@ -33,7 +32,6 @@ import { resolveJwtSecretEnv } from '../env.js';
     GroupMiniappController
   ],
   providers: [
-    PrismaService,
     GroupService,
     GroupMemberService,
     GroupVehicleService,

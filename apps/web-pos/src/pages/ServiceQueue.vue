@@ -99,6 +99,14 @@
 							<span class="pay-only">
 								<el-tag type="warning" effect="plain">待支付</el-tag>
 								<el-button type="primary" @click="openPay(row)">标记支付</el-button>
+								<el-dropdown trigger="click">
+									<el-button size="large" plain>更多</el-button>
+									<template #dropdown>
+										<el-dropdown-menu>
+											<el-dropdown-item @click="confirmRemove(row)">移出队列</el-dropdown-item>
+										</el-dropdown-menu>
+									</template>
+								</el-dropdown>
 							</span>
 						</template>
 					</div>
@@ -178,8 +186,26 @@
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="洗车卡划扣" name="wash">
+					<el-form label-width="92px" style="margin-bottom:8px;">
+						<el-form-item label="付款会员">
+							<div style="display:flex; gap:6px; width:100%;">
+								<el-input v-model="payerMemberKeyword" placeholder="手机号/昵称（可留空自动）" clearable />
+								<el-button @click="searchPayerMember">搜索</el-button>
+							</div>
+						</el-form-item>
+						<el-form-item v-if="payerMemberList.length" label="选择会员">
+							<el-select v-model="payerMemberId" placeholder="选择付款会员" filterable style="width:100%;">
+								<el-option v-for="m in payerMemberList" :key="m.id" :label="memberLabelForWash(m)" :value="m.id" />
+							</el-select>
+						</el-form-item>
+						<el-form-item v-if="payerMemberId" label="选择卡片">
+							<el-select v-model="payerCardId" placeholder="选择指定卡（可留空自动在该会员名下选择）" style="width:100%;">
+								<el-option v-for="c in payerCards" :key="c.key" :label="c.label" :value="c.value" />
+							</el-select>
+						</el-form-item>
+					</el-form>
 					<div class="note">系统会自动识别本订单中标记为"计为洗车(次)"的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。</div>
-					<el-radio-group v-model="washPrefer" size="small">
+					<el-radio-group v-model="washPrefer" size="small" style="margin-top:8px;">
 						<el-radio-button label="AUTO">自动选择</el-radio-button>
 						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
 						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
@@ -594,7 +620,7 @@
 			<!-- Step 2: 服务项目 -->
             <div v-show="wizardStep===2" class="wiz-products">
                 <el-alert type="info" :closable="false" class="mb8" title="仅可选择该队列类型允许的服务商品" />
-                <el-table :data="wizardAllowedProducts" size="small" height="320" @selection-change="onWizardSelectionChange">
+                <el-table ref="wizardProductTableRef" :data="wizardAllowedProducts" size="small" height="320" @selection-change="onWizardSelectionChange">
                     <el-table-column label="图片" width="72">
                         <template #default="{ row }">
                             <img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" class="pimg" />
@@ -698,6 +724,7 @@ import {
 	vehicleControllerCreateForMember,
 	vehicleControllerListByMember,
 	vehicleControllerSearch,
+	washCardControllerAdminList,
 } from '@wash/api-client';
 
 type Task = { id:number; name:string; durationMin:number; status?: string; orderIndex?: number };
@@ -872,8 +899,16 @@ async function startFirst(row: QueueItem){
 	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
 }
 async function removeItem(row: QueueItem){
-	try{ await queueControllerRemove(String(row.id)); ElMessage.success('已移出队列'); fetchList(); }
-	catch(e:any){ ElMessage.error(String(e?.message||'操作失败')); }
+	try{
+		await queueControllerRemove(String(row.id));
+		ElMessage.success('已移出队列并取消关联订单');
+		fetchList();
+	}catch(e:any){
+		// 注意：401认证错误已由全局处理器（main.ts中的__ON_HTTP_401__）自动处理并跳转登录页
+		// 这里只需显示错误消息
+		const msg = String(e?.message||'');
+		ElMessage.error(msg || '移出队列失败');
+	}
 }
 function openOrder(row:any){ const id = Number(row?.orderId||0)||0; if(!id){ ElMessage.error('未找到订单'); return; } router.push(`/orders/${id}`); }
 function onCellDblClick(row:any, column:any, cell:any, event:any){
@@ -890,7 +925,15 @@ function onCellDblClick(row:any, column:any, cell:any, event:any){
 }
 async function confirmRemove(row: QueueItem){
 	try{
-		await ElMessageBox.confirm('确认移出队列？', '提示', { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' });
+		const hasOrder = !!row.orderId;
+		const isCompleted = String(row.status||'').toUpperCase() === 'COMPLETED';
+		let msg = '确认移出队列？';
+		if (hasOrder) {
+			msg = isCompleted
+				? '确认移出队列？关联的未支付订单将被取消。'
+				: '确认移出队列？关联的未支付服务订单将被取消。';
+		}
+		await ElMessageBox.confirm(msg, '提示', { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' });
 		await removeItem(row);
 	}catch{}
 }
@@ -903,6 +946,30 @@ const wxAuthCode = ref('');
 const wxPayLoading = ref(false);
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const currentOrderId = ref<number|null>(null);
+// 手动选择付款会员/卡
+const payerMemberKeyword = ref('');
+const payerMemberList = ref<Array<{ id:number; name?:string; phone?:string }>>([]);
+const payerMemberId = ref<number|null>(null);
+const payerCards = ref<Array<{ key:string; value:number; label:string }>>([]);
+const payerCardId = ref<number|null>(null);
+function memberLabelForWash(m:any){ return `${m.name||'-'}（****${String(m.phone||'').slice(-4)}）#${m.id}`; }
+async function searchPayerMember(){
+    const q = String(payerMemberKeyword.value||'').trim();
+    if (!q){ payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null; return; }
+    try{
+        const res:any = await memberControllerList({ keyword: q, page: 1, pageSize: 20 } as any);
+        payerMemberList.value = Array.isArray(res?.items) ? res.items.map((x:any)=>({ id:x.id, name:x.name, phone:x.phone })) : [];
+    }catch{ payerMemberList.value=[]; }
+}
+watch(payerMemberId, async (mid)=>{
+    payerCards.value = []; payerCardId.value = null;
+    if (!mid) return;
+    try{
+        const res:any = await washCardControllerAdminList({ page: 1, pageSize: 50, memberId: String(mid) } as any);
+        const items = Array.isArray(res?.items) ? res.items : [];
+        payerCards.value = items.map((c:any)=>({ key: `M-${c.id}`, value: c.id, label: `[会员卡] ${c.name||''}（余${c.remainingTimes||0}次）#${c.cardNo}` }));
+    }catch{ payerCards.value = []; }
+});
 const canGroupBalance = ref(false);
 const groupPayLoading = ref(false);
 // 收银立减
@@ -918,7 +985,22 @@ function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value|
 const showScan = ref(false);
 const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
-async function openPay(row:any){ currentOrderId.value=Number(row?.orderId||0)||null; canGroupBalance.value=false; try{ const id=currentOrderId.value; if(id){ const ord:any = await (orderControllerGet(id) as any); orderForPay.value = ord || null; cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0; canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID'; } }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value=false; } showPay.value=true; }
+async function openPay(row:any){
+	currentOrderId.value=Number(row?.orderId||0)||null;
+	canGroupBalance.value=false;
+	// 清理手动选择付款会员/卡状态
+	payerMemberKeyword.value=''; payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null;
+	try{
+		const id=currentOrderId.value;
+		if(id){
+			const ord:any = await (orderControllerGet(id) as any);
+			orderForPay.value = ord || null;
+			cashierDiscountInput.value = Math.max(0, Number(ord?.cashierDiscountAmount||0)) || 0;
+			canGroupBalance.value = String(ord?.type||'').toUpperCase()==='SERVICE' && !!ord?.groupId && String(ord?.payStatus||'')==='UNPAID';
+		}
+	}catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value=false; }
+	showPay.value=true;
+}
 // 无遮罩键盘状态
 const windowW = (typeof window!=='undefined' ? window.innerWidth : 1280) || 1280;
 const searchKbVisible = ref(false);
@@ -954,9 +1036,16 @@ async function doWashDeduct(){
 		const id = currentOrderId.value;
 		if(!id){ ElMessage.error('未找到关联订单'); return; }
 		const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value;
-		await orderControllerPayByWashCard(id, { body: { prefer } } as any);
-		ElMessage.success('划扣成功');
+		const body:any = { prefer };
+		if (payerMemberId.value){ body.payerMemberId = payerMemberId.value; }
+		if (payerCardId.value){ body.payerCardId = payerCardId.value; }
+		const ret:any = await orderControllerPayByWashCard(id, { body } as any);
+		const plan = Array.isArray(ret?.plan)?ret.plan:[];
+		const times = Number(ret?.requiredTimes||0);
+		ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`);
 		showPay.value=false;
+		// 清理手动选择状态
+		payerMemberKeyword.value=''; payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null;
 		await fetchList();
 	}catch(e:any){ ElMessage.error(String(e?.message||'划扣失败')); }
 }
@@ -1154,8 +1243,9 @@ const wizardQueueTypeId = ref<number|undefined>(undefined);
 const wizardAllowedProducts = ref<Product[]>([]);
 const wizardSelectedProductIds = ref<number[]>([]);
 const wizardSkuByProduct = ref<Record<number, number|undefined>>({});
+const wizardProductTableRef = ref<any>(null);
 const wizardSelectedProductNames = computed(()=>{ const map = new Map<number, Product>(wizardAllowedProducts.value.map(p=>[p.id, p] as any)); return (wizardSelectedProductIds.value||[]).map(id=>map.get(id)?.name||'').filter(Boolean); });
-function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; if (mode.value === 'guest') { ensureBrandsLoaded(); } }
+function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; nextTick().then(()=>{ try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} }); if (mode.value === 'guest') { ensureBrandsLoaded(); } }
 function onWizardSelectionChange(rows:any[]){ wizardSelectedProductIds.value = rows.map(r=>r.id); }
 
 // 车辆模式与表单
@@ -1368,12 +1458,14 @@ watch(wizardQueueTypeId, async (val)=>{
 	if (!val) { wizardAllowedProducts.value = []; return; }
 	const t = queueTypes.value.find(t=>t.id===val);
 	const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId));
-	if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; return; }
+	if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} return; }
 	const list = (await storeProductControllerList({ type: 'SERVICE' } as any)) as any;
 	const arr:any[] = (list as any) || [];
 	wizardAllowedProducts.value = arr.filter((p:any)=>ids.has(p.id));
 	wizardSelectedProductIds.value = [];
 	wizardSkuByProduct.value = {};
+	await nextTick();
+	try{ wizardProductTableRef.value?.clearSelection?.(); }catch{}
 });
 const submittingOrder = ref(false);
 async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value){ ElMessage.error('请选择队列类型'); return; } if (!wizardSelectedProductIds.value.length){ ElMessage.error('请选择服务商品'); return; } submittingOrder.value=true; // 构造 items，校验多规格SKU
@@ -1399,7 +1491,7 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
             if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
             if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
         }
-        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
+        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
 
 function skuLabel(s: any){ try{ const p = Number(s?.price||0); return p>0 ? `${s?.name||''}（￥${p.toFixed(2)}）` : String(s?.name||''); }catch{ return String(s?.name||''); } }
 function skuPriceHint(row: any){ try{ const arr = Array.isArray(row?.skus)?row.skus:[]; if(!arr.length) return '-'; const prices = arr.map((x:any)=>Number(x?.price||0)).filter((n:number)=>Number.isFinite(n)); if(!prices.length) return '-'; const min = Math.min(...prices); const max = Math.max(...prices); return min===max ? `￥${min.toFixed(2)}` : `￥${min.toFixed(2)} ~ ￥${max.toFixed(2)}`; }catch{ return '-'; } }
@@ -1589,6 +1681,8 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .wiz-products :deep(.el-checkbox__inner){ width: 18px; height: 18px; }
 /* 现有车辆联想下拉提升层级，确保不被车牌键盘遮挡 */
 :deep(.existing-plate-popper){ z-index: 4000 !important; }
+/* 支付弹窗提示文本 */
+.note{ color:#606266; font-size:13px; line-height:1.6; background:#f9fafb; padding:8px 10px; border-radius:6px; border:1px dashed #e5e7eb; }
 </style>
 
 

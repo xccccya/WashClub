@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
-import { PrismaService } from '../prisma.service.js';
 import { resolveJwtExpiresInEnv, resolveJwtSecretEnv } from '../env.js';
 import { SmsService } from './sms.service.js';
 import { AdminRoleController } from './role.controller.js';
@@ -24,7 +23,7 @@ import { FileModule } from '../file/file.module.js';
 		FileModule,
 	],
 	controllers: [AuthController, AdminRoleController, SmsAdminController, MetricsController],
-	providers: [AuthService, AdminRoleService, PrismaService, SmsService, AdminGuard, WechatTokenService],
+	providers: [AuthService, AdminRoleService, SmsService, AdminGuard, WechatTokenService],
 	exports: [AdminGuard, JwtModule, WechatTokenService],
 })
 export class AuthModule {}

@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { PrismaService } from '../prisma.service.js';
 import { ScrollNoticeService } from './scroll-notice.service.js';
 import { ScrollNoticeController } from './scroll-notice.controller.js';
 import { CarDataController } from './car-data.controller.js';
@@ -12,7 +11,7 @@ import { FileModule } from '../file/file.module.js';
 @Module({
     imports: [FileModule],
     controllers: [ScrollNoticeController, CarDataController, WeatherController, AdBannerController, DistrictController],
-    providers: [PrismaService, ScrollNoticeService, AdBannerService],
+    providers: [ScrollNoticeService, AdBannerService],
 })
 export class ContentModule {}
 

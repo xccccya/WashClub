@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaService } from '../prisma.service.js';
 import { StoreService } from './store.service.js';
 import { StoreCategoryController } from './category.controller.js';
 import { StoreProductController } from './product.controller.js';
@@ -16,7 +15,7 @@ import { resolveJwtSecretEnv } from '../env.js';
         FileModule,
     ],
     controllers: [StoreCategoryController, StoreProductController, StoreInventoryController],
-    providers: [PrismaService, StoreService],
+    providers: [StoreService],
 })
 export class StoreModule {}
 

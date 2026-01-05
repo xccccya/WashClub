@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaService } from './prisma.service.js';
+import { PrismaModule } from './prisma.module.js';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
 import { MemberModule } from './member/member.module.js';
@@ -16,9 +16,22 @@ import { NotificationModule } from './notification/notification.module.js';
 
 
 @Module({
-	imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }), AuthModule, MemberModule, FileModule, ContentModule, QueueModule, StoreModule, OrderModule, CouponModule, SystemModule, GroupModule, NotificationModule],
+	imports: [
+		ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', 'apps/api/.env', 'apps/api/prisma/.env'] }),
+		PrismaModule,
+		AuthModule,
+		MemberModule,
+		FileModule,
+		ContentModule,
+		QueueModule,
+		StoreModule,
+		OrderModule,
+		CouponModule,
+		SystemModule,
+		GroupModule,
+		NotificationModule,
+	],
 	controllers: [AppController],
-	providers: [PrismaService],
 })
 export class AppModule {}
 

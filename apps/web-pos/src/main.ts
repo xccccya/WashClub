@@ -119,6 +119,25 @@ router.beforeEach((to, _from, next) => {
 	return next();
 });
 
+// 注册全局401处理器：token失效时自动跳转登录页
+// 注意：只有在用户已经在需要认证的页面时才跳转，避免干扰正常的 catch 处理
+(function registerGlobalUnauthorizedHandler() {
+	try {
+		(globalThis as any).__ON_HTTP_401__ = () => {
+			// 只在当前路由需要认证时才清除 token 并跳转
+			const currentPath = router.currentRoute.value.path;
+			const requiresAuth = router.currentRoute.value.meta?.requiresAuth;
+			if (requiresAuth && currentPath !== '/login') {
+				try {
+					localStorage.removeItem('token');
+					localStorage.removeItem('user');
+				} catch {}
+				router.push('/login');
+			}
+		};
+	} catch {}
+})();
+
 const app = createApp(App);
 Object.entries(ElementPlusIconsVue).forEach(([name, component]) => {
 	app.component(name, component as any);

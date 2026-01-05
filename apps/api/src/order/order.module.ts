@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module.js';
-import { PrismaService } from '../prisma.service.js';
 import { OrderService } from './order.service.js';
 import { OrderPaymentService } from './order-payment.service.js';
 import { OrderRefundService } from './order-refund.service.js';
@@ -34,7 +33,6 @@ import { resolveJwtSecretEnv } from '../env.js';
     ],
     controllers: [OrderController],
     providers: [
-        PrismaService, 
         CouponService, 
         OrderService, 
         OrderPaymentService,

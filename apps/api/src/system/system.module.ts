@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaService } from '../prisma.service.js';
 import { SystemSettingController } from './system.setting.controller.js';
 import { SystemEmployeeController } from './employee.controller.js';
 import { SystemMiniappEmployeeController } from './miniapp.controller.js';
@@ -16,7 +15,7 @@ import { resolveJwtSecretEnv } from '../env.js';
         FileModule,
     ],
     controllers: [SystemSettingController, SystemEmployeeController, SystemMiniappEmployeeController],
-    providers: [PrismaService, AdminGuard],
+    providers: [AdminGuard],
 })
 export class SystemModule {}
 
