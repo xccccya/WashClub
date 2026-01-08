@@ -28,10 +28,31 @@ Thumbs.db
 # Runtime uploads
 apps/api/uploads/
 
-# Tool caches (optional)
+# Tool caches
 .vite/
 node_modules/.cache/
+.cache/
+.pnpm-store/
 
+# uni-app
+unpackage/
+vite.config.ts.timestamp-*.mjs
+
+# Prisma
+.prisma/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary files
+*.swp
+*.swo
+*~
+*.tmp
+
+# Project docs (keep existing)
 车型查询接口文档.md
 腾讯云短信相关信息资料.md
 商店-订单系统设计草案.md
