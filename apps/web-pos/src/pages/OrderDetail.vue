@@ -46,7 +46,8 @@
 					</div>
 					<div class="stat">
 						<div class="stat__label">优惠合计</div>
-						<div class="stat__value stat__value--success">- ¥ {{ money(data?.discountAmount) }}</div>
+						<!-- 展示口径：折扣减免(discountAmount) + 积分抵扣(pointsAmount) -->
+						<div class="stat__value stat__value--success">- ¥ {{ money(discountTotalDisplay) }}</div>
 					</div>
 					<div class="stat stat--right">
 						<div class="stat__label">下单时间</div>
@@ -429,6 +430,15 @@ async function fetchDetail(){
 }
 
 onMounted(fetchDetail);
+
+// 订单字段语义：discountAmount 仅包含折扣/券/立减等，积分抵扣金额单独在 pointsAmount。
+// “优惠合计”展示需包含积分抵扣。
+const discountTotalDisplay = computed(() => {
+	const discount = Number(data.value?.discountAmount ?? 0);
+	const points = Number(data.value?.pointsAmount ?? 0);
+	const sum = discount + points;
+	return Number.isFinite(sum) ? sum : 0;
+});
 
 function statusLabel(v?: string){ if(v==='CREATED') return '已创建'; if(v==='PAID') return '已支付'; if(v==='FULFILLED') return '已履约'; if(v==='CLOSED') return '已完成'; if(v==='CANCELLED') return '已取消'; return v || '-'; }
 function orderStatusTagType(v?: string){

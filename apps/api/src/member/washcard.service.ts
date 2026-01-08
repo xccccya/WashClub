@@ -296,6 +296,39 @@ export class WashCardService {
         return this.listLogs(cardId, page, pageSize);
     }
 
+    // 管理端：按会员聚合统计（用于详情抽屉顶部统计）
+    async getMemberStats(memberId: number) {
+        const mid = Number(memberId || 0);
+        if (!Number.isFinite(mid) || mid <= 0) throw new BadRequestException('memberId 无效');
+
+        // 余次：持有人或被共享者可见的 ACTIVE 卡余次求和
+        const remainAgg = await this.prisma.washCard.aggregate({
+            where: {
+                status: 'ACTIVE' as any,
+                OR: [
+                    { ownerMemberId: mid },
+                    { shares: { some: { memberId: mid } } },
+                ],
+            } as any,
+            _sum: { remainingTimes: true },
+        } as any);
+        const remainingTimes = Math.max(0, Number((remainAgg as any)?._sum?.remainingTimes || 0));
+
+        // 累计划扣次数：服务划扣日志（action=DEDUCT, reason=SERVICE_DEDUCT）按 change 求和（change 为负数）
+        const deductAgg = await (this.prisma as any).washCardLog.aggregate({
+            where: {
+                action: 'DEDUCT',
+                reason: 'SERVICE_DEDUCT',
+                memberId: mid,
+            },
+            _sum: { change: true },
+        });
+        const sumChange = Number((deductAgg as any)?._sum?.change || 0);
+        const deductTimes = Math.max(0, Math.abs(sumChange));
+
+        return { memberId: mid, deductTimes, remainingTimes } as any;
+    }
+
     // 删除计次卡：同时删除共享与相关日志
     async deleteCard(cardId: number){
         const card = await this.prisma.washCard.findUnique({ where: { id: cardId } });

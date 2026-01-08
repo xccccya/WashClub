@@ -112,7 +112,7 @@ const wxappStatusDesc = computed(()=>{
 	if (!wxappEnabled.value) return '该通知暂未开放';
 	const st = wxappStatus.value;
 	if (!st) return '未订阅，建议开启以接收扣次提醒';
-	if (st && st.startsWith('accept')) return '已允许接收（通常仅对下一次发送生效）';
+	if (st && st.startsWith('accept')) return '已允许接收';
 	if (st === 'reject') return '你已选择不接收，可再次尝试订阅';
 	if (st === 'ban') return '被系统禁用（微信限制），可稍后再试';
 	return '状态未知，可尝试重新订阅';

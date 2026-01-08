@@ -4,34 +4,84 @@
 		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="goBack">
 			<image class="nav-back-icon" src="/static/icons/back.png" />
 		</view>
-		<view class="header">
-			<text class="title">车辆管理</text>
-			<view class="add-btn" @tap="goCreate">添加车辆</view>
-		</view>
-		<view class="tipbar">
-			<image class="tip-icon" src="/static/icons/dp.png" mode="aspectFit" />
-			<text class="tip-text">点击车辆卡片可进行编辑</text>
-		</view>
-		<view v-for="v in list" :key="v.id" class="vehicle-card" :class="plateLen(v)===8 ? 'bg-nev' : 'bg-std'" @tap="() => goEdit(v)">
-			<view class="row">
-				<view class="plate-chip" :class="{ nev: plateLen(v)===8 }">
-					<text class="plate-text">{{ displayPlate(v) }}</text>
+		<view class="header card">
+			<view class="header-top">
+				<view class="header-left">
+					<text class="title">车辆管理</text>
+					<text class="subtitle">管理默认车辆与车型信息</text>
 				</view>
-				<view class="ops" @tap.stop="noop">
-					<view class="icon-btn danger" @tap.stop="() => onDelete(v)"><image class="icon-img" src="/static/icons/delete.png" mode="aspectFit" /></view>
-					<view class="pill" :class="{ primary: !v.isDefault }" @tap.stop="() => onSetDefault(v)">{{ v.isDefault ? '默认' : '设为默认' }}</view>
+				<view class="add-btn" @tap="goCreate">
+					<text class="add-btn-text">添加车辆</text>
 				</view>
 			</view>
-			<view class="meta">{{ (v.brand||'-') + ' / ' + (v.series||'-') }} · {{ (v.typeMain||'-') + (v.typeSub?(' / '+v.typeSub):'') }} · {{ v.color || '-' }}</view>
+			<view class="tipbar">
+				<image class="tip-icon" src="/static/icons/dp.png" mode="aspectFit" />
+				<text class="tip-text">点击卡片进入编辑；右侧可删除或设为默认</text>
+			</view>
 		</view>
-		<view class="empty" v-if="!loading && list.length===0">暂无车辆，点击右上角添加</view>
+
+		<view class="list">
+			<view v-if="loading" class="loading card">
+				<view class="loading-row">
+					<view class="skeleton sk-plate" />
+					<view class="skeleton sk-pill" />
+				</view>
+				<view class="skeleton sk-meta" />
+			</view>
+
+			<view
+				v-for="v in list"
+				:key="v.id"
+				class="vehicle-card card"
+				:class="{
+					'is-default': v.isDefault,
+					'is-nev': plateLen(v)===8
+				}"
+				@tap="() => goEdit(v)"
+			>
+				<view class="card-top">
+					<view class="plate-area">
+						<view class="plate-chip" :class="{ nev: plateLen(v)===8 }">
+							<text class="plate-text">{{ displayPlate(v) }}</text>
+						</view>
+						<view v-if="v.isDefault" class="default-tag">默认车辆</view>
+					</view>
+
+					<view class="ops" @tap.stop="noop">
+						<view class="icon-btn danger" @tap.stop="() => onDelete(v)">
+							<uni-icons type="trash" :size="20" color="#ef4444" />
+						</view>
+						<view
+							class="pill"
+							:class="{ primary: !v.isDefault, disabled: v.isDefault }"
+							@tap.stop="() => (v.isDefault ? noop() : onSetDefault(v))"
+						>
+							{{ v.isDefault ? '已默认' : '设为默认' }}
+						</view>
+					</view>
+				</view>
+
+				<view class="meta">
+					<text class="meta-line">{{ (v.brand||'-') + ' / ' + (v.series||'-') }}</text>
+					<text class="meta-dot">·</text>
+					<text class="meta-line">{{ (v.typeMain||'-') + (v.typeSub?(' / '+v.typeSub):'') }}</text>
+					<text class="meta-dot">·</text>
+					<text class="meta-line">{{ v.color || '-' }}</text>
+				</view>
+			</view>
+
+			<view class="empty card" v-if="!loading && list.length===0">
+				<view class="empty-title">暂无车辆</view>
+				<view class="empty-sub">添加一台爱车，默认车辆会在首页展示</view>
+				<view class="empty-cta" @tap="goCreate">添加车辆</view>
+			</view>
+		</view>
 	</view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
 
 /** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
@@ -102,27 +152,186 @@ onShow(async ()=>{ const ok = await safeCheckAuthAndRefresh({ redirectIfExpired:
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24rpx; background: #f8fafc; box-sizing: border-box; }
-.header { display:flex; align-items:center; justify-content: space-between; margin-bottom: 20rpx; }
-.title { font-size: 32rpx; font-weight: 700; }
-.add-btn { padding: 14rpx 20rpx; background: linear-gradient(135deg, #a8d8ff, #ffc9de); border-radius: 999rpx; }
-.tipbar { display:flex; align-items:center; gap: 10rpx; padding: 14rpx 16rpx; background: #f3f4f6; border-radius: 16rpx; color:#374151; margin-bottom: 16rpx; }
-.tip-icon { width: 28rpx; height: 28rpx; display:block; }
-.tip-text { font-size: 26rpx; }
-.vehicle-card { border-radius: 20rpx; padding: 20rpx; box-shadow: 0 6rpx 20rpx rgba(0,0,0,0.06); margin-bottom: 16rpx; }
-.vehicle-card.bg-std { background: #f5faff; }
-.vehicle-card.bg-nev { background: #eefcf5; }
-.row { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
-.plate-chip { padding: 10rpx 14rpx; border-radius: 10rpx; background: #2563eb; color:#fff; }
-.plate-chip.nev { background: #16a34a; }
-.plate-text { font-size: 34rpx; font-weight: 800; letter-spacing: 2rpx; }
-.ops { display:flex; gap: 12rpx; }
-.pill { padding: 10rpx 16rpx; border-radius: 999rpx; background:#f3f4f6; }
-.pill.primary { background:#e0f2fe; }
-.icon-btn { display:flex; align-items:center; justify-content:center; background: transparent; width: auto; height: auto; border-radius: 0; overflow: visible; }
-.icon-img { width: 40rpx; height: 40rpx; display:block; }
-.meta { color:#6b7280; font-size: 24rpx; }
-.empty { text-align:center; color:#9ca3af; margin-top: 120rpx; }
+.page {
+	min-height: 100vh;
+	padding: 24rpx 24rpx 0 24rpx;
+	box-sizing: border-box;
+	padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx);
+	overflow-x: hidden;
+	/* 对齐首页：克制的蓝粉渐变底 */
+	background: linear-gradient(180deg, #eff7ff 0%, #fff3f7 56%, #ffffff 100%);
+	--brand-blue: #a8d8ff;
+	--brand-pink: #ffc9de;
+	--ink: #0f172a;
+	--muted: rgba(15, 23, 42, 0.72);
+	--border: rgba(148, 163, 184, 0.18);
+	--shadow-1: 0 10rpx 24rpx rgba(15, 23, 42, 0.05);
+	--shadow-2: 0 2rpx 10rpx rgba(15, 23, 42, 0.03);
+}
+
+.card {
+	background: rgba(255, 255, 255, 0.96);
+	border-radius: 26rpx;
+	padding: 26rpx;
+	box-shadow: var(--shadow-1), var(--shadow-2);
+	border: 1rpx solid var(--border);
+	position: relative;
+	overflow: hidden;
+}
+@supports ((-webkit-backdrop-filter: blur(6px)) or (backdrop-filter: blur(6px))) {
+	.card { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+}
+
+.header { margin-bottom: 22rpx; }
+.header-top { display:flex; align-items:flex-start; justify-content: space-between; gap: 16rpx; }
+.header-left { display:flex; flex-direction: column; gap: 8rpx; min-width: 0; }
+.title { font-size: 34rpx; font-weight: 900; color: var(--ink); letter-spacing: .4rpx; }
+.subtitle { font-size: 24rpx; color: var(--muted); }
+
+.add-btn {
+	flex: 0 0 auto;
+	padding: 14rpx 20rpx;
+	border-radius: 999rpx;
+	background: linear-gradient(135deg, var(--brand-blue), var(--brand-pink));
+	border: 1rpx solid rgba(255,255,255,0.75);
+	box-shadow: 0 10rpx 22rpx rgba(15,23,42,0.10);
+}
+.add-btn:active { transform: translateY(1rpx); opacity: .92; }
+.add-btn-text { font-size: 26rpx; font-weight: 800; color: rgba(15,23,42,0.86); }
+
+.tipbar {
+	margin-top: 18rpx;
+	display:flex;
+	align-items:center;
+	gap: 10rpx;
+	padding: 14rpx 16rpx;
+	background: rgba(255,255,255,0.92);
+	border: 1rpx solid var(--border);
+	border-radius: 18rpx;
+	box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.03);
+	color:#374151;
+}
+.tip-icon { width: 28rpx; height: 28rpx; display:block; opacity: .92; }
+.tip-text { font-size: 24rpx; color: rgba(15,23,42,0.72); }
+
+.list { padding-bottom: 10rpx; }
+
+.vehicle-card { margin-bottom: 18rpx; }
+.vehicle-card.is-default::before{
+	content:'';
+	position:absolute;
+	left:0; top:0; right:0;
+	height: 6rpx;
+	background: linear-gradient(90deg, rgba(59,130,246,0.34), rgba(236,72,153,0.30));
+}
+.vehicle-card.is-nev{
+	background: linear-gradient(135deg, rgba(236, 253, 245, 0.92) 0%, rgba(255,255,255,0.96) 60%);
+}
+
+.card-top { display:flex; align-items:center; justify-content: space-between; gap: 14rpx; }
+.plate-area { display:flex; align-items:center; gap: 12rpx; min-width: 0; }
+
+.plate-chip {
+	padding: 10rpx 14rpx;
+	border-radius: 14rpx;
+	background: linear-gradient(135deg, #60a5fa, #a8d8ff);
+	color:#0b1220;
+	border: 1rpx solid rgba(255,255,255,0.72);
+	box-shadow: 0 10rpx 20rpx rgba(15,23,42,0.08);
+}
+.plate-chip.nev { background: linear-gradient(135deg, #34d399, #a7f3d0); }
+.plate-text { font-size: 34rpx; font-weight: 900; letter-spacing: 2rpx; }
+
+.default-tag{
+	flex: 0 0 auto;
+	padding: 8rpx 12rpx;
+	border-radius: 999rpx;
+	font-size: 22rpx;
+	font-weight: 800;
+	color: #065f46;
+	background: rgba(236, 253, 245, 0.92);
+	border: 1rpx solid rgba(134, 239, 172, 0.90);
+}
+
+.ops { display:flex; align-items:center; gap: 12rpx; }
+.pill {
+	padding: 10rpx 16rpx;
+	border-radius: 999rpx;
+	background: rgba(241, 245, 249, 0.9);
+	border: 1rpx solid rgba(148, 163, 184, 0.20);
+	color: rgba(15,23,42,0.82);
+	font-size: 24rpx;
+	font-weight: 800;
+}
+.pill.primary{
+	background: linear-gradient(135deg, rgba(168,216,255,0.45), rgba(255,201,222,0.40));
+	border-color: rgba(168,216,255,0.55);
+}
+.pill.disabled{
+	opacity: .62;
+}
+.pill:active { transform: translateY(1rpx); opacity: .92; }
+
+.icon-btn {
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	width: 64rpx;
+	height: 64rpx;
+	border-radius: 16rpx;
+	background: rgba(254, 242, 242, 0.92);
+	box-shadow: 0 10rpx 20rpx rgba(239, 68, 68, 0.08);
+}
+.icon-btn:active { transform: translateY(1rpx); opacity: .92; }
+
+.meta {
+	margin-top: 14rpx;
+	display:flex;
+	align-items:center;
+	flex-wrap: wrap;
+	gap: 8rpx;
+	color: rgba(15,23,42,0.62);
+	font-size: 24rpx;
+	line-height: 1.35;
+}
+.meta-line { max-width: 100%; }
+.meta-dot { opacity: .5; }
+
+.empty {
+	margin-top: 18rpx;
+	padding: 40rpx 26rpx;
+	text-align:center;
+}
+.empty-title { font-size: 30rpx; font-weight: 900; color: var(--ink); }
+.empty-sub { margin-top: 10rpx; font-size: 24rpx; color: var(--muted); }
+.empty-cta{
+	margin-top: 18rpx;
+	display:inline-flex;
+	align-items:center;
+	justify-content:center;
+	padding: 14rpx 22rpx;
+	border-radius: 999rpx;
+	background: linear-gradient(135deg, var(--brand-blue), var(--brand-pink));
+	border: 1rpx solid rgba(255,255,255,0.78);
+	box-shadow: 0 10rpx 22rpx rgba(15,23,42,0.10);
+	font-size: 26rpx;
+	font-weight: 900;
+	color: rgba(15,23,42,0.86);
+}
+.empty-cta:active { transform: translateY(1rpx); opacity: .92; }
+
+.loading { margin-bottom: 18rpx; }
+.loading-row{ display:flex; align-items:center; justify-content: space-between; gap: 14rpx; }
+.skeleton{
+	border-radius: 16rpx;
+	background: linear-gradient(90deg, rgba(226,232,240,0.75), rgba(241,245,249,0.95), rgba(226,232,240,0.75));
+	background-size: 200% 100%;
+	animation: sk 1.2s ease-in-out infinite;
+}
+.sk-plate{ width: 240rpx; height: 64rpx; }
+.sk-pill{ width: 160rpx; height: 56rpx; border-radius: 999rpx; }
+.sk-meta{ margin-top: 14rpx; width: 92%; height: 34rpx; border-radius: 12rpx; }
+@keyframes sk { 0%{ background-position: 0% 0; } 100%{ background-position: -200% 0; } }
 
 /* 统一返回按钮样式 */
 .nav-back { position: fixed; left: 16rpx; z-index: 1000; padding: 8rpx; }

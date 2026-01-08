@@ -50,7 +50,10 @@ export class SystemEmployeeController {
   @ApiOperation({ summary: '新增员工：从现有会员绑定' })
   @RequirePerm('system-employees')
   async create(@Body() body: CreateEmployeeDto) {
-    const memberId = Number(body?.memberId || 0);
+    // 兼容历史前端/第三方调用：memberId / memberid / member_id
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw: any = body as any;
+    const memberId = Number(raw?.memberId ?? raw?.memberid ?? raw?.member_id ?? 0);
     if (!Number.isFinite(memberId) || memberId <= 0) throw new BadRequestException('memberId 无效');
     const mem = await this.prisma.member.findUnique({ where: { id: memberId } });
     if (!mem) throw new BadRequestException('会员不存在');

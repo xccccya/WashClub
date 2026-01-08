@@ -86,7 +86,8 @@ const router = createRouter({
 			meta: { requiresAuth: true },
 			children: [
 				{ path: '', component: Home, meta: { title: '收银台首页' } },
-				{ path: 'cashier', component: () => import('./pages/Cashier.vue'), meta: { title: '收银' } },
+					// 收银页走“沉浸模式”：隐藏顶部栏，减少外层 padding，确保左右两栏尽可能一屏展示
+					{ path: 'cashier', component: () => import('./pages/Cashier.vue'), meta: { title: '收银', hideTopbar: true, noPagePadding: true, pageOverflowHidden: true } },
 				{ path: 'service-queue', component: () => import('./pages/ServiceQueue.vue'), meta: { title: '服务队列' } },
 				{ path: 'orders', component: () => import('./pages/Orders.vue'), meta: { title: '订单' } },
 				{ path: 'orders/:id', component: () => import('./pages/OrderDetail.vue'), meta: { title: '订单详情' } },

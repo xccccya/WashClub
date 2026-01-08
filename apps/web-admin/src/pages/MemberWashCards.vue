@@ -225,9 +225,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { BasePage } from '@wash/shared-ui';
 import {
+	memberControllerGet,
 	memberControllerList,
 	vehicleControllerListByMember,
 	vehicleControllerSearch,
@@ -245,6 +247,8 @@ import {
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, Remove, Share, List, Star, Delete } from '@element-plus/icons-vue';
+
+const route = useRoute();
 
 type Member = { id: number; name: string; phone: string };
 type Share = { id: number; memberId: number; member?: Member };
@@ -298,6 +302,33 @@ function formatTime(v?: string | null){
 async function fetchMembers(){
     const res:any = (await memberControllerList({ page: 1, pageSize: 200 } as any) as unknown) as any;
     memberOptions.value = Array.isArray(res?.items) ? res.items : [];
+}
+
+async function ensureMemberOption(memberId: number) {
+	if (!memberId) return;
+	try {
+		const exists = memberOptions.value.some((m) => Number(m?.id) === Number(memberId));
+		if (exists) return;
+		const m: any = await memberControllerGet(String(memberId));
+		if (m?.id) memberOptions.value = [m as any, ...memberOptions.value];
+	} catch {}
+}
+
+function readMemberIdFromRoute(): number | null {
+	const raw: any = (route.query as any)?.memberId;
+	const v = Array.isArray(raw) ? raw[0] : raw;
+	const n = Number(v || 0);
+	return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function applyRouteFilters() {
+	const mid = readMemberIdFromRoute();
+	if (mid) {
+		selectedMemberId.value = mid;
+		selectedVehicleId.value = null;
+		await ensureMemberOption(mid);
+		page.value = 1;
+	}
 }
 
 async function searchMembers(q?: string){
@@ -405,7 +436,18 @@ function gotoOrder(orderId: number){
     try { window.open(path, '_blank'); } catch { location.href = path; }
 }
 
-onMounted(()=>{ fetchMembers(); fetchList(); });
+onMounted(async ()=>{ 
+	await fetchMembers();
+	await applyRouteFilters();
+	await fetchList();
+});
+
+watch(
+	() => (route.query as any)?.memberId,
+	async () => {
+		await applyRouteFilters();
+	},
+);
 
 function applyExpiryDays(days: number){
     try { const d = new Date(); d.setDate(d.getDate() + days); createForm.value.expiryAt = formatDateISO(d); createFormPermanent.value = false; } catch {}

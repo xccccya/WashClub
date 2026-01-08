@@ -974,6 +974,8 @@ function onManualDiscountChange(){
         cashierDiscountInput.value = Number(Math.min(cap, v).toFixed(2));
     }catch{}
 }
+function normalizeMoney2(v:any): number { try{ const n = Number(v||0); if (!Number.isFinite(n) || n<0) return 0; return Number(n.toFixed(2)); }catch{ return 0; } }
+function moneyEq(a:any,b:any): boolean { return Math.abs(normalizeMoney2(a)-normalizeMoney2(b)) < 0.0001; }
 const washPrefer = ref<'AUTO'|'GROUP'|'MEMBER'>('AUTO');
 const canGroupBalance = ref(false);
 const groupPayLoading = ref(false);
@@ -988,8 +990,46 @@ async function openPay(row:any){
     }catch{ orderForPay.value=null; cashierDiscountInput.value=0; canGroupBalance.value = false; }
     showPay.value = true;
 }
-async function doMarkPaid(){ try { const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerMarkPaid(id, { body: { method: payMethod.value } } as any); ElMessage.success('已标记为已支付'); showPay.value=false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
-async function doWxMicropay(){ try { const id=currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const code = String(wxAuthCode.value||'').trim(); if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; } wxPayLoading.value=true; try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerWechatMicropay(id, { body: { authCode: code } } as any); ElMessage.success('付款成功，已标记订单为已支付'); showPay.value=false; wxAuthCode.value=''; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); } finally { wxPayLoading.value=false; } }
+async function doMarkPaid(){
+    try{
+        const id = currentOrderId.value;
+        if(!id){ ElMessage.error('未找到关联订单'); return; }
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(id, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
+        await orderControllerMarkPaid(id, { body: { method: payMethod.value } } as any);
+        ElMessage.success('已标记为已支付');
+        showPay.value=false;
+        await fetchList();
+    }catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); }
+}
+async function doWxMicropay(){
+    try{
+        const id=currentOrderId.value;
+        if(!id){ ElMessage.error('未找到关联订单'); return; }
+        const code = String(wxAuthCode.value||'').trim();
+        if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
+        wxPayLoading.value=true;
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(id, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
+        await orderControllerWechatMicropay(id, { body: { authCode: code } } as any);
+        ElMessage.success('付款成功，已标记订单为已支付');
+        showPay.value=false; wxAuthCode.value='';
+        await fetchList();
+    } catch(e:any){ ElMessage.error(String(e?.message||e||'付款失败')); }
+    finally { wxPayLoading.value=false; }
+}
 async function doWashDeduct(){ try{ const id = currentOrderId.value; if(!id){ ElMessage.error('未找到关联订单'); return; } const ord:any = await (orderControllerGet(id) as any); if (String(ord?.type||'').toUpperCase()!=='SERVICE'){ ElMessage.error('仅服务订单可使用洗车卡划扣'); return; } const prefer = washPrefer.value==='AUTO'?undefined:washPrefer.value; const ret:any = await orderControllerPayByWashCard(id, { body: { prefer } } as any); const plan = Array.isArray(ret?.plan)?ret.plan:[]; const times = Number(ret?.requiredTimes||0); ElMessage.success(`划扣成功：扣${times}次，使用${plan.length}张卡`); showPay.value=false; await fetchList(); }catch(e:any){ ElMessage.error(String(e?.message||e||'划扣失败')); } }
 async function doGroupBalance(){
     try{

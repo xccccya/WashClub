@@ -4,6 +4,7 @@ import { NotificationGateway } from './notification.gateway.js';
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { WxappSubscribeService } from './wxapp-subscribe.service.js';
+import { resolveGuestMemberIdEnv } from '../env.js';
 
 type CreateNotificationInput = {
     title: string;
@@ -22,6 +23,17 @@ export class NotificationService {
     private redisWorker?: any;
 
     private notifyDbSchedulerTimer?: any;
+
+    // =====================
+    // 占位账号拦截（游客占位 + 集团订单占位）
+    // - 游客占位：GUEST_MEMBER_ID / 系统标签 GUEST_ORDER_OWNER
+    // - 集团占位：系统标签 GROUP_ORDER_OWNER
+    // 目的：任何“通知发送入口”都不要给这些账号落库/广播/发订阅消息
+    // =====================
+    private placeholderMemberCache = new Map<number, { v: boolean; exp: number }>();
+    private placeholderSkipLogAt = new Map<string, number>();
+    private readonly placeholderCacheMs = 10 * 60 * 1000; // 10min
+    private readonly placeholderSkipLogMinIntervalMs = 10 * 60 * 1000; // 10min
     
 
     constructor(private prisma: PrismaService, private gateway: NotificationGateway, private wxapp: WxappSubscribeService) {
@@ -136,6 +148,51 @@ export class NotificationService {
         try{
             this.startDbScheduler();
         }catch{}
+    }
+
+    private shouldLogPlaceholderSkip(key: string): boolean {
+        const now = Date.now();
+        const last = this.placeholderSkipLogAt.get(key) || 0;
+        if (now - last < this.placeholderSkipLogMinIntervalMs) return false;
+        this.placeholderSkipLogAt.set(key, now);
+        return true;
+    }
+
+    private async isPlaceholderMember(memberId: number): Promise<boolean> {
+        const mid = Number(memberId || 0);
+        if (!mid) return false;
+
+        // 1) env 直判：游客占位账号
+        try{
+            const gid = resolveGuestMemberIdEnv();
+            if (gid > 0 && mid === gid) return true;
+        }catch{}
+
+        // 2) cache
+        const now = Date.now();
+        const cached = this.placeholderMemberCache.get(mid);
+        if (cached && cached.exp > now) return cached.v;
+
+        // 3) 查系统标签（GUEST_ORDER_OWNER / GROUP_ORDER_OWNER）
+        let v = false;
+        try{
+            const row: any = await (this.prisma as any).member.findUnique({
+                where: { id: mid },
+                select: { tags: { select: { name: true, isSystem: true } } },
+            });
+            const tags: any[] = Array.isArray(row?.tags) ? row.tags : [];
+            for (const t of tags) {
+                if (!t || (t as any).isSystem !== true) continue;
+                const name = String((t as any).name || '').toUpperCase();
+                if (name === 'GUEST_ORDER_OWNER' || name === 'GROUP_ORDER_OWNER') { v = true; break; }
+            }
+        }catch{
+            // 查不到/异常时，宁可不拦截，避免误伤真实用户；但 env 直判已覆盖游客占位主场景
+            v = false;
+        }
+
+        this.placeholderMemberCache.set(mid, { v, exp: now + this.placeholderCacheMs });
+        return v;
     }
 
     private startDbScheduler(){
@@ -312,6 +369,20 @@ export class NotificationService {
     }
 
     async notifyAndBroadcast(input: CreateNotificationInput) {
+        // 占位账号：不落库/不广播（双保险：即使绕过 sendByTemplate 直接调用也能拦截）
+        try{
+            if (input?.target?.kind === 'MEMBER') {
+                const mid = Number((input.target as any).memberId || 0);
+                if (mid && await this.isPlaceholderMember(mid)) {
+                    const key = `INBOX:${mid}:${String(input?.type || input?.title || '')}`;
+                    if (this.shouldLogPlaceholderSkip(key)) {
+                        // eslint-disable-next-line no-console
+                        console.info(`[NotificationService] skip placeholder member notification: memberId=${mid}, type=${String(input?.type || '')}`);
+                    }
+                    return { ok: false, skipped: true, reason: 'placeholder_member' } as any;
+                }
+            }
+        }catch{}
         const item = await this.create(input);
         // 附带管理频道 UI 配置（模板优先，其次类型默认UI）
         let ui: any = null;
@@ -444,6 +515,20 @@ export class NotificationService {
 
     // 模板渲染并发送（若未配置模板可按类型设置决定是否使用回退文案）
     async sendByTemplate(typeKey: string, vars: Record<string, any>, target: { kind: 'ADMIN'; userId: number } | { kind: 'MEMBER'; memberId: number }, fallback: { title: string; content?: string|null }, linkPath?: string | null){
+        // 占位账号：直接跳过（优先拦截，减少 DB 查询与广播）
+        try{
+            if (target?.kind === 'MEMBER') {
+                const mid = Number((target as any).memberId || 0);
+                if (mid && await this.isPlaceholderMember(mid)) {
+                    const key = `INBOX:${mid}:${String(typeKey || '')}`;
+                    if (this.shouldLogPlaceholderSkip(key)) {
+                        // eslint-disable-next-line no-console
+                        console.info(`[NotificationService] skip placeholder member sendByTemplate: memberId=${mid}, typeKey=${String(typeKey || '')}`);
+                    }
+                    return { ok: false, skipped: true, reason: 'placeholder_member' } as any;
+                }
+            }
+        }catch{}
         // 类型设置检查
         const channel = target.kind === 'ADMIN' ? 'ADMIN' : 'MEMBER';
         try{
@@ -487,6 +572,17 @@ export class NotificationService {
             const typeKey = String(params.typeKey || 'WASH_CARD_CONSUME').trim();
             const memberId = Number(params.memberId||0);
             if (!memberId) return { ok:false, skipped:true } as any;
+            // 占位账号：不发订阅消息
+            try{
+                if (await this.isPlaceholderMember(memberId)) {
+                    const key = `WXAPP:${memberId}:${typeKey}`;
+                    if (this.shouldLogPlaceholderSkip(key)) {
+                        // eslint-disable-next-line no-console
+                        console.info(`[NotificationService] skip placeholder member wxapp: memberId=${memberId}, typeKey=${typeKey}`);
+                    }
+                    return { ok:false, skipped:true, reason:'placeholder_member' } as any;
+                }
+            }catch{}
             return await this.wxapp.sendWashCardConsume({
                 memberId,
                 typeKey,

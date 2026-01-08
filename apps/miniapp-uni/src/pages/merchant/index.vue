@@ -1,30 +1,61 @@
 <template>
 	<view class="page">
 		<view v-if="topSpacerHeight" :style="{ height: topSpacerHeight + 'px' }" />
-		<view class="nav-back" :style="{ top: (statusBarHeight + 8) + 'px' }" @tap="goBack">
-			<image class="nav-back-icon" src="/static/icons/back.png" />
+		<view class="topbar" :style="{ height: topSpacerHeight + 'px', paddingTop: statusBarHeight + 'px' }">
+			<view class="topbar-inner" :style="{ height: navBarHeight + 'px' }">
+				<view class="topbar-back" @tap="goBack">
+						<uni-icons type="left" :size="22" color="rgba(15,23,42,0.86)" />
+				</view>
+				<text class="topbar-title">商家中心</text>
+				<view class="topbar-right" />
+			</view>
 		</view>
 
 		<!-- 欢迎与今日指标卡片 -->
-		<view class="card gradient-card">
-			<view class="welcome">{{ greetText }}</view>
-			<view class="section-title">今日运营数据</view>
+		<view class="card header-card">
+			<view class="header-top">
+				<view class="greet-col">
+					<text class="welcome">{{ greetText }}</text>
+					<text class="section-title">今日运营概览</text>
+				</view>
+				<view class="date-pill">
+					<uni-icons type="calendar" :size="16" color="rgba(15,23,42,0.70)" />
+					<text class="date-text">{{ todayStr }}</text>
+				</view>
+			</view>
+
 			<view v-if="loadingOverview" class="loading-text">加载中…</view>
-			<view class="metrics">
+
+			<view v-else class="metrics">
 				<view class="metric">
-					<view class="metric-label">洗车数量</view>
+					<view class="metric-head">
+						<uni-icons type="compose" :size="18" color="rgba(37,99,235,0.9)" />
+						<text class="metric-label">洗车数量</text>
+					</view>
 					<view class="metric-value">{{ overview?.washCount ?? '-' }}</view>
-					<view class="metric-delta" v-if="overview?.compare">较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.washCountRate) }} {{ fmtRate(overview.compare.washCountRate) }}</view>
+					<view v-if="overview?.compare" class="metric-delta" :class="deltaClass(overview.compare.washCountRate)">
+						较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.washCountRate) }} {{ fmtRate(overview.compare.washCountRate) }}
+					</view>
 				</view>
 				<view class="metric">
-					<view class="metric-label">洗车卡划扣</view>
+					<view class="metric-head">
+						<uni-icons type="checkbox-filled" :size="18" color="rgba(236,72,153,0.9)" />
+						<text class="metric-label">洗车卡划扣</text>
+					</view>
 					<view class="metric-value">{{ overview?.washcardDeductTimes ?? '-' }}</view>
-					<view class="metric-delta" v-if="overview?.compare">较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.washcardDeductTimesRate) }} {{ fmtRate(overview.compare.washcardDeductTimesRate) }}</view>
+					<view v-if="overview?.compare" class="metric-delta" :class="deltaClass(overview.compare.washcardDeductTimesRate)">
+						较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.washcardDeductTimesRate) }} {{ fmtRate(overview.compare.washcardDeductTimesRate) }}
+					</view>
 				</view>
 				<view class="metric">
-					<view class="metric-label">支付金额（净）</view>
+					<view class="metric-head">
+						<uni-icons type="wallet-filled" :size="18" color="rgba(14,165,233,0.9)" />
+						<text class="metric-label">支付净额</text>
+					</view>
 					<view class="metric-value">{{ formatCurrency(overview?.payAmount) }}</view>
-					<view class="metric-delta" v-if="overview?.compare">较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.payAmountRate) }} {{ fmtRate(overview.compare.payAmountRate) }}</view>
+					<view v-if="overview?.compare" class="metric-delta" :class="deltaClass(overview.compare.payAmountRate)">
+						较{{ baseLabel(overview.compare.base) }} {{ arrow(overview.compare.payAmountRate) }} {{ fmtRate(overview.compare.payAmountRate) }}
+					</view>
 				</view>
 			</view>
 		</view>
@@ -33,13 +64,13 @@
 		<view class="card">
 			<view class="list-head">
 				<view class="card-title">逐日数据</view>
-				<view class="filters">
+				<scroll-view scroll-x="true" class="filters" show-scrollbar="false">
 					<view class="seg" :data-active="range==='last7'" @tap="setRange('last7')">近七日</view>
 					<view class="seg" :data-active="range==='last30'" @tap="setRange('last30')">近三十日</view>
 					<view class="seg" :data-active="range==='thisMonth'" @tap="setRange('thisMonth')">本月</view>
 					<view class="seg" :data-active="range==='lastMonth'" @tap="setRange('lastMonth')">上月</view>
 					<view class="seg" :data-active="range==='custom'" @tap="openCustom()">自定义</view>
-				</view>
+				</scroll-view>
 			</view>
 			<view class="range-picker" v-if="range==='custom'">
 				<view class="range-picker-head">
@@ -61,33 +92,38 @@
 					<view class="total-metric">
 						<text class="metric-label">洗车</text>
 						<text class="metric-value">{{ displayTotal.washCount }}</text>
-						<text v-if="compareTotals" class="total-compare"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.washCount) }} {{ fmtRate(rates.washCount) }}</text>
+						<text v-if="compareTotals" class="total-compare" :class="deltaClass(rates.washCount)"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.washCount) }} {{ fmtRate(rates.washCount) }}</text>
 					</view>
 					<view class="total-metric">
 						<text class="metric-label">划扣</text>
 						<text class="metric-value">{{ displayTotal.washcardDeductTimes }}</text>
-						<text v-if="compareTotals" class="total-compare"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.washcardDeductTimes) }} {{ fmtRate(rates.washcardDeductTimes) }}</text>
+						<text v-if="compareTotals" class="total-compare" :class="deltaClass(rates.washcardDeductTimes)"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.washcardDeductTimes) }} {{ fmtRate(rates.washcardDeductTimes) }}</text>
 					</view>
 					<view class="total-metric">
 						<text class="metric-label">净额</text>
 						<text class="metric-value">{{ formatCurrency(displayTotal.payAmount) }}</text>
-						<text v-if="compareTotals" class="total-compare"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.payAmount) }} {{ fmtRate(rates.payAmount) }}</text>
+						<text v-if="compareTotals" class="total-compare" :class="deltaClass(rates.payAmount)"><text class="cmp-label">{{ compareLabel }}</text> {{ arrow(rates.payAmount) }} {{ fmtRate(rates.payAmount) }}</text>
 					</view>
 				</view>
 			</view>
-			<view v-if="displayItems.length===0" class="empty">暂无数据</view>
-			<view v-else class="list">
-				<view class="table-head row">
-					<text class="col date">日期</text>
-					<text class="col">洗车</text>
-					<text class="col">划扣</text>
-					<text class="col">净额</text>
-				</view>
-				<view v-for="it in displayItems" :key="it.date" class="row">
-					<text class="col date">{{ it.date }}</text>
-					<text class="col">{{ it.washCount }}</text>
-					<text class="col">{{ it.washcardDeductTimes }}</text>
-					<text class="col">{{ formatCurrency(it.payAmount) }}</text>
+			<view v-if="loadingDaily" class="loading-text">加载中…</view>
+			<view v-else-if="displayItems.length===0" class="empty">暂无数据</view>
+			<view v-else class="daily-list">
+				<view v-for="it in displayItems" :key="it.date" class="day-item">
+					<view class="day-head">
+						<text class="day-date">{{ it.date }}</text>
+						<text class="day-amount">{{ formatCurrency(it.payAmount) }}</text>
+					</view>
+					<view class="day-foot">
+						<view class="day-pill">
+							<text class="k">洗车</text>
+							<text class="v">{{ it.washCount }}</text>
+						</view>
+						<view class="day-pill">
+							<text class="k">划扣</text>
+							<text class="v">{{ it.washcardDeductTimes }}</text>
+						</view>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -100,9 +136,10 @@ declare const uni: any;
 import { useSafeArea } from '../../utils/safe-area';
 import { systemMiniappEmployeeControllerDaily, systemMiniappEmployeeControllerOverview } from '@wash/api-client';
 
-const { topSpacerHeight, statusBarHeight } = useSafeArea();
+const { topSpacerHeight, statusBarHeight, navBarHeight } = useSafeArea();
 const overview = ref<any|null>(null);
 const loadingOverview = ref(false);
+const loadingDaily = ref(false);
 const daily = ref<{ items: any[]; total?: { washCount:number; washcardDeductTimes:number; payAmount:number } }>({ items: [] });
 const range = ref<'last7'|'last30'|'thisMonth'|'lastMonth'|'custom'>('last7');
 const customRange = ref<string[]>([]);
@@ -118,6 +155,7 @@ const greetText = computed(()=>{
 function baseLabel(b: 'yesterday'|'prev7'|'prev30'|'lastMonth'){ return b==='yesterday' ? '昨日' : b==='prev7' ? '前七日' : b==='prev30' ? '前一月' : '昨月'; }
 function fmtRate(r: number|null|undefined){ if (r==null) return '—'; return `${(r*100).toFixed(1)}%`; }
 function arrow(r: number|null|undefined){ if (r==null) return '→'; return r>0?'↑':(r<0?'↓':'→'); }
+function deltaClass(r: number|null|undefined){ if (r==null || r===0) return 'delta-flat'; return r>0 ? 'delta-up' : 'delta-down'; }
 function formatCurrency(n?: number){
   if (n==null) return '-';
   try {
@@ -146,6 +184,7 @@ async function fetchOverview(){
 }
 
 async function fetchDaily(){
+  loadingDaily.value = true;
   try{
     if (range.value === 'custom' && customRange.value && customRange.value.length===2) {
       const s = String(customRange.value[0]);
@@ -172,6 +211,7 @@ async function fetchDaily(){
     }
     daily.value.items = (daily.value.items||[]).sort((a:any,b:any)=> (a.date < b.date ? 1 : (a.date>b.date?-1:0)));
   } catch{ daily.value = { items: [] }; }
+  finally { loadingDaily.value = false; }
 }
 
 function setRange(r: 'last7'|'last30'|'thisMonth'|'lastMonth'|'custom'){ range.value = r; if (r!=='custom') { customRange.value = []; } fetchDaily(); }
@@ -325,45 +365,194 @@ function goBack(){ try { uni.navigateBack(); } catch {} }
  
 
 <style>
-.page { min-height: 100vh; padding: 24rpx; box-sizing: border-box; background: linear-gradient(180deg, #e9f5ff 0%, #fff0f6 100%); }
-.nav-back { position: fixed; left: 16rpx; z-index: 9; padding: 8rpx; }
-.nav-back-icon { width: 56rpx; height: 56rpx; }
-.card { background: #fff; border-radius: 24rpx; padding: 24rpx; box-shadow: 0 8rpx 24rpx rgba(0,0,0,.06); margin-bottom: 16rpx; }
-.gradient-card { background: linear-gradient(180deg, #f3f9ff 0%, #fff7fb 100%); }
-.welcome { font-size: 30rpx; font-weight: 800; color: #0b1220; margin-bottom: 12rpx; }
-.section-title { font-size: 24rpx; color:#4b5563; margin-bottom: 12rpx; }
-.metrics { display:flex; align-items: stretch; gap: 12rpx; }
-.metric { flex:1; background: #fff; border-radius: 16rpx; padding: 16rpx; border: 2rpx solid #eef2ff; }
-.metric-label { font-size: 22rpx; color: #6b7280; }
-.metric-value { font-size: 34rpx; font-weight: 800; color: #0f172a; margin-top: 6rpx; }
-.metric-delta { margin-top: 6rpx; font-size: 22rpx; color: #64748b; }
-.list-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12rpx; }
-.filters { display:flex; gap: 10rpx; }
-.seg { padding: 8rpx 14rpx; border-radius: 999rpx; background:#f3f4f6; color:#111827; font-size: 22rpx; }
-.seg[data-active="true"] { background: linear-gradient(135deg, #a8d8ff, #ffc9de); }
-.range-picker { margin-bottom: 10rpx; }
+.page {
+	min-height: 100vh;
+	padding: 24rpx;
+	box-sizing: border-box;
+	background: linear-gradient(180deg, #eff7ff 0%, #fff3f7 56%, #ffffff 100%);
+	padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx);
+	overflow-x: hidden;
+}
+
+.topbar{
+	position: fixed;
+	left: 0;
+	top: 0;
+	right: 0;
+	z-index: 20;
+	box-sizing: border-box;
+	background: rgba(255,255,255,0.78);
+	border-bottom: 1rpx solid rgba(148, 163, 184, 0.18);
+}
+@supports ((-webkit-backdrop-filter: blur(8px)) or (backdrop-filter: blur(8px))) {
+	.topbar{ -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+}
+.topbar-inner{
+	display:flex;
+	align-items:center;
+	justify-content: space-between;
+	padding: 0 20rpx;
+}
+.topbar-back{
+	width: 72rpx;
+	height: 72rpx;
+	border-radius: 999rpx;
+	display:flex;
+	align-items:center;
+	justify-content: center;
+	background: transparent;
+	border: none;
+	box-shadow: none;
+}
+.topbar-back:active{ opacity: .72; }
+.topbar-title{ font-size: 30rpx; font-weight: 900; color:#0f172a; letter-spacing: .6rpx; }
+.topbar-right{ width: 72rpx; height: 72rpx; }
+
+.card {
+	background: rgba(255, 255, 255, 0.96);
+	border-radius: 26rpx;
+	padding: 26rpx;
+	box-shadow:
+		0 10rpx 24rpx rgba(15, 23, 42, 0.05),
+		0 2rpx 10rpx rgba(15, 23, 42, 0.03);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	margin-bottom: 24rpx;
+	position: relative;
+	overflow: hidden;
+}
+
+.header-card{
+	background: linear-gradient(135deg, #edf7ff 0%, #fff2f8 58%, rgba(255,255,255,0.98) 100%);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+}
+.header-top{ display:flex; align-items:flex-start; justify-content: space-between; gap: 16rpx; margin-bottom: 14rpx; }
+.greet-col{ display:flex; flex-direction: column; gap: 8rpx; }
+.welcome { font-size: 34rpx; font-weight: 900; color: #0b1220; line-height: 1.22; letter-spacing: .6rpx; }
+.section-title { font-size: 24rpx; color: rgba(15, 23, 42, 0.72); line-height: 1.38; }
+.date-pill{
+	display:inline-flex;
+	align-items:center;
+	gap: 8rpx;
+	padding: 8rpx 12rpx;
+	border-radius: 999rpx;
+	background: rgba(255,255,255,0.92);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	box-shadow: 0 6rpx 14rpx rgba(15,23,42,0.05);
+}
+.date-text{ font-size: 22rpx; font-weight: 800; color:#0f172a; }
+
+.loading-text { font-size: 24rpx; color:#6b7280; padding: 6rpx 0; }
+
+.metrics { display:flex; align-items: stretch; gap: 12rpx; flex-wrap: wrap; }
+.metric {
+	flex:1;
+	min-width: 210rpx;
+	background: rgba(255,255,255,0.92);
+	border-radius: 20rpx;
+	padding: 18rpx;
+	border: 1rpx solid rgba(148,163,184,0.18);
+	box-shadow: inset 0 2rpx 10rpx rgba(15,23,42,0.03);
+}
+.metric-head{ display:flex; align-items:center; gap: 10rpx; }
+.metric-label { font-size: 22rpx; color: #6b7280; font-weight: 700; }
+.metric-value { font-size: 34rpx; font-weight: 900; color: #0f172a; margin-top: 8rpx; line-height: 1.1; }
+.metric-delta { margin-top: 8rpx; font-size: 22rpx; color: #64748b; }
+.delta-up{ color:#16a34a; }
+.delta-down{ color:#ef4444; }
+.delta-flat{ color:#64748b; }
+
+.list-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12rpx; gap: 12rpx; }
+.card-title { font-size: 28rpx; font-weight: 800; color:#0f172a; letter-spacing: .2rpx; flex: 0 0 auto; }
+.filters { flex: 1 1 auto; white-space: nowrap; overflow: hidden; }
+.seg {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 10rpx 14rpx;
+	border-radius: 999rpx;
+	background:#f1f5f9;
+	color:#0f172a;
+	font-size: 22rpx;
+	font-weight: 800;
+	border: 1rpx solid rgba(148,163,184,0.18);
+	margin-left: 10rpx;
+}
+.seg:first-child{ margin-left: 0; }
+.seg[data-active="true"] { border-color: rgba(255,255,255,0.75); background: linear-gradient(135deg, rgba(168, 216, 255, 0.95), rgba(255, 201, 222, 0.95)); }
+
+.range-picker { margin: 6rpx 0 16rpx 0; }
 .range-picker-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8rpx; }
 .range-tip { font-size: 22rpx; color:#64748b; }
 .range-clear { font-size: 22rpx; color:#ef4444; padding: 6rpx 12rpx; }
-.total-card { background:#0ea5e9; color:#fff; border-radius: 20rpx; padding: 16rpx; box-shadow: 0 12rpx 24rpx rgba(14,165,233,.18); }
-.total-title { display:flex; align-items:center; justify-content: space-between; font-size: 24rpx; opacity:.95; margin-bottom: 8rpx; }
-.total-range { font-size: 22rpx; opacity:.85; }
+
+.total-card {
+	/* 更贴合整体的“浅色渐变白卡”，避免强对比彩底 */
+	background: linear-gradient(
+		135deg,
+		rgba(168, 216, 255, 0.22) 0%,
+		rgba(255, 201, 222, 0.18) 55%,
+		rgba(255, 255, 255, 0.92) 100%
+	);
+	color:#0f172a;
+	border-radius: 24rpx;
+	padding: 18rpx;
+	box-shadow:
+		0 12rpx 26rpx rgba(15, 23, 42, 0.06),
+		inset 0 2rpx 10rpx rgba(15, 23, 42, 0.03);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	margin-bottom: 16rpx;
+}
+.total-title { display:flex; align-items:center; justify-content: space-between; font-size: 24rpx; margin-bottom: 10rpx; gap: 12rpx; font-weight: 800; }
+.total-range { font-size: 22rpx; color: rgba(15, 23, 42, 0.62); font-weight: 700; }
 .compare-toggle { display:flex; gap: 10rpx; }
-.compare-toggle .seg { background: rgba(255,255,255,.2); color:#fff; border: 2rpx solid rgba(255,255,255,.35); }
-.compare-toggle .seg[data-active="true"] { background:#ffffff; color:#0ea5e9; }
+.compare-toggle .seg {
+	background: rgba(255,255,255,0.80);
+	color:#0f172a;
+	border: 1rpx solid rgba(148,163,184,0.18);
+	box-shadow: 0 6rpx 14rpx rgba(15,23,42,0.04);
+}
+.compare-toggle .seg[data-active="true"] {
+	border-color: rgba(255,255,255,0.75);
+	background: linear-gradient(135deg, rgba(168, 216, 255, 0.95), rgba(255, 201, 222, 0.95));
+}
 .total-metrics { display:flex; gap: 12rpx; }
-.total-metric { flex:1; background: rgba(255,255,255,.15); border: 2rpx solid rgba(255,255,255,.25); border-radius: 14rpx; padding: 12rpx; }
-.total-metric .metric-label { color:#f0f9ff; font-size: 22rpx; }
-.total-metric .metric-value { color:#ffffff; font-size: 32rpx; font-weight: 800; margin-top: 6rpx; }
-.total-compare { display:block; margin-top: 6rpx; font-size: 22rpx; color:#e0f2fe; }
+.total-metric {
+	flex:1;
+	background: rgba(255,255,255,0.86);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	border-radius: 18rpx;
+	padding: 14rpx;
+	box-shadow: inset 0 2rpx 10rpx rgba(15,23,42,0.03);
+}
+.total-metric .metric-label { color: rgba(15, 23, 42, 0.62); font-size: 22rpx; font-weight: 800; }
+.total-metric .metric-value { color:#0f172a; font-size: 32rpx; font-weight: 900; margin-top: 6rpx; }
+.total-compare { display:block; margin-top: 6rpx; font-size: 22rpx; }
 .total-compare .cmp-label { opacity:.85; margin-right: 6rpx; }
-.list { margin-top: 10rpx; }
-.row { display:flex; align-items:center; justify-content: space-between; padding: 12rpx 6rpx; border-bottom: 2rpx dashed #f1f5f9; }
-.table-head { background:#f8fafc; border: 2rpx solid #eef2f7; border-radius: 12rpx; }
-.table-head .col { color:#475569; font-weight: 600; }
-.row:last-child { border-bottom: none; }
-.col { width: 25%; font-size: 24rpx; color:#111827; text-align: right; }
-.col.date { text-align: left; color:#374151; }
+
+.daily-list { margin-top: 10rpx; display:flex; flex-direction: column; gap: 12rpx; }
+.day-item{
+	background: rgba(255,255,255,0.92);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	border-radius: 22rpx;
+	padding: 18rpx 18rpx 16rpx 18rpx;
+	box-shadow: inset 0 2rpx 10rpx rgba(15,23,42,0.03);
+}
+.day-head{ display:flex; align-items: baseline; justify-content: space-between; gap: 12rpx; }
+.day-date{ font-size: 26rpx; font-weight: 900; color:#0f172a; letter-spacing: .2rpx; }
+.day-amount{ font-size: 28rpx; font-weight: 900; color:#0b1220; }
+.day-foot{ margin-top: 12rpx; display:flex; gap: 10rpx; flex-wrap: wrap; }
+.day-pill{
+	display:inline-flex;
+	align-items:center;
+	gap: 8rpx;
+	padding: 8rpx 12rpx;
+	border-radius: 999rpx;
+	background: rgba(241, 245, 249, 0.92);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+}
+.day-pill .k{ font-size: 22rpx; color:#64748b; font-weight: 700; }
+.day-pill .v{ font-size: 24rpx; color:#0f172a; font-weight: 900; }
+
 .empty { font-size: 24rpx; color:#6b7280; padding: 20rpx 0; text-align: center; }
 </style>
 

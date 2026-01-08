@@ -8,6 +8,13 @@ export class WashCardController {
     constructor(private service: WashCardService) {}
 
     // 管理端
+    @Get('member-stats')
+    @ApiOperation({ summary: '按会员聚合洗车卡统计（管理员，用于详情抽屉顶部统计）' })
+    adminMemberStats(@Query('memberId') memberId?: string){
+        const mid = Number(memberId || 0);
+        return this.service.getMemberStats(mid);
+    }
+
     @Get('list')
     @ApiOperation({ summary: '洗车卡列表（管理员，分页/关键词/按会员）' })
     adminList(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string, @Query('memberId') memberId?: string){

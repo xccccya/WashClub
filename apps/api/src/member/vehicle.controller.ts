@@ -11,6 +11,7 @@ import {
     VehicleCreateForMemberDto,
     VehicleGuestCreateDto,
     VehicleMyCreateDto,
+    VehicleRebindLogsQueryDto,
     VehicleSearchQueryDto,
     VehicleUpdateDto,
 } from './vehicle.dto.js';
@@ -113,8 +114,16 @@ export class VehicleController {
     // 将游客车辆绑定到会员
     @Post(':id/bind-member/:memberId')
     @ApiOperation({ summary: '将游客车辆绑定到会员' })
-    bindMember(@Param('id') id: string, @Param('memberId') memberId: string) {
-        return this.service.bindGuestVehicle(Number(id), Number(memberId));
+    bindMember(
+        @Param('id') id: string,
+        @Param('memberId') memberId: string,
+        @Headers('authorization') authHeader?: string,
+    ) {
+        // 兼容：部分调用方可能没有带 admin token；尽量记录操作人
+        const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+        let operatorUserId: number | null = null;
+        try{ const dec:any = this.jwt.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
+        return this.service.bindGuestVehicle(Number(id), Number(memberId), { operatorUserId });
     }
 
     // 一键换绑（管理员）：支持跨集团换绑；需二次确认与备注
@@ -124,14 +133,29 @@ export class VehicleController {
     @ApiOperation({ summary: '一键换绑车辆（管理员）' })
     async adminRebind(
         @Param('id') id: string,
-        @Body() body: { toMemberId?: number | null; toGroupId?: number | null; remark?: string | null; confirm?: boolean },
+        @Body() body: { toMemberId?: number | null; toGroupId?: number | null; toGuest?: boolean; remark?: string | null; confirm?: boolean },
         @Headers('authorization') authHeader?: string,
     ){
         if (!body?.confirm) throw new BadRequestException('请勾选二次确认');
         const token = (authHeader||'').replace(/^Bearer\s+/i,'');
         let operatorUserId: number | null = null;
         try{ const dec:any = this.jwt.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
-        return (this.service as any).adminRebindVehicle(Number(id), { toMemberId: Number((body as any)?.toMemberId||0) || null, toGroupId: Number((body as any)?.toGroupId||0) || null, remark: (body as any)?.remark || null, operatorUserId });
+        return (this.service as any).adminRebindVehicle(Number(id), {
+            toMemberId: Number((body as any)?.toMemberId||0) || null,
+            toGroupId: Number((body as any)?.toGroupId||0) || null,
+            toGuest: !!(body as any)?.toGuest,
+            remark: (body as any)?.remark || null,
+            operatorUserId,
+        });
+    }
+
+    // 改绑审计日志（管理员）
+    @Get(':id/rebind-logs')
+    @UseGuards(AdminGuard)
+    @RequirePerm('vehicles' as any)
+    @ApiOperation({ summary: '车辆改绑记录（管理员，分页）' })
+    async adminRebindLogs(@Param('id') id: string, @Query() q: VehicleRebindLogsQueryDto) {
+        return (this.service as any).adminGetRebindLogs(Number(id), Number(q?.page || 1), Number(q?.pageSize || 20));
     }
 
     // 我的车辆（会员端）

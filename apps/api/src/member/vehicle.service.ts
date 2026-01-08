@@ -225,13 +225,38 @@ export class VehicleService {
     }
 
     // 将游客车辆绑定到会员
-    async bindGuestVehicle(vehicleId: number, memberId: number) {
+    async bindGuestVehicle(vehicleId: number, memberId: number, opts?: { operatorUserId?: number | null; remark?: string | null }) {
         const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!v) throw new BadRequestException('车辆不存在');
         if (v.memberId) throw new BadRequestException('该车辆已绑定会员');
+        if (v.groupId) throw new BadRequestException('该车辆为集团车辆，请使用改绑功能');
         const member = await this.prisma.member.findUnique({ where: { id: memberId } });
         if (!member) throw new BadRequestException('会员不存在');
-        return this.prisma.vehicle.update({ where: { id: vehicleId }, data: { memberId } as any });
+        const remark = (opts?.remark || '游客绑定到会员').slice(0, 200) || null;
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const before = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+            // 若目标会员当前没有任何车辆，则自动设为默认车辆
+            const count = await tx.vehicle.count({ where: { memberId } });
+            const isDefault = count === 0;
+            if (isDefault) {
+                await tx.vehicle.updateMany({ where: { memberId, isDefault: true } as any, data: { isDefault: false } as any });
+            }
+            const res = await tx.vehicle.update({ where: { id: vehicleId }, data: { memberId, groupId: null as any, isDefault } as any });
+            // 审计日志：写入 VehicleRebindLog，便于统一查看
+            try{
+                await (tx as any).vehicleRebindLog.create({ data: {
+                    vehicleId,
+                    fromMemberId: before?.memberId ?? null,
+                    fromGroupId: before?.groupId ?? null,
+                    toMemberId: memberId,
+                    toGroupId: null,
+                    operatorUserId: opts?.operatorUserId ?? null,
+                    remark,
+                } });
+            }catch{}
+            return res;
+        });
+        return updated;
     }
 
     async createForMemberByPhone(phone: string, input: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; isDefault?: boolean }) {
@@ -294,13 +319,17 @@ export class VehicleService {
         });
     }
 
-    // 管理员一键换绑车辆：允许 from 任意 -> toMember 或 toGroup（二选一），记录审计
-    async adminRebindVehicle(vehicleId: number, opts: { toMemberId?: number | null; toGroupId?: number | null; remark?: string | null; operatorUserId?: number | null }){
+    // 管理员一键换绑车辆：允许 from 任意 -> toMember / toGroup / toGuest（三选一），记录审计
+    async adminRebindVehicle(vehicleId: number, opts: { toMemberId?: number | null; toGroupId?: number | null; toGuest?: boolean; remark?: string | null; operatorUserId?: number | null }){
         const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!v) throw new BadRequestException('车辆不存在');
         const toMemberId = (opts?.toMemberId ?? null) as number | null;
         const toGroupId = (opts?.toGroupId ?? null) as number | null;
-        if (!!toMemberId === !!toGroupId) throw new BadRequestException('目标主体必须二选一：会员或集团');
+        const toGuest = !!(opts as any)?.toGuest;
+        // 目标主体：会员/集团/游客 三选一
+        const chosen = [!!toMemberId, !!toGroupId, toGuest].filter(Boolean).length;
+        if (chosen !== 1) throw new BadRequestException('目标主体必须三选一：会员/集团/游客');
+        if (toGuest && (toMemberId || toGroupId)) throw new BadRequestException('变更为游客时不可指定会员或集团');
 
         // 校验目标存在
         if (toMemberId) {
@@ -315,15 +344,22 @@ export class VehicleService {
         // 执行换绑（事务内）
         const updated = await this.prisma.$transaction(async (tx) => {
             const before = await tx.vehicle.findUnique({ where: { id: vehicleId } });
-            const res = await tx.vehicle.update({ where: { id: vehicleId }, data: { memberId: toMemberId ?? null, groupId: toGroupId ?? null, isDefault: !!toMemberId && (await tx.vehicle.count({ where: { memberId: toMemberId } }))===0 ? true : (before?.memberId===toMemberId ? before?.isDefault : false) } as any });
+            const nextMemberId = toGuest ? null : (toMemberId ?? null);
+            const nextGroupId = toGuest ? null : (toGroupId ?? null);
+            const isDefaultNext =
+                // 游客/集团不参与默认车辆逻辑
+                nextMemberId
+                    ? ((await tx.vehicle.count({ where: { memberId: nextMemberId } })) === 0 ? true : (before?.memberId===nextMemberId ? before?.isDefault : false))
+                    : false;
+            const res = await tx.vehicle.update({ where: { id: vehicleId }, data: { memberId: nextMemberId, groupId: nextGroupId, isDefault: isDefaultNext } as any });
             // 审计日志
             try{
                 await (tx as any).vehicleRebindLog.create({ data: {
                     vehicleId,
                     fromMemberId: before?.memberId ?? null,
                     fromGroupId: before?.groupId ?? null,
-                    toMemberId: toMemberId ?? null,
-                    toGroupId: toGroupId ?? null,
+                    toMemberId: nextMemberId,
+                    toGroupId: nextGroupId,
                     operatorUserId: opts?.operatorUserId ?? null,
                     remark: (opts?.remark || '').slice(0, 200) || null,
                 } });
@@ -332,6 +368,76 @@ export class VehicleService {
         });
         try{ await this.syncVehicleBindings(vehicleId); }catch{}
         return updated;
+    }
+
+    // 管理端：车辆改绑日志（分页）
+    async adminGetRebindLogs(vehicleId: number, page = 1, pageSize = 20) {
+        const vid = Number(vehicleId || 0);
+        if (!Number.isFinite(vid) || vid <= 0) throw new BadRequestException('车辆不存在');
+        const p = Math.max(1, Number(page || 1));
+        const ps = Math.max(1, Math.min(100, Number(pageSize || 20)));
+
+        const where: any = { vehicleId: vid };
+        const [items, total] = await Promise.all([
+            (this.prisma as any).vehicleRebindLog.findMany({
+                where,
+                orderBy: { id: 'desc' },
+                skip: (p - 1) * ps,
+                take: ps,
+                select: {
+                    id: true,
+                    createdAt: true,
+                    vehicleId: true,
+                    fromMemberId: true,
+                    fromGroupId: true,
+                    toMemberId: true,
+                    toGroupId: true,
+                    remark: true,
+                    operatorUserId: true,
+                    operatorUser: { select: { id: true, name: true, phone: true } },
+                },
+            }),
+            (this.prisma as any).vehicleRebindLog.count({ where }),
+        ]);
+
+        const memberIds = Array.from(
+            new Set<number>(
+                (items || [])
+                    .flatMap((it: any) => [it?.fromMemberId, it?.toMemberId])
+                    .filter((x: any) => Number(x) > 0)
+                    .map((x: any) => Number(x)),
+            ),
+        );
+        const groupIds = Array.from(
+            new Set<number>(
+                (items || [])
+                    .flatMap((it: any) => [it?.fromGroupId, it?.toGroupId])
+                    .filter((x: any) => Number(x) > 0)
+                    .map((x: any) => Number(x)),
+            ),
+        );
+
+        const [members, groups] = await Promise.all([
+            memberIds.length
+                ? this.prisma.member.findMany({ where: { id: { in: memberIds } }, select: { id: true, name: true, phone: true } })
+                : Promise.resolve([] as any[]),
+            groupIds.length
+                ? (this.prisma as any).group.findMany({ where: { id: { in: groupIds } }, select: { id: true, name: true } })
+                : Promise.resolve([] as any[]),
+        ]);
+
+        const memberMap = new Map<number, any>((members || []).map((m: any) => [Number(m.id), m]));
+        const groupMap = new Map<number, any>((groups || []).map((g: any) => [Number(g.id), g]));
+
+        const mapped = (items || []).map((it: any) => ({
+            ...it,
+            fromMember: it?.fromMemberId ? memberMap.get(Number(it.fromMemberId)) || null : null,
+            toMember: it?.toMemberId ? memberMap.get(Number(it.toMemberId)) || null : null,
+            fromGroup: it?.fromGroupId ? groupMap.get(Number(it.fromGroupId)) || null : null,
+            toGroup: it?.toGroupId ? groupMap.get(Number(it.toGroupId)) || null : null,
+        }));
+
+        return { items: mapped, total: Number(total || 0), page: p, pageSize: ps };
     }
 
     async searchByPlateLike(keyword: string, limit = 15) {

@@ -3,7 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberPointsService } from './points.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
-import { MemberPointsAdjustDto, MemberPointsSaveConfigDto } from './points.dto.js';
+import { MemberPointsAdjustDto, MemberPointsAdminLogsPagedQueryDto, MemberPointsSaveConfigDto } from './points.dto.js';
 
 @ApiTags('member-points')
 @Controller('member-points')
@@ -27,6 +27,14 @@ export class MemberPointsController {
   @RequirePerm('member-points')
   @ApiOperation({ summary: '查询积分日志' })
   listLogs(@Query('memberId') memberId?: string, @Query('source') source?: string){ return this.service.listLogs({ memberId: memberId ? Number(memberId) : undefined, source }); }
+
+  @Get('logs-paged')
+  @UseGuards(AdminGuard)
+  @RequirePerm('member-points')
+  @ApiOperation({ summary: '查询积分日志（分页）' })
+  listLogsPaged(@Query() query: MemberPointsAdminLogsPagedQueryDto){
+    return this.service.listLogsPaged(query as any);
+  }
 
   @Post('adjust')
   @UseGuards(AdminGuard)

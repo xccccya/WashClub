@@ -6,9 +6,108 @@ import { PrismaService } from '../prisma.service.js';
 export class GroupBalanceService {
   constructor(private prisma: PrismaService) {}
 
+  private parseYm(v?: string | null): { y: number; m: number } | null {
+    const s = String(v || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(s)) return null;
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(5, 7));
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null;
+    return { y, m };
+  }
+
+  private ymToStr(y: number, m: number) {
+    return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}`;
+  }
+
+  private addMonths(ym: { y: number; m: number }, delta: number) {
+    const base = ym.y * 12 + (ym.m - 1);
+    const v = base + delta;
+    const y = Math.floor(v / 12);
+    const m = (v % 12) + 1;
+    return { y, m };
+  }
+
+  private ymStartDate(ym: { y: number; m: number }) {
+    // 使用本地时区构造，避免与 MySQL server time_zone 不一致导致边界月偏移
+    return new Date(ym.y, ym.m - 1, 1, 0, 0, 0, 0);
+  }
+
   async getSummary(groupId: number) {
     const acc = await this.prisma.groupBalanceAccount.findUnique({ where: { groupId } });
     return { balance: Number(acc?.balance || 0) };
+  }
+
+  async getMonthlyConsumption(
+    groupId: number,
+    opts?: { startMonth?: string; endMonth?: string; months?: number }
+  ) {
+    const now = new Date();
+    const defaultEnd = { y: now.getFullYear(), m: now.getMonth() + 1 };
+
+    const endParsed = this.parseYm(opts?.endMonth ?? null) || defaultEnd;
+    const months = Math.max(1, Math.min(36, Number(opts?.months || 12)));
+
+    const startParsed =
+      this.parseYm(opts?.startMonth ?? null) || this.addMonths(endParsed, -(months - 1));
+
+    // 规范化：保证 start <= end
+    const startIndex = startParsed.y * 12 + (startParsed.m - 1);
+    const endIndex = endParsed.y * 12 + (endParsed.m - 1);
+    const realStart = startIndex <= endIndex ? startParsed : endParsed;
+    const realEnd = startIndex <= endIndex ? endParsed : startParsed;
+
+    const startAt = this.ymStartDate(realStart);
+    const endNext = this.ymStartDate(this.addMonths(realEnd, 1)); // end 为闭区间，这里用 < endNext
+
+    // MySQL：按月分组。仅统计“集团余额支付”产生的扣减：type=DEDUCT 且 orderId 不为空
+    const rows = await this.prisma.$queryRaw<Array<{ ym: string; total: any }>>(
+      Prisma.sql`
+        SELECT
+          DATE_FORMAT(createdAt, '%Y-%m') AS ym,
+          SUM(ABS(amount)) AS total
+        FROM GroupBalanceLedger
+        WHERE
+          groupId = ${groupId}
+          AND type = 'DEDUCT'
+          AND orderId IS NOT NULL
+          AND createdAt >= ${startAt}
+          AND createdAt < ${endNext}
+        GROUP BY ym
+        ORDER BY ym ASC
+      `
+    );
+
+    const byYm = new Map<string, number>();
+    for (const r of rows || []) {
+      const ym = String((r as any)?.ym || '').trim();
+      if (!ym) continue;
+      const v = Number((r as any)?.total || 0);
+      byYm.set(ym, Number.isFinite(v) ? v : 0);
+    }
+
+    const monthsList: Array<{ month: string; amount: number }> = [];
+    const sIdx = realStart.y * 12 + (realStart.m - 1);
+    const eIdx = realEnd.y * 12 + (realEnd.m - 1);
+    for (let idx = sIdx; idx <= eIdx; idx++) {
+      const y = Math.floor(idx / 12);
+      const m = (idx % 12) + 1;
+      const key = this.ymToStr(y, m);
+      monthsList.push({ month: key, amount: Number(byYm.get(key) || 0) });
+    }
+
+    const total = monthsList.reduce((s, it) => s + Number(it.amount || 0), 0);
+    const avg = monthsList.length ? total / monthsList.length : 0;
+    const latest = monthsList.length ? monthsList[monthsList.length - 1] : null;
+
+    return {
+      startMonth: this.ymToStr(realStart.y, realStart.m),
+      endMonth: this.ymToStr(realEnd.y, realEnd.m),
+      total,
+      avg,
+      latestMonth: latest?.month || null,
+      latestAmount: latest ? latest.amount : 0,
+      months: monthsList,
+    };
   }
 
   async listLedger(groupId: number, page = 1, pageSize = 20, type?: 'RECHARGE'|'DEDUCT'|'ADJUST'|'REFUND', start?: string, end?: string) {

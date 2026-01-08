@@ -190,9 +190,9 @@
 						系统会自动识别本订单中标记为"计为洗车(次)"的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。
 					</div>
 					<el-radio-group v-model="washPrefer" size="small">
-						<el-radio-button label="AUTO">自动选择</el-radio-button>
-						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
-						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
+						<el-radio-button value="AUTO">自动选择</el-radio-button>
+						<el-radio-button value="GROUP">优先集团卡</el-radio-button>
+						<el-radio-button value="MEMBER">优先会员卡</el-radio-button>
 					</el-radio-group>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
@@ -207,8 +207,8 @@
 			<el-form label-width="96px">
 				<el-form-item label="退款方式">
 					<el-radio-group v-model="refundMode">
-						<el-radio label="FULL">全额退款</el-radio>
-						<el-radio label="PART">部分退款</el-radio>
+						<el-radio value="FULL">全额退款</el-radio>
+						<el-radio value="PART">部分退款</el-radio>
 					</el-radio-group>
 				</el-form-item>
 				<el-form-item v-if="refundMode==='PART'" label="退款金额">
@@ -358,7 +358,27 @@ const payAmountAfterManual = computed(()=>{
 });
 function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value||0); if(!Number.isFinite(v)||v<0) v=0; const cap=Number(payAmountCap.value||0); cashierDiscountInput.value=Number(Math.min(cap, v).toFixed(2)); }catch{} }
 function openPay(row:any){ currentOrderId.value = row.id; payMethod.value = 'CASH'; payTab.value = 'manual'; washPrefer.value='AUTO'; wxAuthCode.value=''; orderForPay.value = row || null; cashierDiscountInput.value = Math.max(0, Number((row as any)?.cashierDiscountAmount||0)) || 0; showPay.value = true; }
-async function doMarkPaid(){ if (!currentOrderId.value) return; try { try{ await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{} await orderControllerMarkPaid(Number(currentOrderId.value), { body: { method: payMethod.value } } as any); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); } catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); } }
+function normalizeMoney2(v:any): number { try{ const n = Number(v||0); if (!Number.isFinite(n) || n<0) return 0; return Number(n.toFixed(2)); }catch{ return 0; } }
+function moneyEq(a:any,b:any): boolean { return Math.abs(normalizeMoney2(a)-normalizeMoney2(b)) < 0.0001; }
+async function doMarkPaid(){
+	if (!currentOrderId.value) return;
+	try{
+		// 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+		try{
+			const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+			const next = Number(cashierDiscountInput.value||0);
+			if (!moneyEq(prev, next)){
+				await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: normalizeMoney2(next) } } as any);
+			}
+		}catch{}
+		await orderControllerMarkPaid(Number(currentOrderId.value), { body: { method: payMethod.value } } as any);
+		ElMessage.success('已标记为已支付');
+		showPay.value = false;
+		await fetchList();
+	}catch(e:any){
+		ElMessage.error(String(e?.message||e||'操作失败'));
+	}
+}
 
 async function doWxMicropay(){
 	if (!currentOrderId.value) return;
@@ -366,7 +386,14 @@ async function doWxMicropay(){
 	if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
 	try{
 		wxPayLoading.value = true;
-		try{ await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+		// 仅当收银立减变化时才调整（避免 0->0 写入时间线）
+		try{
+			const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+			const next = Number(cashierDiscountInput.value||0);
+			if (!moneyEq(prev, next)){
+				await orderControllerAdjustCashierDiscount(Number(currentOrderId.value), { body: { amount: normalizeMoney2(next) } } as any);
+			}
+		}catch{}
 		await orderControllerWechatMicropay(Number(currentOrderId.value), { body: { authCode: code } } as any);
 		ElMessage.success('付款成功，已标记订单为已支付');
 		showPay.value = false; wxAuthCode.value = '';

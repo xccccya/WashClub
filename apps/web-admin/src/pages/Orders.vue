@@ -627,6 +627,8 @@ function onManualDiscountChange(){
         cashierDiscountInput.value = Number(Math.min(cap, v).toFixed(2));
     }catch{}
 }
+function normalizeMoney2(v:any): number { try{ const n = Number(v||0); if (!Number.isFinite(n) || n<0) return 0; return Number(n.toFixed(2)); }catch{ return 0; } }
+function moneyEq(a:any,b:any): boolean { return Math.abs(normalizeMoney2(a)-normalizeMoney2(b)) < 0.0001; }
 async function openPay(row:any){
     currentOrderId.value = row.id;
     payMethod.value = 'CASH';
@@ -644,7 +646,14 @@ async function openPay(row:any){
 async function doMarkPaid(){
     if (!currentOrderId.value) return;
     try {
-        try{ await orderControllerAdjustCashierDiscount(currentOrderId.value, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(currentOrderId.value, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
         await orderControllerMarkPaid(currentOrderId.value, { body: { method: payMethod.value } } as any); ElMessage.success('已标记为已支付'); showPay.value = false; await fetchList(); }
     catch(e:any){ ElMessage.error(String(e?.message||e||'操作失败')); }
 }
@@ -655,7 +664,14 @@ async function doWxMicropay(){
     if (!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
     try{
         wxPayLoading.value = true;
-        try{ await orderControllerAdjustCashierDiscount(currentOrderId.value, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(currentOrderId.value, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
         await orderControllerWechatMicropay(currentOrderId.value, { body: { authCode: code } } as any);
         ElMessage.success('付款成功，已标记订单为已支付');
         showPay.value = false;

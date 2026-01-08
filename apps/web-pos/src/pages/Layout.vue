@@ -21,7 +21,7 @@
 			</nav>
 		</aside>
 		<main class="content">
-			<header class="topbar" :class="{ compact: isCompact }">
+			<header v-if="!hideTopbar" class="topbar" :class="{ compact: isCompact }">
 				<div class="topbar__left">
 					<template v-if="isOrdersRoute">
 						<el-tabs
@@ -88,6 +88,13 @@
 						</div>
 					</el-popover>
 
+						<!-- 刷新页面 -->
+						<el-tooltip content="刷新页面" placement="bottom" :show-after="250" :disabled="isTouch">
+							<el-button class="icon-btn" text aria-label="刷新页面" @click="reloadPage">
+								<el-icon><RefreshRight /></el-icon>
+							</el-button>
+						</el-tooltip>
+
 						<!-- 通知 -->
 						<el-tooltip content="消息通知" placement="bottom" :show-after="250" :disabled="isTouch">
 							<el-badge :value="unreadCountText" :hidden="unreadCount===0" class="bell-badge">
@@ -125,7 +132,7 @@
 					</el-space>
 				</div>
 			</header>
-			<section class="page-body">
+			<section class="page-body" :class="{ 'no-padding': noPagePadding, 'overflow-hidden': pageOverflowHidden }">
 				<router-view v-slot="{ Component, route }">
 					<transition name="fade" mode="out-in">
 						<keep-alive :include="['Orders','OrderDetail']">
@@ -172,7 +179,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { absUrl } from '../utils/http';
 import { API_BASE } from '../config';
 import { ElMessageBox } from 'element-plus';
-import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell, FullScreen } from '@element-plus/icons-vue';
+import { HomeFilled, ShoppingCart, Tickets, SwitchButton, Bell, FullScreen, RefreshRight } from '@element-plus/icons-vue';
 import {
 	notificationControllerList,
 	notificationControllerMarkRead,
@@ -186,6 +193,9 @@ const route = useRoute();
 const router = useRouter();
 
 const pageTitle = computed(()=> String((route.meta as any)?.title || ''));
+const hideTopbar = computed(()=> !!(route.meta as any)?.hideTopbar);
+const noPagePadding = computed(()=> !!(route.meta as any)?.noPagePadding);
+const pageOverflowHidden = computed(()=> !!(route.meta as any)?.pageOverflowHidden);
 const userName = computed(()=>{
 	try { return JSON.parse(localStorage.getItem('user')||'{}')?.name || '用户'; } catch { return '用户'; }
 });
@@ -233,6 +243,10 @@ async function saveBusiness(){
         await reloadBusiness();
     }catch{}
     finally{ savingBiz.value = false; }
+}
+
+function reloadPage(){
+	try{ window.location.reload(); }catch{}
 }
 
 function formatAvatar(url?: string | null){
@@ -472,7 +486,9 @@ watch(()=> route.fullPath, ()=> addOrActivateCurrent());
 	border-radius: 8px;
 }
 .route-tabs :deep(.el-tabs__item .is-icon-close:hover){ background: #eef2f7; }
-.page-body{ flex:1; overflow:auto; padding:12px; }
+.page-body{ flex:1; overflow:auto; padding:12px; min-height:0; }
+.page-body.no-padding{ padding:0; }
+.page-body.overflow-hidden{ overflow:hidden; }
 .user-trigger{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:9999px; background:#f6f8fb; border:1px solid #ebeef5; transition: background .15s ease, border-color .15s ease; }
 .user-trigger:hover{ background:#f1f5ff; border-color:#e5efff; }
 .user-avatar :deep(img){ border-radius:50%; }

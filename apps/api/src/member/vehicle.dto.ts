@@ -49,6 +49,22 @@ export class VehicleSearchQueryDto {
 	limit?: number;
 }
 
+export class VehicleRebindLogsQueryDto {
+	@ApiPropertyOptional({ description: '页码（从1开始）', example: 1, default: 1 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	page?: number;
+
+	@ApiPropertyOptional({ description: '每页条数', example: 20, default: 20 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	pageSize?: number;
+}
+
 export class VehicleBaseDto {
 	@ApiProperty({ description: '车牌号', example: '川A12345' })
 	@IsString()

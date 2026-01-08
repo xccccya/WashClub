@@ -788,6 +788,53 @@ export class OrderService {
         return order;
     }
 
+    // 为订单列表批量计算 washTimes（按商品 isCarWash 与 item.quantity 汇总）
+    // 注意：仅依赖已 include 的 items，避免额外查 orderItem；并做批量 product 查询，避免 N+1
+    private async enrichOrdersWithWashTimes(orders: any[]) {
+        try {
+            const list = Array.isArray(orders) ? orders : [];
+            if (!list.length) return list;
+
+            // 收集所有商品ID
+            const productIds: number[] = [];
+            for (const o of list) {
+                const items = Array.isArray((o as any)?.items) ? (o as any).items : [];
+                for (const it of items) {
+                    const pid = Number((it as any)?.productId || 0);
+                    if (Number.isFinite(pid) && pid > 0) productIds.push(pid);
+                }
+            }
+            const uniq = Array.from(new Set(productIds));
+            if (!uniq.length) {
+                // 没有商品ID时统一置 0
+                for (const o of list) (o as any).washTimes = 0;
+                return list;
+            }
+
+            const products = await this.prisma.product.findMany({
+                where: { id: { in: uniq } },
+                select: { id: true, isCarWash: true },
+            });
+            const isCarWashById = new Map<number, boolean>(products.map((p: any) => [Number(p.id), !!p.isCarWash]));
+
+            for (const o of list) {
+                const items = Array.isArray((o as any)?.items) ? (o as any).items : [];
+                let times = 0;
+                for (const it of items) {
+                    const pid = Number((it as any)?.productId || 0);
+                    if (!pid || !isCarWashById.get(pid)) continue;
+                    const q = Math.max(1, Number((it as any)?.quantity || 0));
+                    times += Number.isFinite(q) ? q : 1;
+                }
+                (o as any).washTimes = times;
+            }
+        } catch {
+            // 兜底：不影响订单列表返回
+            try { for (const o of (orders || [])) (o as any).washTimes = 0; } catch {}
+        }
+        return orders;
+    }
+
     async getOrder(id: number) {
         const o = await this.prisma.order.findUnique({
             where: { id },
@@ -953,7 +1000,7 @@ export class OrderService {
             where,
             orderBy: [{ id: 'desc' }],
             include: { items: true, member: true, afterSalesRequests: true }
-        });
+        }).then((list) => this.enrichOrdersWithWashTimes(list as any));
     }
 
     // 管理后台：调整未支付订单的收银立减金额（单位：元，>=0）
@@ -968,6 +1015,7 @@ export class OrderService {
             discountAmount: true,
             memberDiscountAmount: true,
             cashierDiscountAmount: true,
+            payAmount: true,
             shippingFee: true,
             pointsAmount: true,
         } });
@@ -983,8 +1031,15 @@ export class OrderService {
         const baseBeforeCashier = total.minus(discountBeforeCashier);
         let allow = baseBeforeCashier;
         if (allow.lessThan(0)) allow = new Prisma.Decimal(0);
-        const want = new Prisma.Decimal(req);
-        const cashierFinal = want.greaterThan(allow) ? allow : want;
+        // 统一按“分”为精度，避免出现 0.0000001 造成误判与脏写
+        const want = new Prisma.Decimal(req).toDecimalPlaces(2);
+        const allow2 = allow.toDecimalPlaces(2);
+        const cashierFinal = (want.greaterThan(allow2) ? allow2 : want).toDecimalPlaces(2);
+
+        // 无变化：不更新、不写时间线（避免 0->0 产生噪音）
+        if (cashierFinal.equals(cashierPrev)) {
+            return { ok: true, id: order.id, cashierDiscountAmount: Number(cashierPrev), payAmount: Number(order.payAmount as any) };
+        }
         // 新的折扣总额与应收
         const discountNew = discountBeforeCashier.plus(cashierFinal);
         let payAmount = total.minus(discountNew).plus(shipping).minus(pointsAmt);
@@ -994,7 +1049,15 @@ export class OrderService {
             discountAmount: discountNew,
             payAmount: payAmount,
         } });
-        try { await this.writeTimeline({ orderId: id, event: 'NOTE', value: 'CASHIER_DISCOUNT_ADJUST', remark: `调整为：${cashierFinal.toFixed(2)}`, operatorUserId: operatorUserId ?? null }); } catch {}
+        // 仅当发生变化时写入时间线；其中 >0->0 属于“取消立减”，也需要记录
+        try {
+            const prevText = cashierPrev.toFixed(2);
+            const nextText = cashierFinal.toFixed(2);
+            const remark = cashierFinal.equals(0)
+                ? `取消收银立减：${prevText} -> ${nextText}`
+                : `收银立减调整：${prevText} -> ${nextText}`;
+            await this.writeTimeline({ orderId: id, event: 'NOTE', value: 'CASHIER_DISCOUNT_ADJUST', remark, operatorUserId: operatorUserId ?? null });
+        } catch {}
         return { ok: true, id: updated.id, cashierDiscountAmount: Number(cashierFinal), payAmount: Number(payAmount) };
     }
 }

@@ -46,6 +46,69 @@ export class MemberPointsService {
     return (rows||[]).map(r=> ({ ...r, orderNo: r?.order?.no || null }));
   }
 
+  async listLogsPaged(query: { page?: number; pageSize?: number; memberId?: number; source?: string; orderNo?: string; keyword?: string; from?: string; to?: string } = {}){
+    const page = Math.max(1, Number(query.page || 1));
+    const pageSize = Math.max(1, Math.min(100, Number(query.pageSize || 20)));
+    const where: any = {};
+
+    const memberId = query.memberId != null ? Number(query.memberId) : undefined;
+    if (memberId && memberId > 0) where.memberId = memberId;
+
+    if (query.source) where.source = String(query.source).toUpperCase();
+
+    const orderNo = String(query.orderNo || '').trim();
+    if (orderNo) where.order = { no: { contains: orderNo } };
+
+    const keyword = String(query.keyword || '').trim();
+    if (keyword && !where.memberId) {
+      const num = Number(keyword);
+      const ors: any[] = [];
+      if (Number.isFinite(num) && num > 0) {
+        ors.push({ id: Math.trunc(num) });
+        ors.push({ uid: Math.trunc(num) });
+      }
+      ors.push({ name: { contains: keyword } });
+      ors.push({ phone: { contains: keyword } });
+      where.member = { OR: ors };
+    }
+
+    const range = parseDateRange(query.from, query.to);
+    if (range?.from || range?.to) {
+      where.createdAt = {};
+      if (range.from) where.createdAt.gte = range.from;
+      if (range.to) where.createdAt.lt = range.to;
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      (this.prisma as any).memberPointsLog.count({ where }),
+      (this.prisma as any).memberPointsLog.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          order: { select: { id: true, no: true } },
+          member: { select: { id: true, uid: true, name: true, phone: true } },
+        },
+      }),
+    ]);
+
+    const items = (Array.isArray(rows) ? rows : []).map((r: any) => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      memberId: r.memberId,
+      member: r.member ? { id: r.member.id, uid: r.member.uid, name: r.member.name, phone: r.member.phone } : null,
+      change: Number(r.change || 0),
+      source: r.source,
+      desc: r.desc,
+      orderId: r.orderId ?? null,
+      orderNo: r?.order?.no || null,
+      operatorUserId: r.operatorUserId ?? null,
+    }));
+
+    return { total: Number(total || 0), page, pageSize, items };
+  }
+
   // 后台调整积分（正负均可），扣减不得使积分为负
   async adjustByAdmin(memberId: number, delta: number, remark?: string | null, operatorUserId?: number | null){
     const id = Number(memberId); if (!id) throw new BadRequestException('memberId无效');
@@ -62,6 +125,31 @@ export class MemberPointsService {
       return { ok: true } as any;
     });
   }
+}
+
+function parseDateRange(from?: string, to?: string): { from?: Date; to?: Date } | null {
+  const f = parseDateInput(from, 'start');
+  const t = parseDateInput(to, 'end');
+  if (!f && !t) return null;
+  return { from: f || undefined, to: t || undefined };
+}
+
+function parseDateInput(input?: string, edge: 'start' | 'end' = 'start'): Date | null {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  // YYYY-MM-DD：按日边界解析；end 使用次日 00:00 作为 lt 上界
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+    const dt = new Date(y, mo, d, 0, 0, 0, 0);
+    if (Number.isNaN(dt.getTime())) return null;
+    if (edge === 'end') dt.setDate(dt.getDate() + 1);
+    return dt;
+  }
+  const dt = new Date(s);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
 }
 
 

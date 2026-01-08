@@ -32,6 +32,23 @@ export class GroupBalanceController {
     return this.service.listLedger(id, p, ps, type, start, end);
   }
 
+  @Get('monthly-consumption')
+  @RequirePerm('group-balance')
+  @ApiOperation({ summary: '按月累计消费金额（集团余额支付扣减）' })
+  monthlyConsumption(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('startMonth') startMonth?: string,
+    @Query('endMonth') endMonth?: string,
+    @Query('months') months?: string,
+  ) {
+    const m = months == null ? undefined : Number(months);
+    return this.service.getMonthlyConsumption(id, {
+      startMonth: startMonth || undefined,
+      endMonth: endMonth || undefined,
+      months: Number.isFinite(m as any) ? Number(m) : undefined,
+    });
+  }
+
   @Post('adjust')
   @RequirePerm('group-balance')
   @ApiOperation({ summary: '手工调账（正/负）' })

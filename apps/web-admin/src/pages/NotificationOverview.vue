@@ -166,7 +166,7 @@
 						:page-sizes="[10, 20, 50, 100]"
 						layout="total, sizes, prev, pager, next, jumper"
 						:total="total"
-						@current-change="reloadList"
+						@current-change="onPageChange"
 						@size-change="onSizeChange"
 					/>
 				</div>
@@ -399,6 +399,11 @@ async function refreshAll() {
 
 function reloadList() {
 	page.value = 1;
+	loadList();
+}
+
+function onPageChange(p: number) {
+	page.value = p;
 	loadList();
 }
 

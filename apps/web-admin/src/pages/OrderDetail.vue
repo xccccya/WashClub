@@ -45,7 +45,8 @@
 					</div>
 					<div class="stat">
 						<div class="stat__label">减免金额</div>
-						<div class="stat__value stat__value--success">-¥{{ fmtMoney(data?.discountAmount) }}</div>
+						<!-- 展示口径：折扣减免(discountAmount) + 积分抵扣(pointsAmount) -->
+						<div class="stat__value stat__value--success">-¥{{ fmtMoney(discountTotalDisplay) }}</div>
 					</div>
 					<div class="stat stat--right">
 						<div class="stat__label">下单时间</div>
@@ -417,6 +418,15 @@ function fmtMoney(v: any){
 		return '0.00';
 	}
 }
+
+// 订单字段语义：discountAmount 仅包含折扣/券/立减等，积分抵扣金额单独在 pointsAmount。
+// “减免金额/优惠合计”展示需包含积分抵扣。
+const discountTotalDisplay = computed(() => {
+	const discount = Number(data.value?.discountAmount ?? 0);
+	const points = Number(data.value?.pointsAmount ?? 0);
+	const sum = discount + points;
+	return Number.isFinite(sum) ? sum : 0;
+});
 
 async function copyOrderNo(){
 	try{

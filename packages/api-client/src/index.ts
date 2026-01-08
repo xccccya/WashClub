@@ -3,4 +3,9 @@
 export * from './generated/washClubAPI';
 export * from './generated/model';
 
+// 非 generated 的扩展接口（手写封装，避免每次都必须重跑 orval）
+export * from './memberPointsExtra';
+export * from './washCardExtra';
+export * from './groupBalanceExtra';
+
 

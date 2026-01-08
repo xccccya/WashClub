@@ -21,7 +21,9 @@
 			<el-table-column prop="uid" label="UID" width="100" />
 			<el-table-column label="头像" width="90">
 				<template #default="{ row }">
-					<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
+					<div class="avatar-click" title="点击查看详情" @click="openDetailDrawer(row)">
+						<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
+					</div>
 				</template>
 			</el-table-column>
 			<el-table-column prop="name" label="昵称" width="220">
@@ -199,6 +201,7 @@
 		</el-dialog>
 
 		<FilePickerDialog v-model="pickVisible" title="选择头像" @picked="onPickedAvatar" />
+		<MemberDetailDrawer v-model="detailDrawerVisible" :member-id="detailMemberId" :base-member="detailBaseMember" />
 	</BasePage>
 </template>
 
@@ -208,6 +211,7 @@ import { BasePage } from '@wash/shared-ui';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
+import MemberDetailDrawer from './_components/MemberDetailDrawer.vue';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, User, Edit, List, Delete, Refresh } from '@element-plus/icons-vue';
@@ -467,10 +471,32 @@ function onAvatarClear(){ form.value.avatarUrl = null; ElMessage.success('已恢
 const pickVisible = ref(false);
 function openPickAvatar(){ pickVisible.value = true; }
 function onPickedAvatar(list:any[]){ const first = Array.isArray(list) ? list[0] : null; if (first?.url) form.value.avatarUrl = first.url; }
+
+// 会员详情抽屉（点击头像）
+const detailDrawerVisible = ref(false);
+const detailMemberId = ref<number | null>(null);
+const detailBaseMember = ref<Member | null>(null);
+function openDetailDrawer(m: Member){
+	detailMemberId.value = m?.id ?? null;
+	detailBaseMember.value = m || null;
+	detailDrawerVisible.value = true;
+}
 </script>
 
 <style scoped>
 .op-btns { display: inline-flex; gap: 6px; align-items: center; }
+.avatar-click{
+	display:inline-flex;
+	align-items:center;
+	justify-content:center;
+	width:40px;
+	height:40px;
+	border-radius:10px;
+	cursor:pointer;
+	transition: background-color .15s ease, transform .12s ease;
+}
+.avatar-click:hover{ background: #f3f6fb; }
+.avatar-click:active{ transform: scale(0.98); }
 .growth-logs { max-height: 60vh; overflow: auto; }
 .growth-logs .list { display: flex; flex-direction: column; gap: 10px; }
 .growth-logs .row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 2px 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #eef2f7; background: #fff; }

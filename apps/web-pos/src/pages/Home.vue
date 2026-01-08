@@ -10,10 +10,10 @@
 						<div class="header-right">
 							<small class="timerange">{{ timeText }}</small>
 							<el-radio-group v-model="range" size="small" @change="fetchData" class="range-switch">
-								<el-radio-button label="today">今日</el-radio-button>
-								<el-radio-button label="last7">近七日</el-radio-button>
-								<el-radio-button label="last30">近一月</el-radio-button>
-								<el-radio-button label="thisMonth">本月</el-radio-button>
+								<el-radio-button value="today">今日</el-radio-button>
+								<el-radio-button value="last7">近七日</el-radio-button>
+								<el-radio-button value="last30">近一月</el-radio-button>
+								<el-radio-button value="thisMonth">本月</el-radio-button>
 							</el-radio-group>
 						</div>
 					</div>

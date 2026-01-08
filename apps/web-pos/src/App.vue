@@ -31,4 +31,48 @@ body { font-size: 16.5px; }
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .fade-enter-from { opacity: 0; transform: translateX(12px); }
 .fade-leave-to { opacity: 0; transform: translateX(-12px); }
+
+/* ========= 全局美化滚动条（接近截图样式：细、圆角、低存在感） ========= */
+:root{
+  --pos-scrollbar-size: 10px;
+  --pos-scrollbar-thumb: rgba(17, 24, 39, 0.18);
+  --pos-scrollbar-thumb-hover: rgba(17, 24, 39, 0.30);
+  --pos-scrollbar-track: transparent;
+}
+
+/* Firefox */
+*{
+  scrollbar-width: thin;
+  scrollbar-color: var(--pos-scrollbar-thumb) var(--pos-scrollbar-track);
+}
+
+/* Chromium / Safari */
+*::-webkit-scrollbar{
+  width: var(--pos-scrollbar-size);
+  height: var(--pos-scrollbar-size);
+}
+*::-webkit-scrollbar-track{
+  background: var(--pos-scrollbar-track);
+}
+*::-webkit-scrollbar-thumb{
+  background-color: var(--pos-scrollbar-thumb);
+  border-radius: 999px;
+  /* 通过透明边框制造“更细”的观感 */
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover{
+  background-color: var(--pos-scrollbar-thumb-hover);
+}
+
+/* Element Plus el-scrollbar（自绘滚动条）同步风格 */
+.el-scrollbar__bar.is-vertical{ width: var(--pos-scrollbar-size); }
+.el-scrollbar__bar.is-horizontal{ height: var(--pos-scrollbar-size); }
+.el-scrollbar__thumb{
+  background: var(--pos-scrollbar-thumb) !important;
+  border-radius: 999px !important;
+}
+.el-scrollbar__thumb:hover{
+  background: var(--pos-scrollbar-thumb-hover) !important;
+}
 </style>

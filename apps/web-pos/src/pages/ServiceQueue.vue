@@ -118,7 +118,7 @@
 		<el-dialog v-model="stepPickerVisible" title="切换步骤" width="520px">
 			<el-card v-if="stepPickerRow" shadow="never">
 				<el-radio-group :model-value="stepPickerRow.currentTaskIndex" @change="(i:number)=>confirmPickStep(i)">
-					<el-radio v-for="(t,i) in (stepPickerRow?.tasks||[])" :key="t.id" :label="i">{{ i+1 }}. {{ t.name }}（{{ t.durationMin }} 分钟）</el-radio>
+					<el-radio v-for="(t,i) in (stepPickerRow?.tasks||[])" :key="t.id" :value="i">{{ i+1 }}. {{ t.name }}（{{ t.durationMin }} 分钟）</el-radio>
 				</el-radio-group>
 			</el-card>
 			<template #footer>
@@ -148,45 +148,110 @@
 		</div>
 
 		<!-- 支付与扫码弹窗（POS 放大版） -->
-		<el-dialog v-model="showPay" title="手动确认支付" width="640px" @closed="stopScan">
-			<el-tabs v-model="payTab">
-				<el-tab-pane label="常规方式" name="manual">
-					<el-select v-model="payMethod" placeholder="支付方式" style="width: 100%">
-						<el-option label="现金" value="CASH" />
-						<el-option label="收钱吧" value="SHOUQIANBA" />
-						<el-option label="线下其他" value="OFFLINE" />
-					</el-select>
-					<div v-if="orderForPay" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
-						<div style="flex:0 0 auto; color:#606266;">收银立减</div>
-						<el-input-number v-model="cashierDiscountInput" :min="0" :max="payAmountCap" :step="0.01" :precision="2" :controls="false" size="small" style="width: 140px;" @change="onManualDiscountChange" />
-						<div style="flex:1; color:#909399; font-size:12px;">最多可减至 0 元；0 元仅支持内部支付</div>
+		<el-dialog v-model="showPay" title="结算" width="720px" class="pay-dialog" @closed="stopScan">
+			<div class="settle">
+				<div class="settle-head">
+					<div class="settle-order">
+						<div class="settle-order-top">
+							<div class="plate">{{ payContext?.plateNumber || '-' }}</div>
+							<div class="tags">
+								<el-tag type="warning" effect="plain">待支付</el-tag>
+								<el-tag v-if="payContext?.queueTypeName" type="info" effect="plain">{{ payContext.queueTypeName }}</el-tag>
+							</div>
+						</div>
+						<div class="settle-order-meta">
+							<span v-if="orderForPay?.id" class="mono">订单 #{{ orderForPay.id }}</span>
+							<span v-if="payContext?.memberName" class="muted">会员：{{ payContext.memberName }}</span>
+							<span v-if="payContext?.phone" class="muted">手机：****{{ String(payContext.phone).slice(-4) }}</span>
+						</div>
+						<div v-if="orderForPay" class="settle-breakdown">
+							<div class="bd-item">
+								<span class="k">商品合计</span>
+								<span class="v">¥{{ fmtMoney(orderForPay?.totalAmount) }}</span>
+							</div>
+							<div class="bd-item">
+								<span class="k">系统优惠</span>
+								<span class="v">-¥{{ fmtMoney(orderForPay?.discountAmount) }}</span>
+							</div>
+							<div class="bd-item">
+								<span class="k">收银立减</span>
+								<span class="v">-¥{{ fmtMoney(cashierDiscountInput) }}</span>
+							</div>
+							<div class="bd-item" v-if="normalizeMoney2(orderForPay?.shippingFee) > 0">
+								<span class="k">附加费</span>
+								<span class="v">+¥{{ fmtMoney(orderForPay?.shippingFee) }}</span>
+							</div>
+							<div class="bd-item" v-if="normalizeMoney2(orderForPay?.pointsAmount) > 0">
+								<span class="k">积分抵扣</span>
+								<span class="v">-¥{{ fmtMoney(orderForPay?.pointsAmount) }}</span>
+							</div>
+						</div>
 					</div>
-					<div v-if="orderForPay" style="margin-top:6px; text-align:right; color:#303133;">应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
-					<div style="margin-top:12px; text-align:right;">
-						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" @click="doMarkPaid">确认支付</el-button>
+
+					<div class="settle-amount">
+						<div class="settle-amount-label">应收</div>
+						<div class="settle-amount-value">¥{{ payAmountAfterManual.toFixed(2) }}</div>
+						<div class="settle-amount-tip muted">核对金额后再确认收款</div>
+					</div>
+				</div>
+
+				<el-tabs v-model="payTab" class="settle-tabs">
+				<el-tab-pane label="常规方式" name="manual">
+					<div class="settle-panel">
+						<div class="settle-form">
+							<div class="field">
+								<div class="field-label">支付方式</div>
+								<div class="field-control">
+									<el-select v-model="payMethod" placeholder="请选择支付方式" size="large" style="width: 100%">
+										<el-option label="现金" value="CASH" />
+										<el-option label="收钱吧" value="SHOUQIANBA" />
+										<el-option label="线下其他" value="OFFLINE" />
+									</el-select>
+								</div>
+							</div>
+							<div v-if="orderForPay" class="field">
+								<div class="field-label">收银立减</div>
+								<div class="field-control">
+									<div class="discount-row">
+										<el-input-number v-model="cashierDiscountInput" :min="0" :max="payAmountCap" :step="0.01" :precision="2" :controls="false" size="large" style="width: 180px;" @change="onManualDiscountChange" />
+										<div class="muted discount-hint">最多可减至 0 元；0 元仅支持内部支付</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="settle-actions">
+							<el-button size="large" @click="showPay=false">取消</el-button>
+							<el-button size="large" type="primary" @click="doMarkPaid">确认收款</el-button>
+						</div>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="微信付款码" name="wx">
-					<el-input v-model="wxAuthCode" placeholder="请扫描/输入顾客微信付款码" maxlength="24" />
-					<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-						<el-button @click="openScan">打开摄像头识别</el-button>
-						<el-upload :auto-upload="false" :show-file-list="false" accept="image/*" @change="onSelectImage">
-							<el-button>从图片识别</el-button>
-						</el-upload>
-					</div>
-					<div class="hint">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
-					<div v-if="orderForPay" style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; color:#303133;">
-						<div>应收：<b>¥{{ payAmountAfterManual.toFixed(2) }}</b></div>
-						<div v-if="payAmountAfterManual<=0" style="color:#f56c6c; font-size:12px;">零元订单不支持微信付款码</div>
-					</div>
-					<div style="margin-top:12px; text-align:right;">
-						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" :loading="wxPayLoading" :disabled="payAmountAfterManual<=0" @click="doWxMicropay">发起付款码支付</el-button>
+					<div class="settle-panel">
+						<div class="settle-form">
+							<div class="field">
+								<div class="field-label">付款码</div>
+								<div class="field-control">
+									<el-input v-model="wxAuthCode" size="large" placeholder="请扫描/输入顾客微信付款码（18-24位）" maxlength="24" />
+								</div>
+							</div>
+							<div class="wx-tools">
+								<el-button size="large" @click="openScan">打开摄像头识别</el-button>
+								<el-upload :auto-upload="false" :show-file-list="false" accept="image/*" @change="onSelectImage">
+									<el-button size="large">从图片识别</el-button>
+								</el-upload>
+							</div>
+							<div class="hint">提示：仅用于线下收银，成功后订单将自动标记已支付。</div>
+							<div v-if="payAmountAfterManual<=0" class="warn">零元订单不支持微信付款码</div>
+						</div>
+						<div class="settle-actions">
+							<el-button size="large" @click="showPay=false">取消</el-button>
+							<el-button size="large" type="primary" :loading="wxPayLoading" :disabled="payAmountAfterManual<=0" @click="doWxMicropay">发起收款</el-button>
+						</div>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane label="洗车卡划扣" name="wash">
-					<el-form label-width="92px" style="margin-bottom:8px;">
+					<div class="settle-panel">
+					<el-form label-width="92px" class="wash-form">
 						<el-form-item label="付款会员">
 							<div style="display:flex; gap:6px; width:100%;">
 								<el-input v-model="payerMemberKeyword" placeholder="手机号/昵称（可留空自动）" clearable />
@@ -205,26 +270,30 @@
 						</el-form-item>
 					</el-form>
 					<div class="note">系统会自动识别本订单中标记为"计为洗车(次)"的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。</div>
-					<el-radio-group v-model="washPrefer" size="small" style="margin-top:8px;">
-						<el-radio-button label="AUTO">自动选择</el-radio-button>
-						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
-						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
+					<el-radio-group v-model="washPrefer" size="large" style="margin-top:10px;">
+						<el-radio-button value="AUTO">自动选择</el-radio-button>
+						<el-radio-button value="GROUP">优先集团卡</el-radio-button>
+						<el-radio-button value="MEMBER">优先会员卡</el-radio-button>
 					</el-radio-group>
-					<div style="margin-top:12px; text-align:right;">
-						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" @click="doWashDeduct">确认划扣并支付</el-button>
+					<div class="settle-actions">
+						<el-button size="large" @click="showPay=false">取消</el-button>
+						<el-button size="large" type="primary" @click="doWashDeduct">确认划扣并结算</el-button>
+					</div>
 					</div>
 				</el-tab-pane>
 				<el-tab-pane v-if="canGroupBalance" label="集团余额" name="group">
-					<div class="note">仅用于集团服务订单。集团余额支付不计入支付金额统计，仅进行集团余额内部扣减并记录关联订单流水。</div>
-					<div style="margin-top:12px; text-align:right;">
-						<el-button @click="showPay=false">取消</el-button>
-						<el-button type="primary" :loading="groupPayLoading" @click="doGroupBalance">确认集团余额支付</el-button>
+					<div class="settle-panel">
+						<div class="note">仅用于集团服务订单。集团余额支付不计入支付金额统计，仅进行集团余额内部扣减并记录关联订单流水。</div>
+						<div class="settle-actions">
+							<el-button size="large" @click="showPay=false">取消</el-button>
+							<el-button size="large" type="primary" :loading="groupPayLoading" @click="doGroupBalance">确认并结算</el-button>
+						</div>
 					</div>
 				</el-tab-pane>
-			</el-tabs>
+				</el-tabs>
+			</div>
 		</el-dialog>
-		<el-dialog v-model="showScan" title="摄像头识别付款码" width="820px">
+		<el-dialog v-model="showScan" title="摄像头识别付款码" width="820px" @closed="stopScan">
 			<div class="scan-wrap">
 				<video ref="videoRef" class="video" playsinline muted></video>
 				<canvas ref="canvasRef" style="display:none;"></canvas>
@@ -413,7 +482,7 @@
 								<el-button class="kb-btn" @mousedown.prevent @click="openExistingKb">车牌键盘</el-button>
 								<!-- 无遮罩键盘：锚定到按钮旁 -->
 								<el-popover
-									:visible="existingKbVisible && (mode==='existing' || mode==='smart')"
+									:visible="existingKbVisible"
 									placement="bottom-start"
 									:width="Math.min(640, Math.max(520, windowW*0.9))"
 									:show-arrow="false"
@@ -440,8 +509,8 @@
 								</template>
 								<el-form-item label="新建方式">
 									<el-radio-group v-model="smartCreateMode" size="small">
-										<el-radio-button label="member">绑定到会员</el-radio-button>
-										<el-radio-button label="guest">新增游客车辆</el-radio-button>
+										<el-radio-button value="member">绑定到会员</el-radio-button>
+										<el-radio-button value="guest">新增游客车辆</el-radio-button>
 									</el-radio-group>
 								</el-form-item>
                                 <template v-if="smartCreateMode==='member'">
@@ -610,7 +679,7 @@
 			<!-- Step 1: 队列类型 -->
 			<div v-show="wizardStep===1" class="wiz-type">
 				<el-radio-group v-model="wizardQueueTypeId">
-					<el-radio v-for="t in queueTypes" :key="t.id" :label="t.id">{{ t.name }}</el-radio>
+					<el-radio v-for="t in queueTypes" :key="t.id" :value="t.id">{{ t.name }}</el-radio>
 				</el-radio-group>
 				<div class="wiz-actions">
 					<el-button size="large" @click="wizardStep=0">上一步</el-button>
@@ -620,37 +689,19 @@
 			<!-- Step 2: 服务项目 -->
             <div v-show="wizardStep===2" class="wiz-products">
                 <el-alert type="info" :closable="false" class="mb8" title="仅可选择该队列类型允许的服务商品" />
-                <el-table ref="wizardProductTableRef" :data="wizardAllowedProducts" size="small" height="320" @selection-change="onWizardSelectionChange">
-                    <el-table-column label="图片" width="72">
-                        <template #default="{ row }">
-                            <img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" class="pimg" />
-                            <div v-else class="pimg empty">无</div>
-                        </template>
-                    </el-table-column>
-                    <el-table-column type="selection" width="50" />
-                    <el-table-column prop="name" label="商品" min-width="220" />
-                    <el-table-column label="规格" min-width="240">
-                        <template #default="{ row }">
-                            <template v-if="String(row?.specType||'')==='MULTI'">
-                                <el-select v-model="wizardSkuByProduct[row.id]" placeholder="请选择规格" style="width:220px;">
-                                    <el-option v-for="s in (row.skus||[])" :key="s.id" :label="skuLabel(s)" :value="s.id" :disabled="s.enabled===false" />
-                                </el-select>
-                            </template>
-                            <template v-else>-</template>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="价格/区间" width="140">
-                        <template #default="{ row }">
-                            <template v-if="String(row?.specType||'')==='MULTI'">{{ skuPriceHint(row) }}</template>
-                            <template v-else>{{ row.price }}</template>
-                        </template>
-                    </el-table-column>
-                </el-table>
+				<ServiceProductPicker
+					v-model:keyword="wizardProductKeyword"
+					:products="wizardAllowedProducts"
+					:loading="wizardProductsLoading"
+					:selected-ids="wizardSelectedProductIds"
+					:sku-by-product="wizardSkuByProduct"
+					@product-click="onWizardProductClick"
+				/>
 				<div class="wiz-actions split">
 					<el-button size="large" @click="wizardStep=1">上一步</el-button>
 					<div>
 						<el-button size="large" @click="wizardDrawer=false">取消</el-button>
-						<el-button size="large" type="primary" @click="wizardStep=3">下一步</el-button>
+						<el-button size="large" type="primary" @click="nextWizardFromProducts">下一步</el-button>
 					</div>
 				</div>
 			</div>
@@ -684,6 +735,25 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- 多规格：规格选择弹窗（点选服务项目时触发） -->
+			<el-dialog v-model="wizardSkuDialog.visible" title="选择规格" width="520px" @close="closeWizardSkuDialog">
+				<template v-if="wizardSkuDialog.product">
+					<div class="sku-list">
+						<div
+							v-for="s in (wizardSkuDialog.product.skus||[])"
+							:key="s.id"
+							class="sku-row"
+							:class="{ disabled: s.enabled===false, active: Number(wizardSkuDialog.currentSkuId||0)===Number(s.id||0) }"
+							@click="chooseWizardSku(s)"
+						>
+							<div class="sku-name">{{ s.name }}</div>
+							<div class="sku-price">¥{{ Number(s.price||0).toFixed(2) }}</div>
+							<div v-if="s.enabled===false" class="sku-disabled">已停用</div>
+						</div>
+					</div>
+				</template>
+			</el-dialog>
 		</el-drawer>
 	</BasePage>
 </template>
@@ -693,8 +763,10 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { absUrl } from '../utils/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import PlateInput from '../components/PlateInput.vue';
 import PlateKeyboard from '../components/PlateKeyboard.vue';
+import ServiceProductPicker from '../components/queue/ServiceProductPicker.vue';
 import { useRouter } from 'vue-router';
 import {
 	carDataControllerGetBrands,
@@ -982,12 +1054,28 @@ const payAmountAfterManual = computed(()=>{
     try{ const o:any=orderForPay.value; if(!o) return 0; const shipping=Number(o.shippingFee||0); const points=Number(o.pointsAmount||0); const manual=Math.max(0, Number(cashierDiscountInput.value||0)); const base=payAmountCap.value; return Math.max(0, Number((base - manual + shipping - points).toFixed(2))); }catch{ return 0; }
 });
 function onManualDiscountChange(){ try{ let v=Number(cashierDiscountInput.value||0); if(!Number.isFinite(v)||v<0) v=0; const cap=Number(payAmountCap.value||0); cashierDiscountInput.value=Number(Math.min(cap, v).toFixed(2)); }catch{} }
+function normalizeMoney2(v:any): number { try{ const n = Number(v||0); if (!Number.isFinite(n) || n<0) return 0; return Number(n.toFixed(2)); }catch{ return 0; } }
+function moneyEq(a:any,b:any): boolean { return Math.abs(normalizeMoney2(a)-normalizeMoney2(b)) < 0.0001; }
+function fmtMoney(v:any): string { return normalizeMoney2(v).toFixed(2); }
 const showScan = ref(false);
 const videoRef = ref<HTMLVideoElement|null>(null);
 const canvasRef = ref<HTMLCanvasElement|null>(null);
+let mediaStream: MediaStream | null = null;
+let scanTimer: any = null;
+let decoding = false;
+const payContext = ref<{ plateNumber?:string; memberName?:string; phone?:string; queueTypeName?:string }|null>(null);
 async function openPay(row:any){
 	currentOrderId.value=Number(row?.orderId||0)||null;
 	canGroupBalance.value=false;
+	// 仅用于展示（不影响支付逻辑）
+	try{
+		payContext.value = {
+			plateNumber: String(row?.plateNumber||'') || undefined,
+			memberName: row?.vehicle?.member?.name ? String(row.vehicle.member.name) : undefined,
+			phone: row?.vehicle?.member?.phone ? String(row.vehicle.member.phone) : undefined,
+			queueTypeName: row?.queueType?.name ? String(row.queueType.name) : undefined,
+		};
+	}catch{ payContext.value = null; }
 	// 清理手动选择付款会员/卡状态
 	payerMemberKeyword.value=''; payerMemberList.value=[]; payerMemberId.value=null; payerCards.value=[]; payerCardId.value=null;
 	try{
@@ -1009,7 +1097,14 @@ async function doMarkPaid(){
     try{
         const id = currentOrderId.value;
         if(!id){ ElMessage.error('未找到关联订单'); return; }
-        try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(id, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
         await orderControllerMarkPaid(id, { body: { method: payMethod.value } } as any);
         ElMessage.success('已标记为已支付');
         showPay.value=false;
@@ -1023,7 +1118,14 @@ async function doWxMicropay(){
         const code = String(wxAuthCode.value||'').trim();
         if(!/^\d{18,24}$/.test(code)){ ElMessage.error('请输入有效的微信付款码（18-24位数字）'); return; }
         wxPayLoading.value=true;
-        try{ await orderControllerAdjustCashierDiscount(id, { body: { amount: Number(cashierDiscountInput.value||0) } } as any); }catch{}
+        // 仅当收银立减发生变化时才调用调整接口（避免 0->0 写入时间线）
+        try{
+            const prev = Number((orderForPay.value as any)?.cashierDiscountAmount||0);
+            const next = Number(cashierDiscountInput.value||0);
+            if (!moneyEq(prev, next)){
+                await orderControllerAdjustCashierDiscount(id, { body: { amount: normalizeMoney2(next) } } as any);
+            }
+        }catch{}
         await orderControllerWechatMicropay(id, { body: { authCode: code } } as any);
         ElMessage.success('付款成功，已标记订单为已支付');
         showPay.value=false; wxAuthCode.value='';
@@ -1061,9 +1163,90 @@ async function doGroupBalance(){
     }catch(e:any){ ElMessage.error(String(e?.message||e||'支付失败')); }
     finally{ groupPayLoading.value=false; }
 }
-async function openScan(){ showScan.value=true; await nextTick(); }
-function stopScan(){ try{}catch{} }
-function onSelectImage(_f:any){}
+async function openScan(){
+	try{
+		showScan.value = true;
+		await nextTick();
+		await startCamera();
+	}catch{}
+}
+async function startCamera(){
+	try{
+		await stopScan();
+		mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+		if (!videoRef.value) return;
+		videoRef.value.srcObject = mediaStream as any;
+		await videoRef.value.play();
+		startDecodeLoop();
+	}catch(e:any){
+		showScan.value = false;
+		ElMessage.error('无法打开摄像头：' + String(e?.message||e||''));
+	}
+}
+function startDecodeLoop(){
+	const br = new BrowserMultiFormatReader();
+	scanTimer = setInterval(async ()=>{
+		if (decoding) return;
+		decoding = true;
+		try{
+			if (!videoRef.value) return;
+			const video:any = videoRef.value;
+			const canvas = canvasRef.value;
+			if (!canvas) return;
+			const w = video.videoWidth; const h = video.videoHeight;
+			if (!w || !h) return;
+			canvas.width = w; canvas.height = h;
+			const ctx = canvas.getContext('2d'); if (!ctx) return;
+			ctx.drawImage(video, 0, 0, w, h);
+			const res = await br.decodeFromImage(undefined as any, canvas.toDataURL('image/png'));
+			const text = String((res as any)?.getText?.()||'').trim();
+			if (/^\d{18,24}$/.test(text)){
+				wxAuthCode.value = text;
+				ElMessage.success('识别成功');
+				showScan.value = false;
+				stopScan();
+			}
+		}catch(err:any){
+			if (!(err instanceof NotFoundException)){
+				// ignore
+			}
+		}finally{
+			decoding = false;
+		}
+	}, 450);
+}
+function stopScan(){
+	try{ if (scanTimer){ clearInterval(scanTimer); scanTimer = null; } }catch{}
+	try{ decoding = false; }catch{}
+	try{ if (videoRef.value){ videoRef.value.pause(); (videoRef.value as any).srcObject = null; } }catch{}
+	try{ if (mediaStream){ mediaStream.getTracks().forEach(t=> t.stop()); mediaStream = null; } }catch{}
+}
+async function onSelectImage(file:any){
+	try{
+		const f = file?.raw || file?.target?.files?.[0]; if (!f) return;
+		const reader = new FileReader();
+		reader.onload = async ()=>{
+			try{
+				const img = new Image();
+				img.onload = async ()=>{
+					const canvas = document.createElement('canvas');
+					canvas.width = img.width; canvas.height = img.height;
+					const ctx = canvas.getContext('2d'); if (!ctx) return;
+					ctx.drawImage(img, 0, 0);
+					const br = new BrowserMultiFormatReader();
+					const res = await br.decodeFromImage(undefined as any, canvas.toDataURL('image/png'));
+					const text = String((res as any)?.getText?.()||'').trim();
+					if (/^\d{18,24}$/.test(text)) { wxAuthCode.value = text; ElMessage.success('识别成功'); }
+					else { ElMessage.error('未检测到有效付款码'); }
+				};
+				img.onerror = ()=> ElMessage.error('图片读取失败');
+				img.src = String(reader.result||'');
+			}catch{ ElMessage.error('识别失败'); }
+		};
+		reader.onerror = ()=> ElMessage.error('图片读取失败');
+		reader.readAsDataURL(f);
+	}catch{ ElMessage.error('识别失败'); }
+}
 // 仅键盘实例（不渲染输入框），用于快速定位与现有车辆旁键按钮触发
 const searchKbRef = ref<InstanceType<typeof PlateInput>|null>(null);
 function openSearchKb(){ try{ searchKbVisible.value = true; }catch{} }
@@ -1243,10 +1426,75 @@ const wizardQueueTypeId = ref<number|undefined>(undefined);
 const wizardAllowedProducts = ref<Product[]>([]);
 const wizardSelectedProductIds = ref<number[]>([]);
 const wizardSkuByProduct = ref<Record<number, number|undefined>>({});
-const wizardProductTableRef = ref<any>(null);
 const wizardSelectedProductNames = computed(()=>{ const map = new Map<number, Product>(wizardAllowedProducts.value.map(p=>[p.id, p] as any)); return (wizardSelectedProductIds.value||[]).map(id=>map.get(id)?.name||'').filter(Boolean); });
-function openWizard(){ wizardDrawer.value=true; wizardStep.value=0; wizardQueueTypeId.value = queueTypes.value[0]?.id; resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; nextTick().then(()=>{ try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} }); if (mode.value === 'guest') { ensureBrandsLoaded(); } }
-function onWizardSelectionChange(rows:any[]){ wizardSelectedProductIds.value = rows.map(r=>r.id); }
+const wizardProductKeyword = ref('');
+const wizardProductsLoading = ref(false);
+
+function openWizard(){
+	wizardDrawer.value=true;
+	wizardStep.value=0;
+	wizardQueueTypeId.value = queueTypes.value[0]?.id;
+	resetVehicleForm();
+	wizardSelectedProductIds.value=[];
+	wizardSkuByProduct.value={};
+	wizardProductKeyword.value='';
+	if (mode.value === 'guest') { ensureBrandsLoaded(); }
+}
+
+function isWizardSelected(pid: number){ return (wizardSelectedProductIds.value||[]).includes(pid); }
+function wizardSelect(pid: number){
+	const set = new Set<number>(wizardSelectedProductIds.value || []);
+	set.add(pid);
+	wizardSelectedProductIds.value = Array.from(set);
+}
+function wizardDeselect(pid: number){
+	wizardSelectedProductIds.value = (wizardSelectedProductIds.value||[]).filter(x=>Number(x)!==Number(pid));
+	try{ delete wizardSkuByProduct.value[pid]; }catch{}
+}
+
+const wizardSkuDialog = ref<{ visible: boolean; product: any|null; currentSkuId: number|null }>({ visible:false, product:null, currentSkuId: null });
+function closeWizardSkuDialog(){ try{ wizardSkuDialog.value.visible=false; wizardSkuDialog.value.product=null; wizardSkuDialog.value.currentSkuId=null; }catch{} }
+function onWizardProductClick(p: any){
+	try{
+		const pid = Number(p?.id||0);
+		if (!pid) return;
+		if (isWizardSelected(pid)){ wizardDeselect(pid); return; }
+		// 多规格：弹窗选规格；单规格：直接选中
+		if (String(p?.specType||'') === 'MULTI'){
+			const skus = Array.isArray(p?.skus) ? p.skus : [];
+			if (!skus.length){ ElMessage.error('该服务未配置规格'); return; }
+			wizardSkuDialog.value.product = p;
+			wizardSkuDialog.value.currentSkuId = null;
+			wizardSkuDialog.value.visible = true;
+			return;
+		}
+		wizardSelect(pid);
+	}catch{}
+}
+function chooseWizardSku(s: any){
+	try{
+		const p = wizardSkuDialog.value.product;
+		if (!p) return;
+		if (s?.enabled === false) return;
+		const pid = Number(p?.id||0);
+		const sid = Number(s?.id||0);
+		if (!pid || !sid) return;
+		wizardSelect(pid);
+		wizardSkuByProduct.value[pid] = sid;
+		closeWizardSkuDialog();
+	}catch{}
+}
+function nextWizardFromProducts(){
+	if (!wizardSelectedProductIds.value.length){ ElMessage.error('请选择服务商品'); return; }
+	for (const p of wizardAllowedProducts.value){
+		if (!wizardSelectedProductIds.value.includes(p.id)) continue;
+		if (String((p as any)?.specType||'')==='MULTI' && !wizardSkuByProduct.value[p.id]){
+			ElMessage.error(`请选择规格：${p.name}`);
+			return;
+		}
+	}
+	wizardStep.value = 3;
+}
 
 // 车辆模式与表单
 type MemberOption = { id:number; name:string; phone:string };
@@ -1456,16 +1704,22 @@ async function nextWizardFromVehicle(){
 }
 watch(wizardQueueTypeId, async (val)=>{
 	if (!val) { wizardAllowedProducts.value = []; return; }
+	// 切换队列类型：清理搜索与规格弹窗，避免残留影响体验
+	try{ wizardProductKeyword.value=''; }catch{}
+	try{ closeWizardSkuDialog(); }catch{}
 	const t = queueTypes.value.find(t=>t.id===val);
 	const ids = new Set<number>((t?.products||[]).map((x:any)=>x.productId));
-	if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} return; }
-	const list = (await storeProductControllerList({ type: 'SERVICE' } as any)) as any;
-	const arr:any[] = (list as any) || [];
-	wizardAllowedProducts.value = arr.filter((p:any)=>ids.has(p.id));
-	wizardSelectedProductIds.value = [];
-	wizardSkuByProduct.value = {};
-	await nextTick();
-	try{ wizardProductTableRef.value?.clearSelection?.(); }catch{}
+	if (!ids.size) { wizardAllowedProducts.value = []; wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; return; }
+	wizardProductsLoading.value = true;
+	try{
+		const list = (await storeProductControllerList({ type: 'SERVICE' } as any)) as any;
+		const arr:any[] = (list as any) || [];
+		wizardAllowedProducts.value = arr.filter((p:any)=>ids.has(p.id));
+		wizardSelectedProductIds.value = [];
+		wizardSkuByProduct.value = {};
+	} finally {
+		wizardProductsLoading.value = false;
+	}
 });
 const submittingOrder = ref(false);
 async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value){ ElMessage.error('请选择队列类型'); return; } if (!wizardSelectedProductIds.value.length){ ElMessage.error('请选择服务商品'); return; } submittingOrder.value=true; // 构造 items，校验多规格SKU
@@ -1491,9 +1745,17 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
             if (form.value.vehicleId) body.vehicleId = form.value.vehicleId; else body.plateNumber = form.value.plateNumber;
             if (mode.value === 'guest') Object.assign(body, { vin: form.value.vin||undefined, brandId: form.value.brandId||undefined, seriesId: form.value.seriesId||undefined, brand: form.value.brandName||undefined, series: form.value.seriesName||undefined, typeMain: form.value.typeMain, typeSub: form.value.typeSub||undefined, color: form.value.color||undefined });
         }
-        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) }); ElMessage.success('已创建订单并入队'); resetVehicleForm(); wizardSelectedProductIds.value=[]; wizardSkuByProduct.value={}; try{ wizardProductTableRef.value?.clearSelection?.(); }catch{} wizardQueueTypeId.value = queueTypes.value[0]?.id; wizardDrawer.value=false; wizardStep.value=0; await fetchList(); } finally { submittingOrder.value=false; } }
+        await queueControllerCreateServiceOrderAndEnqueue({ body: JSON.stringify(body) });
+        ElMessage.success('已创建订单并入队');
+        resetVehicleForm();
+        wizardSelectedProductIds.value=[];
+        wizardSkuByProduct.value={};
+        wizardQueueTypeId.value = queueTypes.value[0]?.id;
+        wizardDrawer.value=false;
+        wizardStep.value=0;
+        await fetchList();
+    } finally { submittingOrder.value=false; } }
 
-function skuLabel(s: any){ try{ const p = Number(s?.price||0); return p>0 ? `${s?.name||''}（￥${p.toFixed(2)}）` : String(s?.name||''); }catch{ return String(s?.name||''); } }
 function skuPriceHint(row: any){ try{ const arr = Array.isArray(row?.skus)?row.skus:[]; if(!arr.length) return '-'; const prices = arr.map((x:any)=>Number(x?.price||0)).filter((n:number)=>Number.isFinite(n)); if(!prices.length) return '-'; const min = Math.min(...prices); const max = Math.max(...prices); return min===max ? `￥${min.toFixed(2)}` : `￥${min.toFixed(2)} ~ ￥${max.toFixed(2)}`; }catch{ return '-'; } }
 function skuNameById(pid: number, sid: number){ try{ const p = wizardAllowedProducts.value.find(x=>x.id===pid) as any; const s = (p?.skus||[]).find((y:any)=>Number(y.id)===Number(sid)); return s?.name || '-'; }catch{ return '-'; } }
 
@@ -1607,6 +1869,108 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .scan-wrap{ display:flex;flex-direction:column;gap:8px;align-items:center; }
 .video{ width:100%;max-height:420px;background:#000; }
 .scan-tip{ color:#909399;font-size:12px; }
+
+/* 结算卡片（支付弹窗）美术升级 */
+.pay-dialog :deep(.el-dialog__header){ padding: 14px 16px 6px; }
+.pay-dialog :deep(.el-dialog__body){ padding: 10px 16px 16px; }
+.settle{ display:flex; flex-direction:column; gap:12px; }
+.settle-head{
+	display:grid;
+	grid-template-columns: 1fr 260px;
+	gap:12px;
+	align-items:stretch;
+}
+.settle-order{
+	border: 1px solid #ebeef5;
+	border-radius: 14px;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+	padding: 12px 12px;
+	box-shadow: 0 1px 10px rgba(15, 23, 42, 0.04);
+}
+.settle-order-top{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.plate{ font-size: 22px; font-weight: 900; letter-spacing: 1px; color:#111827; }
+.tags{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.settle-order-meta{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-weight: 700; color:#374151; }
+.settle-breakdown{
+	margin-top:10px;
+	display:grid;
+	grid-template-columns: 1fr 1fr;
+	gap:8px 12px;
+	padding-top:10px;
+	border-top: 1px dashed #e5e7eb;
+}
+.bd-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.bd-item .k{ color:#6b7280; font-size: 13px; }
+.bd-item .v{ color:#111827; font-weight: 800; }
+
+.settle-amount{
+	border-radius: 14px;
+	padding: 14px 12px;
+	border: 1px solid rgba(64,158,255,.25);
+	background: radial-gradient(120% 140% at 20% 20%, rgba(64,158,255,.18) 0%, rgba(99,102,241,.10) 40%, rgba(255,255,255,1) 100%);
+	box-shadow: 0 6px 18px rgba(64,158,255,.10);
+	display:flex;
+	flex-direction:column;
+	justify-content:center;
+	text-align:right;
+}
+.settle-amount-label{ font-size: 13px; color:#4b5563; font-weight: 700; }
+.settle-amount-value{ margin-top:4px; font-size: 30px; font-weight: 900; color:#0f172a; letter-spacing: .2px; }
+.settle-amount-tip{ margin-top:6px; font-size: 12px; }
+
+.settle-tabs{ margin-top: 2px; }
+.settle-tabs :deep(.el-tabs__header){ margin: 0 0 10px; }
+.settle-tabs :deep(.el-tabs__nav-wrap::after){ height: 0; }
+.settle-tabs :deep(.el-tabs__nav){
+	background: #f8fafc;
+	border: 1px solid #ebeef5;
+	border-radius: 12px;
+	padding: 6px;
+}
+.settle-tabs :deep(.el-tabs__item){
+	font-size: 14px;
+	font-weight: 700;
+	border-radius: 10px;
+	margin: 0 4px;
+}
+.settle-tabs :deep(.el-tabs__item.is-active){
+	background: #fff;
+	box-shadow: 0 1px 10px rgba(15, 23, 42, 0.06);
+}
+.settle-tabs :deep(.el-tabs__active-bar){ display:none; }
+
+.settle-panel{
+	border: 1px solid #ebeef5;
+	border-radius: 14px;
+	background:#fff;
+	padding: 12px 12px;
+	box-shadow: 0 1px 10px rgba(15, 23, 42, 0.04);
+}
+.settle-form{ display:flex; flex-direction:column; gap:12px; }
+.field{ display:flex; gap:12px; align-items:flex-start; }
+.field-label{ flex: 0 0 88px; color:#374151; font-weight: 800; padding-top: 10px; }
+.field-control{ flex: 1; min-width: 0; }
+.discount-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.discount-hint{ font-size: 12px; line-height:1.4; }
+.wx-tools{ margin-top: 8px; display:flex; gap:10px; flex-wrap:wrap; }
+
+.settle-actions{
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px dashed #e5e7eb;
+	display:flex;
+	justify-content:flex-end;
+	gap:10px;
+}
+.hint{ margin-top: 10px; color:#6b7280; font-size:13px; line-height:1.6; background:#f9fafb; padding:10px 10px; border-radius:10px; border:1px solid #eef2f7; }
+.warn{ margin-top:8px; color:#b91c1c; font-size:13px; font-weight: 800; background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.22); padding: 8px 10px; border-radius: 10px; }
+.wash-form :deep(.el-form-item){ margin-bottom: 12px; }
+
+@media (max-width: 860px){
+	.settle-head{ grid-template-columns: 1fr; }
+	.settle-amount{ text-align:left; }
+}
 .row-running{ background: #f0f9eb; }
 .row-completed{ background: #fff7e6; }
 .pos-table :deep(.el-table__cell){ padding: 12px 8px; }
@@ -1676,9 +2040,29 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .wiz-actions.split{ justify-content:space-between; align-items:center; }
 .ml8{ margin-left:8px; }
 
-/* Step2 表格密度与可点选区域 */
-.wiz-products :deep(.el-table .el-table__cell){ padding: 10px 8px; }
-.wiz-products :deep(.el-checkbox__inner){ width: 18px; height: 18px; }
+/* Step2：卡片点选器（替代表格勾选） */
+.wiz-products{ padding-bottom: 56px; }
+
+/* 多规格弹窗（与收银端一致的触控密度） */
+.sku-list{ display:flex; flex-direction:column; gap:10px; max-height:52vh; overflow:auto; padding: 2px 0; }
+.sku-row{
+	display:grid;
+	grid-template-columns: 1fr auto auto;
+	gap:10px;
+	padding:10px 12px;
+	border:1px solid var(--el-border-color);
+	border-radius:12px;
+	cursor:pointer;
+	user-select:none;
+	transition: background .15s ease, border-color .15s ease, transform .08s ease;
+}
+.sku-row:hover{ background: rgba(64,158,255,.06); border-color: rgba(64,158,255,.35); }
+.sku-row:active{ transform: scale(0.99); }
+.sku-row.active{ border-color: rgba(34,197,94,.55); background: rgba(34,197,94,.08); }
+.sku-row.disabled{ opacity: .55; cursor: not-allowed; }
+.sku-name{ font-weight: 900; color:#111827; }
+.sku-price{ font-weight: 900; color:#ef4444; }
+.sku-disabled{ color:#9ca3af; font-weight: 800; }
 /* 现有车辆联想下拉提升层级，确保不被车牌键盘遮挡 */
 :deep(.existing-plate-popper){ z-index: 4000 !important; }
 /* 支付弹窗提示文本 */
