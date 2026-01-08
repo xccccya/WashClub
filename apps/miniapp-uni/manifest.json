@@ -32,5 +32,21 @@
             "maps" : {}
         }
     },
-    "locale" : "zh-Hans"
+    "locale" : "zh-Hans",
+    "fallbackLocale" : "zh-Hans",
+    "app-plus" : {
+        "distribute" : {
+            "splashscreen" : {
+                "androidStyle" : "common"
+            },
+            "icons" : {
+                "android" : {
+                    "hdpi" : "",
+                    "xhdpi" : "",
+                    "xxhdpi" : "",
+                    "xxxhdpi" : ""
+                }
+            }
+        }
+    }
 }
