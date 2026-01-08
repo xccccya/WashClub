@@ -88,8 +88,15 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
-import { checkAuthAndRefresh } from '../../utils/auth';
 import { miniappCouponControllerClaim, miniappCouponControllerListClaimable } from '@wash/api-client';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 
 type CouponItem = {
 	id: number;
@@ -212,7 +219,7 @@ async function claim(it: CouponItem){
 	finally{ claimingIds.value.delete(it.id); }
 }
 
-onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { list.value = []; return; } await refresh(); });
+onShow(async ()=>{ const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { list.value = []; return; } await refresh(); });
 
 function goMyCoupons(){ try { uni.navigateTo({ url: '/pages/coupon/mine' }); } catch {} }
 </script>

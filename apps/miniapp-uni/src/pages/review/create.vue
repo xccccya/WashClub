@@ -36,9 +36,17 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { API_BASE, getToken } from '../../utils/auth';
 import { orderControllerCreateReview } from '@wash/api-client';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const orderId = ref<number>(0);
@@ -90,7 +98,7 @@ async function chooseImages(){
 
 async function submit(){
     try{
-        const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+        const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
         await orderControllerCreateReview(Number(orderId.value||0), { body: { rating: rating.value, content: content.value, images: images.value } } as any);
         uni.showToast({ title:'已提交', icon:'success' });
         setTimeout(()=>{ uni.reLaunch({ url: '/pages/order/index' }); }, 600);

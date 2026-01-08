@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+import { API_BASE } from '../../utils/auth';
 import {
 	memberControllerGetGrowthLogs,
 	memberControllerMe,
@@ -108,6 +108,14 @@ import {
 	memberSignInControllerMeStatus,
 	memberSignInControllerSignInMe,
 } from '@wash/api-client';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 
 // 全局 uni 与小程序页面栈声明，避免 TS 报错（运行时由 uni-app 注入）
 declare const uni: any;
@@ -264,7 +272,7 @@ function onTouchEnd(e:any){
 }
 
 onMounted(async ()=>{
-	const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
+	const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
 	const prof:any = await memberControllerMe({} as any);
 	growthPoints.value = Number(prof?.growthPoints||0);
 	currentRequired.value = Number(prof?.currentRequiredGrowth||0);

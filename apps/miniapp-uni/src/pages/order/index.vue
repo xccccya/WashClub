@@ -84,9 +84,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import { memberControllerMe, orderControllerCancelOrder, orderControllerList, orderControllerReceive, orderControllerWechatJsapi } from '@wash/api-client';
 
 const { topSpacerHeight } = useSafeArea();
@@ -203,7 +210,7 @@ function buildQuery(){
 async function fetchOrders(){
 	loading.value = true;
 	try {
-		const ok = await checkAuthAndRefresh({ redirectIfExpired: false });
+		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: false });
 		authed.value = !!ok;
 		if (!ok) { orders.value = []; return; }
 		let profile: any = null; try { profile = await (memberControllerMe({} as any) as any); } catch {}
@@ -267,7 +274,7 @@ function viewReview(o: Order){ navigate(`/pages/review/view?orderId=${o.id}`); }
 
 async function goPay(o: Order){
 	try {
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 		if (!authed) return;
 		const params:any = await (orderControllerWechatJsapi(Number(o.id||0)) as any);
 		// #ifdef MP-WEIXIN
@@ -327,7 +334,7 @@ async function choosePay(o: Order){
 const awaitingWxConfirm = ref<boolean>(false);
 async function confirmReceive(o: Order){
 	try {
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 		if (!authed) return;
 		// #ifdef MP-WEIXIN
 		const isWeChatPay = (o as any)?.payMethod === 'WECHAT_JSAPI';
@@ -357,7 +364,7 @@ async function confirmCancel(o: Order){
             uni.showModal({ title:'取消订单', content:'确定要取消该订单吗？', success: (r:any)=> resolve(!!r.confirm), fail: ()=> resolve(false) });
         });
         if (!ok) return;
-        const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+        const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
         await orderControllerCancelOrder(Number(o.id||0), { body: { reason: '用户主动取消' } } as any);
         uni.showToast({ title:'已取消', icon:'success' });
         await fetchOrders();

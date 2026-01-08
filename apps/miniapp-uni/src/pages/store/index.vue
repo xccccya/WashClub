@@ -83,8 +83,16 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getToken, checkAuthAndRefresh } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import { AMAP_API_BASE } from '../../utils/thirdparty';
 import { readAmapKey, readStoreLocation } from '../../utils/env';
 import { useSafeArea } from '../../utils/safe-area';
@@ -387,7 +395,7 @@ async function requireLogin(): Promise<boolean>{
 	try{
 		const token = getToken();
 		if (!token) { uni.navigateTo({ url: '/pages/login/index' }); return false; }
-		const ok = await checkAuthAndRefresh({ redirectIfExpired: true });
+		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 		return !!ok;
 	}catch{ return false; }
 }

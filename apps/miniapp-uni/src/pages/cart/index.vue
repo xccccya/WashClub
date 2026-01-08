@@ -141,8 +141,15 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { computed, reactive, ref, watch } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import {
 	cartControllerClearChecked,
 	cartControllerMyDelete,
@@ -239,7 +246,7 @@ function buildApplicableItems(){ return items.value.filter(it=>it.checked).map(i
 async function loadApplicableCoupons(){
 	couponLoading.value = true;
 	try{
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: false });
+		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: false });
 		if (!authed) { applicableCoupons.value=[]; selectedCouponIds.value=new Set(); return; }
 		const body:any = { items: buildApplicableItems() };
 		const res:any = await miniappCouponControllerApplicable(body as any, { token: '' } as any);

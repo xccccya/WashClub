@@ -115,9 +115,17 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { getToken, checkAuthAndRefresh } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import PurchaseSheet from '../../components/PurchaseSheet.vue';
 import {
 	cartControllerMyAdd,
@@ -614,7 +622,7 @@ async function toggleCollect(){
 	if (!product.value?.id) return;
 	try {
 		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
-		const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
+		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
 		if (collected.value) { await favoriteControllerRemove(product.value.id, { token: '' } as any); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
 		else { await favoriteControllerAdd(product.value.id, { token: '' } as any); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
 	} catch {}
@@ -625,7 +633,7 @@ async function addToCart(){
 	if (product.value.type !== 'PHYSICAL') return;
 	{
 		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
-		const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
+		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
 	}
 	if (product.value.specType==='MULTI' && typeof selectedSkuId.value !== 'number') { uni.showToast({ title:'请选择规格', icon:'none' }); return; }
 	// 库存检查（考虑购物车已加数量，避免超过库存）
@@ -658,10 +666,10 @@ async function addToCart(){
 	}
 }
 
-function onBuyTap(){
+async function onBuyTap(){
 	if (!product.value) return;
 	if (!getToken()) { uni.navigateTo({ url:'/pages/login/index' }); return; }
-	checkAuthAndRefresh({ redirectIfExpired: true });
+	await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 	if (product.value.type !== 'PHYSICAL') { sheetVisible.value = true; return; }
 	if (product.value.specType === 'MULTI' && !selectionComplete.value) {
 		// 引导滚动到规格区

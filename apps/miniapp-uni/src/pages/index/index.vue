@@ -127,8 +127,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, getToken, API_BASE } from '../../utils/auth';
+import { getToken, API_BASE } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import WashCard from '../../components/WashCard.vue';
 import { adBannerControllerActive, queueControllerEtaSummary, queueControllerSummary, scrollNoticeControllerActive, systemSettingControllerGetPublicBusinessStatus, vehicleControllerMyVehicles, washCardControllerMyList, weatherControllerGetWeather } from '@wash/api-client';
 
@@ -248,7 +256,7 @@ async function loadDefaultPlate(){
 
 // #ifdef MP-WEIXIN || H5
 // 首页仅静默刷新资料，不强制登录
-onShow(async ()=>{ loggedIn.value = !!getToken(); const ok = await checkAuthAndRefresh({ redirectIfExpired: false }); if (ok) loggedIn.value = true; });
+onShow(async ()=>{ loggedIn.value = !!getToken(); const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: false }); if (ok) loggedIn.value = true; });
 function normalizeNotice(s: unknown): string {
 	return String(s ?? '')
 		.replace(/\r?\n+/g, ' ')

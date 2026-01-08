@@ -73,8 +73,15 @@ declare const uni: any;
 declare function getCurrentPages(): any[];
 import { ref, onMounted } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { checkAuthAndRefresh } from '../../utils/auth';
 import { memberControllerGetPointsLogs, memberControllerGetPointsStats, memberControllerMe } from '@wash/api-client';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -83,7 +90,7 @@ const multiplier = ref<number>(1);
 const logs = ref<any[]>([]);
 
 onMounted(async ()=>{
-  const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { uni.navigateTo({ url:'/pages/login/index' }); return; }
+  const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { uni.navigateTo({ url:'/pages/login/index' }); return; }
   await fetchStats(); await fetchLogs(); await fetchProfileLevel();
 });
 

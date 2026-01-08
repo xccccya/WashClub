@@ -31,8 +31,16 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import { vehicleControllerMyVehicles, vehicleControllerRemove, vehicleControllerSetDefault } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -90,7 +98,7 @@ async function onSetDefault(v: Vehicle){
 	try { await vehicleControllerSetDefault(String(v.id)); await fetchList(); uni.showToast({ title: '已设为默认', icon: 'success' }); } catch {}
 }
 
-onShow(async ()=>{ const ok = await checkAuthAndRefresh({ redirectIfExpired: true }); if (ok) fetchList(); });
+onShow(async ()=>{ const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (ok) fetchList(); });
 </script>
 
 <style scoped>

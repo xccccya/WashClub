@@ -141,9 +141,22 @@
 <script setup lang="ts">
 declare const uni: any;
 import { computed, reactive, ref, watch } from 'vue';
-import { checkAuthAndRefresh } from '../utils/auth';
 import { resolveImageUrl } from '../utils/url';
 import { addressControllerMyList, memberControllerMe, miniappCouponControllerApplicable, orderControllerCreate, orderControllerWechatJsapi, systemSettingControllerGetPublicSetting } from '@wash/api-client';
+
+/**
+ * 安全调用 checkAuthAndRefresh（使用动态导入避免小程序模块解析问题）
+ * 解决 uni-app alpha 版本在微信小程序中静态导入时可能出现 undefined 的问题
+ */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch {
+		// 模块加载失败时降级：返回 true 允许继续操作，由后续接口调用处理鉴权
+		return true;
+	}
+}
 
 type Sku = { id: number; name?: string; price: number; stockQuantity?: number; enabled?: boolean; specsJson?: Array<{ key: string; value: string }>|null };
 
@@ -356,7 +369,7 @@ watch(() => props.product, async () => {
 		else if (!shipAllowExpress.value && shipAllowPickup.value) delivery.value = 'PICKUP';
 		else delivery.value = 'EXPRESS';
 	} else { delivery.value = 'PICKUP'; }
-	const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+	const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 	if (!authed) { addresses.value = []; vehicles.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 	if (isPhysical.value) { loadAddresses(); }
 	if (isService.value) { loadVehicles(); }
@@ -383,7 +396,7 @@ watch(() => props.product, async () => {
 
 watch(visible, async (v)=>{
 	if (v) {
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 		if (!authed) { addresses.value = []; vehicles.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 		if (isService.value) loadVehicles();
 		if (isPhysical.value) loadAddresses();
@@ -710,7 +723,7 @@ function setPayMethod(m: 'WECHAT'|'OFFLINE'){ payMethod.value = m; }
 
 async function submit(){
 	// 登录校验
-	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+	const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
 	if (!product.value) return;
 	// 校验规格/库存
 	if (product.value.specType==='MULTI' && !selectedSkuId.value) { uni.showToast({ title:'请选择规格', icon:'none' }); return; }

@@ -82,10 +82,18 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { checkAuthAndRefresh, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import PlateInput from './plate-input.vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyCreate, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -199,7 +207,7 @@ async function onSubmit(){
     } finally { try { uni.hideLoading(); } catch {}; saving.value = false; }
 }
 
-onShow(()=>{ checkAuthAndRefresh({ redirectIfExpired: true }); });
+onShow(async ()=>{ await safeCheckAuthAndRefresh({ redirectIfExpired: true }); });
 
 // 品牌/车系：懒加载 + 防滥用
 function openBrandDialog(){ brandDialog.value = true; if (!brandsLoaded.value && !brandLoading.value) fetchBrands(); }

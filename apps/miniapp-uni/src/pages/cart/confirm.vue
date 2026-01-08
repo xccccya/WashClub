@@ -117,8 +117,15 @@
 declare const uni: any;
 import { ref, computed } from 'vue';
 import { useSafeArea } from '../../utils/safe-area';
-import { checkAuthAndRefresh } from '../../utils/auth';
 import { resolveImageUrl } from '../../utils/url';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import {
 	addressControllerMyList,
 	cartControllerClearChecked,
@@ -412,7 +419,7 @@ async function loadMemberMeta(){
 }
 
 async function submit(){
-	const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+	const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
 	// 拉取 profile 获取 memberId
 	let profile:any=null; try { profile = await memberControllerMe({ token: '' } as any) as any; } catch {}
 	const memberId = Number(profile?.id||0); if (!memberId){ uni.showToast({ title:'请先登录', icon:'none' }); return; }
@@ -476,7 +483,7 @@ async function submit(){
 
 // 进入页面时先校验登录，再加载选中商品与可用优惠券
 (async ()=>{
-	const authed = await checkAuthAndRefresh({ redirectIfExpired: true });
+	const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
 	if (!authed) { items.value = []; applicableCoupons.value = []; selectedCouponIds.value = new Set(); return; }
 	await loadSelected();
 	await loadApplicableCoupons();

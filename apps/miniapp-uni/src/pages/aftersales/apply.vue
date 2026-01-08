@@ -82,9 +82,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, API_BASE, getToken } from '../../utils/auth';
+import { API_BASE, getToken } from '../../utils/auth';
 import { addressControllerMyList, orderControllerCreateAfterSales } from '@wash/api-client';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const orderId = ref<number>(0);
@@ -207,7 +215,7 @@ function gotoAddress(){ try { uni.navigateTo({ url: '/pages/address/index' }); }
 
 async function submit(){
 	try{
-		const authed = await checkAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
 		// 可见类型由 visibleTypeOptions 限定，不再强制回退索引，避免 SERVICE 的“重新服务”被误改为“退款”
 		const payload:any = {
 			type: currentType.value,

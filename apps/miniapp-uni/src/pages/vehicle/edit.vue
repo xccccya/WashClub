@@ -82,9 +82,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { checkAuthAndRefresh, getToken } from '../../utils/auth';
+import { getToken } from '../../utils/auth';
 import PlateInput from './plate-input.vue';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
@@ -249,7 +257,7 @@ async function onSubmit(){
 }
 
 onLoad((q:any)=>{ id.value = Number(q?.id || 0); });
-onShow(()=>{ checkAuthAndRefresh({ redirectIfExpired: true }); if (id.value) loadDetail(); });
+onShow(async ()=>{ await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (id.value) loadDetail(); });
 
 function goBack(){
 	try {

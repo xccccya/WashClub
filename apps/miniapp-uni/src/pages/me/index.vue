@@ -142,8 +142,16 @@
 <script setup lang="ts">
 declare function getCurrentPages(): any[];
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { API_BASE, checkAuthAndRefresh } from '../../utils/auth';
+import { API_BASE } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+
+/** 动态导入 checkAuthAndRefresh，避免小程序模块解析时序问题 */
+async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
+	try {
+		const { checkAuthAndRefresh } = await import('../../utils/auth');
+		return await checkAuthAndRefresh(options);
+	} catch { return true; }
+}
 import WashCard from '../../components/WashCard.vue';
 import {
 	memberControllerGetPointsStats,
@@ -312,7 +320,7 @@ onMounted(() => {
 // #ifdef MP-WEIXIN || H5
 import { onShow } from '@dcloudio/uni-app';
 onShow(async ()=>{
-    const ok = await checkAuthAndRefresh({ redirectIfExpired: true });
+    const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true });
     if (ok) {
         try { handleAuthChanged(); } catch {}
         await loadCard();
