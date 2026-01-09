@@ -6,6 +6,7 @@ import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { AdminOrEmployeeGuard } from '../auth/admin-or-employee.guard.js';
 import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto } from './member.dto.js';
+import { extractBearerToken, extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('member')
 @Controller('member')
@@ -68,16 +69,14 @@ export class MemberController {
 	@Get('me/profile')
 	@ApiOperation({ summary: '查询当前会员资料' })
 	me(@Headers() headers: Record<string, string>) {
-		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		return this.service.getProfileByToken(token);
 	}
 
 	@Get('me/growth-logs')
 	@ApiOperation({ summary: '查询当前会员成长值日志（持久化）' })
 	getGrowthLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string){
-		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getGrowthLogsByToken(token, limit);
 	}
@@ -85,8 +84,7 @@ export class MemberController {
 	@Get('me/points-logs')
 	@ApiOperation({ summary: '查询当前会员积分日志（持久化）' })
 	getPointsLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string){
-		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getPointsLogsByToken(token, limit);
 	}
@@ -94,8 +92,7 @@ export class MemberController {
 	@Get('me/points-stats')
 	@ApiOperation({ summary: '查询当前会员积分统计（当前/本月使用/本月获得）' })
 	getPointsStats(@Headers() headers: Record<string, string>){
-		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		return (this.service as any).getPointsStatsByToken(token);
 	}
 
@@ -118,7 +115,7 @@ export class MemberController {
 		@Headers('authorization') authHeader?: string,
 	){
 		// 读取管理员ID（由守卫保证为管理员）
-		const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+		const token = extractBearerToken(authHeader) || '';
 		let operatorUserId: number | null = null;
 		try{ const decoded:any = this.jwt.verify(token); operatorUserId = Number(decoded?.sub)||null; }catch{}
 		return (this.service as any).adjustGrowthByAdmin(Number(id), Number(body?.delta||0), (body?.remark??null), operatorUserId ?? null);
@@ -127,8 +124,7 @@ export class MemberController {
 	@Post('me/active')
 	@ApiOperation({ summary: '心跳：设置会员在线活跃状态' })
 	setActive(@Headers() headers: Record<string, string>) {
-		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		return this.service.setActiveByToken(token);
 	}
 

@@ -13,11 +13,10 @@ function buildWsUrl(apiBase: string, token: string): string {
   try {
     const u = new URL(apiBase);
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    const q = new URLSearchParams({ token });
-    return `${wsProto}//${u.host}/ws?${q.toString()}`;
+    return `${wsProto}//${u.host}/ws`;
   } catch {
     // 退化处理（简单替换协议）
-    return apiBase.replace(/^http/i, 'ws') + `/ws?token=${encodeURIComponent(token)}`;
+    return apiBase.replace(/^http/i, 'ws') + `/ws`;
   }
 }
 
@@ -43,9 +42,14 @@ class RealtimeClient {
       this.socketTask = uni.connectSocket({ url });
       const task = this.socketTask;
       if (!task) return;
-      task.onOpen?.(()=>{ this.reconnectAttempt = 0; try{ uni.$emit?.('realtime:connected'); }catch{} });
-      // 连接成功后拉取未读计数与最近未读列表，提升一致性
       task.onOpen?.(async ()=>{
+        // 首包鉴权：避免 token 出现在 URL query
+        try{ task.send?.({ data: JSON.stringify({ type: 'auth', token: this.lastToken }) }); }catch{}
+
+        this.reconnectAttempt = 0;
+        try{ uni.$emit?.('realtime:connected'); }catch{}
+
+        // 连接成功后拉取未读计数与最近未读列表，提升一致性
         try{
           const auth = `Bearer ${this.lastToken}`;
           // 未读计数

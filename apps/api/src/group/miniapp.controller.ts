@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Get, Headers, Post, Query, Param } fro
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('MiniappGroup')
 @Controller('group/miniapp')
@@ -9,8 +10,7 @@ export class GroupMiniappController {
   constructor(private jwt: JwtService, private prisma: PrismaService) {}
 
   private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
-    const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+    const token = extractBearerTokenFromHeaders(headers as any) || '';
     if (!token) throw new BadRequestException('缺少Token');
     try {
       const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });

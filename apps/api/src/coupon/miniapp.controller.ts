@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { CouponService } from './coupon.service.js';
 import { MiniappCouponApplicableDto } from './miniapp.dto.js';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('MiniappCoupons')
 @Controller('coupon/miniapp')
@@ -15,8 +16,7 @@ export class MiniappCouponController {
     ) {}
 
     private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
         const id = Number(decoded?.sub);
         if (!id || decoded?.type !== 'member') throw new Error('Token无效');

@@ -5,6 +5,7 @@ import { UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { JwtService } from '@nestjs/jwt';
+import { extractBearerToken, extractBearerTokenFromHeaders } from '../auth/bearer.js';
 import {
     VehicleAdminListQueryDto,
     VehicleCreateForMemberByPhoneDto,
@@ -140,7 +141,7 @@ export class VehicleController {
         @Headers('authorization') authHeader?: string,
     ) {
         // 兼容：部分调用方可能没有带 admin token；尽量记录操作人
-        const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+        const token = extractBearerToken(authHeader) || '';
         let operatorUserId: number | null = null;
         try{ const dec:any = this.jwt.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
         return this.service.bindGuestVehicle(Number(id), Number(memberId), { operatorUserId });
@@ -157,7 +158,7 @@ export class VehicleController {
         @Headers('authorization') authHeader?: string,
     ){
         if (!body?.confirm) throw new BadRequestException('请勾选二次确认');
-        const token = (authHeader||'').replace(/^Bearer\s+/i,'');
+        const token = extractBearerToken(authHeader) || '';
         let operatorUserId: number | null = null;
         try{ const dec:any = this.jwt.decode(token) || {}; operatorUserId = Number(dec?.sub)||null; }catch{}
         return (this.service as any).adminRebindVehicle(Number(id), {
@@ -182,8 +183,7 @@ export class VehicleController {
     @Get('me/list')
     @ApiOperation({ summary: '我的车辆列表（会员端）' })
     async myVehicles(@Headers() headers: Record<string, string>) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         const memberId = await this.service.getMemberIdFromToken(token);
         return this.service.listByMember(memberId);
     }
@@ -195,8 +195,7 @@ export class VehicleController {
         @Headers() headers: Record<string, string>,
         @Body() body: VehicleMyCreateDto,
     ) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         const memberId = await this.service.getMemberIdFromToken(token);
         if (!body?.plateNumber) throw new BadRequestException('车牌号为必填项');
         if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');

@@ -4108,14 +4108,6 @@
         "operationId": "NotificationController_adminOverview",
         "parameters": [
           {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "from",
             "required": false,
             "in": "query",
@@ -4151,14 +4143,6 @@
       "get": {
         "operationId": "NotificationController_adminOverviewList",
         "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "channel",
             "required": true,
@@ -4287,14 +4271,6 @@
         "operationId": "NotificationController_listTypeSettings",
         "parameters": [
           {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "channel",
             "required": true,
             "in": "query",
@@ -4317,16 +4293,7 @@
     "/notification/type-settings/upsert": {
       "post": {
         "operationId": "NotificationController_upsertTypeSetting",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -4351,16 +4318,7 @@
     "/notification/type-settings/init": {
       "post": {
         "operationId": "NotificationController_initTypeSettings",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "201": {
             "description": ""

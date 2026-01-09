@@ -373,7 +373,18 @@ function openPickAvatar(){ pickVisible.value = true; }
 function onPicked(list:any[]){ const f = list?.[0]; if (f && f.url) { avatarDraft.value = f.url; ElMessage.success('已选择头像'); } pickVisible.value = false; }
 async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); fd.append('source','avatar'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); avatarDraft.value = j?.url || null; ElMessage.success('头像已上传'); }
 function clearAvatar(){ avatarDraft.value = null; ElMessage.success('将使用默认头像'); }
-async function saveAvatar(){ if (!userId.value) { ElMessage.error('未获取到用户ID'); return; } await authControllerUpdateAdminAvatar({ userId: userId.value, avatarUrl: avatarDraft.value ?? null } as any); avatarUrl.value = avatarDraft.value ?? null; try { const u = JSON.parse(localStorage.getItem('user')||'{}'); u.avatarUrl = avatarUrl.value; localStorage.setItem('user', JSON.stringify(u)); } catch{} showAvatar.value=false; ElMessage.success('头像已更新'); }
+async function saveAvatar(){
+	// 后端从 AdminGuard 注入的 req.user.id 识别当前管理员，不再从 body 传 userId
+	await authControllerUpdateAdminAvatar({ avatarUrl: avatarDraft.value ?? null } as any);
+	avatarUrl.value = avatarDraft.value ?? null;
+	try {
+		const u = JSON.parse(localStorage.getItem('user')||'{}');
+		u.avatarUrl = avatarUrl.value;
+		localStorage.setItem('user', JSON.stringify(u));
+	} catch {}
+	showAvatar.value=false;
+	ElMessage.success('头像已更新');
+}
 
 function can(key: string){ return permissions.value.includes('*') || permissions.value.includes(key); }
 function onSelect(index: string){ router.push(index); active.value = index; }
@@ -542,7 +553,7 @@ function openEditNick(){ nickDraft.value = nick.value; showNick.value = true; }
 async function saveNick(){
 	if (!userId.value) { ElMessage.error('未获取到用户ID'); return; }
 	try{
-		await authControllerUpdateAdminNickname({ userId: userId.value, name: nickDraft.value } as any);
+		await authControllerUpdateAdminNickname({ name: nickDraft.value } as any);
 		nick.value = nickDraft.value; try{ const u = JSON.parse(localStorage.getItem('user')||'{}'); u.name = nick.value; localStorage.setItem('user', JSON.stringify(u)); }catch{}
 		showNick.value = false; ElMessage.success('昵称已更新');
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
@@ -553,7 +564,7 @@ async function savePwd(){
 	if (!userId.value) { ElMessage.error('未获取到用户ID'); return; }
 	if (pwdNew.value.length < 6) { ElMessage.error('新密码至少6位'); return; }
 	try {
-		await authControllerUpdateAdminPassword({ userId: userId.value, oldPassword: pwdOld.value, newPassword: pwdNew.value } as any);
+		await authControllerUpdateAdminPassword({ oldPassword: pwdOld.value, newPassword: pwdNew.value } as any);
 		showPwd.value = false; ElMessage.success('密码已更新');
 	} catch (e:any) {
 		ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '修改密码失败');
@@ -621,8 +632,11 @@ function connectWS(){
         const token = localStorage.getItem('token'); if (!token) return;
         const url = new URL(API_BASE);
         const wsProto = url.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProto}//${url.host}/ws?token=${encodeURIComponent(token)}`;
+        const wsUrl = `${wsProto}//${url.host}/ws`;
         ws = new WebSocket(wsUrl);
+        ws.onopen = ()=>{
+            try { ws?.send?.(JSON.stringify({ type: 'auth', token })); } catch {}
+        };
         ws.onmessage = async (ev)=>{
             try{
                 const msg = JSON.parse(ev.data||'{}');

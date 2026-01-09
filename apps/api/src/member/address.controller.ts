@@ -4,6 +4,7 @@ import { AddressService } from './address.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { AddressAdminCreateDto, AddressAdminUpdateDto, AddressMyCreateDto, AddressMyUpdateDto } from './address.dto.js';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('address')
 @Controller('address')
@@ -32,8 +33,7 @@ export class AddressController {
     @Get('me/list')
     @ApiOperation({ summary: '我的收货地址列表（会员端）' })
     async myList(@Headers() headers: Record<string, string>) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         return this.service.meList(token);
     }
 
@@ -45,8 +45,7 @@ export class AddressController {
         @Body()
         body: AddressMyCreateDto,
     ) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         return this.service.meCreate(token, body);
     }
 
@@ -59,8 +58,7 @@ export class AddressController {
         @Body()
         body: AddressMyUpdateDto,
     ) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         return this.service.meUpdate(token, Number(id), body);
     }
 
@@ -71,8 +69,7 @@ export class AddressController {
         @Param('id') id: string,
         @Headers() headers: Record<string, string>,
     ) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        const token = extractBearerTokenFromHeaders(headers as any) || '';
         return this.service.meDelete(token, Number(id));
     }
 

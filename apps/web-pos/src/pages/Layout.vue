@@ -372,8 +372,11 @@ function connectWS(){
         const url = new URL(API_BASE);
         const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
         const token = localStorage.getItem('token')||'';
-        const wsUrl = `${proto}//${url.host}/ws?token=${encodeURIComponent(token)}`;
+        const wsUrl = `${proto}//${url.host}/ws`;
         ws = new WebSocket(wsUrl);
+        ws.onopen = ()=>{
+            try { ws?.send?.(JSON.stringify({ type: 'auth', token })); } catch {}
+        };
         ws.onmessage = async (ev)=>{
             try{
                 const msg = JSON.parse(ev.data||'{}');

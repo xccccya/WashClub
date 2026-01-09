@@ -1,6 +1,7 @@
 import { Controller, Get, Headers, Post, Delete, Query, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { FavoriteService } from './favorite.service.js';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('favorite')
 @Controller('favorite')
@@ -8,8 +9,7 @@ export class FavoriteController {
     constructor(private service: FavoriteService) {}
 
     private extractToken(headers: Record<string, string>) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        return (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        return extractBearerTokenFromHeaders(headers as any) || '';
     }
 
     @Get('me/list')

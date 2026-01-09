@@ -1,8 +1,7 @@
 import { Body, Controller, Post, BadRequestException, Get, Req, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
-import { IsNotEmpty, IsString, MinLength, IsInt, IsIn, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsNotEmpty, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
 import { AdminGuard } from './admin.guard.js';
 import { AdminMeDto } from './role.dto.js';
 
@@ -74,20 +73,12 @@ class ResolvePhoneDto {
 }
 
 class UpdateNicknameDto {
-	@Type(() => Number)
-	@IsInt()
-	userId!: number;
-
 	@IsString()
 	@IsNotEmpty()
 	name!: string;
 }
 
 class UpdatePasswordDto {
-	@Type(() => Number)
-	@IsInt()
-	userId!: number;
-
 	@IsString()
 	@IsNotEmpty()
 	oldPassword!: string;
@@ -108,10 +99,6 @@ class WechatOneTapDto {
 }
 
 class UpdateAdminAvatarDto {
-	@Type(() => Number)
-	@IsInt()
-	userId!: number;
-
 	@IsOptional()
 	@IsString()
 	avatarUrl?: string | null;
@@ -179,20 +166,29 @@ export class AuthController {
 
 	@Post('admin/update-nickname')
 	@ApiOperation({ summary: '管理员修改昵称' })
-	updateAdminNickname(@Body() dto: UpdateNicknameDto) {
-		return this.service.updateAdminNickname(Number(dto.userId), dto.name);
+	@UseGuards(AdminGuard)
+	updateAdminNickname(@Req() req: any, @Body() dto: UpdateNicknameDto) {
+		const userId = Number(req?.user?.id || 0);
+		if (!userId) throw new BadRequestException('未登录');
+		return this.service.updateAdminNickname(userId, dto.name);
 	}
 
 	@Post('admin/update-password')
 	@ApiOperation({ summary: '管理员修改密码' })
-	updateAdminPassword(@Body() dto: UpdatePasswordDto) {
-		return this.service.updateAdminPassword(Number(dto.userId), dto.oldPassword, dto.newPassword);
+	@UseGuards(AdminGuard)
+	updateAdminPassword(@Req() req: any, @Body() dto: UpdatePasswordDto) {
+		const userId = Number(req?.user?.id || 0);
+		if (!userId) throw new BadRequestException('未登录');
+		return this.service.updateAdminPassword(userId, dto.oldPassword, dto.newPassword);
 	}
 
 	@Post('admin/update-avatar')
 	@ApiOperation({ summary: '管理员更换头像' })
-	updateAdminAvatar(@Body() dto: UpdateAdminAvatarDto) {
-		return this.service.updateAdminAvatar(Number(dto.userId), dto.avatarUrl ?? null);
+	@UseGuards(AdminGuard)
+	updateAdminAvatar(@Req() req: any, @Body() dto: UpdateAdminAvatarDto) {
+		const userId = Number(req?.user?.id || 0);
+		if (!userId) throw new BadRequestException('未登录');
+		return this.service.updateAdminAvatar(userId, dto.avatarUrl ?? null);
 	}
 
 	@Get('admin/me')

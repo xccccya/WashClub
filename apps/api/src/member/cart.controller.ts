@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Post, Put,
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CartService } from './cart.service.js';
 import { CartMyAddDto, CartMyUpdateDto, CartToggleAllDto } from './cart.dto.js';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 @ApiTags('cart')
 @Controller('cart')
@@ -9,8 +10,7 @@ export class CartController {
     constructor(private service: CartService) {}
 
     private extractToken(headers: Record<string, string>) {
-        const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        return (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+        return extractBearerTokenFromHeaders(headers as any) || '';
     }
 
     @Get('me/list')

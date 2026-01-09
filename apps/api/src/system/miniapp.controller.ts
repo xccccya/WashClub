@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { Prisma } from '@prisma/client';
+import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
 
 type RangeKey = 'today' | 'last7' | 'last30' | 'thisMonth' | 'lastMonth';
 
@@ -62,8 +63,7 @@ export class SystemMiniappEmployeeController {
   constructor(private jwt: JwtService, private prisma: PrismaService) {}
 
   private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
-    const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
+    const token = extractBearerTokenFromHeaders(headers as any) || '';
     if (!token) throw new BadRequestException('缺少Token');
     try {
       const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });

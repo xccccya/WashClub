@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Query, Param, Headers, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Headers, BadRequestException, NotFoundException, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationService } from './notification.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { WxappSubscribeService } from './wxapp-subscribe.service.js';
 import { extractBearerToken } from '../auth/bearer.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 import {
 	NotificationListQueryDto,
 	NotificationAdminOverviewListQueryDto,
@@ -112,10 +114,9 @@ export class NotificationController {
 	// ============ 管理后台：消息总览 ============
 	@Get('admin/overview')
 	@ApiOperation({ summary: '消息总览：三通道发送量统计（管理员）' })
-	async adminOverview(@Headers('authorization') authHeader?: string, @Query() query?: NotificationAdminOverviewQueryDto){
-		const { type, permissions } = await this.parseAuth(authHeader);
-		if (type !== 'admin') throw new BadRequestException('无权限');
-		if (!(permissions?.includes('*') || permissions?.includes('notification-overview'))) throw new BadRequestException('无权限');
+	@UseGuards(AdminGuard)
+	@RequirePerm('notification-overview')
+	async adminOverview(@Query() query?: NotificationAdminOverviewQueryDto){
 		const from = this.parseDateStart((query as any)?.from);
 		const to = this.parseDateEnd((query as any)?.to);
 		return this.service.adminOverview({ from, to });
@@ -123,10 +124,9 @@ export class NotificationController {
 
 	@Get('admin/overview/list')
 	@ApiOperation({ summary: '消息总览：详情列表（管理员）' })
-	async adminOverviewList(@Headers('authorization') authHeader?: string, @Query() query?: NotificationAdminOverviewListQueryDto){
-		const { type, permissions } = await this.parseAuth(authHeader);
-		if (type !== 'admin') throw new BadRequestException('无权限');
-		if (!(permissions?.includes('*') || permissions?.includes('notification-overview'))) throw new BadRequestException('无权限');
+	@UseGuards(AdminGuard)
+	@RequirePerm('notification-overview')
+	async adminOverviewList(@Query() query?: NotificationAdminOverviewListQueryDto){
 		const from = this.parseDateStart((query as any)?.from);
 		const to = this.parseDateEnd((query as any)?.to);
 		const take = Math.max(1, Math.min(200, Number((query as any)?.take ?? 20)));
@@ -150,18 +150,18 @@ export class NotificationController {
     // ============ 类型设置管理（管理员） ============
     @Get('type-settings')
     @ApiOperation({ summary: '通知类型设置列表（管理员）' })
-    async listTypeSettings(@Headers('authorization') authHeader?: string, @Query('channel') channel?: 'MEMBER'|'ADMIN'|'WXAPP'){
-        const { type } = await this.parseAuth(authHeader);
-        if (type !== 'admin') throw new BadRequestException('无权限');
+    @UseGuards(AdminGuard)
+    @RequirePerm('notification-templates')
+    async listTypeSettings(@Query('channel') channel?: 'MEMBER'|'ADMIN'|'WXAPP'){
         const where:any = channel ? { channel } : {};
         return this.prisma.notificationTypeSetting.findMany({ where, orderBy: { id: 'asc' } });
     }
 
     @Post('type-settings/upsert')
     @ApiOperation({ summary: '创建或更新通知类型设置（管理员）' })
-    async upsertTypeSetting(@Headers('authorization') authHeader: string, @Body() dto: NotificationUpsertTypeSettingDto){
-        const { type } = await this.parseAuth(authHeader);
-        if (type !== 'admin') throw new BadRequestException('无权限');
+    @UseGuards(AdminGuard)
+    @RequirePerm('notification-templates')
+    async upsertTypeSetting(@Body() dto: NotificationUpsertTypeSettingDto){
         const key = String(dto?.typeKey||'').trim(); const ch = String(dto?.channel||'');
         if (!key || !['MEMBER','ADMIN','WXAPP'].includes(ch)) throw new BadRequestException('参数无效');
         const existing = await this.prisma.notificationTypeSetting.findFirst({ where: { typeKey: key, channel: ch } });
@@ -174,9 +174,9 @@ export class NotificationController {
     // 批量初始化常见通知类型（幂等）：仅管理员
     @Post('type-settings/init')
     @ApiOperation({ summary: '初始化常见通知类型设置（管理员）' })
-    async initTypeSettings(@Headers('authorization') authHeader: string){
-        const { type } = await this.parseAuth(authHeader);
-        if (type !== 'admin') throw new BadRequestException('无权限');
+    @UseGuards(AdminGuard)
+    @RequirePerm('notification-templates')
+    async initTypeSettings(){
         const types = [
             { typeKey:'ORDER_PAID', channel:'MEMBER' },
             { typeKey:'SERVICE_DONE', channel:'MEMBER' },
