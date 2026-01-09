@@ -1,73 +1,7 @@
-// eslint-disable-next-line no-undef
-function normalizeBase(u) {
-    try {
-        const s = String(u || '').trim();
-        if (!s)
-            return '';
-        if (/^https?:\/\//i.test(s))
-            return s.replace(/\/$/, '');
-        const protocol = (typeof location !== 'undefined' ? (location.protocol || 'http:') : 'http:');
-        return `${protocol}//${s}`.replace(/\/$/, '');
-    }
-    catch {
-        return '';
-    }
-}
+import { requireApiBase } from './api-base.js';
+
 function isAbsoluteUrl(u) {
     return /^https?:\/\//i.test(String(u || ''));
-}
-function resolveDefaultBaseUrl() {
-    // eslint-disable-next-line no-undef
-    const g = (typeof globalThis !== 'undefined') ? globalThis : (typeof window !== 'undefined' ? window : {});
-    try {
-        const gb = g?.__VITE_API_BASE__ || g?.VITE_API_BASE;
-        if (gb)
-            return normalizeBase(String(gb));
-    }
-    catch { }
-    try {
-        // eslint-disable-next-line no-undef
-        if (typeof __APP_VITE_API_BASE__ !== 'undefined' && __APP_VITE_API_BASE__)
-            return normalizeBase(String(__APP_VITE_API_BASE__));
-    }
-    catch { }
-    try {
-        const envBase = import.meta?.env?.VITE_API_BASE || import.meta?.env?.VITE_APP_API_BASE;
-        if (envBase)
-            return normalizeBase(String(envBase));
-    }
-    catch { }
-    try {
-        if (typeof window !== 'undefined' && window.location && window.location.search) {
-            const sp = new URLSearchParams(window.location.search);
-            const q = sp.get('api') || sp.get('apibase');
-            if (q)
-                return normalizeBase(String(q));
-        }
-    }
-    catch { }
-    try {
-        const ls = (typeof localStorage !== 'undefined') ? (localStorage.getItem('API_BASE') || localStorage.getItem('apiBase')) : '';
-        if (ls)
-            return normalizeBase(String(ls));
-    }
-    catch { }
-    try {
-        // eslint-disable-next-line no-undef
-        const us = (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') ? (uni.getStorageSync('API_BASE') || uni.getStorageSync('apiBase')) : '';
-        if (us)
-            return normalizeBase(String(us));
-    }
-    catch { }
-    try {
-        if (typeof location !== 'undefined' && location.hostname) {
-            const protocol = location.protocol || 'http:';
-            const host = location.hostname;
-            return `${protocol}//${host}:3000`;
-        }
-    }
-    catch { }
-    return 'http://127.0.0.1:3000';
 }
 function resolveDefaultToken() {
     try {
@@ -103,6 +37,9 @@ function createHttpClientFactory(config = {}) {
         const token = getToken?.();
         if (token)
             headers['Authorization'] = `Bearer ${token}`;
+        if (!isAbsoluteUrl(url) && !baseUrl) {
+            throw new Error('[api] 缺少 API 基址：请在构建/部署环境变量中配置 VITE_API_BASE（生产环境已禁用运行时覆盖）');
+        }
         let fullUrl = isAbsoluteUrl(url) ? url : (baseUrl + url);
         if (options.query) {
             const pairs = [];
@@ -205,7 +142,7 @@ export function createHttpClient(arg1, arg2) {
     if (typeof arg1 === 'string') {
         // 直接调用：createHttpClient(url, options)
         const client = createHttpClientFactory({
-            baseUrl: resolveDefaultBaseUrl(),
+            baseUrl: requireApiBase(),
             getToken: resolveDefaultToken,
             onUnauthorized: callGlobalUnauthorizedHook,
         });

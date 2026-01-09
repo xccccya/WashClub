@@ -1,3 +1,5 @@
+import { requireApiBase } from './api-base';
+
 export type HttpClientConfig = {
 	baseUrl?: string;
 	getToken?: () => string | undefined;
@@ -15,68 +17,9 @@ export type HttpRequestOptions = Omit<RequestInit, 'body'> & {
 // 声明以便小程序端类型通过；在非小程序端不会产生实际影响
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const uni: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const __APP_VITE_API_BASE__: any;
-
-function normalizeBase(u: string): string {
-	try {
-		const s = String(u || '').trim();
-		if (!s) return '';
-		if (/^https?:\/\//i.test(s)) return s.replace(/\/$/, '');
-		// 允许传 host:port
-		const protocol = (typeof location !== 'undefined' ? (location.protocol || 'http:') : 'http:');
-		return `${protocol}//${s}`.replace(/\/$/, '');
-	} catch {
-		return '';
-	}
-}
 
 function isAbsoluteUrl(u: string): boolean {
 	return /^https?:\/\//i.test(String(u || ''));
-}
-
-function resolveDefaultBaseUrl(): string {
-	// 优先级：全局注入/编译期常量 > import.meta.env > URL 查询参数 > localStorage/uni storage > 基于 host 推断 > 127.0.0.1:3000
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const g: any = (typeof globalThis !== 'undefined') ? (globalThis as any) : (typeof window !== 'undefined' ? (window as any) : {});
-	try {
-		const gb = g?.__VITE_API_BASE__ || g?.VITE_API_BASE;
-		if (gb) return normalizeBase(String(gb));
-	} catch {}
-	try {
-		// 直接访问常量，若未定义会抛错
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-		if (typeof __APP_VITE_API_BASE__ !== 'undefined' && __APP_VITE_API_BASE__) return normalizeBase(String(__APP_VITE_API_BASE__));
-	} catch {}
-	try {
-		const envBase = (import.meta as any)?.env?.VITE_API_BASE || (import.meta as any)?.env?.VITE_APP_API_BASE;
-		if (envBase) return normalizeBase(String(envBase));
-	} catch {}
-	try {
-		if (typeof window !== 'undefined' && window.location && window.location.search) {
-			const sp = new URLSearchParams(window.location.search);
-			const q = sp.get('api') || sp.get('apibase');
-			if (q) return normalizeBase(String(q));
-		}
-	} catch {}
-	try {
-		// H5/localStorage
-		const ls = (typeof localStorage !== 'undefined') ? (localStorage.getItem('API_BASE') || localStorage.getItem('apiBase')) : '';
-		if (ls) return normalizeBase(String(ls));
-	} catch {}
-	try {
-		// 小程序 storage
-		const us = (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') ? (uni.getStorageSync('API_BASE') || uni.getStorageSync('apiBase')) : '';
-		if (us) return normalizeBase(String(us));
-	} catch {}
-	try {
-		if (typeof location !== 'undefined' && location.hostname) {
-			const protocol = location.protocol || 'http:';
-			const host = location.hostname;
-			return `${protocol}//${host}:3000`;
-		}
-	} catch {}
-	return 'http://127.0.0.1:3000';
 }
 
 function resolveDefaultToken(): string | undefined {
@@ -112,6 +55,9 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 		};
 		const token = getToken?.();
 		if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+		if (!isAbsoluteUrl(url) && !baseUrl) {
+			throw new Error('[api] 缺少 API 基址：请在构建/部署环境变量中配置 VITE_API_BASE（生产环境已禁用运行时覆盖）');
+		}
 		let fullUrl = isAbsoluteUrl(url) ? url : (baseUrl + url);
 		if (options.query) {
 			const pairs: string[] = [];
@@ -198,7 +144,7 @@ export function createHttpClient<T>(arg1?: unknown, arg2?: unknown): any {
 	if (typeof arg1 === 'string') {
 		// 直接调用：createHttpClient(url, options)
 		const client = createHttpClientFactory({
-			baseUrl: resolveDefaultBaseUrl(),
+			baseUrl: requireApiBase(),
 			getToken: resolveDefaultToken,
 			onUnauthorized: callGlobalUnauthorizedHook,
 		});

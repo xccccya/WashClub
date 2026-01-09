@@ -140,13 +140,13 @@ export default defineConfig(({ mode }) => {
 		plugins: [uni(), isH5 ? fixBareSanitizedImports() : injectIntlPolyfill()].filter(Boolean) as any,
 		base: isH5 ? '/h5/' : '/', // 关键：H5 走子路径
 		define: {
-			'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
+			'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
 			'import.meta.env.VITE_APP_API_BASE': JSON.stringify(env.VITE_APP_API_BASE || ''),
 			// 显式注入地图与门店位置配置即可，其余全局兜底移除
 			'import.meta.env.VITE_AMAP_KEY': JSON.stringify(env.VITE_AMAP_KEY || process.env.VITE_AMAP_KEY || ''),
 			'import.meta.env.VITE_STORE_LOCATION': JSON.stringify(env.VITE_STORE_LOCATION || process.env.VITE_STORE_LOCATION || ''),
-			'globalThis.__VITE_API_BASE__': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
-			__APP_VITE_API_BASE__: JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || process.env.PUBLIC_API_BASE || ''),
+			'globalThis.__VITE_API_BASE__': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
+			__APP_VITE_API_BASE__: JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
 			// 注入版本常量，供运行时展示
 			__APP_MANIFEST_VERSION__: JSON.stringify(manifestVersion),
 			__UNI_APP_DEP_VERSION__: JSON.stringify(uniDepVersion),

@@ -7,9 +7,32 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as dns from 'node:dns';
 import { config as dotenvConfig } from 'dotenv';
 import { resolve } from 'node:path';
+import os from 'node:os';
 // 不引入额外依赖：使用轻量的原始文本采集中间件处理 v2 XML 回调
 import { NotificationGateway } from './notification/notification.gateway.js';
 import { NotificationService } from './notification/notification.service.js';
+
+function listLanIpv4(): string[] {
+	try {
+		const nets = os.networkInterfaces();
+		const out: string[] = [];
+		for (const items of Object.values(nets)) {
+			for (const it of (items || [])) {
+				if (!it) continue;
+				// Node >=18: family can be 'IPv4' | 'IPv6' or number
+				const isV4 = (it as any).family === 'IPv4' || (it as any).family === 4;
+				if (!isV4) continue;
+				if ((it as any).internal) continue;
+				const addr = String((it as any).address || '').trim();
+				if (!addr) continue;
+				out.push(addr);
+			}
+		}
+		return Array.from(new Set(out));
+	} catch {
+		return [];
+	}
+}
 
 async function bootstrap() {
 	// 显式加载 .env（避免在模块导入阶段读取环境变量时，ConfigModule 尚未生效）
@@ -65,8 +88,30 @@ async function bootstrap() {
 	try { (app.get(NotificationGateway) as any)?.attachServer?.(server); } catch {}
 	// 确保通知服务实例化：初始化 BullMQ Worker 与 Redis Pub/Sub 订阅
 	try { app.get(NotificationService); } catch {}
+
 	// eslint-disable-next-line no-console
-	console.log(`系统自检成功，API 已启动，监听端口：http://localhost:${port}。欢迎使用巨科汽车美容会员系统，祝您使用愉快！`);
+	console.log('系统自检成功，API 已启动。');
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const addr: any = (server as any)?.address?.();
+		const listenAddress = (addr && typeof addr === 'object') ? String(addr.address || '') : String(addr || '');
+		const listenPort = (addr && typeof addr === 'object' && addr.port) ? Number(addr.port) : port;
+		const normalized = (!listenAddress || listenAddress === '::') ? '0.0.0.0' : listenAddress;
+		// eslint-disable-next-line no-console
+		console.log(`- 监听：${normalized}:${listenPort}`);
+		// eslint-disable-next-line no-console
+		console.log(`- 本机：http://127.0.0.1:${listenPort}  (docs: http://127.0.0.1:${listenPort}/docs)`);
+		const lans = listLanIpv4();
+		if (lans.length) {
+			// eslint-disable-next-line no-console
+			console.log(`- 局域网：${lans.map((ip) => `http://${ip}:${listenPort}`).join(' , ')}`);
+		}
+	} catch {
+		// eslint-disable-next-line no-console
+		console.log(`- 本机：http://127.0.0.1:${port}  (docs: http://127.0.0.1:${port}/docs)`);
+	}
+	// eslint-disable-next-line no-console
+	console.log('欢迎使用巨科汽车美容会员系统，祝您使用愉快！');
 }
 
 bootstrap();

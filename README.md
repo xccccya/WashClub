@@ -502,6 +502,18 @@ pnpm dev
 
 ## ⚙️ 配置说明
 
+### 🌐 前端 API 基址（web-admin / web-pos / miniapp-uni）
+
+三端统一使用 **`VITE_API_BASE`** 作为 API 基址（**必须是绝对 URL**，且会自动去掉末尾 `/`），并由 `@wash/shared-utils` 统一解析。
+
+- **生产环境**：仅允许构建/部署期注入（`VITE_API_BASE` / `__APP_VITE_API_BASE__` / `globalThis.__VITE_API_BASE__`），已 **禁用运行时覆盖**（URL 参数 `?api=`、`localStorage/uniStorage` 的 `API_BASE` 不生效）。未配置会直接报错，避免请求误打到 `127.0.0.1:3000` 等默认值。
+- **开发环境**：仍支持 `?api=` 与 storage 覆盖，便于联调。
+
+示例：
+
+```bash
+export VITE_API_BASE="https://api.example.com"
+```
 ### 🔑 必需环境变量
 在 `apps/api/.env` 中配置：
 
