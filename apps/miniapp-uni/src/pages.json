@@ -183,6 +183,16 @@
 		}
 		,
 		{
+			"path": "pages/merchant/users/index",
+			"style": { "navigationBarTitleText": "用户管理" }
+		}
+		,
+		{
+			"path": "pages/merchant/users/detail",
+			"style": { "navigationBarTitleText": "用户详情" }
+		}
+		,
+		{
 			"path": "pages/message/list",
 			"style": { "navigationBarTitleText": "消息中心" }
 		}

@@ -7,7 +7,7 @@ import { OrderService } from '../order/order.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { GroupService } from '../group/group.service.js';
 import { JwtService } from '@nestjs/jwt';
-import { resolveGuestMemberIdEnv } from '../env.js';
+import { isNoPlateNumber, resolveGuestMemberIdEnv } from '../env.js';
 
 @ApiTags('queue')
 @Controller('queue')
@@ -174,8 +174,11 @@ export class QueueController {
         // 创建队列项（使用队列类型的步骤快照）
         const created = await (this.prisma as any).$transaction(async (tx: any) => {
             // 重复检测
-            const existed = await tx.serviceQueueItem.findFirst({ where: { status: { in: ['IN_QUEUE','SERVING'] }, OR: [ { plateNumber: resolvedPlate }, { vehicleId: resolvedVehicleId ?? undefined } ] } as any });
-            if (existed) throw new BadRequestException('该车辆已在服务队列中');
+            // 例外：无牌车占位车牌（如“川K00000”）允许重复入队
+            if (!isNoPlateNumber(resolvedPlate)) {
+                const existed = await tx.serviceQueueItem.findFirst({ where: { status: { in: ['IN_QUEUE','SERVING'] }, OR: [ { plateNumber: resolvedPlate }, { vehicleId: resolvedVehicleId ?? undefined } ] } as any });
+                if (existed) throw new BadRequestException('该车辆已在服务队列中');
+            }
             const orderSort = await tx.serviceQueueItem.count();
             // 统一入队为未开始，需要人工点击“开始第一步”
             const currentTaskIndex = -1;

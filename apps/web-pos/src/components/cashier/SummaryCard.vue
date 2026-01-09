@@ -43,8 +43,18 @@
 			<div class="content">
 				<template v-if="identity==='guest'">
 					<div class="plate-wrap">
-						<PlateInput ref="plateInputRef" v-model="plateModel" placeholder="点击输入车牌" :inline="true" @confirm="emit('plate-confirm')" @clear="emit('clear-guest-vehicle')" />
+						<PlateInput
+							ref="plateInputRef"
+							v-model="plateModel"
+							placeholder="点击输入车牌"
+							:inline="true"
+							@confirm="emit('plate-confirm')"
+							@clear="emit('clear-guest-vehicle')"
+						/>
 					</div>
+					<el-tooltip placement="top" effect="dark" content="无牌车/忘记车牌：将使用系统保留占位车牌">
+						<el-button class="no-plate-btn" size="small" type="primary" plain round @click="emit('pick-no-plate')">无牌车</el-button>
+					</el-tooltip>
 				</template>
 				<template v-else>
 					<el-select :model-value="memberVehicleId" filterable clearable placeholder="选择或手输车牌" style="flex:1" @change="(v: any)=>emit('update:memberVehicleId', v as any)">
@@ -101,6 +111,7 @@ const emit = defineEmits<{
 	(e:'clear-member'): void;
 	(e:'plate-confirm'): void;
 	(e:'clear-guest-vehicle'): void;
+	(e:'pick-no-plate'): void;
 	(e:'pick-member', m:any): void;
 	(e:'query-members', q:string, cb:(list:any[])=>void): void;
 	(e:'open-member-drawer'): void;
@@ -225,6 +236,7 @@ defineExpose({ openPlate });
 .vehicle-row .label{ color:#6b7280; font-weight:700; }
 .vehicle-row .content{ display:flex; align-items:center; gap:8px; min-height: 52px; }
 .plate-wrap{ width:100%; flex: 1 1 auto; min-width: 0; }
+.no-plate-btn{ flex: 0 0 auto; font-weight: 900; letter-spacing: .5px; }
 .plate-wrap :deep(.box){ padding:6px; padding-right:42px; border-radius:10px; width:100%; max-width:100%; box-sizing:border-box; position:relative; }
 .plate-wrap :deep(.cells){ display:grid !important; grid-template-columns: repeat(8, minmax(0, 1fr)); gap:2px; overflow:hidden; }
 .plate-wrap :deep(.cell){ width:auto !important; height:auto !important; aspect-ratio: 1 / 1; font-size:14px; }

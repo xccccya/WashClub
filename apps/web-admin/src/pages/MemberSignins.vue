@@ -56,7 +56,7 @@
 			</el-form>
 			<template #footer>
 				<el-button @click="cfgVisible=false">取消</el-button>
-				<el-button type="primary" @click="saveConfig">保存</el-button>
+				<el-button type="primary" :loading="cfgSaving" :disabled="cfgSaving" @click="saveConfig">保存</el-button>
 			</template>
 		</el-dialog>
 
@@ -151,21 +151,46 @@ async function fetchLogs(){
 
 const cfgVisible = ref(false);
 const cfg = ref<{ dayRewards: number[]; after7: number }>({ dayRewards: [1,1,1,1,1,1,1], after7: 1 });
+const cfgSaving = ref(false);
+
+function normalizeCfg(input: { dayRewards: number[]; after7: number }) {
+	// dayRewards: 长度固定 7；每项为非负整数（成长值）
+	const arr = new Array(7).fill(0).map((_, i) => {
+		const v = Number((input?.dayRewards || [])[i] ?? 0);
+		if (!Number.isFinite(v)) return 0;
+		return Math.max(0, Math.floor(v));
+	});
+	// after7：默认取第7天；同样是非负整数
+	const after7Raw = Number(input?.after7 ?? arr[6] ?? 0);
+	const after7 = Number.isFinite(after7Raw) ? Math.max(0, Math.floor(after7Raw)) : (arr[6] ?? 0);
+	return { dayRewards: arr, after7 };
+}
 
 async function openConfig(){
 	try{
 		const res = (await memberSignInControllerGetConfig() as unknown) as { dayRewards: number[]; after7: number };
-		cfg.value.dayRewards = new Array(7).fill(1).map((_,i)=> Number((res?.dayRewards||[])[i]||1));
-		cfg.value.after7 = Number(res?.after7 || cfg.value.dayRewards[6] || 1);
+		cfg.value = normalizeCfg({
+			dayRewards: new Array(7).fill(1).map((_, i) => Number((res?.dayRewards || [])[i] ?? 1)),
+			after7: Number(res?.after7 ?? 1),
+		});
 		cfgVisible.value = true;
 	}catch(e:any){ ElMessage.error(String(e?.message||e||'加载失败')); }
 }
 
 async function saveConfig(){
+	if (cfgSaving.value) return;
+	cfgSaving.value = true;
 	try{
-		await memberSignInControllerSaveConfig({ ...(cfg.value as any) } as any);
-		ElMessage.success('已保存'); cfgVisible.value = false;
-	}catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
+		const payload = normalizeCfg(cfg.value);
+		// 关键修复：该接口在 SDK 中是 options-only，必须通过 { body } 传递 JSON
+		await memberSignInControllerSaveConfig({ body: payload } as any);
+		ElMessage.success('已保存');
+		cfgVisible.value = false;
+	}catch(e:any){
+		ElMessage.error(String(e?.message||e||'保存失败'));
+	}finally{
+		cfgSaving.value = false;
+	}
 }
 
 onMounted(()=>{ fetchLogs(); });

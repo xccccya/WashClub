@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { isNoPlateNumber } from '../env.js';
 
 type CreateQueueInput =
     | { mode: 'vehicleId'; vehicleId: number; queueTypeId?: number | undefined }
@@ -53,12 +54,15 @@ export class QueueService {
         }
 
         // 重复检测：相同 vehicleId 或相同车牌在进行中/排队中
-        const orConds: any[] = [{ plateNumber }];
-        if (vehicleId) orConds.push({ vehicleId });
-        const existed = await this.prisma.serviceQueueItem.findFirst({
-            where: { status: { in: ['IN_QUEUE', 'SERVING'] as any }, OR: orConds },
-        });
-        if (existed) throw new BadRequestException('该车辆已在服务队列中');
+        // 例外：无牌车占位车牌（如“川K00000”）允许重复入队（用于忘记车牌/无牌车场景）
+        if (!isNoPlateNumber(plateNumber)) {
+            const orConds: any[] = [{ plateNumber }];
+            if (vehicleId) orConds.push({ vehicleId });
+            const existed = await this.prisma.serviceQueueItem.findFirst({
+                where: { status: { in: ['IN_QUEUE', 'SERVING'] as any }, OR: orConds },
+            });
+            if (existed) throw new BadRequestException('该车辆已在服务队列中');
+        }
 
         const created = await this.prisma.$transaction(async (tx) => {
             // 选取队列类型与步骤（若未显式指定，则选择启用的首个类型；若仍无则回退固定三步）

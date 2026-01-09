@@ -8,9 +8,12 @@
 
 const ENV_GUEST_MEMBER_ID = 'GUEST_MEMBER_ID' as const;
 const ENV_GUEST_MEMBER_ID_LEGACY = 'GUESS_MEMBER_ID' as const;
+const ENV_NO_PLATE_NUMBER = 'NO_PLATE_NUMBER' as const;
 const ENV_JWT_SECRET = 'JWT_SECRET' as const;
 const ENV_JWT_EXPIRES_IN = 'JWT_EXPIRES_IN' as const;
 const ENV_BCRYPT_SALT_ROUNDS = 'BCRYPT_SALT_ROUNDS' as const;
+
+export const DEFAULT_NO_PLATE_NUMBER = '川K00000' as const;
 
 const warned = new Set<string>();
 function warnOnce(key: string, message: string) {
@@ -102,6 +105,27 @@ export function resolveGuestMemberIdEnv(): number {
 	if (!raw) return 0;
 	const n = Number(raw);
 	return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * 读取“无牌车”占位车牌号（可选），默认：川K00000。
+ *
+ * 用途：
+ * - 收银端/队列端一键选择“无牌车”
+ * - 兼容历史生产环境一直使用的占位车牌
+ */
+export function resolveNoPlateNumberEnv(): string {
+	return getEnvTrimmed(ENV_NO_PLATE_NUMBER) ?? DEFAULT_NO_PLATE_NUMBER;
+}
+
+/**
+ * 判断给定车牌是否为“无牌车”占位车牌（大小写不敏感）。
+ */
+export function isNoPlateNumber(plateNumber: string): boolean {
+	const p = String(plateNumber || '').trim().toUpperCase();
+	if (!p) return false;
+	const target = resolveNoPlateNumberEnv().trim().toUpperCase();
+	return p === target;
 }
 
 

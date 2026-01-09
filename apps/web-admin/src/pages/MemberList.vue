@@ -1,91 +1,215 @@
 <template>
 	<BasePage title="会员列表">
 		<template #actions>
-			<el-input v-model="keyword" placeholder="搜索姓名/手机号" style="width:240px;margin-right:8px;" />
-			<el-button @click="fetchList" :loading="loading" style="margin-right:8px;">
-				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
-				<span style="vertical-align: middle;">搜索</span>
-			</el-button>
-			<el-button @click="refreshGuestOwner" :loading="syncingGuest" style="margin-right:8px;">
-				<el-icon style="vertical-align: middle; margin-right:4px;"><Refresh /></el-icon>
-				<span style="vertical-align: middle;">刷新游客占位账号</span>
-			</el-button>
-			<el-tag v-if="guestOwnerInfo" type="warning" effect="dark" style="margin-right:8px;">游客占位ID：{{ guestOwnerInfo?.guestMemberId ?? '-' }}{{ guestOwnerInfo?.tagged===false? '（未贴标签）':'' }}</el-tag>
-			<el-button type="primary" @click="openCreate">
-				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
-				<span style="vertical-align: middle;">新建会员</span>
-			</el-button>
+			<el-form class="ml-filters" :inline="true" :model="filters" size="small" @submit.prevent>
+				<el-form-item label="关键词">
+					<el-input
+						v-model="filters.keyword"
+						clearable
+						placeholder="姓名/手机号/ID/UID"
+						class="ml-w-240"
+						@keyup.enter="onSearch"
+					/>
+				</el-form-item>
+				<el-form-item label="等级">
+					<el-select v-model="filters.levelId" clearable filterable placeholder="全部" class="ml-w-140" @change="onSearch">
+						<el-option v-for="lv in levels" :key="lv.id" :label="lv.name" :value="lv.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="分类">
+					<el-select v-model="filters.categoryId" clearable filterable placeholder="全部" class="ml-w-140" @change="onSearch">
+						<el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="标签">
+					<el-select v-model="filters.tagId" clearable filterable placeholder="全部" class="ml-w-160" @change="onSearch">
+						<el-option v-for="t in tagFilterOptions" :key="t.id" :label="t.name" :value="t.id" />
+					</el-select>
+				</el-form-item>
+
+				<el-form-item class="ml-more-toggle">
+					<el-button link type="primary" @click="showMore = !showMore">{{ showMore ? '收起筛选' : '更多筛选' }}</el-button>
+				</el-form-item>
+
+				<template v-if="showMore">
+					<el-form-item label="注册">
+						<el-date-picker
+							v-model="createdRangeValue"
+							type="daterange"
+							unlink-panels
+							range-separator="~"
+							start-placeholder="开始日期"
+							end-placeholder="结束日期"
+							format="YYYY-MM-DD"
+							value-format="YYYY-MM-DD"
+							teleported
+							clearable
+							class="ml-w-240"
+							@change="onCreatedRangeChange"
+						/>
+					</el-form-item>
+					<el-form-item label="活跃">
+						<el-date-picker
+							v-model="activeRangeValue"
+							type="daterange"
+							unlink-panels
+							range-separator="~"
+							start-placeholder="开始日期"
+							end-placeholder="结束日期"
+							format="YYYY-MM-DD"
+							value-format="YYYY-MM-DD"
+							teleported
+							clearable
+							class="ml-w-240"
+							@change="onActiveRangeChange"
+						/>
+					</el-form-item>
+				</template>
+
+				<el-form-item label="排序">
+					<el-select v-model="filters.sortBy" placeholder="默认" class="ml-w-160" @change="onSearch">
+						<el-option label="默认（等级+ID）" value="" />
+						<el-option label="成长值" value="growthPoints" />
+						<el-option label="累计支付" value="totalPaidAmount" />
+						<el-option label="积分" value="points" />
+						<el-option label="余额" value="balance" />
+						<el-option label="注册时间" value="createdAt" />
+						<el-option label="活跃时间" value="lastActiveAt" />
+					</el-select>
+					<el-radio-group v-model="filters.sortOrder" class="ml-sort-order" @change="onSearch">
+						<el-radio-button label="desc">倒序</el-radio-button>
+						<el-radio-button label="asc">正序</el-radio-button>
+					</el-radio-group>
+				</el-form-item>
+
+				<el-form-item>
+					<el-checkbox v-model="filters.excludePlaceholders" @change="onSearch">排除占位账号</el-checkbox>
+				</el-form-item>
+				<el-form-item v-if="createdRangeLabel">
+					<el-tag size="small" effect="plain" type="info" closable @close="clearCreatedRange">
+						注册：{{ createdRangeLabel }}
+					</el-tag>
+				</el-form-item>
+				<el-form-item v-if="activeRangeLabel">
+					<el-tag size="small" effect="plain" type="success" closable @close="clearActiveRange">
+						活跃：{{ activeRangeLabel }}
+					</el-tag>
+				</el-form-item>
+
+				<el-form-item>
+					<el-button type="primary" @click="onSearch" :loading="loading">
+						<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
+						搜索
+					</el-button>
+					<el-button @click="onReset" :disabled="loading">重置</el-button>
+				</el-form-item>
+
+				<el-form-item class="ml-right">
+					<el-tooltip v-if="guestOwnerInfo" placement="bottom" effect="dark">
+						<template #content>
+							<div style="line-height:1.5;">
+								<div>游客占位ID：{{ guestOwnerInfo?.guestMemberId ?? '-' }}</div>
+								<div v-if="guestOwnerInfo?.exists===false" style="opacity:.9;">状态：不存在</div>
+								<div v-else style="opacity:.9;">标签：{{ guestOwnerInfo?.tagged===false ? '未贴标签' : '已贴标签' }}</div>
+							</div>
+						</template>
+						<el-tag size="small" :type="guestOwnerInfo?.tagged===false ? 'warning' : 'info'" effect="plain" class="ml-guest-tag">
+							游客占位 {{ guestOwnerInfo?.guestMemberId ?? '-' }}
+						</el-tag>
+					</el-tooltip>
+					<el-button
+						title="刷新游客占位账号"
+						aria-label="刷新游客占位账号"
+						:loading="syncingGuest"
+						circle
+						plain
+						@click="refreshGuestOwner"
+					>
+						<el-icon><Refresh /></el-icon>
+					</el-button>
+					<el-button type="primary" @click="openCreate">
+						<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
+						新建会员
+					</el-button>
+				</el-form-item>
+			</el-form>
 		</template>
-		<el-table :data="list" stripe style="width: 100%">
-			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="uid" label="UID" width="100" />
-			<el-table-column label="头像" width="90">
-				<template #default="{ row }">
-					<div class="avatar-click" title="点击查看详情" @click="openDetailDrawer(row)">
-						<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
-					</div>
-				</template>
-			</el-table-column>
-			<el-table-column prop="name" label="昵称" width="220">
-				<template #default="{ row }">
-					<span>{{ row.name }}</span>
-					<el-tag v-if="isGroupOrderOwner(row)" type="warning" effect="dark" style="margin-left:6px;">集团订单占位</el-tag>
-					<el-tag v-if="isGuestOrderOwner(row)" type="warning" effect="dark" style="margin-left:6px;">游客订单占位</el-tag>
-				</template>
-			</el-table-column>
-			<el-table-column prop="phone" label="手机号" width="150" />
-			<el-table-column prop="level.name" label="等级" width="120">
-				<template #default="{ row }">{{ row.level?.name || '-' }}</template>
-			</el-table-column>
-			<el-table-column prop="category.name" label="分类" width="120">
-				<template #default="{ row }">{{ row.category?.name || '-' }}</template>
-			</el-table-column>
-			<el-table-column prop="growthPoints" label="成长值" width="120">
-				<template #default="{ row }">{{ (row as any).growthPoints ?? 0 }}</template>
-			</el-table-column>
-			<el-table-column prop="totalPaidAmount" label="累计支付(￥)" width="140">
-				<template #default="{ row }">{{ Number((row as any).totalPaidAmount||0).toFixed(2) }}</template>
-			</el-table-column>
-			<el-table-column prop="points" label="积分" width="100" />
-			<el-table-column prop="balance" label="余额" width="120" />
-			<el-table-column prop="createdAt" label="注册时间" width="180">
-				<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-			</el-table-column>
-			<el-table-column prop="lastActiveAt" label="活跃时间" width="180">
-				<template #default="{ row }">{{ formatTime(row.lastActiveAt) }}</template>
-			</el-table-column>
-			<el-table-column label="操作" width="420" fixed="right">
-				<template #default="{ row }">
-					<div class="op-btns">
-						<el-button size="small" link :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openEdit(row)">
-							<el-icon><User /></el-icon>
-							<span>查看资料</span>
-						</el-button>
-						<el-button size="small" link type="warning" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openResetPwd(row)">
-							<el-icon><Edit /></el-icon>
-							<span>修改密码</span>
-						</el-button>
-						<el-button size="small" link type="primary" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openGrowthLogs(row)">
-							<el-icon><List /></el-icon>
-							<span>成长日志</span>
-						</el-button>
-						<el-button size="small" link type="danger" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openDeleteDialog(row)">
-							<el-icon><Delete /></el-icon>
-							<span>删除</span>
-						</el-button>
-					</div>
-				</template>
-			</el-table-column>
-		</el-table>
-		<div style="margin-top:12px;display:flex;justify-content:flex-end;">
-			<el-pagination
-				background
-				layout="prev, pager, next"
-				:total="total"
-				:page-size="pageSize"
-				:current-page="page"
-				@current-change="onPageChange"
-			/>
+		<div class="ml-shell">
+			<div class="ml-table">
+				<el-table :data="list" stripe style="width: 100%" height="100%">
+					<el-table-column prop="id" label="ID" width="80" />
+					<el-table-column prop="uid" label="UID" width="100" />
+					<el-table-column label="头像" width="90">
+						<template #default="{ row }">
+							<div class="avatar-click" title="点击查看详情" @click="openDetailDrawer(row)">
+								<el-avatar :size="32" :src="formatAvatar(row.avatarUrl)" />
+							</div>
+						</template>
+					</el-table-column>
+					<el-table-column prop="name" label="昵称" width="220">
+						<template #default="{ row }">
+							<span>{{ row.name }}</span>
+							<el-tag v-if="isGroupOrderOwner(row)" type="warning" effect="plain" size="small" style="margin-left:6px;">集团占位</el-tag>
+							<el-tag v-if="isGuestOrderOwner(row)" type="warning" effect="plain" size="small" style="margin-left:6px;">游客占位</el-tag>
+						</template>
+					</el-table-column>
+					<el-table-column prop="phone" label="手机号" width="150" />
+					<el-table-column prop="level.name" label="等级" width="120">
+						<template #default="{ row }">{{ row.level?.name || '-' }}</template>
+					</el-table-column>
+					<el-table-column prop="category.name" label="分类" width="120">
+						<template #default="{ row }">{{ row.category?.name || '-' }}</template>
+					</el-table-column>
+					<el-table-column prop="growthPoints" label="成长值" width="120">
+						<template #default="{ row }">{{ (row as any).growthPoints ?? 0 }}</template>
+					</el-table-column>
+					<el-table-column prop="totalPaidAmount" label="累计支付(￥)" width="140">
+						<template #default="{ row }">{{ Number((row as any).totalPaidAmount||0).toFixed(2) }}</template>
+					</el-table-column>
+					<el-table-column prop="points" label="积分" width="100" />
+					<el-table-column prop="balance" label="余额" width="120" />
+					<el-table-column prop="createdAt" label="注册时间" width="180">
+						<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+					</el-table-column>
+					<el-table-column prop="lastActiveAt" label="活跃时间" width="180">
+						<template #default="{ row }">{{ formatTime(row.lastActiveAt) }}</template>
+					</el-table-column>
+					<el-table-column label="操作" width="420" fixed="right">
+						<template #default="{ row }">
+							<div class="op-btns">
+								<el-button size="small" link :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openEdit(row)">
+									<el-icon><User /></el-icon>
+									<span>查看资料</span>
+								</el-button>
+								<el-button size="small" link type="warning" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openResetPwd(row)">
+									<el-icon><Edit /></el-icon>
+									<span>修改密码</span>
+								</el-button>
+								<el-button size="small" link type="primary" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openGrowthLogs(row)">
+									<el-icon><List /></el-icon>
+									<span>成长日志</span>
+								</el-button>
+								<el-button size="small" link type="danger" :disabled="isGroupOrderOwner(row) || isGuestOrderOwner(row)" @click="openDeleteDialog(row)">
+									<el-icon><Delete /></el-icon>
+									<span>删除</span>
+								</el-button>
+							</div>
+						</template>
+					</el-table-column>
+				</el-table>
+			</div>
+			<div class="ml-pager">
+				<el-pagination
+					background
+					layout="total, prev, pager, next, sizes"
+					:total="total"
+					:page-size="pageSize"
+					:page-sizes="[10,20,50,100]"
+					:current-page="page"
+					@current-change="onPageChange"
+					@size-change="onPageSizeChange"
+				/>
+			</div>
 		</div>
 
 		<el-dialog v-model="dialogVisible" :title="current?.id ? '查看/编辑会员' : '新建会员'" width="520px">
@@ -206,7 +330,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, reactive, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { API_BASE } from '../config';
 import { absUrl } from '../utils/http';
@@ -215,6 +339,7 @@ import MemberDetailDrawer from './_components/MemberDetailDrawer.vue';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
 import { Search, CirclePlus, User, Edit, List, Delete, Refresh } from '@element-plus/icons-vue';
+import { useRoute } from 'vue-router';
 import {
 	memberCategoryControllerList,
 	memberControllerAdjustGrowth,
@@ -240,10 +365,10 @@ const categories = ref<Category[]>([]);
 
 type Tag = { id: number; name: string; isSystem?: boolean };
 const tagOptions = ref<Tag[]>([]);
+const tagFilterOptions = ref<Tag[]>([]);
 
 type Member = { id: number; uid: number; name: string; phone: string; points: number; balance: number; createdAt: string; lastActiveAt?: string | null; avatarUrl?: string | null; level?: Level; category?: Category; tags?: Tag[]; growthPoints?: number; totalPaidAmount?: number };
 const list = ref<Member[]>([]);
-const keyword = ref('');
 const loading = ref(false);
 const total = ref(0);
 const page = ref(1);
@@ -354,12 +479,149 @@ async function fetchTags(){
 	const all = (await memberTagControllerList() as any) as Tag[];
 	// 前端在选择时隐藏系统默认标签，避免误选
 	tagOptions.value = all.filter(t => !t.isSystem);
+	// 筛选项：允许按系统标签过滤（只读）
+	tagFilterOptions.value = Array.isArray(all) ? all : [];
+}
+
+type SortBy = ''|'growthPoints'|'totalPaidAmount'|'points'|'balance'|'createdAt'|'lastActiveAt';
+type SortOrder = 'asc'|'desc';
+const filters = reactive<{
+	keyword: string;
+	levelId?: number;
+	categoryId?: number;
+	tagId?: number;
+	excludePlaceholders: boolean;
+	createdFrom?: string;
+	createdTo?: string;
+	activeFrom?: string;
+	activeTo?: string;
+	sortBy: SortBy;
+	sortOrder: SortOrder;
+}>({
+	keyword: '',
+	levelId: undefined,
+	categoryId: undefined,
+	tagId: undefined,
+	excludePlaceholders: false,
+	createdFrom: undefined,
+	createdTo: undefined,
+	activeFrom: undefined,
+	activeTo: undefined,
+	sortBy: '',
+	sortOrder: 'desc',
+});
+
+function addDaysDateOnly(dateOnly: string, days: number): string {
+	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateOnly || '').trim());
+	if (!m) return dateOnly;
+	const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3]);
+	const dt = new Date(y, mo - 1, d, 0, 0, 0, 0);
+	dt.setDate(dt.getDate() + days);
+	const yy = dt.getFullYear();
+	const mm = String(dt.getMonth() + 1).padStart(2, '0');
+	const dd = String(dt.getDate()).padStart(2, '0');
+	return `${yy}-${mm}-${dd}`;
+}
+function fmtDateOnly(v?: string){
+	try{
+		const s = String(v||'').trim();
+		if (!s) return '';
+		const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+		if (m) return m[1];
+		const d = new Date(s);
+		if (isNaN(d.getTime())) return s;
+		const yy = d.getFullYear();
+		const mm = String(d.getMonth()+1).padStart(2,'0');
+		const dd = String(d.getDate()).padStart(2,'0');
+		return `${yy}-${mm}-${dd}`;
+	}catch{ return String(v||''); }
+}
+function rangeLabel(from?: string, toExclusive?: string){
+	const a = String(from||'').trim();
+	const b = String(toExclusive||'').trim();
+	if (!a && !b) return '';
+	const aa = a ? fmtDateOnly(a) : '—';
+	let bb = '—';
+	if (b){
+		const dateOnly = fmtDateOnly(b);
+		// 语义统一：to 为“排他上界”，按日展示时减 1 天
+		bb = dateOnly ? addDaysDateOnly(dateOnly, -1) : '—';
+	}
+	return `${aa} ~ ${bb}`;
+}
+const createdRangeLabel = computed(()=> rangeLabel(filters.createdFrom, filters.createdTo));
+const activeRangeLabel = computed(()=> rangeLabel(filters.activeFrom, filters.activeTo));
+const showMore = ref(false);
+const createdRangeValue = ref<[string,string] | null>(null);
+const activeRangeValue = ref<[string,string] | null>(null);
+function syncRangePickersFromFilters(){
+	try{
+		const cFrom = fmtDateOnly(filters.createdFrom||'');
+		const cToEx = fmtDateOnly(filters.createdTo||'');
+		createdRangeValue.value = (cFrom && cToEx) ? [cFrom, addDaysDateOnly(cToEx, -1)] : null;
+		const aFrom = fmtDateOnly(filters.activeFrom||'');
+		const aToEx = fmtDateOnly(filters.activeTo||'');
+		activeRangeValue.value = (aFrom && aToEx) ? [aFrom, addDaysDateOnly(aToEx, -1)] : null;
+	}catch{}
+}
+function onCreatedRangeChange(v: any){
+	if (!v || !Array.isArray(v) || !v[0] || !v[1]){
+		filters.createdFrom = undefined;
+		filters.createdTo = undefined;
+		createdRangeValue.value = null;
+		onSearch();
+		return;
+	}
+	filters.createdFrom = String(v[0]);
+	// to 为排他上界：end + 1day
+	filters.createdTo = addDaysDateOnly(String(v[1]), 1);
+	onSearch();
+}
+function onActiveRangeChange(v: any){
+	if (!v || !Array.isArray(v) || !v[0] || !v[1]){
+		filters.activeFrom = undefined;
+		filters.activeTo = undefined;
+		activeRangeValue.value = null;
+		onSearch();
+		return;
+	}
+	filters.activeFrom = String(v[0]);
+	filters.activeTo = addDaysDateOnly(String(v[1]), 1);
+	onSearch();
+}
+function clearCreatedRange(){
+	filters.createdFrom = undefined;
+	filters.createdTo = undefined;
+	createdRangeValue.value = null;
+	onSearch();
+}
+function clearActiveRange(){
+	filters.activeFrom = undefined;
+	filters.activeTo = undefined;
+	activeRangeValue.value = null;
+	onSearch();
 }
 
 async function fetchList() {
 	loading.value = true;
 	try {
-		const res = (await memberControllerList({ keyword: keyword.value, page: page.value, pageSize: pageSize.value } as any) as any) as { items: Member[]; total: number; page: number; pageSize: number };
+		const params: any = {
+			keyword: String(filters.keyword || ''),
+			page: String(page.value),
+			pageSize: String(pageSize.value),
+		};
+		if (filters.levelId) params.levelId = String(filters.levelId);
+		if (filters.categoryId) params.categoryId = String(filters.categoryId);
+		if (filters.tagId) params.tagId = String(filters.tagId);
+		if (filters.excludePlaceholders) params.excludePlaceholders = '1';
+		if (filters.createdFrom) params.createdFrom = String(filters.createdFrom);
+		if (filters.createdTo) params.createdTo = String(filters.createdTo);
+		if (filters.activeFrom) params.activeFrom = String(filters.activeFrom);
+		if (filters.activeTo) params.activeTo = String(filters.activeTo);
+		if (filters.sortBy) params.sortBy = String(filters.sortBy);
+		if (filters.sortOrder) params.sortOrder = String(filters.sortOrder);
+
+		const res = (await memberControllerList(params as any) as any) as { items: Member[]; total: number; page: number; pageSize: number };
 		list.value = Array.isArray(res?.items) ? res.items : [];
 		total.value = Number(res?.total || 0);
 	} finally {
@@ -369,6 +631,33 @@ async function fetchList() {
 
 function onPageChange(p: number) {
 	page.value = p;
+	fetchList();
+}
+function onPageSizeChange(s: number){
+	pageSize.value = Number(s || 10);
+	page.value = 1;
+	fetchList();
+}
+
+function onSearch(){
+	page.value = 1;
+	fetchList();
+}
+function onReset(){
+	filters.keyword = '';
+	filters.levelId = undefined;
+	filters.categoryId = undefined;
+	filters.tagId = undefined;
+	filters.excludePlaceholders = false;
+	filters.createdFrom = undefined;
+	filters.createdTo = undefined;
+	filters.activeFrom = undefined;
+	filters.activeTo = undefined;
+	filters.sortBy = '';
+	filters.sortOrder = 'desc';
+	createdRangeValue.value = null;
+	activeRangeValue.value = null;
+	page.value = 1;
 	fetchList();
 }
 
@@ -450,7 +739,38 @@ async function onDeleteConfirm(){
 	delDialog.value = false; delTarget.value = null; fetchList();
 }
 
-onMounted(()=>{ ensureSiteSetting(); fetchLevels(); fetchCategories(); fetchTags(); fetchList(); loadGuestOwnerInfo(); });
+const route = useRoute();
+function applyRouteQuery(){
+	try{
+		const q:any = route.query || {};
+		if (q.keyword != null) filters.keyword = String(q.keyword||'');
+		if (q.levelId != null) filters.levelId = Number(q.levelId)||undefined;
+		if (q.categoryId != null) filters.categoryId = Number(q.categoryId)||undefined;
+		if (q.tagId != null) filters.tagId = Number(q.tagId)||undefined;
+		if (q.createdFrom != null) filters.createdFrom = String(q.createdFrom||'') || undefined;
+		if (q.createdTo != null) filters.createdTo = String(q.createdTo||'') || undefined;
+		if (q.excludePlaceholders != null) filters.excludePlaceholders = (String(q.excludePlaceholders)==='1' || String(q.excludePlaceholders).toLowerCase()==='true');
+		if (q.sortBy != null) filters.sortBy = (String(q.sortBy||'') as any) || '';
+		if (q.sortOrder != null) filters.sortOrder = (String(q.sortOrder||'').toLowerCase()==='asc' ? 'asc' : 'desc');
+		if (q.activeFrom != null) filters.activeFrom = String(q.activeFrom||'') || undefined;
+		if (q.activeTo != null) filters.activeTo = String(q.activeTo||'') || undefined;
+		syncRangePickersFromFilters();
+	}catch{}
+}
+
+onMounted(()=>{
+	ensureSiteSetting();
+	fetchLevels(); fetchCategories(); fetchTags();
+	applyRouteQuery();
+	fetchList();
+	loadGuestOwnerInfo();
+});
+
+watch(() => route.fullPath, ()=>{
+	// 支持从 Dashboard 跳转到同一页时更新筛选
+	applyRouteQuery();
+	fetchList();
+});
 
 // 读取站点默认头像，避免写死默认图
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
@@ -506,5 +826,68 @@ function openDetailDrawer(m: Member){
 .growth-logs .change.minus { color: #ef4444; }
 .growth-logs .time { grid-column: 1 / 3; color: #6b7280; font-size: 12px; }
 .loading, .empty { color: #6b7280; text-align: center; padding: 24px 0; }
+
+/* 顶部筛选条：紧凑布局，减少占用高度 */
+.ml-filters{
+	width: 100%;
+	display:flex;
+	flex-wrap:wrap;
+	align-items:center;
+	gap: 10px 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--el-border-color-lighter);
+	border-radius: 14px;
+	background:
+		linear-gradient(180deg, color-mix(in oklab, var(--el-color-primary), transparent 94%) 0%, transparent 70%),
+		color-mix(in oklab, var(--el-bg-color), transparent 0%);
+	box-shadow: 0 10px 24px rgba(17, 24, 39, 0.04);
+}
+.ml-filters :deep(.el-form-item){
+	margin-right: 0;
+	margin-bottom: 0;
+}
+.ml-filters :deep(.el-form-item__label){
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+}
+.ml-filters :deep(.el-input__wrapper),
+.ml-filters :deep(.el-select__wrapper){
+	border-radius: 10px;
+}
+.ml-w-140{ width: 140px; }
+.ml-w-160{ width: 160px; }
+.ml-w-240{ width: 240px; }
+.ml-more-toggle :deep(.el-button){
+	padding-inline: 8px;
+}
+.ml-sort-order{ margin-left: 8px; }
+.ml-right{
+	margin-left: auto;
+	display:flex;
+	align-items:center;
+	gap: 8px;
+}
+.ml-guest-tag{ white-space: nowrap; }
+
+/* 表格区域：在 BasePage(content overflow:hidden) 的前提下，使用“表格内部滚动” */
+.ml-shell{
+	height: 100%;
+	min-height: 0;
+	display:flex;
+	flex-direction:column;
+}
+.ml-table{
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+	border: 1px solid #eef2f7;
+	border-radius: 12px;
+	background: #fff;
+}
+.ml-pager{
+	margin-top: 12px;
+	display:flex;
+	justify-content:flex-end;
+}
 </style>
 

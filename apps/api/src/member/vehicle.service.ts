@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { FileService } from '../file/file.service.js';
 import { AssetService } from '../file/asset.service.js';
+import { isNoPlateNumber, resolveNoPlateNumberEnv } from '../env.js';
 
 @Injectable()
 export class VehicleService {
@@ -142,6 +143,10 @@ export class VehicleService {
 
     async createForMember(memberId: number, input: { plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain: string; typeSub?: string | null; color?: string | null; isDefault?: boolean }) {
         if (!input?.plateNumber) throw new BadRequestException('车牌号为必填项');
+        // 保护：无牌车占位车牌为系统保留，不允许绑定到会员
+        if (isNoPlateNumber(String(input.plateNumber || ''))) {
+            throw new BadRequestException(`车牌号 ${resolveNoPlateNumberEnv()} 为系统保留“无牌车”占位车牌，不允许绑定到会员`);
+        }
         this.assertTypeMainRequired(input?.typeMain);
         const payload = this.normalizeVehicleInput(input);
         const isDefault = !!payload.isDefault;
@@ -228,6 +233,10 @@ export class VehicleService {
     async bindGuestVehicle(vehicleId: number, memberId: number, opts?: { operatorUserId?: number | null; remark?: string | null }) {
         const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!v) throw new BadRequestException('车辆不存在');
+        // 保护：无牌车占位车牌不可绑定到会员
+        if (isNoPlateNumber(String(v.plateNumber || ''))) {
+            throw new BadRequestException(`车牌号 ${resolveNoPlateNumberEnv()} 为系统保留“无牌车”占位车牌，不允许绑定到会员`);
+        }
         if (v.memberId) throw new BadRequestException('该车辆已绑定会员');
         if (v.groupId) throw new BadRequestException('该车辆为集团车辆，请使用改绑功能');
         const member = await this.prisma.member.findUnique({ where: { id: memberId } });
@@ -270,6 +279,16 @@ export class VehicleService {
     async updateVehicle(vehicleId: number, input: Partial<{ plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null; isDefault?: boolean }>) {
         const existing = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!existing) throw new BadRequestException('车辆不存在');
+        // 保护：禁止把任意车辆改成无牌车占位车牌；同时禁止修改无牌车占位车牌本身
+        if (typeof (input as any)?.plateNumber === 'string') {
+            const nextPlate = String((input as any).plateNumber || '').trim();
+            if (isNoPlateNumber(nextPlate)) {
+                throw new BadRequestException(`车牌号 ${resolveNoPlateNumberEnv()} 为系统保留“无牌车”占位车牌，禁止修改为该车牌`);
+            }
+            if (isNoPlateNumber(String(existing.plateNumber || ''))) {
+                throw new BadRequestException(`系统保留“无牌车”占位车辆（${resolveNoPlateNumberEnv()}）不允许修改车牌号`);
+            }
+        }
         const payload = this.normalizeVehicleInput(input);
         const updated = await this.prisma.$transaction(async (tx) => {
             if (typeof payload.isDefault === 'boolean' && payload.isDefault) {
@@ -323,6 +342,15 @@ export class VehicleService {
     async adminRebindVehicle(vehicleId: number, opts: { toMemberId?: number | null; toGroupId?: number | null; toGuest?: boolean; remark?: string | null; operatorUserId?: number | null }){
         const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!v) throw new BadRequestException('车辆不存在');
+        // 保护：无牌车占位车牌只能保持游客车辆（不可改绑到会员/集团）
+        if (isNoPlateNumber(String(v.plateNumber || ''))) {
+            const toMemberId = (opts?.toMemberId ?? null) as number | null;
+            const toGroupId = (opts?.toGroupId ?? null) as number | null;
+            const toGuest = !!(opts as any)?.toGuest;
+            if (toMemberId || toGroupId || !toGuest) {
+                throw new BadRequestException(`系统保留“无牌车”占位车辆（${resolveNoPlateNumberEnv()}）不可改绑到会员/集团`);
+            }
+        }
         const toMemberId = (opts?.toMemberId ?? null) as number | null;
         const toGroupId = (opts?.toGroupId ?? null) as number | null;
         const toGuest = !!(opts as any)?.toGuest;

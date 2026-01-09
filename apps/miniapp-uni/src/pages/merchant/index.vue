@@ -60,6 +60,26 @@
 			</view>
 		</view>
 
+		<!-- 管理功能卡片（置于逐日数据上方） -->
+		<view class="card manage-card">
+			<view class="list-head">
+				<view class="card-title">管理功能</view>
+				<view class="manage-sub">快捷入口</view>
+			</view>
+			<view class="manage-grid">
+				<view class="manage-item" @tap="goUserManage">
+					<view class="manage-icon">
+						<uni-icons type="person-filled" :size="20" color="rgba(37,99,235,0.9)" />
+					</view>
+					<view class="manage-texts">
+						<text class="manage-name">用户管理</text>
+						<text class="manage-desc">搜索/筛选用户，查看详情</text>
+					</view>
+					<uni-icons type="right" :size="18" color="rgba(15,23,42,0.56)" />
+				</view>
+			</view>
+		</view>
+
 		<!-- 逐日数据列表卡片 -->
 		<view class="card">
 			<view class="list-head">
@@ -360,6 +380,7 @@ watch(customRange, (v)=>{
 });
 
 function goBack(){ try { uni.navigateBack(); } catch {} }
+function goUserManage(){ try { uni.navigateTo({ url: '/pages/merchant/users/index' }); } catch {} }
 </script>
 
  
@@ -463,6 +484,41 @@ function goBack(){ try { uni.navigateBack(); } catch {} }
 
 .list-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12rpx; gap: 12rpx; }
 .card-title { font-size: 28rpx; font-weight: 800; color:#0f172a; letter-spacing: .2rpx; flex: 0 0 auto; }
+.manage-sub{ font-size: 22rpx; color: rgba(15, 23, 42, 0.62); font-weight: 700; }
+.manage-card{
+	background: linear-gradient(
+		135deg,
+		rgba(168, 216, 255, 0.16) 0%,
+		rgba(255, 201, 222, 0.12) 55%,
+		rgba(255, 255, 255, 0.94) 100%
+	);
+}
+.manage-grid{ display:flex; flex-direction: column; gap: 12rpx; margin-top: 8rpx; }
+.manage-item{
+	display:flex;
+	align-items:center;
+	gap: 14rpx;
+	padding: 18rpx;
+	border-radius: 22rpx;
+	background: rgba(255,255,255,0.92);
+	border: 1rpx solid rgba(148, 163, 184, 0.18);
+	box-shadow: inset 0 2rpx 10rpx rgba(15,23,42,0.03);
+}
+.manage-item:active{ opacity: .86; }
+.manage-icon{
+	width: 64rpx;
+	height: 64rpx;
+	border-radius: 18rpx;
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	background: rgba(239, 246, 255, 0.9);
+	border: 1rpx solid rgba(37, 99, 235, 0.12);
+	flex: 0 0 auto;
+}
+.manage-texts{ flex: 1; min-width: 0; display:flex; flex-direction: column; gap: 6rpx; }
+.manage-name{ font-size: 26rpx; font-weight: 900; color:#0f172a; letter-spacing: .2rpx; }
+.manage-desc{ font-size: 22rpx; color: rgba(15,23,42,0.62); font-weight: 700; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filters { flex: 1 1 auto; white-space: nowrap; overflow: hidden; }
 .seg {
 	display: inline-flex;

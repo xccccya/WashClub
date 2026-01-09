@@ -64,5 +64,100 @@ html, body, #app { height: 100%; }
 /* 全局背景与文字适配（尽量不影响局部定制） */
 body{ background: var(--app-bg); color: var(--app-text); }
 .theme-pop{ padding: 8px 10px; border-radius: 8px; }
+
+/* ============================================================
+   全局滚动条美化
+   - 细长优雅的滚动条
+   - 圆角设计
+   - hover 时颜色加深
+   - 支持 Firefox 和 WebKit 浏览器
+   ============================================================ */
+
+/* Firefox 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(144, 147, 153, 0.3)) var(--scrollbar-track, transparent);
+}
+
+/* WebKit 滚动条（Chrome, Safari, Edge） */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(144, 147, 153, 0.3);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(144, 147, 153, 0.5);
+}
+::-webkit-scrollbar-thumb:active {
+  background: rgba(144, 147, 153, 0.7);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 暗色主题滚动条 */
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.35);
+}
+[data-theme='dark'] {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+}
+
+/* 主内容区滚动条稍宽一些 */
+.content::-webkit-scrollbar,
+.el-scrollbar__wrap::-webkit-scrollbar,
+.el-table__body-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.content::-webkit-scrollbar-thumb,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.el-table__body-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(144, 147, 153, 0.25);
+  border-radius: 4px;
+}
+.content::-webkit-scrollbar-thumb:hover,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb:hover,
+.el-table__body-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(144, 147, 153, 0.4);
+}
+
+/* Element Plus 组件内部滚动条优化 */
+.el-select-dropdown__wrap::-webkit-scrollbar,
+.el-cascader-menu__wrap::-webkit-scrollbar,
+.el-dropdown__list::-webkit-scrollbar,
+.el-autocomplete-suggestion__wrap::-webkit-scrollbar {
+  width: 5px;
+}
+.el-select-dropdown__wrap::-webkit-scrollbar-thumb,
+.el-cascader-menu__wrap::-webkit-scrollbar-thumb,
+.el-dropdown__list::-webkit-scrollbar-thumb,
+.el-autocomplete-suggestion__wrap::-webkit-scrollbar-thumb {
+  background: rgba(144, 147, 153, 0.3);
+  border-radius: 2.5px;
+}
+
+/* 隐藏滚动条但保留滚动功能（特定场景）*/
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 </style>
 

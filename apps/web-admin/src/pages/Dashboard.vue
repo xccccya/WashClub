@@ -60,7 +60,15 @@
 			</template>
 			<el-row :gutter="12">
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内的订单列表"
+						@click="goOrders"
+						@keydown.enter.prevent="goOrders"
+						@keydown.space.prevent="goOrders"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#409eff"><ShoppingBag /></el-icon>
 						</div>
@@ -79,7 +87,15 @@
 				</el-col>
 
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内的服务订单"
+						@click="goWashOrders"
+						@keydown.enter.prevent="goWashOrders"
+						@keydown.space.prevent="goWashOrders"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#409eff"><Tickets /></el-icon>
 						</div>
@@ -96,7 +112,15 @@
 				</el-col>
 
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内的已支付订单"
+						@click="goPaidOrders"
+						@keydown.enter.prevent="goPaidOrders"
+						@keydown.space.prevent="goPaidOrders"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#67c23a"><Money /></el-icon>
 						</div>
@@ -113,7 +137,15 @@
 				</el-col>
 
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内的洗车卡支付服务订单"
+						@click="goWashcardOrders"
+						@keydown.enter.prevent="goWashcardOrders"
+						@keydown.space.prevent="goWashcardOrders"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#e6a23c"><CreditCard /></el-icon>
 						</div>
@@ -130,7 +162,15 @@
 				</el-col>
 
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内的活跃会员"
+						@click="goActiveMembers"
+						@keydown.enter.prevent="goActiveMembers"
+						@keydown.space.prevent="goActiveMembers"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#f56c6c"><User /></el-icon>
 						</div>
@@ -147,7 +187,15 @@
 				</el-col>
 
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
-					<div class="metric-item">
+					<div
+						class="metric-item clickable"
+						role="button"
+						tabindex="0"
+						title="查看该时间范围内新增注册的会员"
+						@click="goNewMembers"
+						@keydown.enter.prevent="goNewMembers"
+						@keydown.space.prevent="goNewMembers"
+					>
 						<div class="metric-icon">
 							<el-icon size="32" color="#909399"><UserFilled /></el-icon>
 						</div>
@@ -334,6 +382,7 @@ import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { metricsControllerOverview, metricsControllerSeries } from '@wash/api-client';
+import { useRouter } from 'vue-router';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent]);
 
@@ -412,6 +461,68 @@ const timeText = computed(() => {
 	const eText = `${eAdj.getFullYear()}-${String(eAdj.getMonth()+1).padStart(2,'0')}-${String(eAdj.getDate()).padStart(2,'0')}`;
 	return `${sText} ~ ${eText}`;
 });
+
+const router = useRouter();
+function endExclusiveToInclusiveMs(endAt?: string): string | undefined {
+	if (!endAt) return undefined;
+	try {
+		const t = new Date(endAt).getTime();
+		if (!Number.isFinite(t)) return endAt;
+		// metrics 的 endAt 语义为 [startAt, endAt)；订单列表接口 end 使用 <=
+		return new Date(Math.max(0, t - 1)).toISOString();
+	} catch {
+		return endAt;
+	}
+}
+function goOrdersBase(extraQuery: Record<string, any> = {}) {
+	try {
+		if (!data.value?.startAt || !data.value?.endAt) return;
+		router.push({
+			path: '/orders',
+			query: {
+				start: data.value.startAt,
+				end: endExclusiveToInclusiveMs(data.value.endAt),
+				...extraQuery,
+			},
+		});
+	} catch {}
+}
+function goOrders() { goOrdersBase(); }
+function goWashOrders() { goOrdersBase({ type: 'SERVICE', payStatus: 'PAID' }); }
+function goPaidOrders() { goOrdersBase({ payStatus: 'PAID' }); }
+function goWashcardOrders() { goOrdersBase({ type: 'SERVICE', payStatus: 'PAID', payMethod: 'WASH_CARD' }); }
+function goNewMembers() {
+	try {
+		if (!data.value?.startAt || !data.value?.endAt) return;
+		// 对齐后端 metrics 口径：新增会员 = createdAt ∈ [startAt, endAt)
+		router.push({
+			path: '/members',
+			query: {
+				createdFrom: data.value.startAt,
+				createdTo: data.value.endAt,
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				excludePlaceholders: '1',
+			},
+		});
+	} catch {}
+}
+function goActiveMembers(){
+	try{
+		if (!data.value?.startAt || !data.value?.endAt) return;
+		// 对齐后端 metrics 口径：活跃会员 = lastActiveAt ∈ [startAt, endAt)
+		router.push({
+			path: '/members',
+			query: {
+				activeFrom: data.value.startAt,
+				activeTo: data.value.endAt,
+				sortBy: 'lastActiveAt',
+				sortOrder: 'desc',
+				excludePlaceholders: '1',
+			},
+		});
+	}catch{}
+}
 
 function formatCurrency(n?: number){
 	if (n == null) return '-';
@@ -724,6 +835,10 @@ onMounted(() => { applyFilter(); });
 .card-header .timerange { color: var(--el-text-color-secondary); }
 
 .metric-item { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid color-mix(in oklab, var(--el-color-primary), transparent 78%); border-radius:12px; background: linear-gradient(180deg, color-mix(in oklab, var(--el-color-primary), transparent 92%) 0%, color-mix(in oklab, var(--el-bg-color), transparent 0%) 70%); }
+.metric-item.clickable{ cursor: pointer; user-select: none; transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease; }
+.metric-item.clickable:hover{ box-shadow: 0 10px 22px color-mix(in oklab, var(--el-color-primary), transparent 82%); border-color: color-mix(in oklab, var(--el-color-primary), transparent 62%); }
+.metric-item.clickable:active{ transform: scale(0.995); }
+.metric-item.clickable:focus-visible{ outline: 3px solid color-mix(in oklab, var(--el-color-primary), transparent 70%); outline-offset: 2px; }
 .metric-item .metric-icon { width:36px; height:36px; display:flex; align-items:center; justify-content:center; }
 .metric-item .meta { display:flex; flex-direction:column; gap:6px; }
 .metric-item .label { font-size:12px; color: var(--el-text-color-secondary); }

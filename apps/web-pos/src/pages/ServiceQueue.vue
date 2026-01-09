@@ -42,7 +42,7 @@
 							<div>
 								<el-tag v-if="row?.vehicle?.group" type="info" effect="plain" class="mr6"><el-icon class="mr4"><OfficeBuilding /></el-icon>{{ row.vehicle.group.name }}</el-tag>
 								<el-tag :type="row?.vehicle?.group ? 'info' : (row.guest ? 'warning' : 'danger')" class="mr6">{{ row?.vehicle?.group ? '集团客户' : (row.guest ? '游客' : '会员') }}</el-tag>
-								<strong>{{ row.plateNumber }}</strong>
+								<strong>{{ plateLabel(row) }}</strong>
 							</div>
 							<div v-if="row?.vehicle?.member" class="u-line">
 								<span class="member">{{ row.vehicle.member.name || '-' }}（{{ row.vehicle.member.phone || '-' }}）</span>
@@ -457,6 +457,9 @@
 					<el-button size="large" :type="mode==='member'?'primary':'default'" @click="mode='member'">会员车辆</el-button>
 					<el-button size="large" :type="mode==='existing'?'primary':'default'" @click="mode='existing'">现有车辆</el-button>
 					<el-button size="large" :type="mode==='guest'?'primary':'default'" @click="mode='guest'">游客车辆</el-button>
+					<el-tooltip placement="top" effect="dark" content="无牌车/忘记车牌：一键选择系统保留占位车辆，可同时入队多辆">
+						<el-button size="large" type="primary" plain @click="pickNoPlateForWizard">无牌车</el-button>
+					</el-tooltip>
 				</div>
 				<el-form :model="form" label-width="120px" class="wiz-form">
 					<!-- 智能选择：统一入口，支持现有车辆选择或快速新建（会员/游客） -->
@@ -762,6 +765,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { absUrl } from '../utils/http';
+import { resolveNoPlateNumber } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import PlateInput from '../components/PlateInput.vue';
@@ -793,6 +797,7 @@ import {
 	queueTypeControllerSetSteps,
 	queueTypeControllerUpdate,
 	storeProductControllerList,
+	vehicleControllerCreateGuest,
 	vehicleControllerCreateForMember,
 	vehicleControllerListByMember,
 	vehicleControllerSearch,
@@ -804,6 +809,22 @@ type QueueItem = { id:number; plateNumber:string; guest:boolean; status?: string
 
 function rowKey(row: { id?: number }, index: number){ return Number(row?.id||index); }
 function toAbs(u?: string | null){ return absUrl(u || ''); }
+
+const NO_PLATE_NUMBER_CONST = resolveNoPlateNumber();
+function isNoPlate(p: any): boolean {
+	try{
+		const s = String(p || '').trim().toUpperCase();
+		const target = String(NO_PLATE_NUMBER_CONST || '川K00000').trim().toUpperCase();
+		return !!s && s === target;
+	}catch{ return false; }
+}
+function plateLabel(row: any): string {
+	try{
+		const plate = String(row?.plateNumber || '').trim();
+		if (isNoPlate(plate)) return `无牌车（#${Number(row?.id||0)||0}）`;
+		return plate || '-';
+	}catch{ return '-'; }
+}
 
 const list = ref<QueueItem[]>([]);
 const searchInputRef = ref<any>(null);
@@ -1070,7 +1091,7 @@ async function openPay(row:any){
 	// 仅用于展示（不影响支付逻辑）
 	try{
 		payContext.value = {
-			plateNumber: String(row?.plateNumber||'') || undefined,
+			plateNumber: plateLabel(row) || undefined,
 			memberName: row?.vehicle?.member?.name ? String(row.vehicle.member.name) : undefined,
 			phone: row?.vehicle?.member?.phone ? String(row.vehicle.member.phone) : undefined,
 			queueTypeName: row?.queueType?.name ? String(row.queueType.name) : undefined,
@@ -1514,6 +1535,28 @@ function resetVehicleForm(){
 		// 智能选择默认“绑定到会员”
 		smartCreateMode.value = 'member';
 	}catch{}
+}
+
+// 一键选择“无牌车”（系统保留占位车辆）
+async function pickNoPlateForWizard(){
+	try{
+		const plate = String(resolveNoPlateNumber() || NO_PLATE_NUMBER_CONST || '川K00000').trim();
+		if (!plate) { ElMessage.error('无牌车占位车牌未配置'); return; }
+		const created:any = await vehicleControllerCreateGuest({ plateNumber: plate, typeMain: '轿车' } as any);
+		const id = Number((created as any)?.id || 0) || 0;
+		if (!id) { ElMessage.error('无牌车选择失败'); return; }
+		// 统一走“智能选择”模式，直接使用 vehicleId（无需补全品牌/主类等字段）
+		if (mode.value !== 'smart') {
+			mode.value = 'smart';
+			await nextTick();
+		}
+		form.value.vehicleId = id;
+		form.value.plateNumber = String((created as any)?.plateNumber || plate);
+		form.value.existingVehicle = { id, plateNumber: form.value.plateNumber };
+		ElMessage.success('已选择无牌车');
+	}catch(e:any){
+		ElMessage.error(String(e?.message||'无牌车选择失败'));
+	}
 }
 // 智能选择：新建路径（member | guest）——默认改为“绑定到会员”
 const smartCreateMode = ref<'member'|'guest'>('member');

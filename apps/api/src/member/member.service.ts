@@ -4,25 +4,239 @@ import { PrismaService } from '../prisma.service.js';
 import { AssetService } from '../file/asset.service.js';
 import { resolveGuestMemberIdEnv } from '../env.js';
 import { hashPassword } from '../auth/password.js';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class MemberService {
 	private syncBindings!: (tableName: string, rowId: string, fieldName: string, urls: string[]) => Promise<void>;
 	constructor(private prisma: PrismaService, private jwt: JwtService, private assets?: AssetService) {}
 
-	async list(page = 1, pageSize = 20, keyword?: string) {
-		const where = keyword
-			? { OR: [{ name: { contains: keyword } }, { phone: { contains: keyword } }] }
-			: undefined;
+	private parseDateParam(s?: string): Date | null {
+		const raw = String(s || '').trim();
+		if (!raw) return null;
+		// YYYY-MM-DD：按本地 00:00:00
+		const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+		if (m) {
+			const y = Number(m[1]); const mo = Number(m[2]); const d = Number(m[3]);
+			const dt = new Date(y, mo - 1, d, 0, 0, 0, 0);
+			return isNaN(dt.getTime()) ? null : dt;
+		}
+		// ISO 或其它 Date 可解析格式
+		const dt = new Date(raw);
+		return isNaN(dt.getTime()) ? null : dt;
+	}
+
+	async list(query: {
+		page?: number;
+		pageSize?: number;
+		keyword?: string;
+		levelId?: number;
+		categoryId?: number;
+		tagId?: number;
+		createdFrom?: string;
+		createdTo?: string;
+		activeFrom?: string;
+		activeTo?: string;
+		excludePlaceholders?: boolean;
+		sortBy?: string;
+		sortOrder?: string;
+	} = {}) {
+		const page = Number(query?.page || 1);
+		const pageSize = Number(query?.pageSize || 20);
+		const keywordRaw = String(query?.keyword || '').trim();
+		const levelId = Number(query?.levelId || 0) || undefined;
+		const categoryId = Number(query?.categoryId || 0) || undefined;
+		const tagId = Number(query?.tagId || 0) || undefined;
+		const createdFrom = this.parseDateParam(query?.createdFrom);
+		const createdTo = this.parseDateParam(query?.createdTo);
+		const activeFrom = this.parseDateParam(query?.activeFrom);
+		const activeTo = this.parseDateParam(query?.activeTo);
+		const excludePlaceholders = !!query?.excludePlaceholders;
+
+		const where: any = {};
+		if (keywordRaw) {
+			// 关键词：支持姓名/手机号模糊；纯数字时额外支持 ID/UID 精确匹配
+			const ors: any[] = [{ name: { contains: keywordRaw } }, { phone: { contains: keywordRaw } }];
+			if (/^\d+$/.test(keywordRaw)) {
+				const n = Number(keywordRaw);
+				if (Number.isFinite(n)) ors.push({ id: n }, { uid: n });
+			}
+			where.OR = ors;
+		}
+		if (levelId) where.levelId = levelId;
+		if (categoryId) where.categoryId = categoryId;
+		if (tagId) where.tags = { some: { id: tagId } };
+		if (createdFrom || createdTo) {
+			where.createdAt = {};
+			if (createdFrom) where.createdAt.gte = createdFrom;
+			// createdTo 语义：< createdTo（与 metrics 口径对齐，便于前端传 endAt）
+			if (createdTo) where.createdAt.lt = createdTo;
+		}
+		if (activeFrom || activeTo) {
+			where.lastActiveAt = {};
+			if (activeFrom) where.lastActiveAt.gte = activeFrom;
+			if (activeTo) where.lastActiveAt.lt = activeTo;
+		}
+		if (excludePlaceholders) {
+			// 排除系统占位账号（游客/集团订单占位）：通过系统标签名过滤
+			where.tags = where.tags || {};
+			where.tags.none = { name: { in: ['GUEST_ORDER_OWNER', 'GROUP_ORDER_OWNER'] } };
+		}
+		const whereFinal = Object.keys(where).length ? where : undefined;
+
+		// 排序：
+		// - 基础字段：成长值/累计支付/积分/余额/注册时间/活跃时间（正序/倒序）
+		// - 派生字段：累计洗车次数/到店时间（正序/倒序，后端聚合计算以保证分页一致）
+		const sortBy = String(query?.sortBy || '').trim();
+		const sortOrder = String(query?.sortOrder || '').toLowerCase() === 'asc' ? 'asc' : 'desc';
+		const derivedSort = sortBy === 'totalWashCount' || sortBy === 'lastVisitAt';
+
+		// 1) 派生排序：用 SQL 聚合算出排序字段，先取当前页的 memberId，再批量查 member 详情
+		//    目的：保证“排序 + 分页”一致，避免前端/后端二次排序导致错页。
+		if (derivedSort) {
+			const skip = (page - 1) * pageSize;
+			const take = pageSize;
+
+			// 派生字段聚合：
+			// - lastVisitAt：最新 SERVICE 订单 createdAt（不要求已完成，口径与 miniapp 详情页一致）
+			// - totalWashCount：已支付且完成的 SERVICE 订单累计洗车次数（按商品 isCarWash 汇总；若某服务订单无可计次商品，则按 1 次计）
+			const visitAgg = Prisma.sql`
+				SELECT o.memberId AS memberId, MAX(o.createdAt) AS lastVisitAt
+				FROM \`Order\` o
+				WHERE o.type = 'SERVICE' AND o.deletedAt IS NULL
+				GROUP BY o.memberId
+			`;
+			const washCountAgg = Prisma.sql`
+				SELECT x.memberId AS memberId,
+					   SUM(CASE WHEN x.washTimes > 0 THEN x.washTimes ELSE 1 END) AS totalWashCount
+				FROM (
+					SELECT o.id AS orderId, o.memberId AS memberId,
+						   SUM(CASE WHEN p.isCarWash = true THEN oi.quantity ELSE 0 END) AS washTimes
+					FROM \`Order\` o
+					LEFT JOIN \`OrderItem\` oi ON oi.orderId = o.id
+					LEFT JOIN \`Product\` p ON p.id = oi.productId
+					WHERE o.type = 'SERVICE'
+					  AND o.deletedAt IS NULL
+					  AND o.payStatus = 'PAID'
+					  AND (o.status IN ('CLOSED', 'FULFILLED') OR o.fulfillmentStatus = 'DONE')
+					GROUP BY o.id, o.memberId
+				) x
+				GROUP BY x.memberId
+			`;
+
+			const sortField = sortBy === 'lastVisitAt' ? 'lastVisitAt' : 'totalWashCount';
+			const sortFieldSql = Prisma.raw(sortField);
+			const sortDirSql = Prisma.raw(sortOrder === 'asc' ? 'ASC' : 'DESC');
+
+			// WHERE 子句：与 Prisma whereFinal 尽量保持一致（用于派生排序场景）
+			const like = keywordRaw ? `%${keywordRaw}%` : '';
+			const numeric = keywordRaw && /^\d+$/.test(keywordRaw) ? Number(keywordRaw) : null;
+
+			const whereSqlParts: Prisma.Sql[] = [Prisma.sql`1=1`];
+			if (keywordRaw) {
+				// 关键词：姓名/手机号 contains；纯数字时支持 id/uid 精确匹配
+				if (numeric && Number.isFinite(numeric)) {
+					whereSqlParts.push(Prisma.sql`AND (m.name LIKE ${like} OR m.phone LIKE ${like} OR m.id = ${numeric} OR m.uid = ${numeric})`);
+				} else {
+					whereSqlParts.push(Prisma.sql`AND (m.name LIKE ${like} OR m.phone LIKE ${like})`);
+				}
+			}
+			if (levelId) whereSqlParts.push(Prisma.sql`AND m.levelId = ${levelId}`);
+			if (categoryId) whereSqlParts.push(Prisma.sql`AND m.categoryId = ${categoryId}`);
+			if (tagId) {
+				whereSqlParts.push(
+					Prisma.sql`AND EXISTS (SELECT 1 FROM \`_MemberToMemberTag\` mt WHERE mt.A = m.id AND mt.B = ${tagId})`,
+				);
+			}
+			if (createdFrom) whereSqlParts.push(Prisma.sql`AND m.createdAt >= ${createdFrom}`);
+			if (createdTo) whereSqlParts.push(Prisma.sql`AND m.createdAt < ${createdTo}`);
+			if (activeFrom) whereSqlParts.push(Prisma.sql`AND m.lastActiveAt >= ${activeFrom}`);
+			if (activeTo) whereSqlParts.push(Prisma.sql`AND m.lastActiveAt < ${activeTo}`);
+			if (excludePlaceholders) {
+				whereSqlParts.push(
+					Prisma.sql`AND NOT EXISTS (
+						SELECT 1
+						FROM \`_MemberToMemberTag\` mt
+						INNER JOIN \`MemberTag\` t ON t.id = mt.B
+						WHERE mt.A = m.id AND t.name IN ('GUEST_ORDER_OWNER', 'GROUP_ORDER_OWNER')
+					)`,
+				);
+			}
+			const whereSql = Prisma.join(whereSqlParts, ' ');
+
+			type SortRow = { id: number; lastVisitAt: Date | null; totalWashCount: any };
+			const sortRows = await this.prisma.$queryRaw<SortRow[]>(
+				Prisma.sql`
+					SELECT x.id, x.lastVisitAt, x.totalWashCount
+					FROM (
+						SELECT m.id AS id,
+							   v.lastVisitAt AS lastVisitAt,
+							   COALESCE(wc.totalWashCount, 0) AS totalWashCount
+						FROM \`Member\` m
+						LEFT JOIN (${visitAgg}) v ON v.memberId = m.id
+						LEFT JOIN (${washCountAgg}) wc ON wc.memberId = m.id
+						WHERE ${whereSql}
+					) x
+					ORDER BY (x.${sortFieldSql} IS NULL) ASC, x.${sortFieldSql} ${sortDirSql}, x.id DESC
+					LIMIT ${take} OFFSET ${skip}
+				`,
+			);
+
+			const ids = (Array.isArray(sortRows) ? sortRows : []).map((r) => Number(r?.id || 0)).filter((id) => Number.isFinite(id) && id > 0);
+			const [itemsRaw, total] = await Promise.all([
+				ids.length
+					? this.prisma.member.findMany({
+							where: { id: { in: ids } },
+							include: { vehicles: true, level: true, category: true, tags: true },
+						})
+					: Promise.resolve([] as any[]),
+				this.prisma.member.count({ where: whereFinal }),
+			]);
+
+			const byId = new Map<number, any>();
+			for (const m of itemsRaw) byId.set(Number(m?.id || 0), m);
+			const extraById = new Map<number, SortRow>();
+			for (const r of sortRows || []) extraById.set(Number(r?.id || 0), r);
+
+			const items = ids
+				.map((id) => {
+					const m = byId.get(id);
+					if (!m) return null;
+					const extra = extraById.get(id);
+					const lastVisitAtIso = extra?.lastVisitAt ? new Date(extra.lastVisitAt).toISOString() : null;
+					const totalWashCountNum = Number(extra?.totalWashCount || 0) || 0;
+					return {
+						...m,
+						balance: Number(m.balance),
+						totalPaidAmount: Number((m as any).totalPaidAmount || 0),
+						growthPoints: Number((m as any).growthPoints || 0),
+						lastVisitAt: lastVisitAtIso,
+						totalWashCount: totalWashCountNum,
+					};
+				})
+				.filter(Boolean);
+
+			return { items, total, page, pageSize };
+		}
+
+		// 2) 普通字段排序：走 Prisma orderBy
+		const orderBy: any[] = [];
+		const allowed = new Set(['growthPoints', 'totalPaidAmount', 'points', 'balance', 'createdAt', 'lastActiveAt']);
+		if (sortBy && allowed.has(sortBy)) {
+			orderBy.push({ [sortBy]: sortOrder });
+			orderBy.push({ id: 'desc' });
+		} else {
+			orderBy.push({ level: { level: 'desc' } } as any, { id: 'desc' });
+		}
 		const [itemsRaw, total] = await Promise.all([
 			this.prisma.member.findMany({
 				skip: (page - 1) * pageSize,
 				take: pageSize,
-				where,
-				orderBy: [{ level: { level: 'desc' } } as any, { id: 'desc' }],
+				where: whereFinal,
+				orderBy,
 				include: { vehicles: true, level: true, category: true, tags: true },
 			}),
-			this.prisma.member.count({ where }),
+			this.prisma.member.count({ where: whereFinal }),
 		]);
 		const items = itemsRaw.map((m) => ({
 			...m,

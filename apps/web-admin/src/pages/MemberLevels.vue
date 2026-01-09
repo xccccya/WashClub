@@ -70,7 +70,7 @@
 			</el-form>
 			<template #footer>
 				<el-button @click="dialogVisible=false">取消</el-button>
-				<el-button type="primary" @click="onSave">保存</el-button>
+				<el-button type="primary" :loading="saving" :disabled="saving" @click="onSave">保存</el-button>
 			</template>
 		</el-dialog>
 
@@ -82,7 +82,7 @@
 			</el-form>
 			<template #footer>
 				<el-button @click="growthVisible=false">取消</el-button>
-				<el-button type="primary" @click="saveGrowthConfig">保存</el-button>
+				<el-button type="primary" :loading="growthSaving" :disabled="growthSaving" @click="saveGrowthConfig">保存</el-button>
 			</template>
 		</el-dialog>
 	</BasePage>
@@ -112,9 +112,11 @@ const levels = ref<Level[]>([]);
 const dialogVisible = ref(false);
 const current = ref<Level | null>(null);
 const form = ref<Partial<Level>>({ name: '', level: 1, requiredGrowth: 0, pointsMultiplier: 1, payDiscountPercent: 0, description: '', iconUrl: null });
+const saving = ref(false);
 
 const growthVisible = ref(false);
 const growthForm = ref<{ growthPerYuan: number }>({ growthPerYuan: 1 });
+const growthSaving = ref(false);
 
 async function fetchLevels(){
 	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
@@ -130,17 +132,51 @@ async function openGrowthConfig(){
   growthVisible.value = true;
 }
 async function saveGrowthConfig(){
-  await memberLevelControllerSaveGrowthConfig({ ...(growthForm.value as any) } as any);
-  ElMessage.success('已保存');
-  growthVisible.value = false;
+  if (growthSaving.value) return;
+  growthSaving.value = true;
+  try{
+    const val = Math.max(1, Math.floor(Number(growthForm.value?.growthPerYuan || 1)));
+    // 关键修复：orval 生成的 controller 函数第二参是 RequestInit，需要通过 { body } 传递 JSON
+    await memberLevelControllerSaveGrowthConfig({ body: { growthPerYuan: val } } as any);
+    ElMessage.success('已保存');
+    growthVisible.value = false;
+  }catch(e:any){
+    ElMessage.error(String(e?.message||e||'保存失败'));
+  }finally{
+    growthSaving.value = false;
+  }
 }
 
 async function onSave(){
-	try {
-		if (current.value?.id) await memberLevelControllerUpdate(String(current.value.id), { ...(form.value as any) } as any);
-		else await memberLevelControllerCreate({ ...(form.value as any) } as any);
-		dialogVisible.value = false; ElMessage.success('已保存'); fetchLevels();
-	} catch(e:any){ ElMessage.error(String(e?.message||e||'保存失败')); }
+  if (saving.value) return;
+  saving.value = true;
+  try {
+    const payload = {
+      name: String(form.value?.name ?? '').trim(),
+      iconUrl: (form.value?.iconUrl ?? null) as any,
+      level: Number(form.value?.level ?? 1),
+      requiredGrowth: Number(form.value?.requiredGrowth ?? 0),
+      pointsMultiplier: Number(form.value?.pointsMultiplier ?? 1),
+      payDiscountPercent: Number(form.value?.payDiscountPercent ?? 0),
+      description: (form.value?.description ?? null) as any,
+      isDefault: !!form.value?.isDefault,
+    };
+    if (!payload.name) { ElMessage.error('请填写等级名称'); return; }
+
+    // 关键修复：必须通过 { body } 传递 JSON，否则会“提示成功但实际未更新”
+    if (current.value?.id) {
+      await memberLevelControllerUpdate(String(current.value.id), { body: payload } as any);
+    } else {
+      await memberLevelControllerCreate({ body: payload } as any);
+    }
+    dialogVisible.value = false;
+    ElMessage.success('已保存');
+    await fetchLevels();
+  } catch(e:any){
+    ElMessage.error(String(e?.message||e||'保存失败'));
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function remove(row: Level){ try { await memberLevelControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchLevels(); } catch(e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }

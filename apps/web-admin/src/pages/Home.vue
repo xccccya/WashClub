@@ -73,11 +73,16 @@
 		</aside>
 		<section class="main">
 			<header class="topbar">
-				<div class="breadcrumbs">
-					<el-breadcrumb separator="/">
-						<el-breadcrumb-item v-for="(c,idx) in breadcrumbList" :key="idx">{{ c }}</el-breadcrumb-item>
+				<nav class="breadcrumbs" aria-label="面包屑导航">
+					<el-breadcrumb :separator-icon="ArrowRight">
+						<el-breadcrumb-item v-for="(crumb, idx) in breadcrumbList" :key="idx" :to="crumb.path ? crumb.path : undefined">
+							<span class="crumb-content" :class="{ 'is-last': idx === breadcrumbList.length - 1, 'is-clickable': !!crumb.path }">
+								<el-icon v-if="crumb.icon === 'home'" class="crumb-icon"><HomeFilled /></el-icon>
+								<span class="crumb-text">{{ crumb.label }}</span>
+							</span>
+						</el-breadcrumb-item>
 					</el-breadcrumb>
-				</div>
+				</nav>
 				<div class="actions">
 					<div class="quick-actions" role="group" aria-label="快速操作">
 						<el-button class="icon-btn" text circle @click="toggleFullscreen" :title="isFullscreen? '退出全屏' : '全屏'" aria-label="切换全屏">
@@ -171,13 +176,13 @@
 					</div>
 				</div>
 			</header>
+			<!-- 多标签页：从滚动区移出，避免与页面内 sticky 组件遮挡 -->
+			<div class="tabs">
+				<el-tabs v-model="active" type="card" @tab-remove="closeTab" @tab-click="onTabClick" closable>
+					<el-tab-pane v-for="t in tabs" :key="t.path" :name="t.path" :label="t.title" :closable="t.path!=='/dashboard'" />
+				</el-tabs>
+			</div>
 			<main class="content">
-				<!-- 多标签页 -->
-				<div class="tabs">
-					<el-tabs v-model="active" type="card" @tab-remove="closeTab" @tab-click="onTabClick" closable>
-						<el-tab-pane v-for="t in tabs" :key="t.path" :name="t.path" :label="t.title" :closable="t.path!=='/dashboard'" />
-					</el-tabs>
-				</div>
 				<router-view :key="router.currentRoute.value.fullPath" />
 			</main>
 		</section>
@@ -254,7 +259,7 @@ import { API_BASE } from '../config';
 import { ElMessage } from 'element-plus';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
-import { Bell, Sunny } from '@element-plus/icons-vue';
+import { ArrowRight, Bell, Sunny } from '@element-plus/icons-vue';
 import {
 	authControllerUpdateAdminAvatar,
 	authControllerUpdateAdminNickname,
@@ -293,7 +298,11 @@ function onCustomChange(){
 const router = useRouter();
 const active = ref('/dashboard');
 const tabs = ref<{ path:string; title:string }[]>([{ path:'/dashboard', title:'系统首页' }]);
-const breadcrumbList = ref<string[]>(['首页']);
+
+// 面包屑类型：支持图标、可点击路径
+type BreadcrumbItem = { label: string; path?: string; icon?: 'home' };
+const breadcrumbList = ref<BreadcrumbItem[]>([{ label: '首页', icon: 'home' }]);
+
 const siteTitle = ref<string>('');
 const siteLogo = ref<string>('');
 
@@ -410,28 +419,94 @@ function addTabByRoute(){
 	const existed = tabs.value.find(t=>t.path===path);
 	if (existed) existed.title = title; else tabs.value.push({ path, title });
 	active.value = path;
-	// 生成面包屑
-	const crumbs: string[] = [];
-	if (path.startsWith('/dashboard')) crumbs.push('首页');
-	if (path.startsWith('/members') || path.startsWith('/member-')) crumbs.push('会员管理');
-	if (path.startsWith('/member-points')) crumbs.push('积分管理');
-	if (path.startsWith('/member-levels')) crumbs.push('会员等级');
-	if (path.startsWith('/member-categories')) crumbs.push('会员分类');
-	if (path.startsWith('/member-tags')) crumbs.push('会员标签');
-	if (path.startsWith('/member-vehicles')) crumbs.push('会员车辆');
-	if (path.startsWith('/member-washcards')) crumbs.push('洗车计次卡');
-	if (path.startsWith('/member-addresses')) crumbs.push('收货地址');
-	if (path.startsWith('/service-queue')) crumbs.push('服务队列');
-	if (path.startsWith('/content/')) { crumbs.push('内容管理'); if (path.includes('/notices')) crumbs.push('滚动通知'); if (path.includes('/banners')) crumbs.push('广告横幅'); if (path.includes('/reviews')) crumbs.push('评价管理'); }
-	if (path.startsWith('/store/')) { crumbs.push('商店管理'); if (path.includes('/categories')) crumbs.push('商品分类'); if (path.includes('/products')) crumbs.push('商品列表'); if (path.includes('/inventory')) crumbs.push('库存管理'); }
-	if (path.startsWith('/orders')) crumbs.push('订单管理');
-	if (path.startsWith('/after-sales')) crumbs.push('售后');
-	if (path.startsWith('/coupon/')) { crumbs.push('卡券管理'); if (path.includes('/groups')) crumbs.push('分组管理'); if (path.includes('/list')) crumbs.push('卡券列表'); if (path.includes('/member-coupons')) crumbs.push('会员卡券'); }
-	if (path.startsWith('/coupon/logs')) { crumbs.push('卡券管理'); crumbs.push('卡券流水'); }
-	if (path.startsWith('/system/')) { crumbs.push('系统设置'); if (path.includes('/basic')) crumbs.push('基础设置'); if (path.includes('/roles')) crumbs.push('后台角色'); if (path.includes('/admins')) crumbs.push('后台管理员'); if (path.includes('/files')) crumbs.push('文件管理'); if (path.includes('/sms')) crumbs.push('短信管理'); }
-	if (path.startsWith('/notification/')) { crumbs.push('消息通知'); if (path.includes('/overview')) crumbs.push('消息总览'); if (path.includes('/templates')) crumbs.push('通知配置'); }
-	if (crumbs.length===0) crumbs.push('首页');
-	breadcrumbList.value = crumbs;
+	// 生成面包屑：完整的路径映射
+	breadcrumbList.value = generateBreadcrumbs(path, title);
+}
+
+/**
+ * 生成面包屑路径
+ * 返回格式：[{ label: '显示名称', path?: '可点击路径' }, ...]
+ */
+function generateBreadcrumbs(path: string, pageTitle: string): BreadcrumbItem[] {
+	const crumbs: BreadcrumbItem[] = [];
+	
+	// 首页始终作为第一项
+	crumbs.push({ label: '首页', path: '/dashboard', icon: 'home' });
+	
+	// 路由到面包屑的映射配置
+	const routeConfig: Record<string, { parent: string; label: string }> = {
+		// 订单管理
+		'/orders': { parent: '订单管理', label: '订单列表' },
+		'/after-sales': { parent: '订单管理', label: '售后' },
+		// 会员管理
+		'/members': { parent: '会员管理', label: '会员列表' },
+		'/member-signins': { parent: '会员管理', label: '签到管理' },
+		'/member-points': { parent: '会员管理', label: '积分管理' },
+		'/member-levels': { parent: '会员管理', label: '会员等级' },
+		'/member-categories': { parent: '会员管理', label: '会员分类' },
+		'/member-tags': { parent: '会员管理', label: '会员标签' },
+		'/member-washcards': { parent: '会员管理', label: '洗车计次卡' },
+		'/member-addresses': { parent: '会员管理', label: '收货地址' },
+		// 集团管理
+		'/groups': { parent: '集团管理', label: '集团列表' },
+		'/groups/vehicles': { parent: '集团管理', label: '集团车辆' },
+		'/groups/cards': { parent: '集团管理', label: '集团洗车卡' },
+		'/groups/balance': { parent: '集团管理', label: '集团余额' },
+		// 车辆管理
+		'/member-vehicles': { parent: '车辆管理', label: '会员车辆' },
+		'/service-queue': { parent: '车辆管理', label: '服务队列' },
+		// 内容管理
+		'/content/notices': { parent: '内容管理', label: '滚动通知' },
+		'/content/banners': { parent: '内容管理', label: '广告横幅' },
+		'/content/reviews': { parent: '内容管理', label: '评价管理' },
+		// 消息通知
+		'/notification/overview': { parent: '消息通知', label: '消息总览' },
+		'/notification/templates': { parent: '消息通知', label: '通知配置' },
+		// 商店管理
+		'/store/categories': { parent: '商店管理', label: '商品分类' },
+		'/store/products': { parent: '商店管理', label: '商品列表' },
+		'/store/inventory': { parent: '商店管理', label: '库存管理' },
+		// 卡券管理
+		'/coupon/groups': { parent: '卡券管理', label: '分组管理' },
+		'/coupon/list': { parent: '卡券管理', label: '卡券列表' },
+		'/coupon/member-coupons': { parent: '卡券管理', label: '会员卡券' },
+		'/coupon/logs': { parent: '卡券管理', label: '卡券流水' },
+		// 系统设置
+		'/system/basic': { parent: '系统设置', label: '基础设置' },
+		'/system/roles': { parent: '系统设置', label: '后台角色' },
+		'/system/admins': { parent: '系统设置', label: '后台管理员' },
+		'/system/files': { parent: '系统设置', label: '文件管理' },
+		'/system/sms': { parent: '系统设置', label: '短信管理' },
+		'/system/employees': { parent: '系统设置', label: '员工配置' },
+	};
+	
+	// 首页特殊处理
+	if (path === '/dashboard') {
+		return [{ label: '首页', icon: 'home' }];
+	}
+	
+	// 查找精确匹配
+	const config = routeConfig[path];
+	if (config) {
+		crumbs.push({ label: config.parent });
+		crumbs.push({ label: config.label });
+		return crumbs;
+	}
+	
+	// 动态路由：订单详情
+	if (path.startsWith('/orders/')) {
+		crumbs.push({ label: '订单管理' });
+		crumbs.push({ label: '订单列表', path: '/orders' });
+		crumbs.push({ label: pageTitle });
+		return crumbs;
+	}
+	
+	// 未匹配的路径，使用页面标题
+	if (pageTitle && pageTitle !== '页面') {
+		crumbs.push({ label: pageTitle });
+	}
+	
+	return crumbs;
 }
 
 function closeTab(name: string){
@@ -587,54 +662,732 @@ watch(()=>router.currentRoute.value.fullPath, ()=>{
 </script>
 
 <style scoped>
-.layout { display:flex; height:100vh; }
-.sider { width: 160px; min-width:160px; flex: 0 0 160px; border-right: 1px solid #eee; padding: 12px; }
-.sider-brand{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin: 8px 0 12px; padding: 8px 0; border-radius: 8px; width:100%; text-align:center; }
-.sider-brand__logo{ width:28px; height:28px; object-fit:cover; border-radius:6px; display:block; margin:0 auto; }
-.sider-brand__title{ font-weight:700; font-size:14px; letter-spacing:0.2px; color: var(--el-text-color-primary); max-width:100%; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; margin:0 auto; }
-.menu { border-right: none; }
-.main { flex:1; display:flex; flex-direction: column; min-width:0; }
-.topbar { height: 56px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content: space-between; padding: 0 16px; }
-.breadcrumbs :deep(.el-breadcrumb__item) { font-size: 14px; }
-.brand{ display:inline-flex; align-items:center; gap:8px; margin-right:12px; }
-.brand-logo{ width:18px; height:18px; border-radius:4px; object-fit:cover; }
-.brand-title{ font-weight:600; color: var(--el-text-color-primary); }
-.actions { display:flex; align-items:center; gap:12px; }
-.quick-actions{ display:inline-flex; align-items:center; gap:8px; padding:2px 6px; border-radius:9999px; border:1px solid var(--el-border-color); background: var(--el-fill-color-light); }
-.notify-bell{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; cursor:pointer; border-radius:10px; vertical-align:middle; }
-.notify-bell:hover{ background: var(--el-fill-color-light); }
-.notify-bell :deep(.el-icon){ font-size:20px; color: var(--el-text-color-regular); }
-.notify-bell:hover :deep(.el-icon){ color: var(--el-color-primary); }
-.bell-badge :deep(.el-badge__content){
-    transform: translate(7px, -7px);
-    height:16px; min-width:18px; padding:0 5px;
-    border-radius:9999px; line-height:16px; font-size:12px; font-weight:700;
-    box-shadow: 0 0 0 2px var(--el-bg-color);
+.layout { display: flex; height: 100vh; }
+
+/* ============================================================
+   侧边栏：现代卡片风格
+   - 柔和渐变背景
+   - 精致的边框与阴影
+   - 优雅的滚动条
+   ============================================================ */
+.sider {
+	width: 180px;
+	min-width: 180px;
+	flex: 0 0 180px;
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	background: linear-gradient(
+		180deg,
+		var(--el-bg-color) 0%,
+		color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 50%) 100%
+	);
+	border-right: 1px solid var(--el-border-color-lighter);
+	box-shadow: 1px 0 8px rgba(0, 0, 0, 0.03);
+	overflow: hidden;
 }
-.quick-actions .icon-btn, .quick-actions .notify-bell{ width:32px; height:32px; }
-.icon-btn { padding:0; width: 32px; height: 32px; display:inline-flex; align-items:center; justify-content:center; border-radius:9999px !important; line-height:1; box-sizing:border-box; }
-.icon-btn:hover { background-color: var(--el-fill-color-light); }
-.icon-btn:active { background-color: var(--el-fill-color); }
-.icon { width: 18px; height: 18px; display:block; }
-.icon-btn :deep(.el-icon){ font-size:18px; color: var(--el-text-color-regular); }
-.icon-btn:hover :deep(.el-icon){ color: var(--el-color-primary); }
-.status-btn{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:9999px; border:1px solid var(--el-border-color); background:#fff; }
-.status-btn .status-text{ font-weight:600; color: var(--el-text-color-primary); font-size:12px; }
-.status-btn .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
-.status-btn .dot[data-type="OPEN"]{ background:#22c55e; }
-.status-btn .dot[data-type="REST"]{ background:#94a3b8; }
-.status-btn .dot[data-type="BUSY"]{ background:#f59e0b; }
-.status-btn .dot[data-type="PAUSED"]{ background:#ef4444; }
-.biz-panel{ display:flex; flex-direction:column; gap:10px; }
-.biz-panel .row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.biz-panel .toggles{ display:flex; align-items:center; gap:12px; }
-.user { display:flex; align-items:center; gap:8px; }
-.user-trigger{ display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:9999px; background: var(--el-fill-color-light); border:1px solid var(--el-border-color); transition: background .15s ease, border-color .15s ease; }
-.user-trigger:hover{ background: var(--el-fill-color); border-color: color-mix(in oklab, var(--el-border-color), transparent 60%); }
-.user-avatar :deep(img){ border-radius:50%; }
-.user-name{ max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; color: var(--el-text-color-primary); }
-.content { flex:1; overflow:auto; padding: 8px 16px 16px; min-width:0; }
-.tabs { background: var(--el-bg-color); padding:8px 8px 0; border-bottom:1px solid #eee; margin-bottom:8px; }
+
+/* 品牌区域：logo + 标题 */
+.sider-brand {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 4px 0 16px;
+	padding: 12px 8px;
+	border-radius: 12px;
+	background: color-mix(in oklab, var(--el-bg-color), transparent 40%);
+	border: 1px solid var(--el-border-color-lighter);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+	transition: box-shadow 0.2s ease;
+}
+.sider-brand:hover {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.sider-brand__logo {
+	width: 36px;
+	height: 36px;
+	object-fit: cover;
+	border-radius: 10px;
+	box-shadow:
+		0 2px 8px rgba(0, 0, 0, 0.08),
+		0 0 0 3px color-mix(in oklab, var(--el-color-primary), transparent 85%);
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sider-brand:hover .sider-brand__logo {
+	transform: scale(1.05);
+	box-shadow:
+		0 4px 12px rgba(0, 0, 0, 0.12),
+		0 0 0 4px color-mix(in oklab, var(--el-color-primary), transparent 75%);
+}
+.sider-brand__title {
+	font-weight: 700;
+	font-size: 14px;
+	letter-spacing: 0.3px;
+	background: linear-gradient(135deg, var(--el-text-color-primary), var(--el-color-primary));
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	max-width: 100%;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* 菜单容器 */
+.menu {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	border-right: none;
+	background: transparent;
+	/* 优雅的滚动条 */
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklab, var(--el-border-color), transparent 50%) transparent;
+}
+.menu::-webkit-scrollbar {
+	width: 4px;
+}
+.menu::-webkit-scrollbar-track {
+	background: transparent;
+}
+.menu::-webkit-scrollbar-thumb {
+	background: color-mix(in oklab, var(--el-border-color), transparent 50%);
+	border-radius: 9999px;
+}
+.menu::-webkit-scrollbar-thumb:hover {
+	background: color-mix(in oklab, var(--el-border-color), transparent 30%);
+}
+
+/* ============================================================
+   菜单项样式：胶囊风格 + 左侧指示条
+   ============================================================ */
+
+/* 重置 el-menu 默认样式 */
+.menu :deep(.el-menu) {
+	border-right: none;
+	background: transparent;
+}
+
+/* 一级菜单项 & 子菜单标题 */
+.menu :deep(.el-menu-item),
+.menu :deep(.el-sub-menu__title) {
+	height: 40px;
+	line-height: 40px;
+	margin: 2px 0;
+	padding: 0 12px !important;
+	border-radius: 10px;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--el-text-color-regular);
+	background: transparent;
+	transition:
+		background-color 0.18s ease,
+		color 0.18s ease,
+		transform 0.12s ease,
+		box-shadow 0.18s ease;
+	position: relative;
+	overflow: hidden;
+}
+
+/* 左侧激活指示条（隐藏状态） */
+.menu :deep(.el-menu-item)::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%) scaleY(0);
+	width: 3px;
+	height: 18px;
+	border-radius: 0 3px 3px 0;
+	background: var(--el-color-primary);
+	transition: transform 0.2s ease;
+}
+
+/* Hover 状态 */
+.menu :deep(.el-menu-item:hover),
+.menu :deep(.el-sub-menu__title:hover) {
+	background: color-mix(in oklab, var(--el-fill-color), transparent 30%);
+	color: var(--el-text-color-primary);
+}
+
+/* 点击反馈 */
+.menu :deep(.el-menu-item:active),
+.menu :deep(.el-sub-menu__title:active) {
+	transform: scale(0.98);
+}
+
+/* 激活状态：一级菜单项 */
+.menu :deep(.el-menu-item.is-active) {
+	background: color-mix(in oklab, var(--el-color-primary), var(--el-bg-color) 88%);
+	color: var(--el-color-primary);
+	font-weight: 600;
+	box-shadow: 0 2px 8px color-mix(in oklab, var(--el-color-primary), transparent 85%);
+}
+.menu :deep(.el-menu-item.is-active)::before {
+	transform: translateY(-50%) scaleY(1);
+}
+
+/* 图标统一样式 */
+.menu :deep(.el-menu-item .el-icon),
+.menu :deep(.el-sub-menu__title .el-icon) {
+	width: 18px;
+	height: 18px;
+	font-size: 16px;
+	margin-right: 8px;
+	color: inherit;
+	opacity: 0.85;
+	transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.menu :deep(.el-menu-item:hover .el-icon),
+.menu :deep(.el-sub-menu__title:hover .el-icon),
+.menu :deep(.el-menu-item.is-active .el-icon) {
+	opacity: 1;
+}
+
+/* 子菜单展开箭头 */
+.menu :deep(.el-sub-menu__icon-arrow) {
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
+	transition: transform 0.25s ease, color 0.15s ease;
+}
+.menu :deep(.el-sub-menu.is-opened > .el-sub-menu__title .el-sub-menu__icon-arrow) {
+	transform: rotate(180deg);
+	color: var(--el-color-primary);
+}
+
+/* 子菜单容器 */
+.menu :deep(.el-sub-menu .el-menu) {
+	background: transparent;
+	padding: 4px 0 4px 8px;
+}
+
+/* 子菜单项：缩进 + 更小尺寸 */
+.menu :deep(.el-sub-menu .el-menu .el-menu-item) {
+	height: 36px;
+	line-height: 36px;
+	font-size: 12px;
+	padding-left: 12px !important;
+	margin: 1px 0;
+	border-radius: 8px;
+}
+.menu :deep(.el-sub-menu .el-menu .el-menu-item .el-icon) {
+	width: 16px;
+	height: 16px;
+	font-size: 14px;
+	margin-right: 6px;
+}
+
+/* 展开的子菜单标题高亮 */
+.menu :deep(.el-sub-menu.is-opened > .el-sub-menu__title) {
+	color: var(--el-color-primary);
+	font-weight: 600;
+}
+
+/* 弹出菜单样式（如果有 popper） */
+.menu :deep(.el-menu--popup) {
+	min-width: 160px;
+	padding: 6px;
+	border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+/* ============================================================
+   主内容区
+   ============================================================ */
+.main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	background: #f8fafc;
+}
+/* 暗色主题适配 */
+:root[data-theme='dark'] .main {
+	background: #0c0d0f;
+}
+
+/* ============================================================
+   顶部导航栏：现代风格
+   - 柔和阴影替代硬边框
+   - 毛玻璃背景效果
+   - 优雅的面包屑
+   ============================================================ */
+.topbar {
+	height: 56px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 20px;
+	background: color-mix(in oklab, var(--el-bg-color), transparent 20%);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-bottom: 1px solid var(--el-border-color-lighter);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+	position: relative;
+	z-index: 10;
+}
+
+/* 面包屑导航 */
+.breadcrumbs {
+	display: flex;
+	align-items: center;
+}
+.breadcrumbs :deep(.el-breadcrumb) {
+	font-size: 14px;
+}
+.breadcrumbs :deep(.el-breadcrumb__item) {
+	display: inline-flex;
+	align-items: center;
+}
+.breadcrumbs :deep(.el-breadcrumb__inner) {
+	display: inline-flex;
+	align-items: center;
+	color: var(--el-text-color-secondary);
+	font-weight: 400;
+	transition: color 0.15s ease;
+}
+.breadcrumbs :deep(.el-breadcrumb__inner a),
+.breadcrumbs :deep(.el-breadcrumb__inner.is-link) {
+	color: var(--el-text-color-secondary);
+	font-weight: 500;
+	transition: color 0.15s ease;
+}
+.breadcrumbs :deep(.el-breadcrumb__inner a:hover),
+.breadcrumbs :deep(.el-breadcrumb__inner.is-link:hover) {
+	color: var(--el-color-primary);
+}
+.breadcrumbs :deep(.el-breadcrumb__separator) {
+	margin: 0 8px;
+	color: var(--el-text-color-placeholder);
+}
+.breadcrumbs :deep(.el-breadcrumb__separator .el-icon) {
+	font-size: 12px;
+	vertical-align: middle;
+}
+
+/* 面包屑内容样式 */
+.crumb-content {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 0;
+	border-radius: 4px;
+	transition: color 0.15s ease;
+}
+.crumb-content.is-clickable {
+	cursor: pointer;
+}
+.crumb-content.is-clickable:hover {
+	color: var(--el-color-primary);
+}
+.crumb-content.is-last {
+	color: var(--el-text-color-primary);
+	font-weight: 600;
+}
+.crumb-icon {
+	font-size: 14px;
+	opacity: 0.8;
+}
+.crumb-text {
+	line-height: 1;
+}
+/* ============================================================
+   右侧操作区
+   ============================================================ */
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+/* 快捷操作组：胶囊容器 */
+.quick-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	border-radius: 12px;
+	border: 1px solid var(--el-border-color-light);
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 50%);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.quick-actions .icon-btn,
+.quick-actions .notify-bell {
+	width: 32px;
+	height: 32px;
+}
+
+/* 图标按钮 */
+.icon-btn {
+	padding: 0;
+	width: 32px;
+	height: 32px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px !important;
+	line-height: 1;
+	box-sizing: border-box;
+	transition:
+		background-color 0.15s ease,
+		transform 0.1s ease;
+}
+.icon-btn:hover {
+	background-color: var(--el-fill-color);
+}
+.icon-btn:active {
+	background-color: var(--el-fill-color-dark);
+	transform: scale(0.95);
+}
+.icon-btn :deep(.el-icon) {
+	font-size: 18px;
+	color: var(--el-text-color-regular);
+	transition: color 0.15s ease;
+}
+.icon-btn:hover :deep(.el-icon) {
+	color: var(--el-color-primary);
+}
+
+/* 消息通知铃铛 */
+.notify-bell {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	cursor: pointer;
+	border-radius: 8px;
+	vertical-align: middle;
+	transition: background-color 0.15s ease;
+}
+.notify-bell:hover {
+	background: var(--el-fill-color);
+}
+.notify-bell :deep(.el-icon) {
+	font-size: 18px;
+	color: var(--el-text-color-regular);
+	transition: color 0.15s ease;
+}
+.notify-bell:hover :deep(.el-icon) {
+	color: var(--el-color-primary);
+}
+
+/* 消息徽标 */
+.bell-badge :deep(.el-badge__content) {
+	transform: translate(4px, -4px);
+	height: 12px;
+	min-width: 12px;
+	padding: 0 3px;
+	border-radius: 9999px;
+	line-height: 12px;
+	font-size: 9px;
+	font-weight: 600;
+	box-shadow: 0 0 0 1px var(--el-bg-color);
+	animation: badge-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+	0%, 100% { transform: translate(4px, -4px) scale(1); }
+	50% { transform: translate(4px, -4px) scale(1.05); }
+}
+
+/* 营业状态按钮 */
+.status-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 16px;
+	border-radius: 10px;
+	border: 1px solid var(--el-border-color-light);
+	background: var(--el-bg-color);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+.status-btn:hover {
+	background: var(--el-fill-color-light);
+	border-color: var(--el-border-color);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.status-btn .status-text {
+	font-weight: 600;
+	color: var(--el-text-color-primary);
+	font-size: 12px;
+}
+.status-btn .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	display: inline-block;
+	position: relative;
+}
+/* 营业中状态：呼吸动画 */
+.status-btn .dot[data-type="OPEN"] {
+	background: #22c55e;
+	box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+	animation: dot-breathe-green 2s ease-in-out infinite;
+}
+.status-btn .dot[data-type="REST"] {
+	background: #94a3b8;
+}
+.status-btn .dot[data-type="BUSY"] {
+	background: #f59e0b;
+	box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+	animation: dot-breathe-orange 2s ease-in-out infinite;
+}
+.status-btn .dot[data-type="PAUSED"] {
+	background: #ef4444;
+}
+@keyframes dot-breathe-green {
+	0%, 100% { box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2); }
+	50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.3); }
+}
+@keyframes dot-breathe-orange {
+	0%, 100% { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2); }
+	50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3); }
+}
+
+/* 营业设置面板 */
+.biz-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+.biz-panel .row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.biz-panel .toggles {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+/* ============================================================
+   用户区域
+   ============================================================ */
+.user {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.user-trigger {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	cursor: pointer;
+	padding: 4px 12px 4px 4px;
+	border-radius: 24px;
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 50%);
+	border: 1px solid var(--el-border-color-light);
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.12s ease;
+}
+.user-trigger:hover {
+	background: var(--el-fill-color-light);
+	border-color: var(--el-border-color);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	transform: translateY(-1px);
+}
+.user-trigger:active {
+	transform: translateY(0);
+}
+.user-avatar {
+	position: relative;
+}
+.user-avatar :deep(img) {
+	border-radius: 50%;
+	border: 2px solid var(--el-bg-color);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+/* 在线状态指示器 */
+.user-avatar::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: #22c55e;
+	border: 2px solid var(--el-bg-color);
+}
+.user-name {
+	max-width: 120px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--el-text-color-primary);
+}
+.tabs{
+	margin: 12px 16px 0;
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 40%);
+	border: 1px solid var(--el-border-color-light);
+	border-radius: 12px;
+	padding: 6px;
+	box-shadow:
+		0 1px 2px rgba(0,0,0,.04),
+		0 4px 12px rgba(15, 23, 42, .05);
+}
+.content { flex:1; overflow:auto; padding: 12px 16px 16px; min-width:0; }
+
+/* ============================================================
+   页面标签卡（el-tabs card）视觉优化
+   - 胶囊风格标签
+   - 流畅过渡动画
+   - 克制的关闭按钮
+   ============================================================ */
+
+/* 重置 el-tabs 默认样式 */
+.tabs :deep(.el-tabs__header){
+	margin: 0;
+	border: none;
+}
+.tabs :deep(.el-tabs--card > .el-tabs__header){
+	border-bottom: none;
+	height: auto;
+}
+.tabs :deep(.el-tabs--card > .el-tabs__header .el-tabs__nav){
+	border: none;
+	border-radius: 0;
+}
+.tabs :deep(.el-tabs--card > .el-tabs__header .el-tabs__nav-wrap::after){
+	display: none;
+}
+
+/* 滚动区域：确保标签边缘不被裁切 */
+.tabs :deep(.el-tabs__nav-wrap){
+	margin-bottom: 0;
+	padding: 2px;
+}
+.tabs :deep(.el-tabs__nav-scroll){
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklab, var(--el-border-color), transparent 40%) transparent;
+	/* 确保滚动时首尾标签边缘可见 */
+	padding: 2px 4px;
+	margin: -2px -4px;
+}
+.tabs :deep(.el-tabs__nav-scroll::-webkit-scrollbar){
+	height: 4px;
+}
+.tabs :deep(.el-tabs__nav-scroll::-webkit-scrollbar-track){
+	background: transparent;
+}
+.tabs :deep(.el-tabs__nav-scroll::-webkit-scrollbar-thumb){
+	background: color-mix(in oklab, var(--el-border-color), transparent 50%);
+	border-radius: 9999px;
+}
+.tabs :deep(.el-tabs__nav-scroll::-webkit-scrollbar-thumb:hover){
+	background: color-mix(in oklab, var(--el-border-color), transparent 30%);
+}
+
+/* 导航容器：flex 布局，确保标签排列正确 */
+.tabs :deep(.el-tabs__nav){
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* 单个标签项：胶囊风格 */
+.tabs :deep(.el-tabs__item){
+	height: 32px;
+	line-height: 32px;
+	padding: 0 14px;
+	margin: 0; /* 使用 gap 代替 margin */
+	border: 1px solid transparent !important;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--el-text-color-regular);
+	font-size: 13px;
+	font-weight: 500;
+	white-space: nowrap;
+	transition:
+		background-color .18s ease,
+		border-color .18s ease,
+		color .18s ease,
+		box-shadow .18s ease,
+		transform .12s ease;
+}
+.tabs :deep(.el-tabs__item:hover){
+	background: color-mix(in oklab, var(--el-fill-color), transparent 30%);
+	color: var(--el-text-color-primary);
+}
+.tabs :deep(.el-tabs__item:active){
+	transform: scale(0.98);
+}
+.tabs :deep(.el-tabs__item.is-active){
+	background: var(--el-bg-color);
+	border-color: var(--el-border-color-light) !important;
+	color: var(--el-color-primary);
+	font-weight: 600;
+	box-shadow:
+		0 1px 3px rgba(0,0,0,.06),
+		0 2px 8px rgba(0,0,0,.04);
+}
+
+/* 关闭按钮：默认隐藏，hover/active 再显示 */
+.tabs :deep(.el-tabs__item .is-icon-close){
+	width: 16px;
+	height: 16px;
+	margin-left: 6px;
+	border-radius: 4px;
+	font-size: 12px;
+	opacity: 0;
+	transform: scale(0.8);
+	transition:
+		opacity .15s ease,
+		transform .15s ease,
+		background-color .15s ease,
+		color .15s ease;
+}
+.tabs :deep(.el-tabs__item.is-active .is-icon-close),
+.tabs :deep(.el-tabs__item:hover .is-icon-close){
+	opacity: 0.6;
+	transform: scale(1);
+}
+.tabs :deep(.el-tabs__item .is-icon-close:hover){
+	opacity: 1;
+	background: color-mix(in oklab, var(--el-color-danger), transparent 85%);
+	color: var(--el-color-danger);
+}
+
+/* 左右翻页按钮（标签过多时出现）*/
+.tabs :deep(.el-tabs__nav-next),
+.tabs :deep(.el-tabs__nav-prev){
+	width: 28px;
+	height: 28px;
+	line-height: 28px;
+	text-align: center;
+	border-radius: 6px;
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+	transition:
+		background-color .15s ease,
+		color .15s ease;
+}
+.tabs :deep(.el-tabs__nav-next:hover),
+.tabs :deep(.el-tabs__nav-prev:hover){
+	color: var(--el-color-primary);
+	background: color-mix(in oklab, var(--el-fill-color), transparent 20%);
+}
+.tabs :deep(.el-tabs__nav-next){
+	right: 0;
+}
+.tabs :deep(.el-tabs__nav-prev){
+	left: 0;
+}
 .theme-panel{ width: 280px; display:flex; flex-direction:column; gap:4px; }
 .theme-panel .row{ display:flex; align-items:center; gap:8px; margin:4px 0; }
 .theme-panel .row span{ display:inline-block; min-width:42px; color: var(--el-text-color-regular); font-size: 12px; }

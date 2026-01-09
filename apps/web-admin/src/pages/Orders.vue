@@ -1,51 +1,102 @@
 <template>
 	<div>
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div class="toolbar card no-wrap">
-			<el-input v-model="keyword" placeholder="订单号/备注/手机号" style="width:260px;margin-right:8px;" @keyup.enter="fetchList" />
-			<el-select v-model="type" placeholder="类型" style="width:140px;margin-right:8px;">
-				<el-option label="全部" value="" />
-				<el-option label="服务" value="SERVICE" />
-				<el-option label="商品" value="SP" />
-				<el-option label="付款" value="FK" />
-			</el-select>
-			<el-select v-model="scene" placeholder="场景筛选" style="width:160px;margin-right:8px;">
-				<el-option label="无" value="" />
-				<el-option label="待支付" value="PENDING_PAYMENT" />
-				<el-option label="待发货（商品）" value="PENDING_DELIVERY" />
-				<el-option label="待收货（商品）" value="PENDING_RECEIPT" />
-				<el-option label="待服务（服务）" value="PENDING_SERVICE" />
-				<el-option label="退款/售后" value="REFUND_AFTERSALE" />
-				<el-option label="已完成" value="COMPLETED" />
-				<el-option label="已取消" value="CANCELLED" />
-				<el-option label="已删除" value="DELETED" />
-			</el-select>
-			<el-select v-model="status" placeholder="状态" style="width:140px;margin-right:8px;">
-				<el-option label="全部" value="" />
-				<el-option label="已创建" value="CREATED" />
-				<el-option label="已支付" value="PAID" />
-				<el-option label="已履约" value="FULFILLED" />
-				<el-option label="已完成" value="CLOSED" />
-				<el-option label="已取消" value="CANCELLED" />
-			</el-select>
-			<el-select v-model="payStatus" placeholder="支付状态" style="width:140px;margin-right:8px;">
-				<el-option label="全部" value="" />
-				<el-option label="未支付" value="UNPAID" />
-				<el-option label="已支付" value="PAID" />
-				<el-option label="已退款" value="REFUNDED" />
-				<el-option label="已作废" value="CANCELLED" />
-			</el-select>
-			<el-date-picker
-				v-model="createdAtRange"
-				type="datetimerange"
-				start-placeholder="开始时间"
-				end-placeholder="结束时间"
-				style="margin-right:8px;"
-				value-format="YYYY-MM-DDTHH:mm:ssZ"
-			/>
-			<el-button type="primary" @click="fetchList">查询</el-button>
-			<el-button @click="resetFilters">重置</el-button>
-		</div>
+		<el-form class="orders-filters" :inline="true" size="small" @submit.prevent>
+			<el-form-item label="关键词">
+				<el-input v-model="keyword" class="of-w-260" clearable placeholder="订单号/备注/手机号" @keyup.enter="fetchList" />
+			</el-form-item>
+			<el-form-item label="场景">
+				<el-select v-model="scene" class="of-w-180" clearable placeholder="全部">
+					<el-option label="无" value="" />
+					<el-option label="待支付" value="PENDING_PAYMENT" />
+					<el-option label="待发货（商品）" value="PENDING_DELIVERY" />
+					<el-option label="待收货（商品）" value="PENDING_RECEIPT" />
+					<el-option label="待服务（服务）" value="PENDING_SERVICE" />
+					<el-option label="退款/售后" value="REFUND_AFTERSALE" />
+					<el-option label="已完成" value="COMPLETED" />
+					<el-option label="已取消" value="CANCELLED" />
+					<el-option label="已删除" value="DELETED" />
+				</el-select>
+			</el-form-item>
+			<el-form-item label="类型">
+				<el-select v-model="type" class="of-w-140" clearable placeholder="全部">
+					<el-option label="服务" value="SERVICE" />
+					<el-option label="商品" value="SP" />
+					<el-option label="付款" value="FK" />
+				</el-select>
+			</el-form-item>
+			<el-form-item label="下单时间">
+				<el-date-picker
+					v-model="createdAtRange"
+					class="of-w-320"
+					type="datetimerange"
+					start-placeholder="开始时间"
+					end-placeholder="结束时间"
+					value-format="YYYY-MM-DDTHH:mm:ssZ"
+					teleported
+					clearable
+				/>
+			</el-form-item>
+
+			<el-form-item class="of-more-toggle">
+				<el-button link type="primary" @click="showMore = !showMore">{{ showMore ? '收起筛选' : '更多筛选' }}</el-button>
+			</el-form-item>
+
+			<template v-if="showMore">
+				<el-form-item label="状态">
+					<el-select v-model="status" class="of-w-140" clearable placeholder="全部">
+						<el-option label="已创建" value="CREATED" />
+						<el-option label="已支付" value="PAID" />
+						<el-option label="已履约" value="FULFILLED" />
+						<el-option label="已完成" value="CLOSED" />
+						<el-option label="已取消" value="CANCELLED" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="支付状态">
+					<el-select v-model="payStatus" class="of-w-140" clearable placeholder="全部">
+						<el-option label="未支付" value="UNPAID" />
+						<el-option label="已支付" value="PAID" />
+						<el-option label="已退款" value="REFUNDED" />
+						<el-option label="已作废" value="CANCELLED" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="支付方式">
+					<el-select v-model="payMethodFilter" class="of-w-150" clearable placeholder="全部">
+						<el-option label="现金" value="CASH" />
+						<el-option label="收钱吧" value="SHOUQIANBA" />
+						<el-option label="线下其他" value="OFFLINE" />
+						<el-option label="微信JSAPI" value="WECHAT_JSAPI" />
+						<el-option label="微信付款码" value="WECHAT_MICROPAY" />
+						<el-option label="洗车卡" value="WASH_CARD" />
+						<el-option label="集团余额" value="GROUP_BALANCE" />
+					</el-select>
+				</el-form-item>
+			</template>
+
+			<el-form-item v-if="createdAtRangeLabel">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearCreatedAtRange">下单：{{ createdAtRangeLabel }}</el-tag>
+			</el-form-item>
+			<el-form-item v-if="typeLabelText">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearType">类型：{{ typeLabelText }}</el-tag>
+			</el-form-item>
+			<el-form-item v-if="sceneLabelText">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearScene">场景：{{ sceneLabelText }}</el-tag>
+			</el-form-item>
+			<el-form-item v-if="statusLabelText">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearStatus">状态：{{ statusLabelText }}</el-tag>
+			</el-form-item>
+			<el-form-item v-if="payStatusLabelText">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearPayStatus">支付：{{ payStatusLabelText }}</el-tag>
+			</el-form-item>
+			<el-form-item v-if="payMethodLabelText">
+				<el-tag size="small" effect="plain" type="info" closable @close="clearPayMethod">方式：{{ payMethodLabelText }}</el-tag>
+			</el-form-item>
+
+			<el-form-item class="of-actions">
+				<el-button type="primary" @click="fetchList">查询</el-button>
+				<el-button @click="resetFilters">重置</el-button>
+			</el-form-item>
+		</el-form>
 		<div class="table-scroll"><el-table :data="pagedList" border stripe size="small" style="min-width: 980px; width: 100%; border-radius:8px;overflow:hidden;">
 			<el-table-column prop="id" label="ID" width="60" />
 			<el-table-column prop="no" label="订单号" min-width="280">
@@ -348,8 +399,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick, watchEffect } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, onUnmounted, computed, nextTick, watchEffect, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import {
 	memberControllerList,
 	orderControllerAdjustCashierDiscount,
@@ -391,9 +442,41 @@ const type = ref<string | ''>('');
 const scene = ref<string | ''>('');
 const status = ref<string | ''>('');
 const payStatus = ref<string | ''>('');
+// 顶部列表筛选：支付方式（避免与“标记支付”弹窗中的 payMethod 重名）
+const payMethodFilter = ref<string | ''>('');
 const createdAtRange = ref<[string, string] | null>(null);
+const showMore = ref(false);
 const nowTick = ref(0);
 let tickTimer: any = null;
+
+const route = useRoute();
+function applyRouteQuery(){
+	try{
+		const q:any = route.query || {};
+		if (q.keyword != null) keyword.value = String(q.keyword||'');
+		if (q.type != null) type.value = String(q.type||'');
+		if (q.scene != null) scene.value = String(q.scene||'');
+		if (q.status != null) status.value = String(q.status||'');
+		if (q.payStatus != null) payStatus.value = String(q.payStatus||'');
+		if (q.payMethod != null) payMethodFilter.value = String(q.payMethod||'');
+		const start = q.start != null ? String(q.start||'').trim() : '';
+		const end = q.end != null ? String(q.end||'').trim() : '';
+		createdAtRange.value = start && end ? [start, end] : null;
+	}catch{}
+}
+
+function fmtLocalTimeText(val: string){
+	try{
+		const d = new Date(val);
+		if (isNaN(d.getTime())) return String(val);
+		const yyyy = d.getFullYear();
+		const mm = String(d.getMonth()+1).padStart(2,'0');
+		const dd = String(d.getDate()).padStart(2,'0');
+		const hh = String(d.getHours()).padStart(2,'0');
+		const mi = String(d.getMinutes()).padStart(2,'0');
+		return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+	}catch{ return String(val); }
+}
 
 function formatDate(val: string | null | undefined){
 	if(!val) return '-';
@@ -408,6 +491,41 @@ function payStatusTagType(v?: string){ if(v==='UNPAID') return 'info'; if(v==='P
 function payMethodLabel(v?: string | null){ if(!v) return '-'; if(v==='CASH') return '现金'; if(v==='SHOUQIANBA') return '收钱吧'; if(v==='OFFLINE') return '线下其他'; if(v==='WECHAT_JSAPI') return '微信JSAPI'; if(v==='WECHAT_MICROPAY') return '微信付款码'; if(v==='WASH_CARD') return '洗车卡结算'; if(v==='GROUP_BALANCE') return '集团余额支付'; return v; }
 function fulfillLabel(v?: string){ if(!v) return '-'; if(v==='NONE') return '不需履约'; if(v==='PENDING') return '待履约/待发货'; if(v==='SHIPPED') return '已发货'; if(v==='RECEIVED') return '已收货'; if(v==='IN_SERVICE') return '服务中'; if(v==='DONE') return '服务完成'; return v; }
 
+const createdAtRangeLabel = computed(()=>{
+	const a = createdAtRange.value?.[0] ? String(createdAtRange.value[0]) : '';
+	const b = createdAtRange.value?.[1] ? String(createdAtRange.value[1]) : '';
+	if (!a || !b) return '';
+	return `${fmtLocalTimeText(a)} ~ ${fmtLocalTimeText(b)}`;
+});
+const typeLabelText = computed(()=>{
+	const v = String(type.value||'').trim();
+	if (!v) return '';
+	return v==='SERVICE' ? '服务' : v==='SP' ? '商品' : v==='FK' ? '付款' : v;
+});
+const sceneLabelText = computed(()=>{
+	const v = String(scene.value||'').trim();
+	if (!v) return '';
+	return v==='PENDING_PAYMENT' ? '待支付'
+		: v==='PENDING_DELIVERY' ? '待发货'
+		: v==='PENDING_RECEIPT' ? '待收货'
+		: v==='PENDING_SERVICE' ? '待服务'
+		: v==='REFUND_AFTERSALE' ? '退款/售后'
+		: v==='COMPLETED' ? '已完成'
+		: v==='CANCELLED' ? '已取消'
+		: v==='DELETED' ? '已删除'
+		: v;
+});
+const statusLabelText = computed(()=> status.value ? statusLabel(status.value) : '');
+const payStatusLabelText = computed(()=> payStatus.value ? payStatusLabel(payStatus.value) : '');
+const payMethodLabelText = computed(()=> payMethodFilter.value ? payMethodLabel(payMethodFilter.value) : '');
+
+function clearCreatedAtRange(){ createdAtRange.value = null; fetchList(); }
+function clearType(){ type.value = ''; fetchList(); }
+function clearScene(){ scene.value = ''; fetchList(); }
+function clearStatus(){ status.value = ''; fetchList(); }
+function clearPayStatus(){ payStatus.value = ''; fetchList(); }
+function clearPayMethod(){ payMethodFilter.value = ''; fetchList(); }
+
 async function fetchList(){
 	const start = createdAtRange.value?.[0];
 	const end = createdAtRange.value?.[1];
@@ -417,6 +535,7 @@ async function fetchList(){
 		scene: scene.value || undefined,
 		status: status.value || undefined,
 		payStatus: payStatus.value || undefined,
+		payMethod: payMethodFilter.value || undefined,
 		includeDeleted: true,
 		start: start || undefined,
 		end: end || undefined,
@@ -805,7 +924,17 @@ async function openRefund(row:any){
     hasPartialRefund.value = successSum > 0;
     showRefund.value = true;
 }
-function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; createdAtRange.value=null; page.value=1; fetchList(); }
+function resetFilters(){ keyword.value=''; type.value=''; scene.value=''; status.value=''; payStatus.value=''; payMethodFilter.value=''; createdAtRange.value=null; page.value=1; fetchList(); }
+
+// 支持从 Dashboard 带 query 跳转并自动应用筛选
+onMounted(()=>{
+	applyRouteQuery();
+	fetchList();
+});
+watch(() => route.fullPath, ()=>{
+	applyRouteQuery();
+	fetchList();
+});
 function onPage(p:number){ page.value = p; }
 function onPageSizeChange(s:number){ pageSize.value = s; page.value = 1; }
 function orderNoPrefix(no: any){
@@ -849,7 +978,6 @@ async function doRefund(){
 }
 
 onMounted(() => {
-    fetchList();
     try{ if (tickTimer) clearInterval(tickTimer); }catch{}
     tickTimer = setInterval(()=>{ nowTick.value++; }, 1000);
 });
@@ -861,6 +989,32 @@ onUnmounted(()=>{
 </script>
 
 <style scoped>
+.orders-filters{
+	width: 100%;
+	display:flex;
+	flex-wrap:wrap;
+	align-items:center;
+	gap: 10px 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--el-border-color-lighter);
+	border-radius: 14px;
+	background:
+		linear-gradient(180deg, color-mix(in oklab, var(--el-color-primary), transparent 94%) 0%, transparent 70%),
+		color-mix(in oklab, var(--el-bg-color), transparent 0%);
+	box-shadow: 0 10px 24px rgba(17, 24, 39, 0.04);
+}
+.orders-filters :deep(.el-form-item){ margin-right: 0; margin-bottom: 0; }
+.orders-filters :deep(.el-form-item__label){ color: var(--el-text-color-secondary); font-size: 12px; }
+.orders-filters :deep(.el-input__wrapper),
+.orders-filters :deep(.el-select__wrapper){ border-radius: 10px; }
+.of-w-140{ width: 140px; }
+.of-w-150{ width: 150px; }
+.of-w-180{ width: 180px; }
+.of-w-260{ width: 260px; }
+.of-w-320{ width: 320px; }
+.of-more-toggle :deep(.el-button){ padding-inline: 8px; }
+.of-actions{ margin-left: auto; }
+.of-actions :deep(.el-button){ border-radius: 999px; padding-inline: 12px; }
 .table-scroll{ overflow:auto; }
 .order-no{ white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 15px; color:#303133; cursor: pointer; }
 .order-no:hover{ color: var(--app-primary); }

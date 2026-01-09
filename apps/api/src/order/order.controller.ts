@@ -185,6 +185,7 @@ export class OrderController {
         @Query('type') type?: 'SERVICE'|'SP'|'FK',
         @Query('status') status?: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED',
         @Query('payStatus') payStatus?: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED',
+        @Query('payMethod') payMethod?: string,
         @Query('scene') scene?: string,
         @Query('includeDeleted') includeDeletedStr?: string,
         @Query('memberId') memberIdStr?: string,
@@ -208,7 +209,7 @@ export class OrderController {
             memberId = Number.isFinite(selfId) ? selfId : undefined;
             includeDeleted = false;
         }
-        const list = await this.orders.listOrders({ type: type as OrderType | undefined, status: status as any, payStatus: payStatus as any, scene, includeDeleted, memberId, keyword, start, end });
+        const list = await this.orders.listOrders({ type: type as OrderType | undefined, status: status as any, payStatus: payStatus as any, payMethod, scene, includeDeleted, memberId, keyword, start, end });
         // 对会员侧列表隐藏代客管理员信息
         if (tokenType === 'member') {
             try{

@@ -893,6 +893,7 @@ export class OrderService {
         type?: OrderType | undefined;
         status?: OrderStatus | undefined;
         payStatus?: PayStatus | undefined;
+        payMethod?: string | undefined;
         memberId?: number | undefined;
         keyword?: string | undefined;
         start?: string | undefined;
@@ -904,6 +905,7 @@ export class OrderService {
         if (query.type) where.type = query.type;
         if (query.status) where.status = query.status;
         if (query.payStatus) where.payStatus = query.payStatus;
+        if (query.payMethod) where.payMethod = String(query.payMethod) as any;
         if (query.memberId) where.memberId = query.memberId;
         
         // 统一场景筛选（用于小程序与后台快捷筛选）

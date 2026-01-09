@@ -26,6 +26,7 @@
 								@update:plateNumber="(v: any)=>plateNumber=v"
 								@plate-confirm="onPlateConfirmed"
 								@clear-guest-vehicle="clearGuestVehicle"
+								@pick-no-plate="pickNoPlateVehicle"
 								@query-members="queryMembers"
 							/>
 						</div>
@@ -77,10 +78,6 @@
 										<span class="k">类型</span>
 										<b class="v">{{ orderKind==='SERVICE' ? '服务' : '商品' }}</b>
 									</div>
-									<div class="m-item muted">
-										<span class="k">提示</span>
-										<span class="v">收款后可选券/积分/折扣</span>
-									</div>
 								</div>
 							</div>
 							<template v-if="cartItems.length>0">
@@ -100,8 +97,8 @@
 					<div class="ops-section">
 						<el-space direction="vertical" :size="16" fill>
 							<el-button size="large" @click="openHangDrawer"><el-icon><Collection /></el-icon> 挂单/取单</el-button>
-							<el-button size="large" @click="openSettleDialogAt('coupon')" :disabled="cartItems.length===0"><el-icon><CollectionTag /></el-icon> 优惠券</el-button>
-							<el-button size="large" @click="openSettleDialogAt('points')" :disabled="cartItems.length===0"><el-icon><CreditCard /></el-icon> 积分</el-button>
+							<el-button size="large" @click="openDiscountPicker('coupon')" :disabled="cartItems.length===0 || !(identity==='member' && selectedMember)"><el-icon><CollectionTag /></el-icon> 优惠券</el-button>
+							<el-button size="large" @click="openDiscountPicker('points')" :disabled="cartItems.length===0 || !(identity==='member' && selectedMember)"><el-icon><CreditCard /></el-icon> 积分</el-button>
 							<el-button size="large" @click="resetAll"><el-icon><Refresh /></el-icon> 重置</el-button>
 						</el-space>
 					</div>
@@ -243,6 +240,26 @@
 				@normalize-used-points="normalizeUsedPoints"
 			/>
 
+			<!-- 优惠/积分选择抽屉（从购物车右侧快捷按钮打开） -->
+			<DiscountPickerDrawer
+				v-model="discountPicker.visible"
+				:active="discountPicker.active"
+				:member-coupons="applicableCouponsForCart"
+				:selected-coupon-ids="selectedCouponIds"
+				:used-points="usedPoints"
+				:member-points-max="memberPointsMax"
+				:points-step="pointsStep"
+				:supports-points="supportsPoints"
+				:points-allowed-by-coupons="pointsAllowedByCoupons"
+				:points-available="pointsAvailable"
+				:points-loading="pointsLoading"
+				:coupon-discount-est="couponDiscountEst"
+				:points-amount-yuan="pointsAmountYuan"
+				@update:selected-coupon-ids="onSelectedCouponIdsChange"
+				@update:used-points="onUsedPointsChangeTpl"
+				@normalize-used-points="normalizeUsedPoints"
+			/>
+
 			<!-- 管理收货地址（会员） -->
 			<AddressManager
 				v-model="addrDialog.visible"
@@ -314,7 +331,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { resolveGuestMemberId } from '../config';
+import { resolveGuestMemberId, resolveNoPlateNumber } from '../config';
 import {
 	addressControllerAdminCreate,
 	addressControllerAdminDelete,
@@ -348,6 +365,7 @@ import HangDrawer from '../components/cashier/HangDrawer.vue';
 import AddressManager from '../components/cashier/AddressManager.vue';
 import TypeMainDialog from '../components/cashier/TypeMainDialog.vue';
 import SettleDialog from '../components/cashier/SettleDialog.vue';
+import DiscountPickerDrawer from '../components/cashier/DiscountPickerDrawer.vue';
 
 async function withPosAuthGuard<T>(fn: () => Promise<T>): Promise<T> {
 	// 对齐 ../utils/http.ts 的 httpWrap 行为：token 过期预判 + 401 兜底跳转
@@ -809,6 +827,7 @@ const plateNumber = ref('');
 let settingPlateProgrammatically = false;
 const identity = ref<'guest'|'member'>('guest');
 const GUEST_MEMBER_ID_CONST = resolveGuestMemberId();
+const NO_PLATE_NUMBER_CONST = resolveNoPlateNumber();
 const memberVehicles = ref<Array<{ id:number; plateNumber:string }>>([]);
 const memberVehicleId = ref<number|undefined>();
 const typeMainOptions = ['轿车', 'SUV', 'MPV', '卡车', '跑车'];
@@ -888,6 +907,7 @@ const subtotal = computed(()=> cartItems.value.reduce((s,it)=> s + Number(it.pri
 const cartQty = computed(()=> cartItems.value.reduce((s,it)=> s + Number(it.quantity||0), 0));
 const discountTotal = ref(0);
 const discountDialog = reactive({ visible: false });
+const discountPicker = reactive({ visible: false, active: 'coupon' as 'coupon'|'points' });
 const cashierDiscountAmountApplied = computed(()=> Math.max(0, Number((settleDialog as any)?.cashierDiscountAmount||0)));
 const pickedCouponsForDetail = computed(()=> {
 	try{
@@ -913,7 +933,10 @@ const couponDetailsMap = ref<Map<number, any>>(new Map());
 async function ensureCouponDetailsLoaded(){
     try{
         const list = (memberCoupons.value||[]) as any[];
-        const needIds = list.map(x=> Number((x?.coupon?.id)||x?.couponId||x?.id||0)).filter(id=>id>0);
+        // 只允许使用“真实 couponId”去拉详情；memberCoupon.id 不是 couponId，不能拿来兜底，否则会请求到错误资源
+        const needIds = list
+            .map(x=> Number((x?.coupon?.id) || x?.couponId || 0))
+            .filter(id=>id>0);
         const uniq = Array.from(new Set(needIds)).filter(id=> !couponDetailsMap.value.has(id));
         if (!uniq.length) return false;
         const results = await Promise.allSettled(uniq.map(id=> couponControllerGet(Number(id))));
@@ -923,6 +946,16 @@ async function ensureCouponDetailsLoaded(){
         return loaded;
     }catch{}
     return false;
+}
+
+function couponFlag(mc: any, key: 'allowCombine'|'allowStackWithPoints'|'allowStackWithMemberDiscount'): any {
+    try{
+        // 兼容两种结构：
+        // - memberCoupon 顶层被扁平化过（allow* 在顶层）
+        // - 原始结构（allow* 在 mc.coupon 内）
+        if (mc && mc[key] !== undefined) return mc[key];
+        return mc?.coupon?.[key];
+    }catch{ return undefined; }
 }
 function calcCouponDiscountFor(mc:any): number{
     try{
@@ -1026,12 +1059,12 @@ async function onCouponsChange(){
         const picked = (memberCoupons.value||[]).filter((x:any)=> selectedCouponIds.value.includes(x.id));
         
         // 修复：使用与小程序一致的逻辑，只检查券本身属性
-        const pointsAllowed = picked.every((x:any)=> x?.allowStackWithPoints !== false);
+        const pointsAllowed = picked.every((x:any)=> couponFlag(x, 'allowStackWithPoints') !== false);
         if (!pointsAllowed){ 
             usedPoints.value = 0; 
         }
         
-        const mdAllowed = picked.every((x:any)=> x?.allowStackWithMemberDiscount !== false);
+        const mdAllowed = picked.every((x:any)=> couponFlag(x, 'allowStackWithMemberDiscount') !== false);
         if (!mdAllowed && enableMemberDiscount.value){ 
             enableMemberDiscount.value = false; 
         }
@@ -1086,11 +1119,11 @@ const supportsPoints = computed(()=> cartItems.value.some(it => !!it.pointsDeduc
 // 券叠加规则：若任何券禁止积分/会员折扣，则置为不可叠加
 const memberDiscountAllowedByCoupons = computed(()=>{
 	const picked = (memberCoupons.value||[]).filter((c:any)=> selectedCouponIds.value.includes(c.id));
-	return picked.every((c:any)=> c?.allowStackWithMemberDiscount !== false);
+	return picked.every((c:any)=> couponFlag(c, 'allowStackWithMemberDiscount') !== false);
 });
 const pointsAllowedByCoupons = computed(()=>{
 	const picked = (memberCoupons.value||[]).filter((c:any)=> selectedCouponIds.value.includes(c.id));
-	return picked.every((c:any)=> c?.allowStackWithPoints !== false);
+	return picked.every((c:any)=> couponFlag(c, 'allowStackWithPoints') !== false);
 });
 
 // 会员折扣百分比（从会员资料取）与可折金额（仅计算标记为 memberDiscount 的行小计）
@@ -1158,6 +1191,21 @@ watch([selectedCouponIds, cartItems, orderKind], ()=>{ normalizeUsedPoints(); re
 watch(memberCoupons, async ()=>{ await ensureCouponDetailsLoaded(); recompute(); });
 watch(memberDiscountAllowedByCoupons, (allowed)=>{ if (!allowed && enableMemberDiscount.value){ enableMemberDiscount.value = false; } });
 
+// 关键兜底：避免“已选券因折扣变 0 从列表消失，但仍留在 selectedCouponIds 里”
+// - 否则会出现：用户看不到已选券无法取消，但互斥判断/提交 payload 仍带该券ID
+watch(applicableCouponsForCart, (list)=>{
+    try{
+        const ids = new Set((list||[]).map((x:any)=> Number(x?.id||0)).filter((id:number)=>id>0));
+        const cur = Array.isArray(selectedCouponIds.value) ? selectedCouponIds.value : [];
+        const next = cur.filter((id:number)=> ids.has(Number(id)));
+        if (next.length !== cur.length){
+            selectedCouponIds.value = next;
+            // 券集合变了，顺带重新跑互斥处理（清积分/关会员折扣等）
+            onCouponsChange();
+        }
+    }catch{}
+}, { deep: false });
+
 function normalizeUsedPoints(){
 	let pts = Math.max(0, Math.floor(Number(usedPoints.value||0)));
 	const minUnit = minPointsUnit.value; pts = Math.floor(pts/minUnit)*minUnit; pts = Math.min(pts, maxUsablePoints.value); usedPoints.value = pts;
@@ -1193,7 +1241,7 @@ const canCreateProductOrder = computed(()=> orderKind.value==='SP' && cartItems.
 const canOpenSettle = computed(()=> (orderKind.value==='SP' ? canCreateProductOrder.value : canCreateServiceOrder.value));
 
 async function submitServiceOrder(){
-    // 说明：服务订单同样支持优惠券/积分/会员折扣，但这些通常是在“结算弹窗”里选择。
+    // 说明：服务订单同样支持优惠券/积分/会员折扣，但这些在“购物车右侧快捷按钮”里选择。
     // 因此不在此处提前创建订单，避免先创建后无法再应用优惠的问题。
     if (orderKind.value !== 'SERVICE') return;
     if (!cartItems.value.length){ ElMessage.error('请添加至少一个服务商品'); return; }
@@ -1230,26 +1278,17 @@ function openSettleDialog(){ if (!canOpenSettle.value) return; settleDialog.visi
     // 打开时确保已加载券详情，保证弹窗中的预计显示正确
     try{ ensureCouponDetailsLoaded(); }catch{}
 }
-function openSettleDialogAt(type: 'coupon'|'points'){
+function openDiscountPicker(type: 'coupon'|'points'){
 	try{
 		if (cartItems.value.length<=0) return;
-		openSettleDialog();
-		nextTick(()=>{
-			try{
-				// 轻量“定位”：滚动到对应区域（不改变既有业务逻辑）
-				const body = document.querySelector('.el-dialog__body') as HTMLElement | null;
-				if (!body) return;
-				if (type === 'coupon'){
-					const el = body.querySelector('.coupon-section') as any;
-					el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
-					return;
-				}
-				// “积分抵扣”所在行没有唯一 class，用文本做一次匹配
-				const rows = Array.from(body.querySelectorAll('.row')) as HTMLElement[];
-				const hit = rows.find(r => (r.textContent || '').includes('积分抵扣'));
-				hit?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
-			}catch{}
-		});
+		if (!(identity.value === 'member' && selectedMember.value)){
+			ElMessage.warning('请先选择会员后再使用优惠券/积分');
+			return;
+		}
+		discountPicker.active = type;
+		discountPicker.visible = true;
+		// 打开时确保已加载券详情，保证预计显示正确
+		try{ ensureCouponDetailsLoaded(); }catch{}
 	}catch{}
 }
 async function confirmSettleManual(){ try{ let oid = settleDialog.createdOrderId; if (!oid){ oid = await ensureOrderForSettle(); } if (!oid){ ElMessage.error('未找到订单'); return; } settleDialog.loading=true; await withPosAuthGuard(()=> orderControllerMarkPaid(Number(oid), { body:{ method: settleDialog.manualMethod } } as any) as any); ElMessage.success('支付已标记'); settleDialog.visible=false; clearCart(); selectedCouponIds.value=[]; usedPoints.value=0; } catch(e:any){ ElMessage.error(String(e?.message||'支付失败')); } finally { settleDialog.loading=false; } }
@@ -1499,6 +1538,29 @@ async function queryGuestVehicles(q: string, cb: (list:any[])=>void){
 function onPickGuestVehicle(v:any){ try{ guestVehicleId.value = Number(v?.id||0)||undefined; settingPlateProgrammatically = true; plateNumber.value = String(v?.plateNumber||''); nextTick().then(()=>{ settingPlateProgrammatically=false; }); }catch{} }
 function clearGuestVehicle(){ guestVehicleId.value = undefined; guestVehicleKeyword.value = ''; }
 
+async function pickNoPlateVehicle(){
+	// 仅服务订单 + 游客下单允许一键无牌车
+	if (orderKind.value !== 'SERVICE') return;
+	if (identity.value !== 'guest') return;
+	try{
+		const plate = String(resolveNoPlateNumber() || NO_PLATE_NUMBER_CONST || '川K00000').trim();
+		if (!plate) { ElMessage.error('无牌车占位车牌未配置'); return; }
+		// 创建游客车辆：若已存在将直接返回（后端已做幂等）
+		const created:any = await vehicleControllerCreateGuest({ plateNumber: plate, typeMain: '轿车' } as any);
+		const id = Number((created as any)?.id || 0) || 0;
+		if (!id) { ElMessage.error('无牌车选择失败'); return; }
+		guestVehicleId.value = id;
+		settingPlateProgrammatically = true;
+		plateNumber.value = String((created as any)?.plateNumber || plate);
+		await nextTick();
+		settingPlateProgrammatically = false;
+		ElMessage.success('已选择无牌车');
+	}catch(e:any){
+		settingPlateProgrammatically = false;
+		ElMessage.error(String(e?.message||'无牌车选择失败'));
+	}
+}
+
 // ============ 会员地址管理 ============
 async function loadMemberAddresses(memberId: number){
 	try{
@@ -1690,7 +1752,7 @@ async function confirmFkCollect(){
 	padding-top: 10px;
 	border-top: 1px dashed #e5e7eb;
 	display:grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap:8px 12px;
 }
 .m-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -1800,6 +1862,7 @@ async function confirmFkCollect(){
   .left-area{ width: 520px; }
   .ops-section{ width: 96px; }
   .pay-btn{ height: 52px; font-size:18px; }
+  .settle-meta{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .addr-form-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }

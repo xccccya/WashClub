@@ -1,5 +1,13 @@
 <template>
-	<el-dialog v-model="visibleLocal" title="管理收货地址" width="680px">
+	<!-- 关键：结算抽屉使用 append-to-body + overlay，若这里不 append-to-body / z-index 不够，会被抽屉遮罩压住 -->
+	<el-dialog
+		v-model="visibleLocal"
+		title="管理收货地址"
+		width="680px"
+		append-to-body
+		modal-append-to-body
+		:z-index="3200"
+	>
 		<div v-if="!model.editing">
 			<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
 				<div class="hint">共 {{ model.list.length }} 条</div>

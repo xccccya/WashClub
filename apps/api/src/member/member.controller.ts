@@ -13,8 +13,36 @@ export class MemberController {
 
 	@Get('list')
 	@ApiOperation({ summary: '会员列表（分页/关键词）' })
-	list(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('keyword') keyword?: string) {
-		return this.service.list(Number(page || 1), Number(pageSize || 20), keyword);
+	list(
+		@Query('page') page?: string,
+		@Query('pageSize') pageSize?: string,
+		@Query('keyword') keyword?: string,
+		@Query('levelId') levelId?: string,
+		@Query('categoryId') categoryId?: string,
+		@Query('tagId') tagId?: string,
+		@Query('createdFrom') createdFrom?: string,
+		@Query('createdTo') createdTo?: string,
+		@Query('activeFrom') activeFrom?: string,
+		@Query('activeTo') activeTo?: string,
+		@Query('excludePlaceholders') excludePlaceholders?: string,
+		@Query('sortBy') sortBy?: string,
+		@Query('sortOrder') sortOrder?: string,
+	) {
+		return this.service.list({
+			page: Number(page || 1),
+			pageSize: Number(pageSize || 20),
+			keyword,
+			levelId: levelId != null ? Number(levelId) : undefined,
+			categoryId: categoryId != null ? Number(categoryId) : undefined,
+			tagId: tagId != null ? Number(tagId) : undefined,
+			createdFrom,
+			createdTo,
+			activeFrom,
+			activeTo,
+			excludePlaceholders: excludePlaceholders === '1' || excludePlaceholders === 'true',
+			sortBy,
+			sortOrder,
+		});
 	}
 
 	@Post('_sync-guest-owner')
