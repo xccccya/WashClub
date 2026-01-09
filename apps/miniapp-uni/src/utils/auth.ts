@@ -118,14 +118,10 @@ try {
   (globalThis as any).VITE_API_BASE = API_BASE;
 } catch {}
 
-// 正式过期时间：7 天
-const TEST_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
-
 export function saveAuth(token: string, user: any) {
   try {
     uni.setStorageSync('token', token);
     uni.setStorageSync('user', user || {});
-    uni.setStorageSync('loginAt', Date.now());
     // 通知应用登录态已变更：用于驱动实时连接等
     try { uni.$emit?.('auth:changed'); } catch {}
   } catch {}
@@ -146,14 +142,14 @@ export function decodeJwtExpMs(token?: string | null): number | null {
 }
 
 export function isExpiredNow(token?: string | null): boolean {
-  const loginAt = Number(uni.getStorageSync('loginAt') || 0);
-  const expMsFromJwt = decodeJwtExpMs(token || getToken());
-  const hardExpire = loginAt ? loginAt + TEST_EXPIRE_MS : null;
-  const now = Date.now();
-  const candidates = [hardExpire, expMsFromJwt].filter((v): v is number => typeof v === 'number' && !isNaN(v));
-  if (candidates.length === 0) return !token; // 没有任何信息则视为未登录
-  const minExpire = Math.min(...candidates);
-  return now >= minExpire;
+  // 安全一致性：会员端 token 的过期只以 JWT 的 exp 为准；
+  // 不再使用本地 loginAt + 固定 maxAge 的“二次过期”逻辑（会与服务端配置不一致）。
+  const t = token || getToken();
+  if (!t) return true;
+  const expMsFromJwt = decodeJwtExpMs(t);
+  // 无法解析 exp 时，不在本地强行判过期；交给服务端 401 + 全局 401 hook 处理
+  if (!expMsFromJwt) return false;
+  return Date.now() >= expMsFromJwt;
 }
 
 export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
@@ -174,7 +170,7 @@ export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean
   try {
     // SDK 底层会自动从 uni storage 读取 token 并加 Authorization 头，这里无需再拼 query token
     const profile = await (memberControllerMe() as any);
-    if (profile) { uni.setStorageSync('user', profile); uni.setStorageSync('loginAt', Date.now()); return true; }
+    if (profile) { uni.setStorageSync('user', profile); return true; }
   } catch {
     try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {}
     redirect();

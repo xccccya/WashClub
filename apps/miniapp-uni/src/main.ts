@@ -17,7 +17,6 @@ try {
 			const u: any = (typeof uni !== 'undefined' ? uni : null);
 			u?.removeStorageSync?.('token');
 			u?.removeStorageSync?.('user');
-			u?.removeStorageSync?.('loginAt');
 			try { u?.$emit?.('auth:changed'); } catch {}
 			// 强制回到登录页（reLaunch 避免堆栈过深）
 			u?.reLaunch?.({ url: '/pages/login/index' });

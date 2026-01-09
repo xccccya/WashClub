@@ -41,7 +41,9 @@ export type AdminMenuKey =
 	| 'notification-templates'
 	| 'notification-overview'
 	// 预留：运营统计概览
-	| 'dashboard-metrics';
+	| 'dashboard-metrics'
+	// 内置保留：管理员自助类接口（更新昵称/头像/密码等），不对应菜单项
+	| 'admin-self';
 
 @Injectable()
 export class AdminRoleService {

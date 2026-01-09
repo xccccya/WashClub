@@ -5,6 +5,9 @@ import { PrismaService } from '../prisma.service.js';
 import { PERM_KEY } from './perm.decorator.js';
 import { extractBearerTokenFromHeaders } from './bearer.js';
 
+// 管理员自助接口：只要是已登录管理员就允许（不依赖角色权限配置）
+const ADMIN_SELF_PERM = 'admin-self' as const;
+
 @Injectable()
 export class AdminGuard implements CanActivate {
 	constructor(private jwt: JwtService, private prisma: PrismaService, private reflector: Reflector) {}
@@ -25,8 +28,11 @@ export class AdminGuard implements CanActivate {
 		// 权限校验
 		const requiredPerm = this.reflector.getAllAndOverride<string | undefined>(PERM_KEY, [context.getHandler(), context.getClass()]);
 		if (requiredPerm) {
-			if (!(permissions.includes('*') || permissions.includes(requiredPerm))) {
-				throw new ForbiddenException('无权限');
+			// 明确策略：管理员自助接口（更换昵称/头像/密码、me 校验等）对所有管理员开放
+			if (requiredPerm !== ADMIN_SELF_PERM) {
+				if (!(permissions.includes('*') || permissions.includes(requiredPerm))) {
+					throw new ForbiddenException('无权限');
+				}
 			}
 		}
 		// 注入 request.user 便于后续使用

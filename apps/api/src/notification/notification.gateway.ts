@@ -2,15 +2,40 @@ import { Injectable } from '@nestjs/common';
 import { WebSocketServer } from 'ws';
 import * as http from 'node:http';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma.service.js';
 
-type ClientInfo = { socket: any; uid: number; kind: 'admin'|'member' };
+type ClientKind = 'admin' | 'member';
+type ClientInfo = { socket: any; uid: number; kind: ClientKind };
+
+const WS_AUTH_TIMEOUT_MS = 5000;
+const WS_MAX_AUTH_MESSAGE_BYTES = 10_000;
 
 @Injectable()
 export class NotificationGateway {
     private wss: WebSocketServer | null = null;
     private clients: Map<any, ClientInfo> = new Map();
 
-    constructor(private jwt: JwtService) {}
+    constructor(private jwt: JwtService, private prisma: PrismaService) {}
+
+    private async verifyWsToken(token: string): Promise<{ uid: number; kind: ClientKind }> {
+        const decoded: any = this.jwt.verify(token);
+        const uid = Number(decoded?.sub || 0);
+        if (!Number.isFinite(uid) || uid <= 0) throw new Error('invalid sub');
+        const type = String(decoded?.type || '');
+        if (type !== 'admin' && type !== 'member') throw new Error('invalid type');
+
+        // 安全加固：校验账号存在与状态（避免“已删除/禁用账号”的 token 仍保持 WS 会话）
+        if (type === 'admin') {
+            const user: any = await this.prisma.user.findUnique({ where: { id: uid }, include: { roleRef: true } });
+            if (!user) throw new Error('account not found');
+            if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new Error('role disabled');
+        } else {
+            const member = await this.prisma.member.findUnique({ where: { id: uid }, select: { id: true } });
+            if (!member) throw new Error('member not found');
+        }
+
+        return { uid, kind: type as ClientKind };
+    }
 
     attachServer(server: http.Server) {
         if (this.wss) return;
@@ -30,18 +55,23 @@ export class NotificationGateway {
             const authTimeout = setTimeout(() => {
                 if (authed) return;
                 try { ws.close(1008, 'auth timeout'); } catch { try { ws.close(); } catch {} }
-            }, 5000);
+            }, WS_AUTH_TIMEOUT_MS);
 
             const cleanup = () => {
                 try { clearTimeout(authTimeout); } catch {}
                 this.clients.delete(ws);
             };
             ws.on('close', cleanup);
+            ws.on('error', cleanup);
 
-            ws.on('message', (raw: any) => {
+            ws.on('message', async (raw: any) => {
                 if (authed) return;
                 try {
                     const text = typeof raw === 'string' ? raw : (raw?.toString?.() ?? '');
+                    if (text.length > WS_MAX_AUTH_MESSAGE_BYTES) {
+                        try { ws.close(1009, 'message too large'); } catch { try { ws.close(); } catch {} }
+                        return;
+                    }
                     const msg: any = JSON.parse(text || '{}');
                     if (msg?.type !== 'auth') {
                         try { ws.close(1008, 'auth required'); } catch { try { ws.close(); } catch {} }
@@ -49,10 +79,7 @@ export class NotificationGateway {
                     }
                     const token = String(msg?.token || '').trim();
                     if (!token) throw new Error('missing token');
-                    const decoded: any = this.jwt.verify(token);
-                    const uid = Number(decoded?.sub || 0);
-                    const kind: 'admin'|'member' = decoded?.type === 'admin' ? 'admin' : 'member';
-                    if (!uid) throw new Error('invalid sub');
+                    const { uid, kind } = await this.verifyWsToken(token);
                     const info: ClientInfo = { socket: ws, uid, kind };
                     this.clients.set(ws, info);
                     authed = true;

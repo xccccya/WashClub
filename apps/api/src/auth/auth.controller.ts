@@ -4,6 +4,7 @@ import { AuthService } from './auth.service.js';
 import { IsNotEmpty, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
 import { AdminGuard } from './admin.guard.js';
 import { AdminMeDto } from './role.dto.js';
+import { RequirePerm } from './perm.decorator.js';
 
 class LoginDto {
 	@ApiProperty({ description: '手机号', example: '13800138000' })
@@ -167,6 +168,7 @@ export class AuthController {
 	@Post('admin/update-nickname')
 	@ApiOperation({ summary: '管理员修改昵称' })
 	@UseGuards(AdminGuard)
+	@RequirePerm('admin-self')
 	updateAdminNickname(@Req() req: any, @Body() dto: UpdateNicknameDto) {
 		const userId = Number(req?.user?.id || 0);
 		if (!userId) throw new BadRequestException('未登录');
@@ -176,6 +178,7 @@ export class AuthController {
 	@Post('admin/update-password')
 	@ApiOperation({ summary: '管理员修改密码' })
 	@UseGuards(AdminGuard)
+	@RequirePerm('admin-self')
 	updateAdminPassword(@Req() req: any, @Body() dto: UpdatePasswordDto) {
 		const userId = Number(req?.user?.id || 0);
 		if (!userId) throw new BadRequestException('未登录');
@@ -185,6 +188,7 @@ export class AuthController {
 	@Post('admin/update-avatar')
 	@ApiOperation({ summary: '管理员更换头像' })
 	@UseGuards(AdminGuard)
+	@RequirePerm('admin-self')
 	updateAdminAvatar(@Req() req: any, @Body() dto: UpdateAdminAvatarDto) {
 		const userId = Number(req?.user?.id || 0);
 		if (!userId) throw new BadRequestException('未登录');
@@ -195,6 +199,7 @@ export class AuthController {
 	@UseGuards(AdminGuard)
 	@ApiOperation({ summary: '管理员登录态校验（验签）' })
 	@ApiOkResponse({ type: AdminMeDto })
+	@RequirePerm('admin-self')
 	adminMe(@Req() req: any) {
 		return req.user || null;
 	}
