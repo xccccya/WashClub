@@ -209,18 +209,37 @@ export class QueueService {
     }
 
     async remove(queueItemId: number) {
-        return this.prisma.$transaction(async (tx) => {
+        // 注意：队列移除事务里会回滚库存/改订单状态/删除任务/删除队列项。
+        // 优惠券恢复可能涉及多次写入，放在事务外以避免 interactive transaction 超时。
+        const result = await this.prisma.$transaction(async (tx) => {
             const item = await tx.serviceQueueItem.findUnique({ where: { id: queueItemId } });
+            const orderId = item?.orderId ? Number(item.orderId) : null;
+            let shouldRestoreCoupons = false;
             if (item && item.orderId) {
                 const order = await tx.order.findUnique({ where: { id: item.orderId } });
                 if (order && (order as any).type === 'SERVICE' && (order as any).payStatus === 'UNPAID') {
                     // 同步取消未支付的服务订单
                     await this.cancelUnpaidOrderTx(tx, order.id);
+                    shouldRestoreCoupons = true;
                 }
             }
             await tx.serviceTask.deleteMany({ where: { queueItemId } });
-            return tx.serviceQueueItem.delete({ where: { id: queueItemId } });
-        });
+            const deleted = await tx.serviceQueueItem.delete({ where: { id: queueItemId } });
+            return { deleted, orderId, shouldRestoreCoupons } as const;
+        }, { timeout: 20_000 });
+
+        // 事务外恢复优惠券（幂等）
+        if (result.shouldRestoreCoupons && result.orderId) {
+            try {
+                await this.coupons.restoreUsedCouponsForOrder({
+                    orderId: result.orderId,
+                    operatorUserId: null,
+                    reasonRemark: '队列移除取消订单恢复优惠券',
+                });
+            } catch { }
+        }
+
+        return result.deleted;
     }
 
     private async cancelUnpaidOrderTx(tx: any, orderId: number){
@@ -252,14 +271,6 @@ export class QueueService {
         await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' as any, payStatus: 'CANCELLED' as any, remark: '队列移除同步取消订单' } });
         try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'ORDER_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
         try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'PAY_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
-
-        // 恢复订单已使用的优惠券（幂等）
-        await this.coupons.restoreUsedCouponsForOrder({
-            orderId,
-            operatorUserId: null,
-            reasonRemark: '队列移除取消订单恢复优惠券',
-            tx,
-        });
     }
 
     async startFirstTask(queueItemId: number) {

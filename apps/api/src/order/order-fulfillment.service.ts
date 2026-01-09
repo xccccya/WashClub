@@ -267,9 +267,11 @@ export class OrderFulfillmentService {
 
     // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
     async cancelOrder(id: number, reason?: string, operatorUserId?: number | null, opts?: { userInitiated?: boolean }) {
-        // 统一在事务内执行：回滚预占库存、取消订单、返还积分、恢复优惠券
+        // 注意：Prisma interactive transaction 默认 timeout=5000ms。
+        // 取消订单可能包含“多商品回滚库存 + 积分返还 + 多张券恢复”，若全部放在同一事务里容易超时。
+        // 因此：事务内只做关键状态与资产（库存/积分）回滚；优惠券恢复放到事务外（幂等）。
         const cancelRemark = opts?.userInitiated ? '用户主动取消' : undefined;
-        return await this.prisma.$transaction(async (tx) => {
+        const updated = await this.prisma.$transaction(async (tx) => {
             const order = await tx.order.findUniqueOrThrow({ where: { id } });
             if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
 
@@ -362,19 +364,22 @@ export class OrderFulfillmentService {
                 } catch { }
             }
 
-            // 恢复订单使用的优惠券（下单时已写 usedAt + orderId）
-            await this.coupons.restoreUsedCouponsForOrder({
-                orderId: order.id,
-                operatorUserId: operatorUserId ?? null,
-                reasonRemark: reason || cancelRemark || '取消订单恢复优惠券',
-                tx,
-            });
-
             await this.writeTimeline({ tx, orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
             await this.writeTimeline({ tx, orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
 
             return updatedOrder;
-        });
+        }, { timeout: 20_000 });
+
+        // 事务外恢复优惠券（幂等）。即便恢复失败，也不应阻塞取消订单主流程。
+        try {
+            await this.coupons.restoreUsedCouponsForOrder({
+                orderId: id,
+                operatorUserId: operatorUserId ?? null,
+                reasonRemark: reason || cancelRemark || '取消订单恢复优惠券',
+            });
+        } catch { }
+
+        return updated;
     }
 
     // 软删除订单：仅打标 deletedAt，不改变其他状态
