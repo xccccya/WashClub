@@ -2,13 +2,15 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service.js';
 import { WechatShippingService } from './wechat-shipping.service.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { CouponService } from '../coupon/coupon.service.js';
 
 @Injectable()
 export class OrderFulfillmentService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly wxship: WechatShippingService,
-        private readonly notifier: NotificationService
+        private readonly notifier: NotificationService,
+        private readonly coupons: CouponService,
     ) {}
 
     private async writeTimeline(params: { tx?: any; orderId: number; event: string; value?: string | null; remark?: string | null; operatorUserId?: number | null }) {
@@ -265,47 +267,50 @@ export class OrderFulfillmentService {
 
     // 取消订单（未支付）：库存回滚并标记 CLOSED/CANCELLED（与 closeOrder 类似但保留语义）
     async cancelOrder(id: number, reason?: string, operatorUserId?: number | null, opts?: { userInitiated?: boolean }) {
-        const order = await this.prisma.order.findUniqueOrThrow({ where: { id } });
-        if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
-        
-        // 若有占用库存，回滚（下单阶段已预占）
-        const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id } });
-        for (const it of items) {
-            if (!it.productId) continue;
-            const product = await this.prisma.product.findUnique({ where: { id: it.productId } });
-            if (!product) continue;
-            
-            if (product.type === 'PHYSICAL' || product.type === 'VIRTUAL_CARD') {
+        // 统一在事务内执行：回滚预占库存、取消订单、返还积分、恢复优惠券
+        const cancelRemark = opts?.userInitiated ? '用户主动取消' : undefined;
+        return await this.prisma.$transaction(async (tx) => {
+            const order = await tx.order.findUniqueOrThrow({ where: { id } });
+            if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
+
+            // 若有占用库存，回滚（下单阶段已预占）
+            const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
+            for (const it of items) {
+                if (!it.productId) continue;
+                const product = await tx.product.findUnique({ where: { id: it.productId } });
+                if (!product) continue;
+                if (product.type !== 'PHYSICAL' && product.type !== 'VIRTUAL_CARD') continue;
+
+                const qty = Math.max(1, Math.abs(Number(it.quantity || 0)));
                 if (product.specType === 'MULTI') {
                     if (!it.skuId) {
-                        const before = product.stockQuantity ?? 0;
-                        const change = Math.abs(it.quantity);
-                        const after = before + change;
-                        await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
-                        await this.prisma.inventoryLog.create({
+                        const beforeRow = await tx.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });
+                        const before = Number(beforeRow?.stockQuantity ?? 0);
+                        await tx.product.update({ where: { id: product.id }, data: { stockQuantity: { increment: qty } } });
+                        const after = before + qty;
+                        await tx.inventoryLog.create({
                             data: {
                                 productId: product.id,
                                 skuId: null,
-                                change,
+                                change: qty,
                                 beforeStock: before,
                                 afterStock: after,
                                 reason: 'ORDER_ROLLBACK' as any,
                                 remark: `取消订单回滚（缺少SKU，订单号：${order.no}）`,
-                                operatorUserId: operatorUserId ?? null
-                            }
+                                operatorUserId: operatorUserId ?? null,
+                            },
                         });
                         continue;
                     }
-                    const sku = await this.prisma.productSku.findUniqueOrThrow({ where: { id: it.skuId } });
-                    const before = sku.stockQuantity;
-                    const change = Math.abs(it.quantity);
-                    const after = before + change;
-                    await this.prisma.productSku.update({ where: { id: sku.id }, data: { stockQuantity: after } });
-                    await this.prisma.inventoryLog.create({
+                    const beforeRow = await tx.productSku.findUnique({ where: { id: it.skuId }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity ?? 0);
+                    await tx.productSku.update({ where: { id: it.skuId }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({
                         data: {
                             productId: product.id,
-                            skuId: sku.id,
-                            change,
+                            skuId: it.skuId,
+                            change: qty,
                             beforeStock: before,
                             afterStock: after,
                             reason: 'ORDER_ROLLBACK' as any,
@@ -314,15 +319,15 @@ export class OrderFulfillmentService {
                         },
                     });
                 } else {
-                    const before = product.stockQuantity ?? 0;
-                    const change = Math.abs(it.quantity);
-                    const after = before + change;
-                    await this.prisma.product.update({ where: { id: product.id }, data: { stockQuantity: after } });
-                    await this.prisma.inventoryLog.create({
+                    const beforeRow = await tx.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });
+                    const before = Number(beforeRow?.stockQuantity ?? 0);
+                    await tx.product.update({ where: { id: product.id }, data: { stockQuantity: { increment: qty } } });
+                    const after = before + qty;
+                    await tx.inventoryLog.create({
                         data: {
                             productId: product.id,
                             skuId: null,
-                            change,
+                            change: qty,
                             beforeStock: before,
                             afterStock: after,
                             reason: 'ORDER_ROLLBACK' as any,
@@ -332,14 +337,14 @@ export class OrderFulfillmentService {
                     });
                 }
             }
-        }
-        
-        // 返还下单时已扣的积分（仅限未支付取消场景）
-        const updated = await this.prisma.$transaction(async (tx) => {
+
+            // 更新订单状态
             const updatedOrder = await tx.order.update({
                 where: { id },
-                data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined }
+                data: { status: 'CANCELLED', payStatus: 'CANCELLED', remark: reason ?? undefined },
             });
+
+            // 返还下单时已扣的积分（仅限未支付取消场景）
             const usedPts = Math.max(0, Number(order.usedPoints || 0));
             if (usedPts > 0) {
                 await tx.member.update({ where: { id: order.memberId }, data: { points: { increment: usedPts } } });
@@ -351,19 +356,25 @@ export class OrderFulfillmentService {
                             source: 'REFUND',
                             desc: `取消订单返还积分（订单${order.no}）`,
                             orderId: order.id,
-                            operatorUserId: operatorUserId ?? null
-                        }
+                            operatorUserId: operatorUserId ?? null,
+                        },
                     });
                 } catch { }
             }
+
+            // 恢复订单使用的优惠券（下单时已写 usedAt + orderId）
+            await this.coupons.restoreUsedCouponsForOrder({
+                orderId: order.id,
+                operatorUserId: operatorUserId ?? null,
+                reasonRemark: reason || cancelRemark || '取消订单恢复优惠券',
+                tx,
+            });
+
+            await this.writeTimeline({ tx, orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
+            await this.writeTimeline({ tx, orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
+
             return updatedOrder;
         });
-        
-        const cancelRemark = opts?.userInitiated ? '用户主动取消' : undefined;
-        await this.writeTimeline({ orderId: id, event: 'ORDER_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
-        await this.writeTimeline({ orderId: id, event: 'PAY_STATUS', value: 'CANCELLED', remark: cancelRemark, operatorUserId });
-        
-        return updated;
     }
 
     // 软删除订单：仅打标 deletedAt，不改变其他状态

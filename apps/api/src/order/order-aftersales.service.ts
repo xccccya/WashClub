@@ -5,11 +5,13 @@ import { OrderRefundService } from './order-refund.service.js';
 import { WxpayService } from './wxpay.service.js';
 import { AssetService } from '../file/asset.service.js';
 import { syncFileBindings } from './file-bindings.helper.js';
+import { OrderFulfillmentService } from './order-fulfillment.service.js';
 
 @Injectable()
 export class OrderAfterSalesService {
     constructor(
         private readonly prisma: PrismaService,
+        private readonly fulfillment: OrderFulfillmentService,
         private readonly refundService?: OrderRefundService,
         private readonly wxpay?: WxpayService,
         private readonly assets?: AssetService
@@ -464,34 +466,7 @@ export class OrderAfterSalesService {
 
     // 取消未支付订单（售后流程中使用）
     private async cancelUnpaidOrder(orderId: number, reason?: string, operatorUserId?: number | null) {
-        const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-        if (order.payStatus !== 'UNPAID') throw new Error('仅未支付订单可取消');
-        
-        // 库存回滚逻辑（简化版，实际应该调用订单服务的取消方法）
-        const updated = await this.prisma.order.update({
-            where: { id: orderId },
-            data: {
-                status: 'CANCELLED',
-                payStatus: 'CANCELLED',
-                remark: reason ?? undefined
-            }
-        });
-        
-        await this.writeTimeline({
-            orderId,
-            event: 'ORDER_STATUS',
-            value: 'CANCELLED',
-            remark: reason,
-            operatorUserId
-        });
-        await this.writeTimeline({
-            orderId,
-            event: 'PAY_STATUS',
-            value: 'CANCELLED',
-            remark: reason,
-            operatorUserId
-        });
-        
-        return updated;
+        // 复用统一取消逻辑：回滚库存/积分并恢复优惠券，避免与订单主流程分叉
+        return await this.fulfillment.cancelOrder(orderId, reason ?? '售后取消（未支付）', operatorUserId ?? null, { userInitiated: false });
     }
 }

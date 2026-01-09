@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service.js';
 import { VehicleService } from '../member/vehicle.service.js';
 import { NotificationService } from '../notification/notification.service.js';
 import { isNoPlateNumber } from '../env.js';
+import { CouponService } from '../coupon/coupon.service.js';
 
 type CreateQueueInput =
     | { mode: 'vehicleId'; vehicleId: number; queueTypeId?: number | undefined }
@@ -14,7 +15,8 @@ export class QueueService {
     constructor(
         private prisma: PrismaService, 
         private vehicleService: VehicleService,
-        private notifier: NotificationService
+        private notifier: NotificationService,
+        private coupons: CouponService,
     ) {}
 
     async addToQueue(input: CreateQueueInput) {
@@ -250,6 +252,14 @@ export class QueueService {
         await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' as any, payStatus: 'CANCELLED' as any, remark: '队列移除同步取消订单' } });
         try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'ORDER_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
         try { await (tx as any).orderTimeline.create({ data: { orderId, event: 'PAY_STATUS', value: 'CANCELLED', remark: '队列移除', operatorUserId: null } }); } catch {}
+
+        // 恢复订单已使用的优惠券（幂等）
+        await this.coupons.restoreUsedCouponsForOrder({
+            orderId,
+            operatorUserId: null,
+            reasonRemark: '队列移除取消订单恢复优惠券',
+            tx,
+        });
     }
 
     async startFirstTask(queueItemId: number) {

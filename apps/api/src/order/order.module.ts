@@ -46,7 +46,8 @@ import { resolveJwtSecretEnv } from '../env.js';
         OrderTimeoutService, 
         WechatShippingService
     ],
-    exports: [OrderService]
+    // QueueModule 等模块需要复用订单侧的券恢复能力
+    exports: [OrderService, CouponService]
 })
 export class OrderModule {}
 
