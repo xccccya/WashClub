@@ -186,7 +186,8 @@ import {
 	notificationControllerMarkReadAll,
 	notificationControllerUnreadCount,
 	systemSettingControllerGetPublicBusinessStatus,
-	systemSettingControllerSaveSetting,
+	systemSettingControllerGetPublicSetting,
+	systemSettingControllerSaveBusinessSetting,
 } from '@wash/api-client';
 
 const route = useRoute();
@@ -200,6 +201,15 @@ const userName = computed(()=>{
 	try { return JSON.parse(localStorage.getItem('user')||'{}')?.name || '用户'; } catch { return '用户'; }
 });
 const avatarUrl = ref<string | null>(null);
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
+async function ensureSiteSetting(){
+	if (siteSetting.value) return;
+	try{
+		siteSetting.value = (await systemSettingControllerGetPublicSetting() as any) || null;
+	} catch {
+		siteSetting.value = { defaultMemberAvatarUrl: null };
+	}
+}
 const isCompact = ref(false);
 const isFullscreen = ref(false);
 const isTouch = ref(false);
@@ -235,7 +245,7 @@ async function reloadBusiness(){
 async function saveBusiness(){
     try{
         savingBiz.value = true;
-        await systemSettingControllerSaveSetting({
+        await systemSettingControllerSaveBusinessSetting({
 			businessHoursJson: { start: hoursStart.value, end: hoursEnd.value },
 			busyEnabled: busyEnabled.value,
 			pausedEnabled: pausedEnabled.value,
@@ -253,7 +263,9 @@ function formatAvatar(url?: string | null){
 	try{
 		const s = String(url||'').trim();
 		if (s) return absUrl(s);
-		// 未设置头像则给一个内置默认图（走后端静态 /uploads 路径）
+		// 未设置头像：优先使用站点默认头像（可随后台配置变化），其次兜底内置默认图
+		const d = String(siteSetting.value?.defaultMemberAvatarUrl || '').trim();
+		if (d) return absUrl(d);
 		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
 	}catch{
 		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
@@ -418,6 +430,7 @@ function handleSetTab(ev: any){
 }
 onMounted(()=>{
 	try{ const u = JSON.parse(localStorage.getItem('user')||'{}'); avatarUrl.value = u?.avatarUrl ?? null; }catch{}
+	ensureSiteSetting();
 	addOrActivateCurrent();
 	window.addEventListener('pos-set-tab', handleSetTab as any);
     reloadBusiness();

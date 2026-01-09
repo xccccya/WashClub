@@ -50,9 +50,9 @@
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="有效期类型">
 					<el-radio-group v-model="form.expiryType">
-						<el-radio v-if="form.type!=='WASH_CARD' && form.type!=='GROUP_WASH_CARD'" label="FIXED">固定时间</el-radio>
-						<el-radio label="AFTER_RECEIVE">领取后生效</el-radio>
-						<el-radio label="PERMANENT">永久有效</el-radio>
+						<el-radio v-if="form.type!=='WASH_CARD' && form.type!=='GROUP_WASH_CARD'" value="FIXED">固定时间</el-radio>
+						<el-radio value="AFTER_RECEIVE">领取后生效</el-radio>
+						<el-radio value="PERMANENT">永久有效</el-radio>
 					</el-radio-group>
 				</el-form-item>
 				<el-form-item v-if="form.expiryType==='FIXED' && form.type!=='WASH_CARD' && form.type!=='GROUP_WASH_CARD'" label="有效期时间段"><el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" /></el-form-item>
@@ -73,8 +73,8 @@
 					</el-form-item>
 					<el-form-item label="适用范围">
 						<el-radio-group v-model="form.applyScope">
-							<el-radio label="ALL">全部商品</el-radio>
-							<el-radio label="SPECIFIED">指定商品</el-radio>
+							<el-radio value="ALL">全部商品</el-radio>
+							<el-radio value="SPECIFIED">指定商品</el-radio>
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item v-if="form.applyScope==='SPECIFIED'" label="指定商品">
@@ -84,9 +84,9 @@
 					</el-form-item>
 					<el-form-item label="规则类型">
 						<el-radio-group v-model="form.ruleKind">
-							<el-radio label="direct">直减</el-radio>
-							<el-radio label="percent">折扣%</el-radio>
-							<el-radio label="none">不使用规则JSON</el-radio>
+							<el-radio value="direct">直减</el-radio>
+							<el-radio value="percent">折扣%</el-radio>
+							<el-radio value="none">不使用规则JSON</el-radio>
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item v-if="form.ruleKind==='direct'" label="直减金额"><el-input-number v-model="form.ruleAmount" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
@@ -94,8 +94,8 @@
 					<el-form-item v-if="form.ruleKind==='percent'" label="封顶金额"><el-input-number v-model="form.ruleCap" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>
 					<el-form-item label="口径">
 						<el-radio-group v-model="form.ruleApplyBase">
-							<el-radio label="auto">按适用品项小计</el-radio>
-							<el-radio label="order">按整单小计</el-radio>
+							<el-radio value="auto">按适用品项小计</el-radio>
+							<el-radio value="order">按整单小计</el-radio>
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item label="最低小计门槛"><el-input-number v-model="form.ruleMinSubtotal" :min="0" :max="999999.99" :step="0.01" :precision="2" /></el-form-item>

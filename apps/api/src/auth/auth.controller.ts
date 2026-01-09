@@ -1,9 +1,10 @@
 import { Body, Controller, Post, BadRequestException, Get, Req, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { IsNotEmpty, IsString, MinLength, IsInt, IsIn, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AdminGuard } from './admin.guard.js';
+import { AdminMeDto } from './role.dto.js';
 
 class LoginDto {
 	@ApiProperty({ description: '手机号', example: '13800138000' })
@@ -197,6 +198,7 @@ export class AuthController {
 	@Get('admin/me')
 	@UseGuards(AdminGuard)
 	@ApiOperation({ summary: '管理员登录态校验（验签）' })
+	@ApiOkResponse({ type: AdminMeDto })
 	adminMe(@Req() req: any) {
 		return req.user || null;
 	}

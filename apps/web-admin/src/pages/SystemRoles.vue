@@ -8,14 +8,14 @@
 			<el-table-column prop="name" label="角色名称" />
 			<el-table-column prop="enabled" label="状态" width="160">
 				<template #default="{ row }">
-					<el-switch v-model="row.enabled" :disabled="row.id===1" @change="onToggleEnabled(row)" />
+					<el-switch v-model="row.enabled" :disabled="row.isSystem" @change="onToggleEnabled(row)" />
 					<span style="margin-left:8px;">{{ row.enabled ? '启用' : '禁用' }}</span>
 				</template>
 			</el-table-column>
 			<el-table-column label="操作" width="240">
 				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)" :disabled="row.id===1">编辑</el-button>
-					<el-button size="small" type="danger" @click="remove(row)" :disabled="row.id===1">删除</el-button>
+					<el-button size="small" @click="openEdit(row)" :disabled="row.isSystem">编辑</el-button>
+					<el-button size="small" type="danger" @click="remove(row)" :disabled="row.isSystem">删除</el-button>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -62,51 +62,76 @@
 import { ref, onMounted, computed } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import {
+	type AdminMenuDto,
+	type AdminRoleDto,
 	adminRoleControllerCreateRole,
 	adminRoleControllerListMenus,
 	adminRoleControllerListRoles,
 	adminRoleControllerRemoveRole,
 	adminRoleControllerUpdateRole,
 } from '@wash/api-client';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-type Role = { id: number; name: string; enabled: boolean; isSystem: boolean; permissions: string[] };
-type Menu = { key: string; name: string; path: string };
-const roles = ref<Role[]>([]);
-const menus = ref<Menu[]>([]);
+type RoleForm = { id?: number; name: string; enabled: boolean; permissions: string[] };
+const roles = ref<AdminRoleDto[]>([]);
+const menus = ref<AdminMenuDto[]>([]);
 const dialogVisible = ref(false);
-const current = ref<Role | null>(null);
-const form = ref<Partial<Role>>({ name: '', enabled: true, permissions: [] });
+const current = ref<AdminRoleDto | null>(null);
+const form = ref<RoleForm>({ name: '', enabled: true, permissions: [] });
 // 折叠面板：默认全部收起
 const activeGroups = ref<string[]>([]);
 
 async function fetchAll(){
-	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
-	roles.value = (await adminRoleControllerListRoles() as unknown) as Role[];
-	menus.value = (await adminRoleControllerListMenus() as unknown) as Menu[];
+	roles.value = await adminRoleControllerListRoles();
+	menus.value = await adminRoleControllerListMenus();
 }
 
 function openCreate(){ current.value = null; form.value = { name: '', enabled: true, permissions: [] }; dialogVisible.value = true; }
-function openEdit(row: Role){ current.value = row; form.value = { id: row.id, name: row.name, enabled: row.enabled, permissions: row.permissions || [] }; dialogVisible.value = true; }
+function openEdit(row: AdminRoleDto){ current.value = row; form.value = { id: row.id, name: row.name, enabled: row.enabled, permissions: row.permissions || [] }; dialogVisible.value = true; }
 
 async function onSave(){
-	const payload = { name: form.value.name!, enabled: !!form.value.enabled, permissions: form.value.permissions || [] } as any;
-	if (current.value?.id) await adminRoleControllerUpdateRole(String(current.value.id), payload);
-	else await adminRoleControllerCreateRole(payload);
-	dialogVisible.value = false; ElMessage.success('已保存'); fetchAll();
+	const name = String(form.value.name || '').trim();
+	if (!name) { ElMessage.error('请输入角色名称'); return; }
+	const payload = { name, enabled: !!form.value.enabled, permissions: form.value.permissions || [] };
+	try {
+		if (current.value?.id) await adminRoleControllerUpdateRole(String(current.value.id), payload as any);
+		else await adminRoleControllerCreateRole(payload as any);
+		dialogVisible.value = false;
+		ElMessage.success('已保存');
+		await fetchAll();
+	} catch (e: any) {
+		ElMessage.error(String(e?.message || e || '保存失败'));
+	}
 }
 
-async function remove(row: Role){ await adminRoleControllerRemoveRole(String(row.id)); ElMessage.success('已删除'); fetchAll(); }
+async function remove(row: AdminRoleDto){
+	try {
+		await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？删除后不可恢复。`, '删除确认', { type: 'warning' });
+		await adminRoleControllerRemoveRole(String(row.id));
+		ElMessage.success('已删除');
+		await fetchAll();
+	} catch (e: any) {
+		// 用户取消不提示错误
+		if (String(e || '').includes('cancel')) return;
+		ElMessage.error(String(e?.message || e || '删除失败'));
+	}
+}
 
-async function onToggleEnabled(row: Role){
-	await adminRoleControllerUpdateRole(String(row.id), { enabled: row.enabled } as any);
-	ElMessage.success(row.enabled ? '已启用' : '已禁用');
+async function onToggleEnabled(row: AdminRoleDto){
+	const prev = !!row.enabled;
+	try {
+		await adminRoleControllerUpdateRole(String(row.id), { enabled: row.enabled } as any);
+		ElMessage.success(row.enabled ? '已启用' : '已禁用');
+	} catch (e: any) {
+		row.enabled = prev;
+		ElMessage.error(String(e?.message || e || '更新失败'));
+	}
 }
 
 onMounted(fetchAll);
 
 // 菜单分组：根据 path 前缀或业务手动分组
-type MenuGroup = { key: string; name: string; children: Menu[] };
+type MenuGroup = { key: string; name: string; children: AdminMenuDto[] };
 const menuGroups = computed<MenuGroup[]>(() => {
   const groups: Record<string, MenuGroup> = {
     members: { key: 'members', name: '会员管理', children: [] },

@@ -12,6 +12,10 @@ export default defineConfig({
       clean: true,
       mock: false,
       override: {
+        fetch: {
+          // createHttpClient 只返回 response body；关闭 { data, status, headers } 包装以对齐运行时
+          includeHttpResponseReturnType: false,
+        },
         mutator: {
           // 通过 api-client 内部的 mutator 转发到 @wash/shared-utils，避免生成物跨包相对引用 ../../shared-utils/src/...
           path: 'packages/api-client/src/http-mutator.ts',

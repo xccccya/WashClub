@@ -51,6 +51,13 @@ export class AdminRoleService {
 		return this.prisma.adminRole.findMany({ orderBy: { id: 'asc' } });
 	}
 
+	listRoleOptions() {
+		return this.prisma.adminRole.findMany({
+			orderBy: { id: 'asc' },
+			select: { id: true, name: true, enabled: true, isSystem: true },
+		});
+	}
+
 	async createRole(data: { name: string; enabled?: boolean; permissions?: AdminMenuKey[]; isSystem?: boolean }) {
 		const permissions = (data.permissions || []) as any;
 		return this.prisma.adminRole.create({ data: { name: data.name, enabled: data.enabled ?? true, isSystem: !!data.isSystem, permissions } });
@@ -59,14 +66,14 @@ export class AdminRoleService {
 	async updateRole(id: number, data: { name?: string; enabled?: boolean; permissions?: AdminMenuKey[] }) {
 		const role = await this.prisma.adminRole.findUnique({ where: { id } });
 		if (!role) throw new NotFoundException('角色不存在');
-		if (role.isSystem && id === 1) throw new BadRequestException('系统内置超级管理员不可修改');
+		if (role.isSystem) throw new BadRequestException('系统内置角色不可修改');
 		return this.prisma.adminRole.update({ where: { id }, data: { ...data, permissions: data.permissions as any } });
 	}
 
 	async removeRole(id: number) {
 		const role = await this.prisma.adminRole.findUnique({ where: { id } });
 		if (!role) return { ok: true };
-		if (role.isSystem && id === 1) throw new BadRequestException('系统内置超级管理员不可删除');
+		if (role.isSystem) throw new BadRequestException('系统内置角色不可删除');
 		const hasUsers = await this.prisma.user.count({ where: { roleId: id } });
 		if (hasUsers) throw new BadRequestException('该角色下仍有关联的管理员账号');
 		await this.prisma.adminRole.delete({ where: { id } });
@@ -82,8 +89,8 @@ export class AdminRoleService {
 		return this.prisma.$transaction(async (tx) => {
 			const exists = await tx.user.findUnique({ where: { phone: data.phone } });
 			if (exists) throw new BadRequestException('手机号已存在');
-			let avatarUrl: string | null = null;
-			try { const ss = await tx.siteSetting.findFirst().catch(()=>null); avatarUrl = (data.avatarUrl ?? ss?.defaultMemberAvatarUrl ?? null) as any; } catch {}
+			// 头像策略与会员一致：未自定义头像则保持 null（由前端按站点默认头像回退）
+			const avatarUrl = typeof data.avatarUrl === 'string' ? (data.avatarUrl.trim() || null) : (data.avatarUrl ?? null);
 			const hashed = await hashPassword(data.password);
 			const created = await tx.user.create({ data: ({ phone: data.phone, name: data.name, password: hashed, roleId: data.roleId, role: 'staff', avatarUrl } as any) });
 			try { await this.syncBindings('User', String(created.id), 'avatarUrl', (created as any).avatarUrl ? [(created as any).avatarUrl] : []); } catch {}

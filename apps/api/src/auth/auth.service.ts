@@ -133,10 +133,9 @@ export class AuthService {
 			if (!defaultLevel) {
 				throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
 			}
-			// 读取站点默认头像
-			const ss = await this.prisma.siteSetting.findFirst().catch(()=>null);
-			const defaultAvatar = ss?.defaultMemberAvatarUrl || null;
-			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: defaultAvatar }, include: { tags: true } });
+			// 头像策略：未自定义头像的用户不写入默认头像 URL（保持为 null），
+			// 展示层/客户端根据站点设置 defaultMemberAvatarUrl 动态回退，保证更换默认头像可同步生效。
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: null }, include: { tags: true } });
 			createdNew = true;
 		}
 		if (!member) throw new BadRequestException('登录失败，请重试');
@@ -261,9 +260,8 @@ export class AuthService {
 			const uid = await this.generateUniqueMemberUid();
 			const defaultLevel = await this.prisma.memberLevel.findFirst({ where: { isDefault: true } as any });
 			if (!defaultLevel) throw new BadRequestException('系统未配置默认会员等级，请先在管理后台设置');
-			const ss = await this.prisma.siteSetting.findFirst().catch(()=>null);
-			const defaultAvatar = ss?.defaultMemberAvatarUrl || null;
-			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: defaultAvatar }, include: { tags: true } });
+			// 头像策略：同上，默认头像不落库（保持 null）
+			member = await this.prisma.member.create({ data: { uid, name: this.generateRandomName(), phone, levelId: defaultLevel.id, avatarUrl: null }, include: { tags: true } });
 			createdNew = true;
 		}
 		if (!member) throw new BadRequestException('登录失败，请重试');

@@ -32,8 +32,8 @@
 			<el-form :model="form" label-width="120px">
 				<el-form-item label="类型">
 					<el-radio-group v-model="form.type">
-						<el-radio label="home">首页</el-radio>
-						<el-radio label="store">商店</el-radio>
+						<el-radio value="home">首页</el-radio>
+						<el-radio value="store">商店</el-radio>
 					</el-radio-group>
 				</el-form-item>
 				<el-form-item label="内容"><el-input v-model="form.content" type="textarea" :rows="3" /></el-form-item>

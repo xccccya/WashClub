@@ -3,9 +3,9 @@
 export * from './generated/washClubAPI';
 export * from './generated/model';
 
-// 非 generated 的扩展接口（手写封装，避免每次都必须重跑 orval）
-export * from './memberPointsExtra';
-export * from './washCardExtra';
-export * from './groupBalanceExtra';
+// 说明：
+// 过去这里导出过少量“手写扩展接口”，但当这些接口进入 OpenAPI 后，
+// orval 会在 generated 中生成同名函数，导致重复导出与构建失败。
+// 如需保留手写扩展，请使用不同的导出名（避免与 generated 冲突）。
 
 

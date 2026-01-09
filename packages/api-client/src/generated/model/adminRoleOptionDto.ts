@@ -6,8 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * 站点Logo URL/相对路径
- * @nullable
- */
-export type SystemSiteSettingSaveDtoLogoUrl = { [key: string]: unknown } | null;
+export interface AdminRoleOptionDto {
+  id: number;
+  name: string;
+  enabled: boolean;
+  isSystem: boolean;
+}

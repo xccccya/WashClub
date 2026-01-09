@@ -6,7 +6,7 @@
 				<div class="sider-brand__title" :title="siteTitle">{{ siteTitle || '管理后台' }}</div>
 			</div>
 			<el-menu :default-active="active" class="menu" @select="onSelect">
-				<el-menu-item index="/dashboard"><el-icon style="margin-right:6px;"><HomeFilled /></el-icon>系统首页</el-menu-item>
+				<el-menu-item v-if="can('dashboard-metrics')" index="/dashboard"><el-icon style="margin-right:6px;"><HomeFilled /></el-icon>系统首页</el-menu-item>
 				<el-sub-menu index="/orders">
 					<template #title><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单管理</template>
 					<el-menu-item v-if="can('orders')" index="/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单列表</el-menu-item>
@@ -98,8 +98,8 @@
 							<div class="row">
 								<span>主题</span>
 								<el-radio-group v-model="theme" @change="applyTheme">
-									<el-radio-button label="light">亮</el-radio-button>
-									<el-radio-button label="dark">暗</el-radio-button>
+									<el-radio-button value="light">亮</el-radio-button>
+									<el-radio-button value="dark">暗</el-radio-button>
 								</el-radio-group>
 							</div>
 							<div class="row">
@@ -270,7 +270,7 @@ import {
 	notificationControllerUnreadCount,
 	systemSettingControllerGetPublicBusinessStatus,
 	systemSettingControllerGetPublicSetting,
-	systemSettingControllerSaveSetting,
+	systemSettingControllerSaveBusinessSetting,
 } from '@wash/api-client';
 
 const presetColors = [
@@ -305,6 +305,7 @@ const breadcrumbList = ref<BreadcrumbItem[]>([{ label: '首页', icon: 'home' }]
 
 const siteTitle = ref<string>('');
 const siteLogo = ref<string>('');
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
 
 // 营业状态
 type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';
@@ -331,7 +332,7 @@ async function reloadBusiness(){
 async function saveBusiness(){
     try{
         savingBiz.value = true;
-        await systemSettingControllerSaveSetting({
+        await systemSettingControllerSaveBusinessSetting({
             businessHoursJson: { start: hoursStart.value, end: hoursEnd.value },
             busyEnabled: busyEnabled.value,
             pausedEnabled: pausedEnabled.value
@@ -357,7 +358,15 @@ const showAvatar = ref(false);
 const avatarDraft = ref<string | null>(null);
 const pickVisible = ref(false);
 
-function formatAvatar(url?: string | null){ try { const site = JSON.parse(localStorage.getItem('siteSetting')||'{}'); const candidate = url || site?.defaultMemberAvatarUrl || ''; const u = absUrl(candidate||''); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } catch { return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } }
+function formatAvatar(url?: string | null){
+	try {
+		const candidate = url || siteSetting.value?.defaultMemberAvatarUrl || '';
+		const u = absUrl(candidate || '');
+		return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	} catch {
+		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	}
+}
 
 function openChangeAvatar(){ avatarDraft.value = avatarUrl.value || null; showAvatar.value = true; }
 function openPickAvatar(){ pickVisible.value = true; }
@@ -374,6 +383,7 @@ function addTabByRoute(){
 	const path = r.path;
 	const mapTitle: Record<string,string> = {
 		'/dashboard':'系统首页',
+		'/403':'无权限',
 		'/members':'会员列表',
 		'/member-signins':'签到管理',
 		'/member-points':'积分管理',
@@ -478,6 +488,8 @@ function generateBreadcrumbs(path: string, pageTitle: string): BreadcrumbItem[] 
 		'/system/files': { parent: '系统设置', label: '文件管理' },
 		'/system/sms': { parent: '系统设置', label: '短信管理' },
 		'/system/employees': { parent: '系统设置', label: '员工配置' },
+		// 无权限
+		'/403': { parent: '系统设置', label: '无权限' },
 	};
 	
 	// 首页特殊处理
@@ -595,6 +607,13 @@ function applyTheme(){
 const unreadCount = ref<number>(0);
 const unreadCountText = computed(()=> unreadCount.value>99 ? '99+' : String(unreadCount.value));
 let ws: WebSocket | null = null;
+function onSiteSettingUpdated(ev: any){
+	try{
+		const next = ev?.detail || null;
+		siteSetting.value = next ? next : siteSetting.value;
+		if (next) localStorage.setItem('siteSetting', JSON.stringify(next || {}));
+	}catch{}
+}
 
 async function refreshUnread(){ try { const r:any = await notificationControllerUnreadCount(); unreadCount.value = Number(r?.count||0); } catch { unreadCount.value = 0; } }
 function connectWS(){
@@ -644,7 +663,18 @@ onMounted(()=>{
     refreshUnread();
     connectWS();
 		// 读取公共站点设置 + 营业状态
-		systemSettingControllerGetPublicSetting().then((s:any)=>{ const t = s?.title || 'WashClub 管理后台'; siteTitle.value = t; siteLogo.value = s?.logoUrl || ''; try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }).catch(()=>{});
+		systemSettingControllerGetPublicSetting().then((s:any)=>{
+			const t = s?.title || 'WashClub 管理后台';
+			siteTitle.value = t;
+			siteLogo.value = s?.logoUrl || '';
+			siteSetting.value = (s as any) || null;
+			try{ localStorage.setItem('siteTitle', t); localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{}
+		}).catch(()=>{
+			// 兜底：尽量从缓存恢复，避免头像/标题闪烁
+			try{
+				siteSetting.value = JSON.parse(localStorage.getItem('siteSetting')||'{}') || null;
+			}catch{}
+		});
 		reloadBusiness();
 	// 初始化主题
 	try {
@@ -654,11 +684,13 @@ onMounted(()=>{
 		applyTheme();
 	} catch {}
 });
-onBeforeUnmount(()=>{ try{ ws?.close(); }catch{} ws = null; });
+onBeforeUnmount(()=>{ try{ ws?.close(); }catch{} ws = null; try{ window.removeEventListener('site-setting-updated', onSiteSettingUpdated as any); }catch{} });
 
 watch(()=>router.currentRoute.value.fullPath, ()=>{
 	addTabByRoute();
 });
+
+try{ window.addEventListener('site-setting-updated', onSiteSettingUpdated as any); }catch{}
 </script>
 
 <style scoped>

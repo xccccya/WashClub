@@ -10,4 +10,14 @@ export type MemberControllerListParams = {
 page: string;
 pageSize: string;
 keyword: string;
+levelId: string;
+categoryId: string;
+tagId: string;
+createdFrom: string;
+createdTo: string;
+activeFrom: string;
+activeTo: string;
+excludePlaceholders: string;
+sortBy: string;
+sortOrder: string;
 };

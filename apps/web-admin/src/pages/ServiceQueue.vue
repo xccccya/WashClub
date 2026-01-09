@@ -35,7 +35,7 @@
 							<div>
 								<el-tag v-if="row?.vehicle?.group" type="info" style="margin-right:6px;" effect="plain"><el-icon style="margin-right:4px;"><OfficeBuilding /></el-icon>{{ row.vehicle.group.name }}</el-tag>
 								<el-tag :type="row?.vehicle?.group ? 'info' : (row.guest ? 'warning' : 'danger')" style="margin-right:6px;">{{ row?.vehicle?.group ? '集团客户' : (row.guest ? '游客' : '会员') }}</el-tag>
-								<strong>{{ row.plateNumber }}</strong>
+								<strong>{{ plateLabel(row) }}</strong>
 								<span v-if="row?.vehicle?.member" style="margin-left:8px; color:#606266;">{{ row.vehicle.member.name || '-' }}（{{ row.vehicle.member.phone || '-' }}）</span>
 							</div>
 							<small style="color:#909399;">
@@ -149,9 +149,9 @@
 						系统会自动识别本订单中标记为"计为洗车(次)"的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。
 					</div>
 					<el-radio-group v-model="washPrefer" size="small">
-						<el-radio-button label="AUTO">自动选择</el-radio-button>
-						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
-						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
+						<el-radio-button value="AUTO">自动选择</el-radio-button>
+						<el-radio-button value="GROUP">优先集团卡</el-radio-button>
+						<el-radio-button value="MEMBER">优先会员卡</el-radio-button>
 					</el-radio-group>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
@@ -347,6 +347,9 @@
 					<el-button :type="mode==='member'?'primary':'default'" @click="mode='member'">会员车辆</el-button>
 					<el-button :type="mode==='existing'?'primary':'default'" @click="mode='existing'">现有车辆</el-button>
 					<el-button :type="mode==='guest'?'primary':'default'" @click="mode='guest'">游客车辆</el-button>
+					<el-tooltip placement="top" effect="dark" content="无牌车/忘记车牌：一键选择系统保留占位车辆，可同时入队多辆">
+						<el-button type="primary" plain @click="pickNoPlateForWizard">无牌车</el-button>
+					</el-tooltip>
 				</div>
 				<!-- 直接复用已有表单片段 -->
 				<el-form :model="form" label-width="110px">
@@ -412,7 +415,7 @@
 			</div>
 			<div v-show="wizardStep===1">
 				<el-radio-group v-model="wizardQueueTypeId">
-					<el-radio v-for="t in queueTypes" :key="t.id" :label="t.id">{{ t.name }}</el-radio>
+					<el-radio v-for="t in queueTypes" :key="t.id" :value="t.id">{{ t.name }}</el-radio>
 				</el-radio-group>
 				<div style="text-align:right; margin-top:12px;">
 					<el-button @click="wizardStep=0">上一步</el-button>
@@ -459,7 +462,15 @@
             </div>
             <div v-show="wizardStep===3">
 				<el-descriptions title="确认信息" :column="1" border>
-					<el-descriptions-item label="车牌">{{ selectedPlate }}</el-descriptions-item>
+					<el-descriptions-item label="车牌">
+						<template v-if="isNoPlateValue(selectedPlateRaw)">
+							<div style="display:flex;align-items:center;gap:8px;">
+								<el-tag type="info" effect="plain">无牌车</el-tag>
+								<span style="color:#909399;">（{{ selectedPlateRaw }}）</span>
+							</div>
+						</template>
+						<template v-else>{{ selectedPlateRaw }}</template>
+					</el-descriptions-item>
 					<el-descriptions-item label="队列类型">{{ (queueTypes.find(t=>t.id===wizardQueueTypeId)||{} as any).name || '-' }}</el-descriptions-item>
                     <el-descriptions-item label="服务商品">
                         <template v-if="wizardSelectedProductIds.length">
@@ -515,10 +526,12 @@ import {
 	queueTypeControllerSetSteps,
 	queueTypeControllerUpdate,
 	storeProductControllerList,
+	vehicleControllerCreateGuest,
 	vehicleControllerListByMember,
 	vehicleControllerSearch,
 } from '@wash/api-client';
 import { absUrl } from '../utils/http';
+import { resolveNoPlateNumber } from '../config';
 import { ElMessage, ElMessageBox, ElIcon } from 'element-plus';
 import { CirclePlus, User, UserFilled, Search, VideoPlay, SuccessFilled, SwitchButton, Setting, OfficeBuilding, ArrowUp, ArrowDown, Delete, Tickets } from '@element-plus/icons-vue';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
@@ -532,12 +545,35 @@ const list = ref<QueueItem[]>([]);
 const loading = ref(false);
 const searchPlate = ref('');
 
+const noPlateNumber = resolveNoPlateNumber();
+function isNoPlateValue(plate: any): boolean {
+	try{
+		const s = String(plate || '').trim().toUpperCase();
+		const target = String(noPlateNumber || '川K00000').trim().toUpperCase();
+		return !!s && s === target;
+	}catch{ return false; }
+}
+function plateLabel(row: any): string {
+	try{
+		const plate = String(row?.plateNumber || '').trim();
+		if (isNoPlateValue(plate)) return `无牌车（#${Number(row?.id||0)||0}）`;
+		return plate || '-';
+	}catch{ return '-'; }
+}
+
 const filtered = computed(()=>{
     const kw = searchPlate.value.trim().toUpperCase();
     const selected = new Set(selectedTypeIds.value);
     let arr = list.value || [];
     if (selected.size) arr = arr.filter((x:any)=> selected.has(Number(x?.queueTypeId || x?.queueType?.id || 0)));
-    if (kw) arr = arr.filter(x => String(x.plateNumber||'').toUpperCase().includes(kw));
+    if (kw) {
+		// 允许用“无牌/无牌车”作为快捷搜索
+		if (kw.includes('无牌')) {
+			arr = arr.filter((x:any) => isNoPlateValue(x?.plateNumber) || String(x?.plateNumber||'').toUpperCase().includes(kw));
+		} else {
+			arr = arr.filter(x => String(x.plateNumber||'').toUpperCase().includes(kw));
+		}
+	}
     return arr;
 });
 
@@ -913,7 +949,7 @@ async function submitCreateOrderAndEnqueue(){
     } finally { submittingOrder.value=false; }
 }
 
-const selectedPlate = computed(()=>{
+const selectedPlateRaw = computed(()=>{
     if (mode.value === 'member') {
         const v = memberVehicles.value.find(v=>v.id === form.value.vehicleId);
         if (v?.plateNumber) return v.plateNumber;
@@ -921,6 +957,25 @@ const selectedPlate = computed(()=>{
     if (mode.value === 'existing' && form.value.existingVehicle?.plateNumber) return form.value.existingVehicle.plateNumber;
     return form.value.plateNumber || '-';
 });
+
+// 一键选择“无牌车”（系统保留占位车辆）
+async function pickNoPlateForWizard(){
+	try{
+		const plate = String(resolveNoPlateNumber() || noPlateNumber || '川K00000').trim();
+		if (!plate) { ElMessage.error('无牌车占位车牌未配置'); return; }
+		const created:any = await vehicleControllerCreateGuest({ plateNumber: plate, typeMain: '轿车' } as any);
+		const id = Number((created as any)?.id || 0) || 0;
+		if (!id) { ElMessage.error('无牌车选择失败'); return; }
+		// 统一切到“现有车辆”模式，并通过 vehicleId 走后端（避免触发表单必填校验）
+		mode.value = 'existing';
+		form.value.vehicleId = id;
+		form.value.plateNumber = String((created as any)?.plateNumber || plate);
+		form.value.existingVehicle = { id, plateNumber: form.value.plateNumber };
+		ElMessage.success('已选择无牌车');
+	}catch(e:any){
+		ElMessage.error(String(e?.message||'无牌车选择失败'));
+	}
+}
 
 function onWizardSelectionChange(rows: any[]){
     wizardSelectedProductIds.value = Array.isArray(rows) ? rows.map((r:any)=>r.id) : [];

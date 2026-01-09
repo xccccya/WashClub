@@ -73,9 +73,9 @@
 					<div class="panel-actions">
 						<div class="action-row top">
 							<el-radio-group v-model="activeTab" class="segmented" @change="onTabChange">
-								<el-radio-button label="ADMIN">管理端通知</el-radio-button>
-								<el-radio-button label="MEMBER">会员端通知</el-radio-button>
-								<el-radio-button label="WXAPP">小程序订阅消息</el-radio-button>
+								<el-radio-button value="ADMIN">管理端通知</el-radio-button>
+								<el-radio-button value="MEMBER">会员端通知</el-radio-button>
+								<el-radio-button value="WXAPP">小程序订阅消息</el-radio-button>
 							</el-radio-group>
 						</div>
 						<div class="action-row filters">

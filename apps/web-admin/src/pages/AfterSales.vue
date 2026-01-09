@@ -84,8 +84,8 @@
 					<el-form label-width="96px" style="margin-top:8px;">
 						<el-form-item label="退款方式">
 							<el-radio-group v-model="auditRefundMode">
-								<el-radio label="FULL" :disabled="auditHasPartial">全额退款</el-radio>
-								<el-radio label="PART">部分退款</el-radio>
+								<el-radio value="FULL" :disabled="auditHasPartial">全额退款</el-radio>
+								<el-radio value="PART">部分退款</el-radio>
 							</el-radio-group>
 						</el-form-item>
 						<el-form-item v-if="auditRefundMode==='PART'" label="退款金额">

@@ -115,9 +115,9 @@
         <view role="button" class="btn add" @tap="onAddMember">添加</view>
       </view>
       <view class="member-list">
-        <view v-for="m in members" :key="m.memberId" class="admin-item">
+          <view v-for="m in members" :key="m.memberId" class="admin-item">
           <view class="admin-main">
-            <image class="admin-avatar" :src="m.avatarUrl ? toAbs(m.avatarUrl) : '/static/icons/jtuser.png'" mode="aspectFill" />
+            <image class="admin-avatar" :src="avatarOf(m.avatarUrl)" mode="aspectFill" />
             <view class="admin-info">
               <text class="admin-name">{{ m.name || '成员' }}</text>
               <text class="admin-phone">{{ m.phone }}</text>
@@ -141,7 +141,7 @@
       <view v-if="admins.length" class="admin-list">
         <view v-for="(a, i) in admins" :key="i" class="admin-item">
           <view class="admin-main">
-            <image class="admin-avatar" :src="a.avatarUrl ? toAbs(a.avatarUrl) : '/static/icons/jtuser.png'" mode="aspectFill" />
+            <image class="admin-avatar" :src="avatarOf(a.avatarUrl)" mode="aspectFill" />
             <view class="admin-info">
               <text class="admin-name">{{ a.name || '管理员' }}</text>
               <text class="admin-phone">{{ a.phone }}</text>
@@ -175,6 +175,7 @@ import {
   groupMiniappControllerMyGroupMembers,
   groupMiniappControllerMyGroupSummary,
   groupMiniappControllerRemoveMember,
+  systemSettingControllerGetPublicSetting,
 } from '@wash/api-client';
 declare const uni: any;
 
@@ -195,6 +196,7 @@ const totalCardTimes = computed(()=>{
 const phoneInput = ref('');
 const members = ref<any[]>([]);
 const myMemberId = ref<number | null>(null);
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string|null } | null>(null);
 
 const greetText = computed(()=>{
   const h = new Date().getHours();
@@ -206,6 +208,21 @@ function toAbs(u?: string){
   try { if (/^https?:\/\//i.test(u)) return u; } catch {}
   if (u.startsWith('/')) return API_BASE + u;
   return API_BASE + '/' + u;
+}
+async function ensureSiteSetting(){
+  if (siteSetting.value) return;
+  try{
+    siteSetting.value = (await systemSettingControllerGetPublicSetting() as any) || null;
+  }catch{
+    siteSetting.value = { defaultMemberAvatarUrl: null };
+  }
+}
+function avatarOf(url?: string | null){
+  const raw = String(url || '').trim();
+  if (raw) return toAbs(raw);
+  const d = String(siteSetting.value?.defaultMemberAvatarUrl || '').trim();
+  if (d) return toAbs(d);
+  return '/static/icons/jtuser.png';
 }
 
 function goBack(){ try { uni.navigateBack(); } catch {} }
@@ -288,7 +305,7 @@ async function loadGroup(){
 function goOrderByNo(no?: string){ try{ const n = String(no||'').trim(); if (!n) return; uni.navigateTo({ url: `/pages/order/detail?no=${encodeURIComponent(n)}` }); }catch{} }
 function goGroupCard(c: any){ try{ if (!c?.id) return; uni.navigateTo({ url: `/pages/group/washcard?id=${c.id}` }); }catch{} }
 
-onMounted(()=>{ try { token.value = uni.getStorageSync('token'); const u = uni.getStorageSync('user'); const id = Number(u?.id); if (Number.isFinite(id)) myMemberId.value = id; } catch {}; loadGroup(); });
+onMounted(()=>{ try { token.value = uni.getStorageSync('token'); const u = uni.getStorageSync('user'); const id = Number(u?.id); if (Number.isFinite(id)) myMemberId.value = id; } catch {}; ensureSiteSetting(); loadGroup(); });
 </script>
 
 <style scoped>

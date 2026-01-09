@@ -77,8 +77,8 @@
 						<el-option label="活跃时间" value="lastActiveAt" />
 					</el-select>
 					<el-radio-group v-model="filters.sortOrder" class="ml-sort-order" @change="onSearch">
-						<el-radio-button label="desc">倒序</el-radio-button>
-						<el-radio-button label="asc">正序</el-radio-button>
+					<el-radio-button value="desc">倒序</el-radio-button>
+					<el-radio-button value="asc">正序</el-radio-button>
 					</el-radio-group>
 				</el-form-item>
 

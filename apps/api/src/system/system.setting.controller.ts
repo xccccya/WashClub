@@ -7,7 +7,7 @@ import { AssetService } from '../file/asset.service.js';
 import { join, dirname } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Response } from 'express';
-import { SystemSiteSettingSaveDto } from './system.setting.dto.js';
+import { SystemBusinessSettingSaveDto, SystemMiniappTermsSaveDto, SystemSiteSettingSaveDto } from './system.setting.dto.js';
 
 @ApiTags('system')
 @Controller('system')
@@ -56,23 +56,91 @@ export class SystemSettingController {
     @ApiOperation({ summary: '保存站点基础设置' })
     @ApiBody({ type: SystemSiteSettingSaveDto })
     async saveSetting(@Body() body: SystemSiteSettingSaveDto) {
-        const payload: any = {
-            title: (body.title || 'WashClub 管理后台').slice(0, 60),
-            logoUrl: body.logoUrl ?? null,
-            bgType: body.bgType === 'image' ? 'image' : 'bing',
-            bgImageUrl: body.bgImageUrl ?? null,
-            defaultMemberAvatarUrl: body.defaultMemberAvatarUrl ?? null,
-            growthPerYuan: Math.max(1, Math.floor(Number(body?.growthPerYuan ?? 1))),
-            businessHoursJson: normalizeBusinessHours(body?.businessHoursJson),
-            ...normalizeManualStatus(body?.busyEnabled, body?.pausedEnabled),
-        };
+        // PATCH 语义：undefined 表示“不修改”，null/空字符串表示“清空”
         const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
+        const current: any = exists || {
+            title: 'WashClub 管理后台',
+            logoUrl: null,
+            bgType: 'bing',
+            bgImageUrl: null,
+            defaultMemberAvatarUrl: null,
+            growthPerYuan: 1,
+            businessHoursJson: { start: '09:00', end: '18:00' },
+            busyEnabled: false,
+            pausedEnabled: false,
+        };
+
+        const payload: any = {};
+        const oldDefaultMemberAvatarUrl = normalizeNullableUrl(current?.defaultMemberAvatarUrl ?? null);
+
+        if (body.title !== undefined) {
+            // 允许传空/空白：回退默认标题
+            const t = String((body as any).title ?? '').trim();
+            payload.title = (t || 'WashClub 管理后台').slice(0, 60);
+        }
+        if ((body as any).logoUrl !== undefined) payload.logoUrl = normalizeNullableUrl((body as any).logoUrl);
+        if ((body as any).bgImageUrl !== undefined) payload.bgImageUrl = normalizeNullableUrl((body as any).bgImageUrl);
+        if ((body as any).defaultMemberAvatarUrl !== undefined) payload.defaultMemberAvatarUrl = normalizeNullableUrl((body as any).defaultMemberAvatarUrl);
+
+        // 背景类型：只有显式传入时才修改；切换回 bing 时默认清空 bgImageUrl 避免残留绑定
+        if ((body as any).bgType !== undefined) {
+            payload.bgType = (body.bgType === 'image') ? 'image' : 'bing';
+            if (payload.bgType === 'bing' && (body as any).bgImageUrl === undefined) {
+                payload.bgImageUrl = null;
+            }
+        }
+
+        if (body.growthPerYuan !== undefined) {
+            payload.growthPerYuan = Math.max(1, Math.floor(Number(body?.growthPerYuan ?? 1)));
+        }
+
+        if ((body as any).businessHoursJson !== undefined) {
+            payload.businessHoursJson = normalizeBusinessHours((body as any).businessHoursJson);
+        }
+
+        // 手动状态互斥：只要任意一个被显式传入，就根据“当前值 + 传入值”归一化后写入两者
+        if ((body as any).busyEnabled !== undefined || (body as any).pausedEnabled !== undefined) {
+            const flags = normalizeManualStatus(
+                (body as any).busyEnabled ?? current.busyEnabled,
+                (body as any).pausedEnabled ?? current.pausedEnabled,
+            );
+            payload.busyEnabled = flags.busyEnabled;
+            payload.pausedEnabled = flags.pausedEnabled;
+        }
+
         let saved: any;
         if (exists) {
             saved = await this.prisma.siteSetting.update({ where: { id: exists.id }, data: payload });
         } else {
             saved = await this.prisma.siteSetting.create({ data: payload });
         }
+
+        // 兼容历史数据：旧版本会在“创建会员”时把当时的默认头像 URL 写死到 Member.avatarUrl。
+        // 需求：未修改过头像（沿用系统默认）的用户，在后台更换默认头像后也要同步。
+        // 解决：当默认头像发生变更时，把 avatarUrl == 旧默认头像 的会员批量置空，
+        // 让客户端按新 defaultMemberAvatarUrl 动态回退。
+        try {
+            const newDefaultMemberAvatarUrl = normalizeNullableUrl(saved?.defaultMemberAvatarUrl ?? null);
+            const changed = (body as any).defaultMemberAvatarUrl !== undefined && oldDefaultMemberAvatarUrl !== newDefaultMemberAvatarUrl;
+            if (changed && oldDefaultMemberAvatarUrl) {
+                const variants = new Set<string>();
+                const s = String(oldDefaultMemberAvatarUrl || '').trim();
+                if (s) variants.add(s);
+                try {
+                    if (/^https?:\/\//i.test(s)) {
+                        const p = new URL(s).pathname;
+                        if (p) variants.add(p);
+                    }
+                } catch {}
+                const list = Array.from(variants).filter(Boolean);
+                if (list.length) {
+                    await this.prisma.member.updateMany({ where: { avatarUrl: { in: list } }, data: { avatarUrl: null } });
+                    // 管理员账号也复用该默认头像：同样将“旧默认头像”置空以实现同步
+                    await this.prisma.user.updateMany({ where: { avatarUrl: { in: list } }, data: { avatarUrl: null } });
+                }
+            }
+        } catch {}
+
         // 同步文件引用绑定
         try {
             const id = '1'; // SiteSetting 逻辑唯一
@@ -81,6 +149,36 @@ export class SystemSettingController {
             await this.syncBindings('SiteSetting', id, 'defaultMemberAvatarUrl', saved.defaultMemberAvatarUrl ? [saved.defaultMemberAvatarUrl] : []);
         } catch {}
         return saved;
+    }
+
+    @Post('site-setting/business')
+    @UseGuards(AdminGuard)
+    @RequirePerm('system-basic')
+    @ApiOperation({ summary: '保存营业状态/营业时间（独立接口，避免覆盖站点其它配置）' })
+    @ApiBody({ type: SystemBusinessSettingSaveDto })
+    async saveBusinessSetting(@Body() body: SystemBusinessSettingSaveDto) {
+        const exists = await this.prisma.siteSetting.findFirst().catch(() => null);
+        const current: any = exists || { businessHoursJson: { start: '09:00', end: '18:00' }, busyEnabled: false, pausedEnabled: false };
+
+        const payload: any = {};
+        if ((body as any).businessHoursJson !== undefined) payload.businessHoursJson = normalizeBusinessHours((body as any).businessHoursJson);
+        if ((body as any).busyEnabled !== undefined || (body as any).pausedEnabled !== undefined) {
+            const flags = normalizeManualStatus(
+                (body as any).busyEnabled ?? current.busyEnabled,
+                (body as any).pausedEnabled ?? current.pausedEnabled,
+            );
+            payload.busyEnabled = flags.busyEnabled;
+            payload.pausedEnabled = flags.pausedEnabled;
+        }
+
+        let saved: any;
+        if (exists) {
+            saved = await this.prisma.siteSetting.update({ where: { id: exists.id }, data: payload });
+        } else {
+            // 站点配置表不存在时，只写入营业字段，其他字段走 DB 默认
+            saved = await this.prisma.siteSetting.create({ data: payload });
+        }
+        return { businessHoursJson: saved.businessHoursJson, busyEnabled: saved.busyEnabled, pausedEnabled: saved.pausedEnabled };
     }
 
     // 计算当前营业状态（公共接口）
@@ -158,8 +256,9 @@ export class SystemSettingController {
     @UseGuards(AdminGuard)
     @RequirePerm('system-basic')
     @ApiOperation({ summary: '保存小程序用户协议（HTML）' })
-    async saveMiniappTerms(@Body() body: { html?: string }) {
-        const raw = String(body?.html ?? '').trim();
+    @ApiBody({ type: SystemMiniappTermsSaveDto })
+    async saveMiniappTerms(@Body() body: SystemMiniappTermsSaveDto) {
+        const raw = String((body as any)?.html ?? '').trim();
         // 允许空：写入占位模板，确保有有效HTML骨架
         const html = raw || '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><title>用户协议</title></head><body><h1>用户协议</h1><p>内容为空。</p></body></html>';
         const filePath = this.getTermsFilePath();
@@ -210,6 +309,13 @@ function normalizeManualStatus(busy?: any, paused?: any): { busyEnabled: boolean
     if (p) return { busyEnabled: false, pausedEnabled: true };
     if (b) return { busyEnabled: true, pausedEnabled: false };
     return { busyEnabled: false, pausedEnabled: false };
+}
+
+function normalizeNullableUrl(input: any): string | null {
+    if (input === null) return null;
+    if (input === undefined) return null; // 调用侧需用 !== undefined 判断是否要写入；这里仅做归一化
+    const s = String(input ?? '').trim();
+    return s ? s : null;
 }
 
 type BizStatus = 'OPEN'|'REST'|'BUSY'|'PAUSED';

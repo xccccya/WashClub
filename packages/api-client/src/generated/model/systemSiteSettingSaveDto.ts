@@ -5,10 +5,7 @@
  * API for 一体化洗车门店管理平台
  * OpenAPI spec version: 1.0.0
  */
-import type { SystemSiteSettingSaveDtoLogoUrl } from './systemSiteSettingSaveDtoLogoUrl';
 import type { SystemSiteSettingSaveDtoBgType } from './systemSiteSettingSaveDtoBgType';
-import type { SystemSiteSettingSaveDtoBgImageUrl } from './systemSiteSettingSaveDtoBgImageUrl';
-import type { SystemSiteSettingSaveDtoDefaultMemberAvatarUrl } from './systemSiteSettingSaveDtoDefaultMemberAvatarUrl';
 import type { SystemSiteSettingSaveDtoBusinessHoursJson } from './systemSiteSettingSaveDtoBusinessHoursJson';
 
 export interface SystemSiteSettingSaveDto {
@@ -18,19 +15,19 @@ export interface SystemSiteSettingSaveDto {
    * 站点Logo URL/相对路径
    * @nullable
    */
-  logoUrl?: SystemSiteSettingSaveDtoLogoUrl;
+  logoUrl?: string | null;
   /** 背景类型 */
   bgType?: SystemSiteSettingSaveDtoBgType;
   /**
    * 背景图片 URL/相对路径（bgType=image 时）
    * @nullable
    */
-  bgImageUrl?: SystemSiteSettingSaveDtoBgImageUrl;
+  bgImageUrl?: string | null;
   /**
    * 默认会员头像 URL/相对路径
    * @nullable
    */
-  defaultMemberAvatarUrl?: SystemSiteSettingSaveDtoDefaultMemberAvatarUrl;
+  defaultMemberAvatarUrl?: string | null;
   /** 每消费 1 元获得的成长值（>=1） */
   growthPerYuan?: number;
   /**

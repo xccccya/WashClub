@@ -14,6 +14,12 @@ import type {
   AddressMyCreateDto,
   AddressMyUpdateDto,
   AdjustMemberGrowthDto,
+  AdminMeDto,
+  AdminMenuDto,
+  AdminRoleControllerRemoveRole200,
+  AdminRoleDto,
+  AdminRoleOptionDto,
+  AdminUserDto,
   AssetBindDto,
   AssetBulkThumbsDto,
   AssetCleanupDto,
@@ -50,6 +56,7 @@ import type {
   GroupAddMembersDto,
   GroupBalanceAdjustDto,
   GroupBalanceControllerLedgerParams,
+  GroupBalanceControllerMonthlyConsumptionParams,
   GroupBalanceRechargeDto,
   GroupCardAddDto,
   GroupCardConsumeDto,
@@ -83,6 +90,7 @@ import type {
   MemberControllerSetActiveParams,
   MemberCouponAdminControllerListParams,
   MemberPointsAdjustDto,
+  MemberPointsControllerListLogsPagedParams,
   MemberPointsControllerListLogsParams,
   MemberPointsSaveConfigDto,
   MemberSignInControllerGetMemberStatusParams,
@@ -130,11 +138,13 @@ import type {
   StoreProductControllerListParams,
   StoreProductCreateDto,
   StoreProductUpdateDto,
+  SystemBusinessSettingSaveDto,
   SystemEmployeeControllerListParams,
   SystemEmployeeControllerLookupMemberParams,
   SystemMiniappEmployeeControllerDailyParams,
   SystemMiniappEmployeeControllerMyEmployeeProfileParams,
   SystemMiniappEmployeeControllerOverviewParams,
+  SystemMiniappTermsSaveDto,
   SystemSiteSettingSaveDto,
   UpdateAdminAvatarDto,
   UpdateAdminDto,
@@ -150,6 +160,7 @@ import type {
   UpdateRoleDto,
   UpdateScrollNoticeDto,
   VehicleControllerAdminListParams,
+  VehicleControllerAdminRebindLogsParams,
   VehicleControllerMyVehiclesParams,
   VehicleControllerSearchParams,
   VehicleCreateForMemberByPhoneDto,
@@ -159,6 +170,7 @@ import type {
   VehicleUpdateDto,
   WashCardControllerAdminListParams,
   WashCardControllerAdminLogsParams,
+  WashCardControllerAdminMemberStatsParams,
   WashCardControllerMyGetParams,
   WashCardControllerMyListParams,
   WashCardControllerMyLogsParams,
@@ -172,18 +184,6 @@ import { createHttpClient } from '../http-mutator';
 /**
  * @summary 健康检查
  */
-export type appControllerHealthResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type appControllerHealthResponseSuccess = (appControllerHealthResponse200) & {
-  headers: Headers;
-};
-;
-
-export type appControllerHealthResponse = (appControllerHealthResponseSuccess)
-
 export const getAppControllerHealthUrl = () => {
 
 
@@ -192,9 +192,9 @@ export const getAppControllerHealthUrl = () => {
   return `/health`
 }
 
-export const appControllerHealth = async ( options?: RequestInit): Promise<appControllerHealthResponse> => {
+export const appControllerHealth = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<appControllerHealthResponse>(getAppControllerHealthUrl(),
+  return createHttpClient<void>(getAppControllerHealthUrl(),
   {      
     ...options,
     method: 'GET'
@@ -208,18 +208,6 @@ export const appControllerHealth = async ( options?: RequestInit): Promise<appCo
 /**
  * @summary 会员登录（账号+密码）
  */
-export type authControllerLoginResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerLoginResponseSuccess = (authControllerLoginResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerLoginResponse = (authControllerLoginResponseSuccess)
-
 export const getAuthControllerLoginUrl = () => {
 
 
@@ -228,9 +216,9 @@ export const getAuthControllerLoginUrl = () => {
   return `/auth/login`
 }
 
-export const authControllerLogin = async (loginDto: LoginDto, options?: RequestInit): Promise<authControllerLoginResponse> => {
+export const authControllerLogin = async (loginDto: LoginDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerLoginResponse>(getAuthControllerLoginUrl(),
+  return createHttpClient<void>(getAuthControllerLoginUrl(),
   {      
     ...options,
     method: 'POST',
@@ -245,18 +233,6 @@ export const authControllerLogin = async (loginDto: LoginDto, options?: RequestI
 /**
  * @summary 发送短信验证码（登录/注册/重置/换号）
  */
-export type authControllerSendLoginCodeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerSendLoginCodeResponseSuccess = (authControllerSendLoginCodeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerSendLoginCodeResponse = (authControllerSendLoginCodeResponseSuccess)
-
 export const getAuthControllerSendLoginCodeUrl = () => {
 
 
@@ -265,9 +241,9 @@ export const getAuthControllerSendLoginCodeUrl = () => {
   return `/auth/send-code`
 }
 
-export const authControllerSendLoginCode = async (sendCodeDto: SendCodeDto, options?: RequestInit): Promise<authControllerSendLoginCodeResponse> => {
+export const authControllerSendLoginCode = async (sendCodeDto: SendCodeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerSendLoginCodeResponse>(getAuthControllerSendLoginCodeUrl(),
+  return createHttpClient<void>(getAuthControllerSendLoginCodeUrl(),
   {      
     ...options,
     method: 'POST',
@@ -282,18 +258,6 @@ export const authControllerSendLoginCode = async (sendCodeDto: SendCodeDto, opti
 /**
  * @summary 短信验证码登录/注册
  */
-export type authControllerLoginByCodeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerLoginByCodeResponseSuccess = (authControllerLoginByCodeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerLoginByCodeResponse = (authControllerLoginByCodeResponseSuccess)
-
 export const getAuthControllerLoginByCodeUrl = () => {
 
 
@@ -302,9 +266,9 @@ export const getAuthControllerLoginByCodeUrl = () => {
   return `/auth/login/code`
 }
 
-export const authControllerLoginByCode = async (loginByCodeDto: LoginByCodeDto, options?: RequestInit): Promise<authControllerLoginByCodeResponse> => {
+export const authControllerLoginByCode = async (loginByCodeDto: LoginByCodeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerLoginByCodeResponse>(getAuthControllerLoginByCodeUrl(),
+  return createHttpClient<void>(getAuthControllerLoginByCodeUrl(),
   {      
     ...options,
     method: 'POST',
@@ -319,18 +283,6 @@ export const authControllerLoginByCode = async (loginByCodeDto: LoginByCodeDto, 
 /**
  * @summary 重置会员密码（短信验证码）
  */
-export type authControllerResetPasswordResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerResetPasswordResponseSuccess = (authControllerResetPasswordResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerResetPasswordResponse = (authControllerResetPasswordResponseSuccess)
-
 export const getAuthControllerResetPasswordUrl = () => {
 
 
@@ -339,9 +291,9 @@ export const getAuthControllerResetPasswordUrl = () => {
   return `/auth/reset-password`
 }
 
-export const authControllerResetPassword = async (resetPasswordDto: ResetPasswordDto, options?: RequestInit): Promise<authControllerResetPasswordResponse> => {
+export const authControllerResetPassword = async (resetPasswordDto: ResetPasswordDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerResetPasswordResponse>(getAuthControllerResetPasswordUrl(),
+  return createHttpClient<void>(getAuthControllerResetPasswordUrl(),
   {      
     ...options,
     method: 'POST',
@@ -356,18 +308,6 @@ export const authControllerResetPassword = async (resetPasswordDto: ResetPasswor
 /**
  * @summary 更换会员手机号（短信验证码）
  */
-export type authControllerChangePhoneResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerChangePhoneResponseSuccess = (authControllerChangePhoneResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerChangePhoneResponse = (authControllerChangePhoneResponseSuccess)
-
 export const getAuthControllerChangePhoneUrl = () => {
 
 
@@ -376,9 +316,9 @@ export const getAuthControllerChangePhoneUrl = () => {
   return `/auth/change-phone`
 }
 
-export const authControllerChangePhone = async (changePhoneByCodeDto: ChangePhoneByCodeDto, options?: RequestInit): Promise<authControllerChangePhoneResponse> => {
+export const authControllerChangePhone = async (changePhoneByCodeDto: ChangePhoneByCodeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerChangePhoneResponse>(getAuthControllerChangePhoneUrl(),
+  return createHttpClient<void>(getAuthControllerChangePhoneUrl(),
   {      
     ...options,
     method: 'POST',
@@ -393,18 +333,6 @@ export const authControllerChangePhone = async (changePhoneByCodeDto: ChangePhon
 /**
  * @summary 微信手机号组件 code 换取手机号
  */
-export type authControllerResolvePhoneResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerResolvePhoneResponseSuccess = (authControllerResolvePhoneResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerResolvePhoneResponse = (authControllerResolvePhoneResponseSuccess)
-
 export const getAuthControllerResolvePhoneUrl = () => {
 
 
@@ -413,9 +341,9 @@ export const getAuthControllerResolvePhoneUrl = () => {
   return `/auth/wechat/resolve-phone`
 }
 
-export const authControllerResolvePhone = async (resolvePhoneDto: ResolvePhoneDto, options?: RequestInit): Promise<authControllerResolvePhoneResponse> => {
+export const authControllerResolvePhone = async (resolvePhoneDto: ResolvePhoneDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerResolvePhoneResponse>(getAuthControllerResolvePhoneUrl(),
+  return createHttpClient<void>(getAuthControllerResolvePhoneUrl(),
   {      
     ...options,
     method: 'POST',
@@ -430,18 +358,6 @@ export const authControllerResolvePhone = async (resolvePhoneDto: ResolvePhoneDt
 /**
  * @summary 微信一键登录（手机号校验 + openid）
  */
-export type authControllerWechatOneTapResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerWechatOneTapResponseSuccess = (authControllerWechatOneTapResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerWechatOneTapResponse = (authControllerWechatOneTapResponseSuccess)
-
 export const getAuthControllerWechatOneTapUrl = () => {
 
 
@@ -450,9 +366,9 @@ export const getAuthControllerWechatOneTapUrl = () => {
   return `/auth/wechat/one-tap`
 }
 
-export const authControllerWechatOneTap = async (wechatOneTapDto: WechatOneTapDto, options?: RequestInit): Promise<authControllerWechatOneTapResponse> => {
+export const authControllerWechatOneTap = async (wechatOneTapDto: WechatOneTapDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerWechatOneTapResponse>(getAuthControllerWechatOneTapUrl(),
+  return createHttpClient<void>(getAuthControllerWechatOneTapUrl(),
   {      
     ...options,
     method: 'POST',
@@ -467,18 +383,6 @@ export const authControllerWechatOneTap = async (wechatOneTapDto: WechatOneTapDt
 /**
  * @summary 管理员登录（账号+密码）
  */
-export type authControllerAdminLoginResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerAdminLoginResponseSuccess = (authControllerAdminLoginResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerAdminLoginResponse = (authControllerAdminLoginResponseSuccess)
-
 export const getAuthControllerAdminLoginUrl = () => {
 
 
@@ -487,9 +391,9 @@ export const getAuthControllerAdminLoginUrl = () => {
   return `/auth/admin/login`
 }
 
-export const authControllerAdminLogin = async (loginDto: LoginDto, options?: RequestInit): Promise<authControllerAdminLoginResponse> => {
+export const authControllerAdminLogin = async (loginDto: LoginDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerAdminLoginResponse>(getAuthControllerAdminLoginUrl(),
+  return createHttpClient<void>(getAuthControllerAdminLoginUrl(),
   {      
     ...options,
     method: 'POST',
@@ -504,18 +408,6 @@ export const authControllerAdminLogin = async (loginDto: LoginDto, options?: Req
 /**
  * @summary 管理员修改昵称
  */
-export type authControllerUpdateAdminNicknameResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerUpdateAdminNicknameResponseSuccess = (authControllerUpdateAdminNicknameResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerUpdateAdminNicknameResponse = (authControllerUpdateAdminNicknameResponseSuccess)
-
 export const getAuthControllerUpdateAdminNicknameUrl = () => {
 
 
@@ -524,9 +416,9 @@ export const getAuthControllerUpdateAdminNicknameUrl = () => {
   return `/auth/admin/update-nickname`
 }
 
-export const authControllerUpdateAdminNickname = async (updateNicknameDto: UpdateNicknameDto, options?: RequestInit): Promise<authControllerUpdateAdminNicknameResponse> => {
+export const authControllerUpdateAdminNickname = async (updateNicknameDto: UpdateNicknameDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerUpdateAdminNicknameResponse>(getAuthControllerUpdateAdminNicknameUrl(),
+  return createHttpClient<void>(getAuthControllerUpdateAdminNicknameUrl(),
   {      
     ...options,
     method: 'POST',
@@ -541,18 +433,6 @@ export const authControllerUpdateAdminNickname = async (updateNicknameDto: Updat
 /**
  * @summary 管理员修改密码
  */
-export type authControllerUpdateAdminPasswordResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerUpdateAdminPasswordResponseSuccess = (authControllerUpdateAdminPasswordResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerUpdateAdminPasswordResponse = (authControllerUpdateAdminPasswordResponseSuccess)
-
 export const getAuthControllerUpdateAdminPasswordUrl = () => {
 
 
@@ -561,9 +441,9 @@ export const getAuthControllerUpdateAdminPasswordUrl = () => {
   return `/auth/admin/update-password`
 }
 
-export const authControllerUpdateAdminPassword = async (updatePasswordDto: UpdatePasswordDto, options?: RequestInit): Promise<authControllerUpdateAdminPasswordResponse> => {
+export const authControllerUpdateAdminPassword = async (updatePasswordDto: UpdatePasswordDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerUpdateAdminPasswordResponse>(getAuthControllerUpdateAdminPasswordUrl(),
+  return createHttpClient<void>(getAuthControllerUpdateAdminPasswordUrl(),
   {      
     ...options,
     method: 'POST',
@@ -578,18 +458,6 @@ export const authControllerUpdateAdminPassword = async (updatePasswordDto: Updat
 /**
  * @summary 管理员更换头像
  */
-export type authControllerUpdateAdminAvatarResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type authControllerUpdateAdminAvatarResponseSuccess = (authControllerUpdateAdminAvatarResponse201) & {
-  headers: Headers;
-};
-;
-
-export type authControllerUpdateAdminAvatarResponse = (authControllerUpdateAdminAvatarResponseSuccess)
-
 export const getAuthControllerUpdateAdminAvatarUrl = () => {
 
 
@@ -598,9 +466,9 @@ export const getAuthControllerUpdateAdminAvatarUrl = () => {
   return `/auth/admin/update-avatar`
 }
 
-export const authControllerUpdateAdminAvatar = async (updateAdminAvatarDto: UpdateAdminAvatarDto, options?: RequestInit): Promise<authControllerUpdateAdminAvatarResponse> => {
+export const authControllerUpdateAdminAvatar = async (updateAdminAvatarDto: UpdateAdminAvatarDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<authControllerUpdateAdminAvatarResponse>(getAuthControllerUpdateAdminAvatarUrl(),
+  return createHttpClient<void>(getAuthControllerUpdateAdminAvatarUrl(),
   {      
     ...options,
     method: 'POST',
@@ -615,18 +483,6 @@ export const authControllerUpdateAdminAvatar = async (updateAdminAvatarDto: Upda
 /**
  * @summary 管理员登录态校验（验签）
  */
-export type authControllerAdminMeResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type authControllerAdminMeResponseSuccess = (authControllerAdminMeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type authControllerAdminMeResponse = (authControllerAdminMeResponseSuccess)
-
 export const getAuthControllerAdminMeUrl = () => {
 
 
@@ -635,9 +491,9 @@ export const getAuthControllerAdminMeUrl = () => {
   return `/auth/admin/me`
 }
 
-export const authControllerAdminMe = async ( options?: RequestInit): Promise<authControllerAdminMeResponse> => {
+export const authControllerAdminMe = async ( options?: RequestInit): Promise<AdminMeDto> => {
   
-  return createHttpClient<authControllerAdminMeResponse>(getAuthControllerAdminMeUrl(),
+  return createHttpClient<AdminMeDto>(getAuthControllerAdminMeUrl(),
   {      
     ...options,
     method: 'GET'
@@ -651,18 +507,6 @@ export const authControllerAdminMe = async ( options?: RequestInit): Promise<aut
 /**
  * @summary 角色列表
  */
-export type adminRoleControllerListRolesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerListRolesResponseSuccess = (adminRoleControllerListRolesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerListRolesResponse = (adminRoleControllerListRolesResponseSuccess)
-
 export const getAdminRoleControllerListRolesUrl = () => {
 
 
@@ -671,9 +515,9 @@ export const getAdminRoleControllerListRolesUrl = () => {
   return `/system/roles`
 }
 
-export const adminRoleControllerListRoles = async ( options?: RequestInit): Promise<adminRoleControllerListRolesResponse> => {
+export const adminRoleControllerListRoles = async ( options?: RequestInit): Promise<AdminRoleDto[]> => {
   
-  return createHttpClient<adminRoleControllerListRolesResponse>(getAdminRoleControllerListRolesUrl(),
+  return createHttpClient<AdminRoleDto[]>(getAdminRoleControllerListRolesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -687,18 +531,6 @@ export const adminRoleControllerListRoles = async ( options?: RequestInit): Prom
 /**
  * @summary 创建角色
  */
-export type adminRoleControllerCreateRoleResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type adminRoleControllerCreateRoleResponseSuccess = (adminRoleControllerCreateRoleResponse201) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerCreateRoleResponse = (adminRoleControllerCreateRoleResponseSuccess)
-
 export const getAdminRoleControllerCreateRoleUrl = () => {
 
 
@@ -707,9 +539,9 @@ export const getAdminRoleControllerCreateRoleUrl = () => {
   return `/system/roles`
 }
 
-export const adminRoleControllerCreateRole = async (createRoleDto: CreateRoleDto, options?: RequestInit): Promise<adminRoleControllerCreateRoleResponse> => {
+export const adminRoleControllerCreateRole = async (createRoleDto: CreateRoleDto, options?: RequestInit): Promise<AdminRoleDto> => {
   
-  return createHttpClient<adminRoleControllerCreateRoleResponse>(getAdminRoleControllerCreateRoleUrl(),
+  return createHttpClient<AdminRoleDto>(getAdminRoleControllerCreateRoleUrl(),
   {      
     ...options,
     method: 'POST',
@@ -722,20 +554,32 @@ export const adminRoleControllerCreateRole = async (createRoleDto: CreateRoleDto
 
 
 /**
+ * @summary 角色选项（供管理员管理页选择）
+ */
+export const getAdminRoleControllerListRoleOptionsUrl = () => {
+
+
+  
+
+  return `/system/roles/options`
+}
+
+export const adminRoleControllerListRoleOptions = async ( options?: RequestInit): Promise<AdminRoleOptionDto[]> => {
+  
+  return createHttpClient<AdminRoleOptionDto[]>(getAdminRoleControllerListRoleOptionsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
  * @summary 更新角色
  */
-export type adminRoleControllerUpdateRoleResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerUpdateRoleResponseSuccess = (adminRoleControllerUpdateRoleResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerUpdateRoleResponse = (adminRoleControllerUpdateRoleResponseSuccess)
-
 export const getAdminRoleControllerUpdateRoleUrl = (id: string,) => {
 
 
@@ -745,9 +589,9 @@ export const getAdminRoleControllerUpdateRoleUrl = (id: string,) => {
 }
 
 export const adminRoleControllerUpdateRole = async (id: string,
-    updateRoleDto: UpdateRoleDto, options?: RequestInit): Promise<adminRoleControllerUpdateRoleResponse> => {
+    updateRoleDto: UpdateRoleDto, options?: RequestInit): Promise<AdminRoleDto> => {
   
-  return createHttpClient<adminRoleControllerUpdateRoleResponse>(getAdminRoleControllerUpdateRoleUrl(id),
+  return createHttpClient<AdminRoleDto>(getAdminRoleControllerUpdateRoleUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -762,18 +606,6 @@ export const adminRoleControllerUpdateRole = async (id: string,
 /**
  * @summary 删除角色
  */
-export type adminRoleControllerRemoveRoleResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerRemoveRoleResponseSuccess = (adminRoleControllerRemoveRoleResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerRemoveRoleResponse = (adminRoleControllerRemoveRoleResponseSuccess)
-
 export const getAdminRoleControllerRemoveRoleUrl = (id: string,) => {
 
 
@@ -782,9 +614,9 @@ export const getAdminRoleControllerRemoveRoleUrl = (id: string,) => {
   return `/system/roles/${id}`
 }
 
-export const adminRoleControllerRemoveRole = async (id: string, options?: RequestInit): Promise<adminRoleControllerRemoveRoleResponse> => {
+export const adminRoleControllerRemoveRole = async (id: string, options?: RequestInit): Promise<AdminRoleControllerRemoveRole200> => {
   
-  return createHttpClient<adminRoleControllerRemoveRoleResponse>(getAdminRoleControllerRemoveRoleUrl(id),
+  return createHttpClient<AdminRoleControllerRemoveRole200>(getAdminRoleControllerRemoveRoleUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -798,18 +630,6 @@ export const adminRoleControllerRemoveRole = async (id: string, options?: Reques
 /**
  * @summary 管理员列表
  */
-export type adminRoleControllerListAdminsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerListAdminsResponseSuccess = (adminRoleControllerListAdminsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerListAdminsResponse = (adminRoleControllerListAdminsResponseSuccess)
-
 export const getAdminRoleControllerListAdminsUrl = () => {
 
 
@@ -818,9 +638,9 @@ export const getAdminRoleControllerListAdminsUrl = () => {
   return `/system/admins`
 }
 
-export const adminRoleControllerListAdmins = async ( options?: RequestInit): Promise<adminRoleControllerListAdminsResponse> => {
+export const adminRoleControllerListAdmins = async ( options?: RequestInit): Promise<AdminUserDto[]> => {
   
-  return createHttpClient<adminRoleControllerListAdminsResponse>(getAdminRoleControllerListAdminsUrl(),
+  return createHttpClient<AdminUserDto[]>(getAdminRoleControllerListAdminsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -834,18 +654,6 @@ export const adminRoleControllerListAdmins = async ( options?: RequestInit): Pro
 /**
  * @summary 创建管理员
  */
-export type adminRoleControllerCreateAdminResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type adminRoleControllerCreateAdminResponseSuccess = (adminRoleControllerCreateAdminResponse201) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerCreateAdminResponse = (adminRoleControllerCreateAdminResponseSuccess)
-
 export const getAdminRoleControllerCreateAdminUrl = () => {
 
 
@@ -854,9 +662,9 @@ export const getAdminRoleControllerCreateAdminUrl = () => {
   return `/system/admins`
 }
 
-export const adminRoleControllerCreateAdmin = async (createAdminDto: CreateAdminDto, options?: RequestInit): Promise<adminRoleControllerCreateAdminResponse> => {
+export const adminRoleControllerCreateAdmin = async (createAdminDto: CreateAdminDto, options?: RequestInit): Promise<AdminUserDto> => {
   
-  return createHttpClient<adminRoleControllerCreateAdminResponse>(getAdminRoleControllerCreateAdminUrl(),
+  return createHttpClient<AdminUserDto>(getAdminRoleControllerCreateAdminUrl(),
   {      
     ...options,
     method: 'POST',
@@ -871,18 +679,6 @@ export const adminRoleControllerCreateAdmin = async (createAdminDto: CreateAdmin
 /**
  * @summary 更新管理员
  */
-export type adminRoleControllerUpdateAdminResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerUpdateAdminResponseSuccess = (adminRoleControllerUpdateAdminResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerUpdateAdminResponse = (adminRoleControllerUpdateAdminResponseSuccess)
-
 export const getAdminRoleControllerUpdateAdminUrl = (id: string,) => {
 
 
@@ -892,9 +688,9 @@ export const getAdminRoleControllerUpdateAdminUrl = (id: string,) => {
 }
 
 export const adminRoleControllerUpdateAdmin = async (id: string,
-    updateAdminDto: UpdateAdminDto, options?: RequestInit): Promise<adminRoleControllerUpdateAdminResponse> => {
+    updateAdminDto: UpdateAdminDto, options?: RequestInit): Promise<AdminUserDto> => {
   
-  return createHttpClient<adminRoleControllerUpdateAdminResponse>(getAdminRoleControllerUpdateAdminUrl(id),
+  return createHttpClient<AdminUserDto>(getAdminRoleControllerUpdateAdminUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -909,18 +705,6 @@ export const adminRoleControllerUpdateAdmin = async (id: string,
 /**
  * @summary 删除管理员
  */
-export type adminRoleControllerRemoveAdminResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerRemoveAdminResponseSuccess = (adminRoleControllerRemoveAdminResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerRemoveAdminResponse = (adminRoleControllerRemoveAdminResponseSuccess)
-
 export const getAdminRoleControllerRemoveAdminUrl = (id: string,) => {
 
 
@@ -929,9 +713,9 @@ export const getAdminRoleControllerRemoveAdminUrl = (id: string,) => {
   return `/system/admins/${id}`
 }
 
-export const adminRoleControllerRemoveAdmin = async (id: string, options?: RequestInit): Promise<adminRoleControllerRemoveAdminResponse> => {
+export const adminRoleControllerRemoveAdmin = async (id: string, options?: RequestInit): Promise<AdminUserDto> => {
   
-  return createHttpClient<adminRoleControllerRemoveAdminResponse>(getAdminRoleControllerRemoveAdminUrl(id),
+  return createHttpClient<AdminUserDto>(getAdminRoleControllerRemoveAdminUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -945,18 +729,6 @@ export const adminRoleControllerRemoveAdmin = async (id: string, options?: Reque
 /**
  * @summary 系统菜单清单
  */
-export type adminRoleControllerListMenusResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adminRoleControllerListMenusResponseSuccess = (adminRoleControllerListMenusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adminRoleControllerListMenusResponse = (adminRoleControllerListMenusResponseSuccess)
-
 export const getAdminRoleControllerListMenusUrl = () => {
 
 
@@ -965,9 +737,9 @@ export const getAdminRoleControllerListMenusUrl = () => {
   return `/system/menus`
 }
 
-export const adminRoleControllerListMenus = async ( options?: RequestInit): Promise<adminRoleControllerListMenusResponse> => {
+export const adminRoleControllerListMenus = async ( options?: RequestInit): Promise<AdminMenuDto[]> => {
   
-  return createHttpClient<adminRoleControllerListMenusResponse>(getAdminRoleControllerListMenusUrl(),
+  return createHttpClient<AdminMenuDto[]>(getAdminRoleControllerListMenusUrl(),
   {      
     ...options,
     method: 'GET'
@@ -981,18 +753,6 @@ export const adminRoleControllerListMenus = async ( options?: RequestInit): Prom
 /**
  * @summary 短信验证码记录列表（仅查询）
  */
-export type smsAdminControllerListSmsCodesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type smsAdminControllerListSmsCodesResponseSuccess = (smsAdminControllerListSmsCodesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type smsAdminControllerListSmsCodesResponse = (smsAdminControllerListSmsCodesResponseSuccess)
-
 export const getSmsAdminControllerListSmsCodesUrl = (params: SmsAdminControllerListSmsCodesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1008,9 +768,9 @@ export const getSmsAdminControllerListSmsCodesUrl = (params: SmsAdminControllerL
   return stringifiedParams.length > 0 ? `/system/sms-codes?${stringifiedParams}` : `/system/sms-codes`
 }
 
-export const smsAdminControllerListSmsCodes = async (params: SmsAdminControllerListSmsCodesParams, options?: RequestInit): Promise<smsAdminControllerListSmsCodesResponse> => {
+export const smsAdminControllerListSmsCodes = async (params: SmsAdminControllerListSmsCodesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<smsAdminControllerListSmsCodesResponse>(getSmsAdminControllerListSmsCodesUrl(params),
+  return createHttpClient<void>(getSmsAdminControllerListSmsCodesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1024,18 +784,6 @@ export const smsAdminControllerListSmsCodes = async (params: SmsAdminControllerL
 /**
  * @summary 运营概览指标（订单数/支付金额/洗车数量(总)/洗车卡划扣/活跃会员/新增会员）
  */
-export type metricsControllerOverviewResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type metricsControllerOverviewResponseSuccess = (metricsControllerOverviewResponse200) & {
-  headers: Headers;
-};
-;
-
-export type metricsControllerOverviewResponse = (metricsControllerOverviewResponseSuccess)
-
 export const getMetricsControllerOverviewUrl = (params?: MetricsControllerOverviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1051,9 +799,9 @@ export const getMetricsControllerOverviewUrl = (params?: MetricsControllerOvervi
   return stringifiedParams.length > 0 ? `/system/metrics/overview?${stringifiedParams}` : `/system/metrics/overview`
 }
 
-export const metricsControllerOverview = async (params?: MetricsControllerOverviewParams, options?: RequestInit): Promise<metricsControllerOverviewResponse> => {
+export const metricsControllerOverview = async (params?: MetricsControllerOverviewParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<metricsControllerOverviewResponse>(getMetricsControllerOverviewUrl(params),
+  return createHttpClient<void>(getMetricsControllerOverviewUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1067,18 +815,6 @@ export const metricsControllerOverview = async (params?: MetricsControllerOvervi
 /**
  * @summary 按日营收（CTE补零时间序列）
  */
-export type metricsControllerDailyResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type metricsControllerDailyResponseSuccess = (metricsControllerDailyResponse200) & {
-  headers: Headers;
-};
-;
-
-export type metricsControllerDailyResponse = (metricsControllerDailyResponseSuccess)
-
 export const getMetricsControllerDailyUrl = (params: MetricsControllerDailyParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1094,9 +830,9 @@ export const getMetricsControllerDailyUrl = (params: MetricsControllerDailyParam
   return stringifiedParams.length > 0 ? `/system/metrics/daily?${stringifiedParams}` : `/system/metrics/daily`
 }
 
-export const metricsControllerDaily = async (params: MetricsControllerDailyParams, options?: RequestInit): Promise<metricsControllerDailyResponse> => {
+export const metricsControllerDaily = async (params: MetricsControllerDailyParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<metricsControllerDailyResponse>(getMetricsControllerDailyUrl(params),
+  return createHttpClient<void>(getMetricsControllerDailyUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1110,18 +846,6 @@ export const metricsControllerDaily = async (params: MetricsControllerDailyParam
 /**
  * @summary 时间序列：订单笔数/净支付金额/洗车卡划扣次数/洗车数量(总)（近7日/近一月/本月）
  */
-export type metricsControllerSeriesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type metricsControllerSeriesResponseSuccess = (metricsControllerSeriesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type metricsControllerSeriesResponse = (metricsControllerSeriesResponseSuccess)
-
 export const getMetricsControllerSeriesUrl = (params: MetricsControllerSeriesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1137,9 +861,9 @@ export const getMetricsControllerSeriesUrl = (params: MetricsControllerSeriesPar
   return stringifiedParams.length > 0 ? `/system/metrics/series?${stringifiedParams}` : `/system/metrics/series`
 }
 
-export const metricsControllerSeries = async (params: MetricsControllerSeriesParams, options?: RequestInit): Promise<metricsControllerSeriesResponse> => {
+export const metricsControllerSeries = async (params: MetricsControllerSeriesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<metricsControllerSeriesResponse>(getMetricsControllerSeriesUrl(params),
+  return createHttpClient<void>(getMetricsControllerSeriesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1153,18 +877,6 @@ export const metricsControllerSeries = async (params: MetricsControllerSeriesPar
 /**
  * @summary 商品销量Top-N（窗口函数可扩展）
  */
-export type metricsControllerTopProductsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type metricsControllerTopProductsResponseSuccess = (metricsControllerTopProductsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type metricsControllerTopProductsResponse = (metricsControllerTopProductsResponseSuccess)
-
 export const getMetricsControllerTopProductsUrl = (params: MetricsControllerTopProductsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1180,9 +892,9 @@ export const getMetricsControllerTopProductsUrl = (params: MetricsControllerTopP
   return stringifiedParams.length > 0 ? `/system/metrics/top-products?${stringifiedParams}` : `/system/metrics/top-products`
 }
 
-export const metricsControllerTopProducts = async (params: MetricsControllerTopProductsParams, options?: RequestInit): Promise<metricsControllerTopProductsResponse> => {
+export const metricsControllerTopProducts = async (params: MetricsControllerTopProductsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<metricsControllerTopProductsResponse>(getMetricsControllerTopProductsUrl(params),
+  return createHttpClient<void>(getMetricsControllerTopProductsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1196,18 +908,6 @@ export const metricsControllerTopProducts = async (params: MetricsControllerTopP
 /**
  * @summary 列出指定目录下的文件（默认public）
  */
-export type fileControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type fileControllerListResponseSuccess = (fileControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type fileControllerListResponse = (fileControllerListResponseSuccess)
-
 export const getFileControllerListUrl = (params: FileControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1223,9 +923,9 @@ export const getFileControllerListUrl = (params: FileControllerListParams,) => {
   return stringifiedParams.length > 0 ? `/file/list?${stringifiedParams}` : `/file/list`
 }
 
-export const fileControllerList = async (params: FileControllerListParams, options?: RequestInit): Promise<fileControllerListResponse> => {
+export const fileControllerList = async (params: FileControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<fileControllerListResponse>(getFileControllerListUrl(params),
+  return createHttpClient<void>(getFileControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1239,18 +939,6 @@ export const fileControllerList = async (params: FileControllerListParams, optio
 /**
  * @summary 上传文件到指定目录（默认public）
  */
-export type fileControllerUploadResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type fileControllerUploadResponseSuccess = (fileControllerUploadResponse201) & {
-  headers: Headers;
-};
-;
-
-export type fileControllerUploadResponse = (fileControllerUploadResponseSuccess)
-
 export const getFileControllerUploadUrl = () => {
 
 
@@ -1259,7 +947,7 @@ export const getFileControllerUploadUrl = () => {
   return `/file/upload`
 }
 
-export const fileControllerUpload = async (fileControllerUploadBody: FileControllerUploadBody, options?: RequestInit): Promise<fileControllerUploadResponse> => {
+export const fileControllerUpload = async (fileControllerUploadBody: FileControllerUploadBody, options?: RequestInit): Promise<void> => {
     const formData = new FormData();
 if(fileControllerUploadBody.file !== undefined) {
  formData.append(`file`, fileControllerUploadBody.file)
@@ -1268,7 +956,7 @@ if(fileControllerUploadBody.dir !== undefined) {
  formData.append(`dir`, fileControllerUploadBody.dir)
  }
 
-  return createHttpClient<fileControllerUploadResponse>(getFileControllerUploadUrl(),
+  return createHttpClient<void>(getFileControllerUploadUrl(),
   {      
     ...options,
     method: 'POST'
@@ -1283,18 +971,6 @@ if(fileControllerUploadBody.dir !== undefined) {
 /**
  * @summary 删除指定路径文件
  */
-export type fileControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type fileControllerRemoveResponseSuccess = (fileControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type fileControllerRemoveResponse = (fileControllerRemoveResponseSuccess)
-
 export const getFileControllerRemoveUrl = (path: string,) => {
 
 
@@ -1303,9 +979,9 @@ export const getFileControllerRemoveUrl = (path: string,) => {
   return `/file/${path}`
 }
 
-export const fileControllerRemove = async (path: string, options?: RequestInit): Promise<fileControllerRemoveResponse> => {
+export const fileControllerRemove = async (path: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<fileControllerRemoveResponse>(getFileControllerRemoveUrl(path),
+  return createHttpClient<void>(getFileControllerRemoveUrl(path),
   {      
     ...options,
     method: 'DELETE'
@@ -1319,18 +995,6 @@ export const fileControllerRemove = async (path: string, options?: RequestInit):
 /**
  * @summary 文件资产分页查询
  */
-export type assetControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerListResponseSuccess = (assetControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerListResponse = (assetControllerListResponseSuccess)
-
 export const getAssetControllerListUrl = (params: AssetControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1346,9 +1010,9 @@ export const getAssetControllerListUrl = (params: AssetControllerListParams,) =>
   return stringifiedParams.length > 0 ? `/assets?${stringifiedParams}` : `/assets`
 }
 
-export const assetControllerList = async (params: AssetControllerListParams, options?: RequestInit): Promise<assetControllerListResponse> => {
+export const assetControllerList = async (params: AssetControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerListResponse>(getAssetControllerListUrl(params),
+  return createHttpClient<void>(getAssetControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1362,18 +1026,6 @@ export const assetControllerList = async (params: AssetControllerListParams, opt
 /**
  * @summary 文件详情
  */
-export type assetControllerDetailResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerDetailResponseSuccess = (assetControllerDetailResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerDetailResponse = (assetControllerDetailResponseSuccess)
-
 export const getAssetControllerDetailUrl = (id: string,) => {
 
 
@@ -1382,9 +1034,9 @@ export const getAssetControllerDetailUrl = (id: string,) => {
   return `/assets/${id}`
 }
 
-export const assetControllerDetail = async (id: string, options?: RequestInit): Promise<assetControllerDetailResponse> => {
+export const assetControllerDetail = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerDetailResponse>(getAssetControllerDetailUrl(id),
+  return createHttpClient<void>(getAssetControllerDetailUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -1398,18 +1050,6 @@ export const assetControllerDetail = async (id: string, options?: RequestInit): 
 /**
  * @summary 更新文件元数据（重命名/公开性/标签）
  */
-export type assetControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerUpdateResponseSuccess = (assetControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerUpdateResponse = (assetControllerUpdateResponseSuccess)
-
 export const getAssetControllerUpdateUrl = (id: string,) => {
 
 
@@ -1419,9 +1059,9 @@ export const getAssetControllerUpdateUrl = (id: string,) => {
 }
 
 export const assetControllerUpdate = async (id: string,
-    updateAssetDto: UpdateAssetDto, options?: RequestInit): Promise<assetControllerUpdateResponse> => {
+    updateAssetDto: UpdateAssetDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerUpdateResponse>(getAssetControllerUpdateUrl(id),
+  return createHttpClient<void>(getAssetControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PATCH',
@@ -1436,18 +1076,6 @@ export const assetControllerUpdate = async (id: string,
 /**
  * @summary 删除文件（软删；存在引用时禁止）
  */
-export type assetControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerRemoveResponseSuccess = (assetControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerRemoveResponse = (assetControllerRemoveResponseSuccess)
-
 export const getAssetControllerRemoveUrl = (id: string,) => {
 
 
@@ -1456,9 +1084,9 @@ export const getAssetControllerRemoveUrl = (id: string,) => {
   return `/assets/${id}`
 }
 
-export const assetControllerRemove = async (id: string, options?: RequestInit): Promise<assetControllerRemoveResponse> => {
+export const assetControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerRemoveResponse>(getAssetControllerRemoveUrl(id),
+  return createHttpClient<void>(getAssetControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -1472,18 +1100,6 @@ export const assetControllerRemove = async (id: string, options?: RequestInit): 
 /**
  * @summary 上传文件（去重；返回资产；支持自动标签）
  */
-export type assetControllerUploadResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type assetControllerUploadResponseSuccess = (assetControllerUploadResponse201) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerUploadResponse = (assetControllerUploadResponseSuccess)
-
 export const getAssetControllerUploadUrl = () => {
 
 
@@ -1492,7 +1108,7 @@ export const getAssetControllerUploadUrl = () => {
   return `/assets/upload`
 }
 
-export const assetControllerUpload = async (assetControllerUploadBody: AssetControllerUploadBody, options?: RequestInit): Promise<assetControllerUploadResponse> => {
+export const assetControllerUpload = async (assetControllerUploadBody: AssetControllerUploadBody, options?: RequestInit): Promise<void> => {
     const formData = new FormData();
 if(assetControllerUploadBody.file !== undefined) {
  formData.append(`file`, assetControllerUploadBody.file)
@@ -1507,7 +1123,7 @@ if(assetControllerUploadBody.source !== undefined) {
  formData.append(`source`, assetControllerUploadBody.source)
  }
 
-  return createHttpClient<assetControllerUploadResponse>(getAssetControllerUploadUrl(),
+  return createHttpClient<void>(getAssetControllerUploadUrl(),
   {      
     ...options,
     method: 'POST'
@@ -1522,18 +1138,6 @@ if(assetControllerUploadBody.source !== undefined) {
 /**
  * @summary 查看文件引用列表
  */
-export type assetControllerListRefResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerListRefResponseSuccess = (assetControllerListRefResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerListRefResponse = (assetControllerListRefResponseSuccess)
-
 export const getAssetControllerListRefUrl = (id: string,) => {
 
 
@@ -1542,9 +1146,9 @@ export const getAssetControllerListRefUrl = (id: string,) => {
   return `/assets/${id}/references`
 }
 
-export const assetControllerListRef = async (id: string, options?: RequestInit): Promise<assetControllerListRefResponse> => {
+export const assetControllerListRef = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerListRefResponse>(getAssetControllerListRefUrl(id),
+  return createHttpClient<void>(getAssetControllerListRefUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -1558,18 +1162,6 @@ export const assetControllerListRef = async (id: string, options?: RequestInit):
 /**
  * @summary 获取缩略图（图片重定向）
  */
-export type assetControllerThumbResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerThumbResponseSuccess = (assetControllerThumbResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerThumbResponse = (assetControllerThumbResponseSuccess)
-
 export const getAssetControllerThumbUrl = (id: string,) => {
 
 
@@ -1578,9 +1170,9 @@ export const getAssetControllerThumbUrl = (id: string,) => {
   return `/assets/${id}/thumbnail`
 }
 
-export const assetControllerThumb = async (id: string, options?: RequestInit): Promise<assetControllerThumbResponse> => {
+export const assetControllerThumb = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerThumbResponse>(getAssetControllerThumbUrl(id),
+  return createHttpClient<void>(getAssetControllerThumbUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -1594,18 +1186,6 @@ export const assetControllerThumb = async (id: string, options?: RequestInit): P
 /**
  * @summary 生成缩略图（占位：仅回显待生成尺寸）
  */
-export type assetControllerGenThumbsResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type assetControllerGenThumbsResponseSuccess = (assetControllerGenThumbsResponse201) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerGenThumbsResponse = (assetControllerGenThumbsResponseSuccess)
-
 export const getAssetControllerGenThumbsUrl = (id: string,) => {
 
 
@@ -1615,9 +1195,9 @@ export const getAssetControllerGenThumbsUrl = (id: string,) => {
 }
 
 export const assetControllerGenThumbs = async (id: string,
-    assetGenThumbsDto: AssetGenThumbsDto, options?: RequestInit): Promise<assetControllerGenThumbsResponse> => {
+    assetGenThumbsDto: AssetGenThumbsDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerGenThumbsResponse>(getAssetControllerGenThumbsUrl(id),
+  return createHttpClient<void>(getAssetControllerGenThumbsUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -1632,18 +1212,6 @@ export const assetControllerGenThumbs = async (id: string,
 /**
  * @summary 批量预热缩略图（生成常用尺寸）
  */
-export type assetControllerBulkThumbsResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type assetControllerBulkThumbsResponseSuccess = (assetControllerBulkThumbsResponse201) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerBulkThumbsResponse = (assetControllerBulkThumbsResponseSuccess)
-
 export const getAssetControllerBulkThumbsUrl = () => {
 
 
@@ -1652,9 +1220,9 @@ export const getAssetControllerBulkThumbsUrl = () => {
   return `/assets/thumbnails/bulk`
 }
 
-export const assetControllerBulkThumbs = async (assetBulkThumbsDto: AssetBulkThumbsDto, options?: RequestInit): Promise<assetControllerBulkThumbsResponse> => {
+export const assetControllerBulkThumbs = async (assetBulkThumbsDto: AssetBulkThumbsDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerBulkThumbsResponse>(getAssetControllerBulkThumbsUrl(),
+  return createHttpClient<void>(getAssetControllerBulkThumbsUrl(),
   {      
     ...options,
     method: 'POST',
@@ -1669,18 +1237,6 @@ export const assetControllerBulkThumbs = async (assetBulkThumbsDto: AssetBulkThu
 /**
  * @summary 清理变体缩略图并重置 variants
  */
-export type assetControllerCleanupResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type assetControllerCleanupResponseSuccess = (assetControllerCleanupResponse201) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerCleanupResponse = (assetControllerCleanupResponseSuccess)
-
 export const getAssetControllerCleanupUrl = () => {
 
 
@@ -1689,9 +1245,9 @@ export const getAssetControllerCleanupUrl = () => {
   return `/assets/thumbnails/cleanup`
 }
 
-export const assetControllerCleanup = async (assetCleanupDto: AssetCleanupDto, options?: RequestInit): Promise<assetControllerCleanupResponse> => {
+export const assetControllerCleanup = async (assetCleanupDto: AssetCleanupDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerCleanupResponse>(getAssetControllerCleanupUrl(),
+  return createHttpClient<void>(getAssetControllerCleanupUrl(),
   {      
     ...options,
     method: 'POST',
@@ -1706,18 +1262,6 @@ export const assetControllerCleanup = async (assetCleanupDto: AssetCleanupDto, o
 /**
  * @summary 绑定业务引用
  */
-export type assetControllerBindResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type assetControllerBindResponseSuccess = (assetControllerBindResponse201) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerBindResponse = (assetControllerBindResponseSuccess)
-
 export const getAssetControllerBindUrl = (id: string,) => {
 
 
@@ -1727,9 +1271,9 @@ export const getAssetControllerBindUrl = (id: string,) => {
 }
 
 export const assetControllerBind = async (id: string,
-    assetBindDto: AssetBindDto, options?: RequestInit): Promise<assetControllerBindResponse> => {
+    assetBindDto: AssetBindDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerBindResponse>(getAssetControllerBindUrl(id),
+  return createHttpClient<void>(getAssetControllerBindUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -1744,18 +1288,6 @@ export const assetControllerBind = async (id: string,
 /**
  * @summary 解绑业务引用
  */
-export type assetControllerUnBindResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerUnBindResponseSuccess = (assetControllerUnBindResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerUnBindResponse = (assetControllerUnBindResponseSuccess)
-
 export const getAssetControllerUnBindUrl = (id: string,
     bid: string,) => {
 
@@ -1766,9 +1298,9 @@ export const getAssetControllerUnBindUrl = (id: string,
 }
 
 export const assetControllerUnBind = async (id: string,
-    bid: string, options?: RequestInit): Promise<assetControllerUnBindResponse> => {
+    bid: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerUnBindResponse>(getAssetControllerUnBindUrl(id,bid),
+  return createHttpClient<void>(getAssetControllerUnBindUrl(id,bid),
   {      
     ...options,
     method: 'DELETE'
@@ -1782,18 +1314,6 @@ export const assetControllerUnBind = async (id: string,
 /**
  * @summary 获取文件系统状态和改进清单
  */
-export type assetControllerGetSystemStatusResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type assetControllerGetSystemStatusResponseSuccess = (assetControllerGetSystemStatusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type assetControllerGetSystemStatusResponse = (assetControllerGetSystemStatusResponseSuccess)
-
 export const getAssetControllerGetSystemStatusUrl = () => {
 
 
@@ -1802,9 +1322,9 @@ export const getAssetControllerGetSystemStatusUrl = () => {
   return `/assets/system/status`
 }
 
-export const assetControllerGetSystemStatus = async ( options?: RequestInit): Promise<assetControllerGetSystemStatusResponse> => {
+export const assetControllerGetSystemStatus = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<assetControllerGetSystemStatusResponse>(getAssetControllerGetSystemStatusUrl(),
+  return createHttpClient<void>(getAssetControllerGetSystemStatusUrl(),
   {      
     ...options,
     method: 'GET'
@@ -1818,18 +1338,6 @@ export const assetControllerGetSystemStatus = async ( options?: RequestInit): Pr
 /**
  * @summary 会员列表（分页/关键词）
  */
-export type memberControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerListResponseSuccess = (memberControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerListResponse = (memberControllerListResponseSuccess)
-
 export const getMemberControllerListUrl = (params: MemberControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1845,9 +1353,9 @@ export const getMemberControllerListUrl = (params: MemberControllerListParams,) 
   return stringifiedParams.length > 0 ? `/member/list?${stringifiedParams}` : `/member/list`
 }
 
-export const memberControllerList = async (params: MemberControllerListParams, options?: RequestInit): Promise<memberControllerListResponse> => {
+export const memberControllerList = async (params: MemberControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerListResponse>(getMemberControllerListUrl(params),
+  return createHttpClient<void>(getMemberControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1861,18 +1369,6 @@ export const memberControllerList = async (params: MemberControllerListParams, o
 /**
  * @summary 同步游客订单占位账号（根据环境变量 GUEST_MEMBER_ID）
  */
-export type memberControllerSyncGuestOrderOwnerResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberControllerSyncGuestOrderOwnerResponseSuccess = (memberControllerSyncGuestOrderOwnerResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerSyncGuestOrderOwnerResponse = (memberControllerSyncGuestOrderOwnerResponseSuccess)
-
 export const getMemberControllerSyncGuestOrderOwnerUrl = () => {
 
 
@@ -1881,9 +1377,9 @@ export const getMemberControllerSyncGuestOrderOwnerUrl = () => {
   return `/member/_sync-guest-owner`
 }
 
-export const memberControllerSyncGuestOrderOwner = async ( options?: RequestInit): Promise<memberControllerSyncGuestOrderOwnerResponse> => {
+export const memberControllerSyncGuestOrderOwner = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerSyncGuestOrderOwnerResponse>(getMemberControllerSyncGuestOrderOwnerUrl(),
+  return createHttpClient<void>(getMemberControllerSyncGuestOrderOwnerUrl(),
   {      
     ...options,
     method: 'POST'
@@ -1897,18 +1393,6 @@ export const memberControllerSyncGuestOrderOwner = async ( options?: RequestInit
 /**
  * @summary 获取当前游客订单占位账号信息（根据环境变量）
  */
-export type memberControllerGetGuestOrderOwnerResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetGuestOrderOwnerResponseSuccess = (memberControllerGetGuestOrderOwnerResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetGuestOrderOwnerResponse = (memberControllerGetGuestOrderOwnerResponseSuccess)
-
 export const getMemberControllerGetGuestOrderOwnerUrl = () => {
 
 
@@ -1917,9 +1401,9 @@ export const getMemberControllerGetGuestOrderOwnerUrl = () => {
   return `/member/_guest-owner`
 }
 
-export const memberControllerGetGuestOrderOwner = async ( options?: RequestInit): Promise<memberControllerGetGuestOrderOwnerResponse> => {
+export const memberControllerGetGuestOrderOwner = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetGuestOrderOwnerResponse>(getMemberControllerGetGuestOrderOwnerUrl(),
+  return createHttpClient<void>(getMemberControllerGetGuestOrderOwnerUrl(),
   {      
     ...options,
     method: 'GET'
@@ -1933,18 +1417,6 @@ export const memberControllerGetGuestOrderOwner = async ( options?: RequestInit)
 /**
  * @summary 查询当前会员资料（支持token参数）
  */
-export type memberControllerMeResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerMeResponseSuccess = (memberControllerMeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerMeResponse = (memberControllerMeResponseSuccess)
-
 export const getMemberControllerMeUrl = (params: MemberControllerMeParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1960,9 +1432,9 @@ export const getMemberControllerMeUrl = (params: MemberControllerMeParams,) => {
   return stringifiedParams.length > 0 ? `/member/me/profile?${stringifiedParams}` : `/member/me/profile`
 }
 
-export const memberControllerMe = async (params: MemberControllerMeParams, options?: RequestInit): Promise<memberControllerMeResponse> => {
+export const memberControllerMe = async (params: MemberControllerMeParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerMeResponse>(getMemberControllerMeUrl(params),
+  return createHttpClient<void>(getMemberControllerMeUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -1976,18 +1448,6 @@ export const memberControllerMe = async (params: MemberControllerMeParams, optio
 /**
  * @summary 查询当前会员成长值日志（持久化）
  */
-export type memberControllerGetGrowthLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetGrowthLogsResponseSuccess = (memberControllerGetGrowthLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetGrowthLogsResponse = (memberControllerGetGrowthLogsResponseSuccess)
-
 export const getMemberControllerGetGrowthLogsUrl = (params: MemberControllerGetGrowthLogsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2003,9 +1463,9 @@ export const getMemberControllerGetGrowthLogsUrl = (params: MemberControllerGetG
   return stringifiedParams.length > 0 ? `/member/me/growth-logs?${stringifiedParams}` : `/member/me/growth-logs`
 }
 
-export const memberControllerGetGrowthLogs = async (params: MemberControllerGetGrowthLogsParams, options?: RequestInit): Promise<memberControllerGetGrowthLogsResponse> => {
+export const memberControllerGetGrowthLogs = async (params: MemberControllerGetGrowthLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetGrowthLogsResponse>(getMemberControllerGetGrowthLogsUrl(params),
+  return createHttpClient<void>(getMemberControllerGetGrowthLogsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -2019,18 +1479,6 @@ export const memberControllerGetGrowthLogs = async (params: MemberControllerGetG
 /**
  * @summary 查询当前会员积分日志（持久化）
  */
-export type memberControllerGetPointsLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetPointsLogsResponseSuccess = (memberControllerGetPointsLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetPointsLogsResponse = (memberControllerGetPointsLogsResponseSuccess)
-
 export const getMemberControllerGetPointsLogsUrl = (params: MemberControllerGetPointsLogsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2046,9 +1494,9 @@ export const getMemberControllerGetPointsLogsUrl = (params: MemberControllerGetP
   return stringifiedParams.length > 0 ? `/member/me/points-logs?${stringifiedParams}` : `/member/me/points-logs`
 }
 
-export const memberControllerGetPointsLogs = async (params: MemberControllerGetPointsLogsParams, options?: RequestInit): Promise<memberControllerGetPointsLogsResponse> => {
+export const memberControllerGetPointsLogs = async (params: MemberControllerGetPointsLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetPointsLogsResponse>(getMemberControllerGetPointsLogsUrl(params),
+  return createHttpClient<void>(getMemberControllerGetPointsLogsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -2062,18 +1510,6 @@ export const memberControllerGetPointsLogs = async (params: MemberControllerGetP
 /**
  * @summary 查询当前会员积分统计（当前/本月使用/本月获得）
  */
-export type memberControllerGetPointsStatsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetPointsStatsResponseSuccess = (memberControllerGetPointsStatsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetPointsStatsResponse = (memberControllerGetPointsStatsResponseSuccess)
-
 export const getMemberControllerGetPointsStatsUrl = (params: MemberControllerGetPointsStatsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2089,9 +1525,9 @@ export const getMemberControllerGetPointsStatsUrl = (params: MemberControllerGet
   return stringifiedParams.length > 0 ? `/member/me/points-stats?${stringifiedParams}` : `/member/me/points-stats`
 }
 
-export const memberControllerGetPointsStats = async (params: MemberControllerGetPointsStatsParams, options?: RequestInit): Promise<memberControllerGetPointsStatsResponse> => {
+export const memberControllerGetPointsStats = async (params: MemberControllerGetPointsStatsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetPointsStatsResponse>(getMemberControllerGetPointsStatsUrl(params),
+  return createHttpClient<void>(getMemberControllerGetPointsStatsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -2105,18 +1541,6 @@ export const memberControllerGetPointsStats = async (params: MemberControllerGet
 /**
  * @summary 根据会员ID查询成长值日志（管理后台使用）
  */
-export type memberControllerGetGrowthLogsByMemberResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetGrowthLogsByMemberResponseSuccess = (memberControllerGetGrowthLogsByMemberResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetGrowthLogsByMemberResponse = (memberControllerGetGrowthLogsByMemberResponseSuccess)
-
 export const getMemberControllerGetGrowthLogsByMemberUrl = (id: string,
     params: MemberControllerGetGrowthLogsByMemberParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -2134,9 +1558,9 @@ export const getMemberControllerGetGrowthLogsByMemberUrl = (id: string,
 }
 
 export const memberControllerGetGrowthLogsByMember = async (id: string,
-    params: MemberControllerGetGrowthLogsByMemberParams, options?: RequestInit): Promise<memberControllerGetGrowthLogsByMemberResponse> => {
+    params: MemberControllerGetGrowthLogsByMemberParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetGrowthLogsByMemberResponse>(getMemberControllerGetGrowthLogsByMemberUrl(id,params),
+  return createHttpClient<void>(getMemberControllerGetGrowthLogsByMemberUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -2150,18 +1574,6 @@ export const memberControllerGetGrowthLogsByMember = async (id: string,
 /**
  * @summary 管理员手动调整成长值（正负均可），记录备注
  */
-export type memberControllerAdjustGrowthResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberControllerAdjustGrowthResponseSuccess = (memberControllerAdjustGrowthResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerAdjustGrowthResponse = (memberControllerAdjustGrowthResponseSuccess)
-
 export const getMemberControllerAdjustGrowthUrl = (id: string,) => {
 
 
@@ -2171,9 +1583,9 @@ export const getMemberControllerAdjustGrowthUrl = (id: string,) => {
 }
 
 export const memberControllerAdjustGrowth = async (id: string,
-    adjustMemberGrowthDto: AdjustMemberGrowthDto, options?: RequestInit): Promise<memberControllerAdjustGrowthResponse> => {
+    adjustMemberGrowthDto: AdjustMemberGrowthDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerAdjustGrowthResponse>(getMemberControllerAdjustGrowthUrl(id),
+  return createHttpClient<void>(getMemberControllerAdjustGrowthUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -2188,18 +1600,6 @@ export const memberControllerAdjustGrowth = async (id: string,
 /**
  * @summary 心跳：设置会员在线活跃状态
  */
-export type memberControllerSetActiveResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberControllerSetActiveResponseSuccess = (memberControllerSetActiveResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerSetActiveResponse = (memberControllerSetActiveResponseSuccess)
-
 export const getMemberControllerSetActiveUrl = (params: MemberControllerSetActiveParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2215,9 +1615,9 @@ export const getMemberControllerSetActiveUrl = (params: MemberControllerSetActiv
   return stringifiedParams.length > 0 ? `/member/me/active?${stringifiedParams}` : `/member/me/active`
 }
 
-export const memberControllerSetActive = async (params: MemberControllerSetActiveParams, options?: RequestInit): Promise<memberControllerSetActiveResponse> => {
+export const memberControllerSetActive = async (params: MemberControllerSetActiveParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerSetActiveResponse>(getMemberControllerSetActiveUrl(params),
+  return createHttpClient<void>(getMemberControllerSetActiveUrl(params),
   {      
     ...options,
     method: 'POST'
@@ -2231,18 +1631,6 @@ export const memberControllerSetActive = async (params: MemberControllerSetActiv
 /**
  * @summary 获取会员详情
  */
-export type memberControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerGetResponseSuccess = (memberControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerGetResponse = (memberControllerGetResponseSuccess)
-
 export const getMemberControllerGetUrl = (id: string,) => {
 
 
@@ -2251,9 +1639,9 @@ export const getMemberControllerGetUrl = (id: string,) => {
   return `/member/${id}`
 }
 
-export const memberControllerGet = async (id: string, options?: RequestInit): Promise<memberControllerGetResponse> => {
+export const memberControllerGet = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerGetResponse>(getMemberControllerGetUrl(id),
+  return createHttpClient<void>(getMemberControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -2267,18 +1655,6 @@ export const memberControllerGet = async (id: string, options?: RequestInit): Pr
 /**
  * @summary 更新会员资料
  */
-export type memberControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerUpdateResponseSuccess = (memberControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerUpdateResponse = (memberControllerUpdateResponseSuccess)
-
 export const getMemberControllerUpdateUrl = (id: string,) => {
 
 
@@ -2288,9 +1664,9 @@ export const getMemberControllerUpdateUrl = (id: string,) => {
 }
 
 export const memberControllerUpdate = async (id: string,
-    updateMemberDto: UpdateMemberDto, options?: RequestInit): Promise<memberControllerUpdateResponse> => {
+    updateMemberDto: UpdateMemberDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerUpdateResponse>(getMemberControllerUpdateUrl(id),
+  return createHttpClient<void>(getMemberControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -2305,18 +1681,6 @@ export const memberControllerUpdate = async (id: string,
 /**
  * @summary 删除会员
  */
-export type memberControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerRemoveResponseSuccess = (memberControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerRemoveResponse = (memberControllerRemoveResponseSuccess)
-
 export const getMemberControllerRemoveUrl = (id: string,) => {
 
 
@@ -2325,9 +1689,9 @@ export const getMemberControllerRemoveUrl = (id: string,) => {
   return `/member/${id}`
 }
 
-export const memberControllerRemove = async (id: string, options?: RequestInit): Promise<memberControllerRemoveResponse> => {
+export const memberControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerRemoveResponse>(getMemberControllerRemoveUrl(id),
+  return createHttpClient<void>(getMemberControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -2341,18 +1705,6 @@ export const memberControllerRemove = async (id: string, options?: RequestInit):
 /**
  * @summary 创建会员
  */
-export type memberControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberControllerCreateResponseSuccess = (memberControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerCreateResponse = (memberControllerCreateResponseSuccess)
-
 export const getMemberControllerCreateUrl = () => {
 
 
@@ -2361,9 +1713,9 @@ export const getMemberControllerCreateUrl = () => {
   return `/member/create`
 }
 
-export const memberControllerCreate = async (createMemberDto: CreateMemberDto, options?: RequestInit): Promise<memberControllerCreateResponse> => {
+export const memberControllerCreate = async (createMemberDto: CreateMemberDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerCreateResponse>(getMemberControllerCreateUrl(),
+  return createHttpClient<void>(getMemberControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -2378,18 +1730,6 @@ export const memberControllerCreate = async (createMemberDto: CreateMemberDto, o
 /**
  * @summary 设置/重置会员密码（管理员）
  */
-export type memberControllerSetPasswordResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberControllerSetPasswordResponseSuccess = (memberControllerSetPasswordResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberControllerSetPasswordResponse = (memberControllerSetPasswordResponseSuccess)
-
 export const getMemberControllerSetPasswordUrl = (id: string,) => {
 
 
@@ -2399,9 +1739,9 @@ export const getMemberControllerSetPasswordUrl = (id: string,) => {
 }
 
 export const memberControllerSetPassword = async (id: string,
-    setMemberPasswordDto: SetMemberPasswordDto, options?: RequestInit): Promise<memberControllerSetPasswordResponse> => {
+    setMemberPasswordDto: SetMemberPasswordDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberControllerSetPasswordResponse>(getMemberControllerSetPasswordUrl(id),
+  return createHttpClient<void>(getMemberControllerSetPasswordUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -2416,18 +1756,6 @@ export const memberControllerSetPassword = async (id: string,
 /**
  * @summary 会员等级列表
  */
-export type memberLevelControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberLevelControllerListResponseSuccess = (memberLevelControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerListResponse = (memberLevelControllerListResponseSuccess)
-
 export const getMemberLevelControllerListUrl = () => {
 
 
@@ -2436,9 +1764,9 @@ export const getMemberLevelControllerListUrl = () => {
   return `/member-level`
 }
 
-export const memberLevelControllerList = async ( options?: RequestInit): Promise<memberLevelControllerListResponse> => {
+export const memberLevelControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerListResponse>(getMemberLevelControllerListUrl(),
+  return createHttpClient<void>(getMemberLevelControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2452,18 +1780,6 @@ export const memberLevelControllerList = async ( options?: RequestInit): Promise
 /**
  * @summary 创建会员等级
  */
-export type memberLevelControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberLevelControllerCreateResponseSuccess = (memberLevelControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerCreateResponse = (memberLevelControllerCreateResponseSuccess)
-
 export const getMemberLevelControllerCreateUrl = () => {
 
 
@@ -2472,9 +1788,9 @@ export const getMemberLevelControllerCreateUrl = () => {
   return `/member-level`
 }
 
-export const memberLevelControllerCreate = async ( options?: RequestInit): Promise<memberLevelControllerCreateResponse> => {
+export const memberLevelControllerCreate = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerCreateResponse>(getMemberLevelControllerCreateUrl(),
+  return createHttpClient<void>(getMemberLevelControllerCreateUrl(),
   {      
     ...options,
     method: 'POST'
@@ -2488,18 +1804,6 @@ export const memberLevelControllerCreate = async ( options?: RequestInit): Promi
 /**
  * @summary 更新会员等级
  */
-export type memberLevelControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberLevelControllerUpdateResponseSuccess = (memberLevelControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerUpdateResponse = (memberLevelControllerUpdateResponseSuccess)
-
 export const getMemberLevelControllerUpdateUrl = (id: string,) => {
 
 
@@ -2508,9 +1812,9 @@ export const getMemberLevelControllerUpdateUrl = (id: string,) => {
   return `/member-level/${id}`
 }
 
-export const memberLevelControllerUpdate = async (id: string, options?: RequestInit): Promise<memberLevelControllerUpdateResponse> => {
+export const memberLevelControllerUpdate = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerUpdateResponse>(getMemberLevelControllerUpdateUrl(id),
+  return createHttpClient<void>(getMemberLevelControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT'
@@ -2524,18 +1828,6 @@ export const memberLevelControllerUpdate = async (id: string, options?: RequestI
 /**
  * @summary 删除会员等级
  */
-export type memberLevelControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberLevelControllerRemoveResponseSuccess = (memberLevelControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerRemoveResponse = (memberLevelControllerRemoveResponseSuccess)
-
 export const getMemberLevelControllerRemoveUrl = (id: string,) => {
 
 
@@ -2544,9 +1836,9 @@ export const getMemberLevelControllerRemoveUrl = (id: string,) => {
   return `/member-level/${id}`
 }
 
-export const memberLevelControllerRemove = async (id: string, options?: RequestInit): Promise<memberLevelControllerRemoveResponse> => {
+export const memberLevelControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerRemoveResponse>(getMemberLevelControllerRemoveUrl(id),
+  return createHttpClient<void>(getMemberLevelControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -2560,18 +1852,6 @@ export const memberLevelControllerRemove = async (id: string, options?: RequestI
 /**
  * @summary 获取成长值换算配置
  */
-export type memberLevelControllerGetGrowthConfigResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberLevelControllerGetGrowthConfigResponseSuccess = (memberLevelControllerGetGrowthConfigResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerGetGrowthConfigResponse = (memberLevelControllerGetGrowthConfigResponseSuccess)
-
 export const getMemberLevelControllerGetGrowthConfigUrl = () => {
 
 
@@ -2580,9 +1860,9 @@ export const getMemberLevelControllerGetGrowthConfigUrl = () => {
   return `/member-level/_growth-config`
 }
 
-export const memberLevelControllerGetGrowthConfig = async ( options?: RequestInit): Promise<memberLevelControllerGetGrowthConfigResponse> => {
+export const memberLevelControllerGetGrowthConfig = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerGetGrowthConfigResponse>(getMemberLevelControllerGetGrowthConfigUrl(),
+  return createHttpClient<void>(getMemberLevelControllerGetGrowthConfigUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2596,18 +1876,6 @@ export const memberLevelControllerGetGrowthConfig = async ( options?: RequestIni
 /**
  * @summary 保存成长值换算配置
  */
-export type memberLevelControllerSaveGrowthConfigResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberLevelControllerSaveGrowthConfigResponseSuccess = (memberLevelControllerSaveGrowthConfigResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberLevelControllerSaveGrowthConfigResponse = (memberLevelControllerSaveGrowthConfigResponseSuccess)
-
 export const getMemberLevelControllerSaveGrowthConfigUrl = () => {
 
 
@@ -2616,9 +1884,9 @@ export const getMemberLevelControllerSaveGrowthConfigUrl = () => {
   return `/member-level/_growth-config`
 }
 
-export const memberLevelControllerSaveGrowthConfig = async ( options?: RequestInit): Promise<memberLevelControllerSaveGrowthConfigResponse> => {
+export const memberLevelControllerSaveGrowthConfig = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberLevelControllerSaveGrowthConfigResponse>(getMemberLevelControllerSaveGrowthConfigUrl(),
+  return createHttpClient<void>(getMemberLevelControllerSaveGrowthConfigUrl(),
   {      
     ...options,
     method: 'POST'
@@ -2632,18 +1900,6 @@ export const memberLevelControllerSaveGrowthConfig = async ( options?: RequestIn
 /**
  * @summary 会员分类列表
  */
-export type memberCategoryControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCategoryControllerListResponseSuccess = (memberCategoryControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCategoryControllerListResponse = (memberCategoryControllerListResponseSuccess)
-
 export const getMemberCategoryControllerListUrl = () => {
 
 
@@ -2652,9 +1908,9 @@ export const getMemberCategoryControllerListUrl = () => {
   return `/member-category`
 }
 
-export const memberCategoryControllerList = async ( options?: RequestInit): Promise<memberCategoryControllerListResponse> => {
+export const memberCategoryControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCategoryControllerListResponse>(getMemberCategoryControllerListUrl(),
+  return createHttpClient<void>(getMemberCategoryControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2668,18 +1924,6 @@ export const memberCategoryControllerList = async ( options?: RequestInit): Prom
 /**
  * @summary 创建会员分类
  */
-export type memberCategoryControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberCategoryControllerCreateResponseSuccess = (memberCategoryControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberCategoryControllerCreateResponse = (memberCategoryControllerCreateResponseSuccess)
-
 export const getMemberCategoryControllerCreateUrl = () => {
 
 
@@ -2688,9 +1932,9 @@ export const getMemberCategoryControllerCreateUrl = () => {
   return `/member-category`
 }
 
-export const memberCategoryControllerCreate = async (createMemberCategoryDto: CreateMemberCategoryDto, options?: RequestInit): Promise<memberCategoryControllerCreateResponse> => {
+export const memberCategoryControllerCreate = async (createMemberCategoryDto: CreateMemberCategoryDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCategoryControllerCreateResponse>(getMemberCategoryControllerCreateUrl(),
+  return createHttpClient<void>(getMemberCategoryControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -2705,18 +1949,6 @@ export const memberCategoryControllerCreate = async (createMemberCategoryDto: Cr
 /**
  * @summary 更新会员分类
  */
-export type memberCategoryControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCategoryControllerUpdateResponseSuccess = (memberCategoryControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCategoryControllerUpdateResponse = (memberCategoryControllerUpdateResponseSuccess)
-
 export const getMemberCategoryControllerUpdateUrl = (id: string,) => {
 
 
@@ -2726,9 +1958,9 @@ export const getMemberCategoryControllerUpdateUrl = (id: string,) => {
 }
 
 export const memberCategoryControllerUpdate = async (id: string,
-    updateMemberCategoryDto: UpdateMemberCategoryDto, options?: RequestInit): Promise<memberCategoryControllerUpdateResponse> => {
+    updateMemberCategoryDto: UpdateMemberCategoryDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCategoryControllerUpdateResponse>(getMemberCategoryControllerUpdateUrl(id),
+  return createHttpClient<void>(getMemberCategoryControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -2743,18 +1975,6 @@ export const memberCategoryControllerUpdate = async (id: string,
 /**
  * @summary 删除会员分类
  */
-export type memberCategoryControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCategoryControllerRemoveResponseSuccess = (memberCategoryControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCategoryControllerRemoveResponse = (memberCategoryControllerRemoveResponseSuccess)
-
 export const getMemberCategoryControllerRemoveUrl = (id: string,) => {
 
 
@@ -2763,9 +1983,9 @@ export const getMemberCategoryControllerRemoveUrl = (id: string,) => {
   return `/member-category/${id}`
 }
 
-export const memberCategoryControllerRemove = async (id: string, options?: RequestInit): Promise<memberCategoryControllerRemoveResponse> => {
+export const memberCategoryControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCategoryControllerRemoveResponse>(getMemberCategoryControllerRemoveUrl(id),
+  return createHttpClient<void>(getMemberCategoryControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -2779,18 +1999,6 @@ export const memberCategoryControllerRemove = async (id: string, options?: Reque
 /**
  * @summary 会员标签列表
  */
-export type memberTagControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberTagControllerListResponseSuccess = (memberTagControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberTagControllerListResponse = (memberTagControllerListResponseSuccess)
-
 export const getMemberTagControllerListUrl = () => {
 
 
@@ -2799,9 +2007,9 @@ export const getMemberTagControllerListUrl = () => {
   return `/member-tag`
 }
 
-export const memberTagControllerList = async ( options?: RequestInit): Promise<memberTagControllerListResponse> => {
+export const memberTagControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberTagControllerListResponse>(getMemberTagControllerListUrl(),
+  return createHttpClient<void>(getMemberTagControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2815,18 +2023,6 @@ export const memberTagControllerList = async ( options?: RequestInit): Promise<m
 /**
  * @summary 创建会员标签
  */
-export type memberTagControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberTagControllerCreateResponseSuccess = (memberTagControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberTagControllerCreateResponse = (memberTagControllerCreateResponseSuccess)
-
 export const getMemberTagControllerCreateUrl = () => {
 
 
@@ -2835,9 +2031,9 @@ export const getMemberTagControllerCreateUrl = () => {
   return `/member-tag`
 }
 
-export const memberTagControllerCreate = async (createMemberTagDto: CreateMemberTagDto, options?: RequestInit): Promise<memberTagControllerCreateResponse> => {
+export const memberTagControllerCreate = async (createMemberTagDto: CreateMemberTagDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberTagControllerCreateResponse>(getMemberTagControllerCreateUrl(),
+  return createHttpClient<void>(getMemberTagControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -2852,18 +2048,6 @@ export const memberTagControllerCreate = async (createMemberTagDto: CreateMember
 /**
  * @summary 更新会员标签
  */
-export type memberTagControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberTagControllerUpdateResponseSuccess = (memberTagControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberTagControllerUpdateResponse = (memberTagControllerUpdateResponseSuccess)
-
 export const getMemberTagControllerUpdateUrl = (id: string,) => {
 
 
@@ -2873,9 +2057,9 @@ export const getMemberTagControllerUpdateUrl = (id: string,) => {
 }
 
 export const memberTagControllerUpdate = async (id: string,
-    updateMemberTagDto: UpdateMemberTagDto, options?: RequestInit): Promise<memberTagControllerUpdateResponse> => {
+    updateMemberTagDto: UpdateMemberTagDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberTagControllerUpdateResponse>(getMemberTagControllerUpdateUrl(id),
+  return createHttpClient<void>(getMemberTagControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -2890,18 +2074,6 @@ export const memberTagControllerUpdate = async (id: string,
 /**
  * @summary 删除会员标签
  */
-export type memberTagControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberTagControllerRemoveResponseSuccess = (memberTagControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberTagControllerRemoveResponse = (memberTagControllerRemoveResponseSuccess)
-
 export const getMemberTagControllerRemoveUrl = (id: string,) => {
 
 
@@ -2910,9 +2082,9 @@ export const getMemberTagControllerRemoveUrl = (id: string,) => {
   return `/member-tag/${id}`
 }
 
-export const memberTagControllerRemove = async (id: string, options?: RequestInit): Promise<memberTagControllerRemoveResponse> => {
+export const memberTagControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberTagControllerRemoveResponse>(getMemberTagControllerRemoveUrl(id),
+  return createHttpClient<void>(getMemberTagControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -2926,18 +2098,6 @@ export const memberTagControllerRemove = async (id: string, options?: RequestIni
 /**
  * @summary 标签下的会员列表（分页/关键词）
  */
-export type memberTagControllerMembersResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberTagControllerMembersResponseSuccess = (memberTagControllerMembersResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberTagControllerMembersResponse = (memberTagControllerMembersResponseSuccess)
-
 export const getMemberTagControllerMembersUrl = (id: string,
     params: MemberTagControllerMembersParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -2955,9 +2115,9 @@ export const getMemberTagControllerMembersUrl = (id: string,
 }
 
 export const memberTagControllerMembers = async (id: string,
-    params: MemberTagControllerMembersParams, options?: RequestInit): Promise<memberTagControllerMembersResponse> => {
+    params: MemberTagControllerMembersParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberTagControllerMembersResponse>(getMemberTagControllerMembersUrl(id,params),
+  return createHttpClient<void>(getMemberTagControllerMembersUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -2971,18 +2131,6 @@ export const memberTagControllerMembers = async (id: string,
 /**
  * @summary 车辆列表（管理员，分页/关键词）
  */
-export type vehicleControllerAdminListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerAdminListResponseSuccess = (vehicleControllerAdminListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerAdminListResponse = (vehicleControllerAdminListResponseSuccess)
-
 export const getVehicleControllerAdminListUrl = (params?: VehicleControllerAdminListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2998,9 +2146,9 @@ export const getVehicleControllerAdminListUrl = (params?: VehicleControllerAdmin
   return stringifiedParams.length > 0 ? `/vehicle/list?${stringifiedParams}` : `/vehicle/list`
 }
 
-export const vehicleControllerAdminList = async (params?: VehicleControllerAdminListParams, options?: RequestInit): Promise<vehicleControllerAdminListResponse> => {
+export const vehicleControllerAdminList = async (params?: VehicleControllerAdminListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerAdminListResponse>(getVehicleControllerAdminListUrl(params),
+  return createHttpClient<void>(getVehicleControllerAdminListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3014,18 +2162,6 @@ export const vehicleControllerAdminList = async (params?: VehicleControllerAdmin
 /**
  * @summary 按会员ID查询车辆
  */
-export type vehicleControllerListByMemberResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerListByMemberResponseSuccess = (vehicleControllerListByMemberResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerListByMemberResponse = (vehicleControllerListByMemberResponseSuccess)
-
 export const getVehicleControllerListByMemberUrl = (memberId: string,) => {
 
 
@@ -3034,9 +2170,9 @@ export const getVehicleControllerListByMemberUrl = (memberId: string,) => {
   return `/vehicle/member/${memberId}`
 }
 
-export const vehicleControllerListByMember = async (memberId: string, options?: RequestInit): Promise<vehicleControllerListByMemberResponse> => {
+export const vehicleControllerListByMember = async (memberId: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerListByMemberResponse>(getVehicleControllerListByMemberUrl(memberId),
+  return createHttpClient<void>(getVehicleControllerListByMemberUrl(memberId),
   {      
     ...options,
     method: 'GET'
@@ -3050,18 +2186,6 @@ export const vehicleControllerListByMember = async (memberId: string, options?: 
 /**
  * @summary 为会员新增车辆（管理员）
  */
-export type vehicleControllerCreateForMemberResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerCreateForMemberResponseSuccess = (vehicleControllerCreateForMemberResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerCreateForMemberResponse = (vehicleControllerCreateForMemberResponseSuccess)
-
 export const getVehicleControllerCreateForMemberUrl = (memberId: string,) => {
 
 
@@ -3071,9 +2195,9 @@ export const getVehicleControllerCreateForMemberUrl = (memberId: string,) => {
 }
 
 export const vehicleControllerCreateForMember = async (memberId: string,
-    vehicleCreateForMemberDto: VehicleCreateForMemberDto, options?: RequestInit): Promise<vehicleControllerCreateForMemberResponse> => {
+    vehicleCreateForMemberDto: VehicleCreateForMemberDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerCreateForMemberResponse>(getVehicleControllerCreateForMemberUrl(memberId),
+  return createHttpClient<void>(getVehicleControllerCreateForMemberUrl(memberId),
   {      
     ...options,
     method: 'POST',
@@ -3088,18 +2212,6 @@ export const vehicleControllerCreateForMember = async (memberId: string,
 /**
  * @summary 按手机号为会员新增车辆（管理员）
  */
-export type vehicleControllerCreateForMemberByPhoneResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerCreateForMemberByPhoneResponseSuccess = (vehicleControllerCreateForMemberByPhoneResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerCreateForMemberByPhoneResponse = (vehicleControllerCreateForMemberByPhoneResponseSuccess)
-
 export const getVehicleControllerCreateForMemberByPhoneUrl = () => {
 
 
@@ -3108,9 +2220,9 @@ export const getVehicleControllerCreateForMemberByPhoneUrl = () => {
   return `/vehicle/member/by-phone`
 }
 
-export const vehicleControllerCreateForMemberByPhone = async (vehicleCreateForMemberByPhoneDto: VehicleCreateForMemberByPhoneDto, options?: RequestInit): Promise<vehicleControllerCreateForMemberByPhoneResponse> => {
+export const vehicleControllerCreateForMemberByPhone = async (vehicleCreateForMemberByPhoneDto: VehicleCreateForMemberByPhoneDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerCreateForMemberByPhoneResponse>(getVehicleControllerCreateForMemberByPhoneUrl(),
+  return createHttpClient<void>(getVehicleControllerCreateForMemberByPhoneUrl(),
   {      
     ...options,
     method: 'POST',
@@ -3125,18 +2237,6 @@ export const vehicleControllerCreateForMemberByPhone = async (vehicleCreateForMe
 /**
  * @summary 修改车辆信息
  */
-export type vehicleControllerUpdateVehicleResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerUpdateVehicleResponseSuccess = (vehicleControllerUpdateVehicleResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerUpdateVehicleResponse = (vehicleControllerUpdateVehicleResponseSuccess)
-
 export const getVehicleControllerUpdateVehicleUrl = (id: string,) => {
 
 
@@ -3146,9 +2246,9 @@ export const getVehicleControllerUpdateVehicleUrl = (id: string,) => {
 }
 
 export const vehicleControllerUpdateVehicle = async (id: string,
-    vehicleUpdateDto: VehicleUpdateDto, options?: RequestInit): Promise<vehicleControllerUpdateVehicleResponse> => {
+    vehicleUpdateDto: VehicleUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerUpdateVehicleResponse>(getVehicleControllerUpdateVehicleUrl(id),
+  return createHttpClient<void>(getVehicleControllerUpdateVehicleUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -3163,18 +2263,6 @@ export const vehicleControllerUpdateVehicle = async (id: string,
 /**
  * @summary 删除车辆
  */
-export type vehicleControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerRemoveResponseSuccess = (vehicleControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerRemoveResponse = (vehicleControllerRemoveResponseSuccess)
-
 export const getVehicleControllerRemoveUrl = (id: string,) => {
 
 
@@ -3183,9 +2271,9 @@ export const getVehicleControllerRemoveUrl = (id: string,) => {
   return `/vehicle/${id}`
 }
 
-export const vehicleControllerRemove = async (id: string, options?: RequestInit): Promise<vehicleControllerRemoveResponse> => {
+export const vehicleControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerRemoveResponse>(getVehicleControllerRemoveUrl(id),
+  return createHttpClient<void>(getVehicleControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -3199,18 +2287,6 @@ export const vehicleControllerRemove = async (id: string, options?: RequestInit)
 /**
  * @summary 设置默认车辆
  */
-export type vehicleControllerSetDefaultResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerSetDefaultResponseSuccess = (vehicleControllerSetDefaultResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerSetDefaultResponse = (vehicleControllerSetDefaultResponseSuccess)
-
 export const getVehicleControllerSetDefaultUrl = (id: string,) => {
 
 
@@ -3219,9 +2295,9 @@ export const getVehicleControllerSetDefaultUrl = (id: string,) => {
   return `/vehicle/${id}/set-default`
 }
 
-export const vehicleControllerSetDefault = async (id: string, options?: RequestInit): Promise<vehicleControllerSetDefaultResponse> => {
+export const vehicleControllerSetDefault = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerSetDefaultResponse>(getVehicleControllerSetDefaultUrl(id),
+  return createHttpClient<void>(getVehicleControllerSetDefaultUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3235,18 +2311,6 @@ export const vehicleControllerSetDefault = async (id: string, options?: RequestI
 /**
  * @summary 模糊搜索车牌（管理端/队列）
  */
-export type vehicleControllerSearchResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerSearchResponseSuccess = (vehicleControllerSearchResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerSearchResponse = (vehicleControllerSearchResponseSuccess)
-
 export const getVehicleControllerSearchUrl = (params?: VehicleControllerSearchParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3262,9 +2326,9 @@ export const getVehicleControllerSearchUrl = (params?: VehicleControllerSearchPa
   return stringifiedParams.length > 0 ? `/vehicle/search?${stringifiedParams}` : `/vehicle/search`
 }
 
-export const vehicleControllerSearch = async (params?: VehicleControllerSearchParams, options?: RequestInit): Promise<vehicleControllerSearchResponse> => {
+export const vehicleControllerSearch = async (params?: VehicleControllerSearchParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerSearchResponse>(getVehicleControllerSearchUrl(params),
+  return createHttpClient<void>(getVehicleControllerSearchUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3278,18 +2342,6 @@ export const vehicleControllerSearch = async (params?: VehicleControllerSearchPa
 /**
  * @summary 创建游客车辆
  */
-export type vehicleControllerCreateGuestResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerCreateGuestResponseSuccess = (vehicleControllerCreateGuestResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerCreateGuestResponse = (vehicleControllerCreateGuestResponseSuccess)
-
 export const getVehicleControllerCreateGuestUrl = () => {
 
 
@@ -3298,9 +2350,9 @@ export const getVehicleControllerCreateGuestUrl = () => {
   return `/vehicle/guest/create`
 }
 
-export const vehicleControllerCreateGuest = async (vehicleGuestCreateDto: VehicleGuestCreateDto, options?: RequestInit): Promise<vehicleControllerCreateGuestResponse> => {
+export const vehicleControllerCreateGuest = async (vehicleGuestCreateDto: VehicleGuestCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerCreateGuestResponse>(getVehicleControllerCreateGuestUrl(),
+  return createHttpClient<void>(getVehicleControllerCreateGuestUrl(),
   {      
     ...options,
     method: 'POST',
@@ -3315,18 +2367,6 @@ export const vehicleControllerCreateGuest = async (vehicleGuestCreateDto: Vehicl
 /**
  * @summary 将游客车辆绑定到会员
  */
-export type vehicleControllerBindMemberResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerBindMemberResponseSuccess = (vehicleControllerBindMemberResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerBindMemberResponse = (vehicleControllerBindMemberResponseSuccess)
-
 export const getVehicleControllerBindMemberUrl = (id: string,
     memberId: string,) => {
 
@@ -3337,9 +2377,9 @@ export const getVehicleControllerBindMemberUrl = (id: string,
 }
 
 export const vehicleControllerBindMember = async (id: string,
-    memberId: string, options?: RequestInit): Promise<vehicleControllerBindMemberResponse> => {
+    memberId: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerBindMemberResponse>(getVehicleControllerBindMemberUrl(id,memberId),
+  return createHttpClient<void>(getVehicleControllerBindMemberUrl(id,memberId),
   {      
     ...options,
     method: 'POST'
@@ -3353,18 +2393,6 @@ export const vehicleControllerBindMember = async (id: string,
 /**
  * @summary 一键换绑车辆（管理员）
  */
-export type vehicleControllerAdminRebindResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerAdminRebindResponseSuccess = (vehicleControllerAdminRebindResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerAdminRebindResponse = (vehicleControllerAdminRebindResponseSuccess)
-
 export const getVehicleControllerAdminRebindUrl = (id: string,) => {
 
 
@@ -3373,9 +2401,9 @@ export const getVehicleControllerAdminRebindUrl = (id: string,) => {
   return `/vehicle/${id}/rebind`
 }
 
-export const vehicleControllerAdminRebind = async (id: string, options?: RequestInit): Promise<vehicleControllerAdminRebindResponse> => {
+export const vehicleControllerAdminRebind = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerAdminRebindResponse>(getVehicleControllerAdminRebindUrl(id),
+  return createHttpClient<void>(getVehicleControllerAdminRebindUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3387,20 +2415,41 @@ export const vehicleControllerAdminRebind = async (id: string, options?: Request
 
 
 /**
+ * @summary 车辆改绑记录（管理员，分页）
+ */
+export const getVehicleControllerAdminRebindLogsUrl = (id: string,
+    params?: VehicleControllerAdminRebindLogsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/vehicle/${id}/rebind-logs?${stringifiedParams}` : `/vehicle/${id}/rebind-logs`
+}
+
+export const vehicleControllerAdminRebindLogs = async (id: string,
+    params?: VehicleControllerAdminRebindLogsParams, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getVehicleControllerAdminRebindLogsUrl(id,params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
  * @summary 我的车辆列表（会员端）
  */
-export type vehicleControllerMyVehiclesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type vehicleControllerMyVehiclesResponseSuccess = (vehicleControllerMyVehiclesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerMyVehiclesResponse = (vehicleControllerMyVehiclesResponseSuccess)
-
 export const getVehicleControllerMyVehiclesUrl = (params: VehicleControllerMyVehiclesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3416,9 +2465,9 @@ export const getVehicleControllerMyVehiclesUrl = (params: VehicleControllerMyVeh
   return stringifiedParams.length > 0 ? `/vehicle/me/list?${stringifiedParams}` : `/vehicle/me/list`
 }
 
-export const vehicleControllerMyVehicles = async (params: VehicleControllerMyVehiclesParams, options?: RequestInit): Promise<vehicleControllerMyVehiclesResponse> => {
+export const vehicleControllerMyVehicles = async (params: VehicleControllerMyVehiclesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerMyVehiclesResponse>(getVehicleControllerMyVehiclesUrl(params),
+  return createHttpClient<void>(getVehicleControllerMyVehiclesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3432,18 +2481,6 @@ export const vehicleControllerMyVehicles = async (params: VehicleControllerMyVeh
 /**
  * @summary 新增我的车辆（会员端）
  */
-export type vehicleControllerMyCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type vehicleControllerMyCreateResponseSuccess = (vehicleControllerMyCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type vehicleControllerMyCreateResponse = (vehicleControllerMyCreateResponseSuccess)
-
 export const getVehicleControllerMyCreateUrl = () => {
 
 
@@ -3452,9 +2489,9 @@ export const getVehicleControllerMyCreateUrl = () => {
   return `/vehicle/me/create`
 }
 
-export const vehicleControllerMyCreate = async (vehicleMyCreateDto: VehicleMyCreateDto, options?: RequestInit): Promise<vehicleControllerMyCreateResponse> => {
+export const vehicleControllerMyCreate = async (vehicleMyCreateDto: VehicleMyCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<vehicleControllerMyCreateResponse>(getVehicleControllerMyCreateUrl(),
+  return createHttpClient<void>(getVehicleControllerMyCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -3467,20 +2504,39 @@ export const vehicleControllerMyCreate = async (vehicleMyCreateDto: VehicleMyCre
 
 
 /**
+ * @summary 按会员聚合洗车卡统计（管理员，用于详情抽屉顶部统计）
+ */
+export const getWashCardControllerAdminMemberStatsUrl = (params: WashCardControllerAdminMemberStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/wash-card/member-stats?${stringifiedParams}` : `/wash-card/member-stats`
+}
+
+export const washCardControllerAdminMemberStats = async (params: WashCardControllerAdminMemberStatsParams, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getWashCardControllerAdminMemberStatsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
  * @summary 洗车卡列表（管理员，分页/关键词/按会员）
  */
-export type washCardControllerAdminListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerAdminListResponseSuccess = (washCardControllerAdminListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminListResponse = (washCardControllerAdminListResponseSuccess)
-
 export const getWashCardControllerAdminListUrl = (params: WashCardControllerAdminListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3496,9 +2552,9 @@ export const getWashCardControllerAdminListUrl = (params: WashCardControllerAdmi
   return stringifiedParams.length > 0 ? `/wash-card/list?${stringifiedParams}` : `/wash-card/list`
 }
 
-export const washCardControllerAdminList = async (params: WashCardControllerAdminListParams, options?: RequestInit): Promise<washCardControllerAdminListResponse> => {
+export const washCardControllerAdminList = async (params: WashCardControllerAdminListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminListResponse>(getWashCardControllerAdminListUrl(params),
+  return createHttpClient<void>(getWashCardControllerAdminListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3512,18 +2568,6 @@ export const washCardControllerAdminList = async (params: WashCardControllerAdmi
 /**
  * @summary 洗车卡详情（管理员）
  */
-export type washCardControllerAdminGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerAdminGetResponseSuccess = (washCardControllerAdminGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminGetResponse = (washCardControllerAdminGetResponseSuccess)
-
 export const getWashCardControllerAdminGetUrl = (id: string,) => {
 
 
@@ -3532,9 +2576,9 @@ export const getWashCardControllerAdminGetUrl = (id: string,) => {
   return `/wash-card/${id}`
 }
 
-export const washCardControllerAdminGet = async (id: string, options?: RequestInit): Promise<washCardControllerAdminGetResponse> => {
+export const washCardControllerAdminGet = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminGetResponse>(getWashCardControllerAdminGetUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -3548,18 +2592,6 @@ export const washCardControllerAdminGet = async (id: string, options?: RequestIn
 /**
  * @summary 删除洗车卡（管理员）
  */
-export type washCardControllerAdminDeleteResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerAdminDeleteResponseSuccess = (washCardControllerAdminDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminDeleteResponse = (washCardControllerAdminDeleteResponseSuccess)
-
 export const getWashCardControllerAdminDeleteUrl = (id: string,) => {
 
 
@@ -3568,9 +2600,9 @@ export const getWashCardControllerAdminDeleteUrl = (id: string,) => {
   return `/wash-card/${id}`
 }
 
-export const washCardControllerAdminDelete = async (id: string, options?: RequestInit): Promise<washCardControllerAdminDeleteResponse> => {
+export const washCardControllerAdminDelete = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminDeleteResponse>(getWashCardControllerAdminDeleteUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminDeleteUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -3584,18 +2616,6 @@ export const washCardControllerAdminDelete = async (id: string, options?: Reques
 /**
  * @summary 创建洗车卡（管理员）
  */
-export type washCardControllerAdminCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminCreateResponseSuccess = (washCardControllerAdminCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminCreateResponse = (washCardControllerAdminCreateResponseSuccess)
-
 export const getWashCardControllerAdminCreateUrl = () => {
 
 
@@ -3604,9 +2624,9 @@ export const getWashCardControllerAdminCreateUrl = () => {
   return `/wash-card/create`
 }
 
-export const washCardControllerAdminCreate = async ( options?: RequestInit): Promise<washCardControllerAdminCreateResponse> => {
+export const washCardControllerAdminCreate = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminCreateResponse>(getWashCardControllerAdminCreateUrl(),
+  return createHttpClient<void>(getWashCardControllerAdminCreateUrl(),
   {      
     ...options,
     method: 'POST'
@@ -3620,18 +2640,6 @@ export const washCardControllerAdminCreate = async ( options?: RequestInit): Pro
 /**
  * @summary 增加洗车卡次数（管理员）
  */
-export type washCardControllerAdminAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminAddResponseSuccess = (washCardControllerAdminAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminAddResponse = (washCardControllerAdminAddResponseSuccess)
-
 export const getWashCardControllerAdminAddUrl = (id: string,) => {
 
 
@@ -3640,9 +2648,9 @@ export const getWashCardControllerAdminAddUrl = (id: string,) => {
   return `/wash-card/${id}/add`
 }
 
-export const washCardControllerAdminAdd = async (id: string, options?: RequestInit): Promise<washCardControllerAdminAddResponse> => {
+export const washCardControllerAdminAdd = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminAddResponse>(getWashCardControllerAdminAddUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminAddUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3656,18 +2664,6 @@ export const washCardControllerAdminAdd = async (id: string, options?: RequestIn
 /**
  * @summary 扣减洗车卡次数（管理员）
  */
-export type washCardControllerAdminDeductResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminDeductResponseSuccess = (washCardControllerAdminDeductResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminDeductResponse = (washCardControllerAdminDeductResponseSuccess)
-
 export const getWashCardControllerAdminDeductUrl = (id: string,) => {
 
 
@@ -3676,9 +2672,9 @@ export const getWashCardControllerAdminDeductUrl = (id: string,) => {
   return `/wash-card/${id}/deduct`
 }
 
-export const washCardControllerAdminDeduct = async (id: string, options?: RequestInit): Promise<washCardControllerAdminDeductResponse> => {
+export const washCardControllerAdminDeduct = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminDeductResponse>(getWashCardControllerAdminDeductUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminDeductUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3692,18 +2688,6 @@ export const washCardControllerAdminDeduct = async (id: string, options?: Reques
 /**
  * @summary 洗车卡变更记录（管理员）
  */
-export type washCardControllerAdminLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerAdminLogsResponseSuccess = (washCardControllerAdminLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminLogsResponse = (washCardControllerAdminLogsResponseSuccess)
-
 export const getWashCardControllerAdminLogsUrl = (id: string,
     params: WashCardControllerAdminLogsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -3721,9 +2705,9 @@ export const getWashCardControllerAdminLogsUrl = (id: string,
 }
 
 export const washCardControllerAdminLogs = async (id: string,
-    params: WashCardControllerAdminLogsParams, options?: RequestInit): Promise<washCardControllerAdminLogsResponse> => {
+    params: WashCardControllerAdminLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminLogsResponse>(getWashCardControllerAdminLogsUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerAdminLogsUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -3737,18 +2721,6 @@ export const washCardControllerAdminLogs = async (id: string,
 /**
  * @summary 共享成员列表（管理员）
  */
-export type washCardControllerAdminSharesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerAdminSharesResponseSuccess = (washCardControllerAdminSharesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminSharesResponse = (washCardControllerAdminSharesResponseSuccess)
-
 export const getWashCardControllerAdminSharesUrl = (id: string,) => {
 
 
@@ -3757,9 +2729,9 @@ export const getWashCardControllerAdminSharesUrl = (id: string,) => {
   return `/wash-card/${id}/shares`
 }
 
-export const washCardControllerAdminShares = async (id: string, options?: RequestInit): Promise<washCardControllerAdminSharesResponse> => {
+export const washCardControllerAdminShares = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminSharesResponse>(getWashCardControllerAdminSharesUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminSharesUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -3773,18 +2745,6 @@ export const washCardControllerAdminShares = async (id: string, options?: Reques
 /**
  * @summary 添加共享成员（管理员）
  */
-export type washCardControllerAdminAddShareResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminAddShareResponseSuccess = (washCardControllerAdminAddShareResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminAddShareResponse = (washCardControllerAdminAddShareResponseSuccess)
-
 export const getWashCardControllerAdminAddShareUrl = (id: string,) => {
 
 
@@ -3793,9 +2753,9 @@ export const getWashCardControllerAdminAddShareUrl = (id: string,) => {
   return `/wash-card/${id}/shares`
 }
 
-export const washCardControllerAdminAddShare = async (id: string, options?: RequestInit): Promise<washCardControllerAdminAddShareResponse> => {
+export const washCardControllerAdminAddShare = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminAddShareResponse>(getWashCardControllerAdminAddShareUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminAddShareUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3809,18 +2769,6 @@ export const washCardControllerAdminAddShare = async (id: string, options?: Requ
 /**
  * @summary 移除共享成员（管理员）
  */
-export type washCardControllerAdminRemoveShareResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminRemoveShareResponseSuccess = (washCardControllerAdminRemoveShareResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminRemoveShareResponse = (washCardControllerAdminRemoveShareResponseSuccess)
-
 export const getWashCardControllerAdminRemoveShareUrl = (id: string,
     memberId: string,) => {
 
@@ -3831,9 +2779,9 @@ export const getWashCardControllerAdminRemoveShareUrl = (id: string,
 }
 
 export const washCardControllerAdminRemoveShare = async (id: string,
-    memberId: string, options?: RequestInit): Promise<washCardControllerAdminRemoveShareResponse> => {
+    memberId: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminRemoveShareResponse>(getWashCardControllerAdminRemoveShareUrl(id,memberId),
+  return createHttpClient<void>(getWashCardControllerAdminRemoveShareUrl(id,memberId),
   {      
     ...options,
     method: 'POST'
@@ -3847,18 +2795,6 @@ export const washCardControllerAdminRemoveShare = async (id: string,
 /**
  * @summary 设置会员默认洗车卡（管理员）
  */
-export type washCardControllerAdminSetDefaultResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerAdminSetDefaultResponseSuccess = (washCardControllerAdminSetDefaultResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerAdminSetDefaultResponse = (washCardControllerAdminSetDefaultResponseSuccess)
-
 export const getWashCardControllerAdminSetDefaultUrl = (id: string,) => {
 
 
@@ -3867,9 +2803,9 @@ export const getWashCardControllerAdminSetDefaultUrl = (id: string,) => {
   return `/wash-card/${id}/set-default`
 }
 
-export const washCardControllerAdminSetDefault = async (id: string, options?: RequestInit): Promise<washCardControllerAdminSetDefaultResponse> => {
+export const washCardControllerAdminSetDefault = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerAdminSetDefaultResponse>(getWashCardControllerAdminSetDefaultUrl(id),
+  return createHttpClient<void>(getWashCardControllerAdminSetDefaultUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -3883,18 +2819,6 @@ export const washCardControllerAdminSetDefault = async (id: string, options?: Re
 /**
  * @summary 我的洗车卡列表（会员端）
  */
-export type washCardControllerMyListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerMyListResponseSuccess = (washCardControllerMyListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerMyListResponse = (washCardControllerMyListResponseSuccess)
-
 export const getWashCardControllerMyListUrl = (params: WashCardControllerMyListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3910,9 +2834,9 @@ export const getWashCardControllerMyListUrl = (params: WashCardControllerMyListP
   return stringifiedParams.length > 0 ? `/wash-card/me/list?${stringifiedParams}` : `/wash-card/me/list`
 }
 
-export const washCardControllerMyList = async (params: WashCardControllerMyListParams, options?: RequestInit): Promise<washCardControllerMyListResponse> => {
+export const washCardControllerMyList = async (params: WashCardControllerMyListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerMyListResponse>(getWashCardControllerMyListUrl(params),
+  return createHttpClient<void>(getWashCardControllerMyListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3926,18 +2850,6 @@ export const washCardControllerMyList = async (params: WashCardControllerMyListP
 /**
  * @summary 我的洗车卡详情（会员端）
  */
-export type washCardControllerMyGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerMyGetResponseSuccess = (washCardControllerMyGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerMyGetResponse = (washCardControllerMyGetResponseSuccess)
-
 export const getWashCardControllerMyGetUrl = (id: string,
     params: WashCardControllerMyGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -3955,9 +2867,9 @@ export const getWashCardControllerMyGetUrl = (id: string,
 }
 
 export const washCardControllerMyGet = async (id: string,
-    params: WashCardControllerMyGetParams, options?: RequestInit): Promise<washCardControllerMyGetResponse> => {
+    params: WashCardControllerMyGetParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerMyGetResponse>(getWashCardControllerMyGetUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerMyGetUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -3971,18 +2883,6 @@ export const washCardControllerMyGet = async (id: string,
 /**
  * @summary 我的洗车卡记录（会员端）
  */
-export type washCardControllerMyLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type washCardControllerMyLogsResponseSuccess = (washCardControllerMyLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerMyLogsResponse = (washCardControllerMyLogsResponseSuccess)
-
 export const getWashCardControllerMyLogsUrl = (id: string,
     params: WashCardControllerMyLogsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4000,9 +2900,9 @@ export const getWashCardControllerMyLogsUrl = (id: string,
 }
 
 export const washCardControllerMyLogs = async (id: string,
-    params: WashCardControllerMyLogsParams, options?: RequestInit): Promise<washCardControllerMyLogsResponse> => {
+    params: WashCardControllerMyLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerMyLogsResponse>(getWashCardControllerMyLogsUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerMyLogsUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -4016,18 +2916,6 @@ export const washCardControllerMyLogs = async (id: string,
 /**
  * @summary 设置我的默认洗车卡（会员端）
  */
-export type washCardControllerMySetDefaultResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type washCardControllerMySetDefaultResponseSuccess = (washCardControllerMySetDefaultResponse201) & {
-  headers: Headers;
-};
-;
-
-export type washCardControllerMySetDefaultResponse = (washCardControllerMySetDefaultResponseSuccess)
-
 export const getWashCardControllerMySetDefaultUrl = (id: string,
     params: WashCardControllerMySetDefaultParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4045,9 +2933,9 @@ export const getWashCardControllerMySetDefaultUrl = (id: string,
 }
 
 export const washCardControllerMySetDefault = async (id: string,
-    params: WashCardControllerMySetDefaultParams, options?: RequestInit): Promise<washCardControllerMySetDefaultResponse> => {
+    params: WashCardControllerMySetDefaultParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<washCardControllerMySetDefaultResponse>(getWashCardControllerMySetDefaultUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerMySetDefaultUrl(id,params),
   {      
     ...options,
     method: 'POST'
@@ -4061,18 +2949,6 @@ export const washCardControllerMySetDefault = async (id: string,
 /**
  * @summary 收货地址列表（管理员，分页/关键词）
  */
-export type addressControllerAdminListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerAdminListResponseSuccess = (addressControllerAdminListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerAdminListResponse = (addressControllerAdminListResponseSuccess)
-
 export const getAddressControllerAdminListUrl = (params: AddressControllerAdminListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4088,9 +2964,9 @@ export const getAddressControllerAdminListUrl = (params: AddressControllerAdminL
   return stringifiedParams.length > 0 ? `/address/list?${stringifiedParams}` : `/address/list`
 }
 
-export const addressControllerAdminList = async (params: AddressControllerAdminListParams, options?: RequestInit): Promise<addressControllerAdminListResponse> => {
+export const addressControllerAdminList = async (params: AddressControllerAdminListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerAdminListResponse>(getAddressControllerAdminListUrl(params),
+  return createHttpClient<void>(getAddressControllerAdminListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4104,18 +2980,6 @@ export const addressControllerAdminList = async (params: AddressControllerAdminL
 /**
  * @summary 按会员ID查询收货地址（管理员）
  */
-export type addressControllerListByMemberResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerListByMemberResponseSuccess = (addressControllerListByMemberResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerListByMemberResponse = (addressControllerListByMemberResponseSuccess)
-
 export const getAddressControllerListByMemberUrl = (memberId: string,) => {
 
 
@@ -4124,9 +2988,9 @@ export const getAddressControllerListByMemberUrl = (memberId: string,) => {
   return `/address/member/${memberId}`
 }
 
-export const addressControllerListByMember = async (memberId: string, options?: RequestInit): Promise<addressControllerListByMemberResponse> => {
+export const addressControllerListByMember = async (memberId: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerListByMemberResponse>(getAddressControllerListByMemberUrl(memberId),
+  return createHttpClient<void>(getAddressControllerListByMemberUrl(memberId),
   {      
     ...options,
     method: 'GET'
@@ -4140,18 +3004,6 @@ export const addressControllerListByMember = async (memberId: string, options?: 
 /**
  * @summary 我的收货地址列表（会员端）
  */
-export type addressControllerMyListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerMyListResponseSuccess = (addressControllerMyListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerMyListResponse = (addressControllerMyListResponseSuccess)
-
 export const getAddressControllerMyListUrl = (params: AddressControllerMyListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4167,9 +3019,9 @@ export const getAddressControllerMyListUrl = (params: AddressControllerMyListPar
   return stringifiedParams.length > 0 ? `/address/me/list?${stringifiedParams}` : `/address/me/list`
 }
 
-export const addressControllerMyList = async (params: AddressControllerMyListParams, options?: RequestInit): Promise<addressControllerMyListResponse> => {
+export const addressControllerMyList = async (params: AddressControllerMyListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerMyListResponse>(getAddressControllerMyListUrl(params),
+  return createHttpClient<void>(getAddressControllerMyListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4183,18 +3035,6 @@ export const addressControllerMyList = async (params: AddressControllerMyListPar
 /**
  * @summary 新增我的收货地址（会员端）
  */
-export type addressControllerMyCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type addressControllerMyCreateResponseSuccess = (addressControllerMyCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerMyCreateResponse = (addressControllerMyCreateResponseSuccess)
-
 export const getAddressControllerMyCreateUrl = () => {
 
 
@@ -4203,9 +3043,9 @@ export const getAddressControllerMyCreateUrl = () => {
   return `/address/me/create`
 }
 
-export const addressControllerMyCreate = async (addressMyCreateDto: AddressMyCreateDto, options?: RequestInit): Promise<addressControllerMyCreateResponse> => {
+export const addressControllerMyCreate = async (addressMyCreateDto: AddressMyCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerMyCreateResponse>(getAddressControllerMyCreateUrl(),
+  return createHttpClient<void>(getAddressControllerMyCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -4220,18 +3060,6 @@ export const addressControllerMyCreate = async (addressMyCreateDto: AddressMyCre
 /**
  * @summary 修改我的收货地址（会员端）
  */
-export type addressControllerMyUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerMyUpdateResponseSuccess = (addressControllerMyUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerMyUpdateResponse = (addressControllerMyUpdateResponseSuccess)
-
 export const getAddressControllerMyUpdateUrl = (id: string,) => {
 
 
@@ -4241,9 +3069,9 @@ export const getAddressControllerMyUpdateUrl = (id: string,) => {
 }
 
 export const addressControllerMyUpdate = async (id: string,
-    addressMyUpdateDto: AddressMyUpdateDto, options?: RequestInit): Promise<addressControllerMyUpdateResponse> => {
+    addressMyUpdateDto: AddressMyUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerMyUpdateResponse>(getAddressControllerMyUpdateUrl(id),
+  return createHttpClient<void>(getAddressControllerMyUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -4258,18 +3086,6 @@ export const addressControllerMyUpdate = async (id: string,
 /**
  * @summary 删除我的收货地址（会员端）
  */
-export type addressControllerMyDeleteResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerMyDeleteResponseSuccess = (addressControllerMyDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerMyDeleteResponse = (addressControllerMyDeleteResponseSuccess)
-
 export const getAddressControllerMyDeleteUrl = (id: string,) => {
 
 
@@ -4278,9 +3094,9 @@ export const getAddressControllerMyDeleteUrl = (id: string,) => {
   return `/address/me/${id}`
 }
 
-export const addressControllerMyDelete = async (id: string, options?: RequestInit): Promise<addressControllerMyDeleteResponse> => {
+export const addressControllerMyDelete = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerMyDeleteResponse>(getAddressControllerMyDeleteUrl(id),
+  return createHttpClient<void>(getAddressControllerMyDeleteUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -4294,18 +3110,6 @@ export const addressControllerMyDelete = async (id: string, options?: RequestIni
 /**
  * @summary 管理员创建收货地址（支持指定会员或使用游客会员）
  */
-export type addressControllerAdminCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type addressControllerAdminCreateResponseSuccess = (addressControllerAdminCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerAdminCreateResponse = (addressControllerAdminCreateResponseSuccess)
-
 export const getAddressControllerAdminCreateUrl = () => {
 
 
@@ -4314,9 +3118,9 @@ export const getAddressControllerAdminCreateUrl = () => {
   return `/address/admin/create`
 }
 
-export const addressControllerAdminCreate = async (addressAdminCreateDto: AddressAdminCreateDto, options?: RequestInit): Promise<addressControllerAdminCreateResponse> => {
+export const addressControllerAdminCreate = async (addressAdminCreateDto: AddressAdminCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerAdminCreateResponse>(getAddressControllerAdminCreateUrl(),
+  return createHttpClient<void>(getAddressControllerAdminCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -4331,18 +3135,6 @@ export const addressControllerAdminCreate = async (addressAdminCreateDto: Addres
 /**
  * @summary 管理员修改收货地址
  */
-export type addressControllerAdminUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerAdminUpdateResponseSuccess = (addressControllerAdminUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerAdminUpdateResponse = (addressControllerAdminUpdateResponseSuccess)
-
 export const getAddressControllerAdminUpdateUrl = (id: string,) => {
 
 
@@ -4352,9 +3144,9 @@ export const getAddressControllerAdminUpdateUrl = (id: string,) => {
 }
 
 export const addressControllerAdminUpdate = async (id: string,
-    addressAdminUpdateDto: AddressAdminUpdateDto, options?: RequestInit): Promise<addressControllerAdminUpdateResponse> => {
+    addressAdminUpdateDto: AddressAdminUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerAdminUpdateResponse>(getAddressControllerAdminUpdateUrl(id),
+  return createHttpClient<void>(getAddressControllerAdminUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -4369,18 +3161,6 @@ export const addressControllerAdminUpdate = async (id: string,
 /**
  * @summary 管理员删除收货地址
  */
-export type addressControllerAdminDeleteResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type addressControllerAdminDeleteResponseSuccess = (addressControllerAdminDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type addressControllerAdminDeleteResponse = (addressControllerAdminDeleteResponseSuccess)
-
 export const getAddressControllerAdminDeleteUrl = (id: string,) => {
 
 
@@ -4389,9 +3169,9 @@ export const getAddressControllerAdminDeleteUrl = (id: string,) => {
   return `/address/admin/${id}`
 }
 
-export const addressControllerAdminDelete = async (id: string, options?: RequestInit): Promise<addressControllerAdminDeleteResponse> => {
+export const addressControllerAdminDelete = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<addressControllerAdminDeleteResponse>(getAddressControllerAdminDeleteUrl(id),
+  return createHttpClient<void>(getAddressControllerAdminDeleteUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -4405,18 +3185,6 @@ export const addressControllerAdminDelete = async (id: string, options?: Request
 /**
  * @summary 我的购物车列表（可选仅勾选）
  */
-export type cartControllerMyListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type cartControllerMyListResponseSuccess = (cartControllerMyListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerMyListResponse = (cartControllerMyListResponseSuccess)
-
 export const getCartControllerMyListUrl = (params: CartControllerMyListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4432,9 +3200,9 @@ export const getCartControllerMyListUrl = (params: CartControllerMyListParams,) 
   return stringifiedParams.length > 0 ? `/cart/me/list?${stringifiedParams}` : `/cart/me/list`
 }
 
-export const cartControllerMyList = async (params: CartControllerMyListParams, options?: RequestInit): Promise<cartControllerMyListResponse> => {
+export const cartControllerMyList = async (params: CartControllerMyListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerMyListResponse>(getCartControllerMyListUrl(params),
+  return createHttpClient<void>(getCartControllerMyListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4448,18 +3216,6 @@ export const cartControllerMyList = async (params: CartControllerMyListParams, o
 /**
  * @summary 加入购物车（会员端）
  */
-export type cartControllerMyAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type cartControllerMyAddResponseSuccess = (cartControllerMyAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerMyAddResponse = (cartControllerMyAddResponseSuccess)
-
 export const getCartControllerMyAddUrl = () => {
 
 
@@ -4468,9 +3224,9 @@ export const getCartControllerMyAddUrl = () => {
   return `/cart/me/add`
 }
 
-export const cartControllerMyAdd = async (cartMyAddDto: CartMyAddDto, options?: RequestInit): Promise<cartControllerMyAddResponse> => {
+export const cartControllerMyAdd = async (cartMyAddDto: CartMyAddDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerMyAddResponse>(getCartControllerMyAddUrl(),
+  return createHttpClient<void>(getCartControllerMyAddUrl(),
   {      
     ...options,
     method: 'POST',
@@ -4485,18 +3241,6 @@ export const cartControllerMyAdd = async (cartMyAddDto: CartMyAddDto, options?: 
 /**
  * @summary 更新购物车条目（数量/勾选/SKU）
  */
-export type cartControllerMyUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type cartControllerMyUpdateResponseSuccess = (cartControllerMyUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerMyUpdateResponse = (cartControllerMyUpdateResponseSuccess)
-
 export const getCartControllerMyUpdateUrl = (id: number,) => {
 
 
@@ -4506,9 +3250,9 @@ export const getCartControllerMyUpdateUrl = (id: number,) => {
 }
 
 export const cartControllerMyUpdate = async (id: number,
-    cartMyUpdateDto: CartMyUpdateDto, options?: RequestInit): Promise<cartControllerMyUpdateResponse> => {
+    cartMyUpdateDto: CartMyUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerMyUpdateResponse>(getCartControllerMyUpdateUrl(id),
+  return createHttpClient<void>(getCartControllerMyUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -4523,18 +3267,6 @@ export const cartControllerMyUpdate = async (id: number,
 /**
  * @summary 删除购物车条目（会员端）
  */
-export type cartControllerMyDeleteResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type cartControllerMyDeleteResponseSuccess = (cartControllerMyDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerMyDeleteResponse = (cartControllerMyDeleteResponseSuccess)
-
 export const getCartControllerMyDeleteUrl = (id: number,) => {
 
 
@@ -4543,9 +3275,9 @@ export const getCartControllerMyDeleteUrl = (id: number,) => {
   return `/cart/me/${id}`
 }
 
-export const cartControllerMyDelete = async (id: number, options?: RequestInit): Promise<cartControllerMyDeleteResponse> => {
+export const cartControllerMyDelete = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerMyDeleteResponse>(getCartControllerMyDeleteUrl(id),
+  return createHttpClient<void>(getCartControllerMyDeleteUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -4559,18 +3291,6 @@ export const cartControllerMyDelete = async (id: number, options?: RequestInit):
 /**
  * @summary 全选/全不选（会员端）
  */
-export type cartControllerToggleAllResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type cartControllerToggleAllResponseSuccess = (cartControllerToggleAllResponse201) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerToggleAllResponse = (cartControllerToggleAllResponseSuccess)
-
 export const getCartControllerToggleAllUrl = () => {
 
 
@@ -4579,9 +3299,9 @@ export const getCartControllerToggleAllUrl = () => {
   return `/cart/me/toggle-all`
 }
 
-export const cartControllerToggleAll = async (cartToggleAllDto: CartToggleAllDto, options?: RequestInit): Promise<cartControllerToggleAllResponse> => {
+export const cartControllerToggleAll = async (cartToggleAllDto: CartToggleAllDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerToggleAllResponse>(getCartControllerToggleAllUrl(),
+  return createHttpClient<void>(getCartControllerToggleAllUrl(),
   {      
     ...options,
     method: 'POST',
@@ -4596,18 +3316,6 @@ export const cartControllerToggleAll = async (cartToggleAllDto: CartToggleAllDto
 /**
  * @summary 清空已勾选条目（会员端）
  */
-export type cartControllerClearCheckedResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type cartControllerClearCheckedResponseSuccess = (cartControllerClearCheckedResponse200) & {
-  headers: Headers;
-};
-;
-
-export type cartControllerClearCheckedResponse = (cartControllerClearCheckedResponseSuccess)
-
 export const getCartControllerClearCheckedUrl = () => {
 
 
@@ -4616,9 +3324,9 @@ export const getCartControllerClearCheckedUrl = () => {
   return `/cart/me/clear-checked`
 }
 
-export const cartControllerClearChecked = async ( options?: RequestInit): Promise<cartControllerClearCheckedResponse> => {
+export const cartControllerClearChecked = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<cartControllerClearCheckedResponse>(getCartControllerClearCheckedUrl(),
+  return createHttpClient<void>(getCartControllerClearCheckedUrl(),
   {      
     ...options,
     method: 'DELETE'
@@ -4628,18 +3336,6 @@ export const cartControllerClearChecked = async ( options?: RequestInit): Promis
 );}
 
 
-
-export type favoriteControllerMyListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type favoriteControllerMyListResponseSuccess = (favoriteControllerMyListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type favoriteControllerMyListResponse = (favoriteControllerMyListResponseSuccess)
 
 export const getFavoriteControllerMyListUrl = (params: FavoriteControllerMyListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4656,9 +3352,9 @@ export const getFavoriteControllerMyListUrl = (params: FavoriteControllerMyListP
   return stringifiedParams.length > 0 ? `/favorite/me/list?${stringifiedParams}` : `/favorite/me/list`
 }
 
-export const favoriteControllerMyList = async (params: FavoriteControllerMyListParams, options?: RequestInit): Promise<favoriteControllerMyListResponse> => {
+export const favoriteControllerMyList = async (params: FavoriteControllerMyListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<favoriteControllerMyListResponse>(getFavoriteControllerMyListUrl(params),
+  return createHttpClient<void>(getFavoriteControllerMyListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4668,18 +3364,6 @@ export const favoriteControllerMyList = async (params: FavoriteControllerMyListP
 );}
 
 
-
-export type favoriteControllerAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type favoriteControllerAddResponseSuccess = (favoriteControllerAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type favoriteControllerAddResponse = (favoriteControllerAddResponseSuccess)
 
 export const getFavoriteControllerAddUrl = (productId: number,
     params: FavoriteControllerAddParams,) => {
@@ -4698,9 +3382,9 @@ export const getFavoriteControllerAddUrl = (productId: number,
 }
 
 export const favoriteControllerAdd = async (productId: number,
-    params: FavoriteControllerAddParams, options?: RequestInit): Promise<favoriteControllerAddResponse> => {
+    params: FavoriteControllerAddParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<favoriteControllerAddResponse>(getFavoriteControllerAddUrl(productId,params),
+  return createHttpClient<void>(getFavoriteControllerAddUrl(productId,params),
   {      
     ...options,
     method: 'POST'
@@ -4710,18 +3394,6 @@ export const favoriteControllerAdd = async (productId: number,
 );}
 
 
-
-export type favoriteControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type favoriteControllerRemoveResponseSuccess = (favoriteControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type favoriteControllerRemoveResponse = (favoriteControllerRemoveResponseSuccess)
 
 export const getFavoriteControllerRemoveUrl = (productId: number,
     params: FavoriteControllerRemoveParams,) => {
@@ -4740,9 +3412,9 @@ export const getFavoriteControllerRemoveUrl = (productId: number,
 }
 
 export const favoriteControllerRemove = async (productId: number,
-    params: FavoriteControllerRemoveParams, options?: RequestInit): Promise<favoriteControllerRemoveResponse> => {
+    params: FavoriteControllerRemoveParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<favoriteControllerRemoveResponse>(getFavoriteControllerRemoveUrl(productId,params),
+  return createHttpClient<void>(getFavoriteControllerRemoveUrl(productId,params),
   {      
     ...options,
     method: 'DELETE'
@@ -4756,18 +3428,6 @@ export const favoriteControllerRemove = async (productId: number,
 /**
  * @summary 会员签到（自助）
  */
-export type memberSignInControllerSignInMeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberSignInControllerSignInMeResponseSuccess = (memberSignInControllerSignInMeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerSignInMeResponse = (memberSignInControllerSignInMeResponseSuccess)
-
 export const getMemberSignInControllerSignInMeUrl = () => {
 
 
@@ -4776,9 +3436,9 @@ export const getMemberSignInControllerSignInMeUrl = () => {
   return `/member-signin/me`
 }
 
-export const memberSignInControllerSignInMe = async ( options?: RequestInit): Promise<memberSignInControllerSignInMeResponse> => {
+export const memberSignInControllerSignInMe = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerSignInMeResponse>(getMemberSignInControllerSignInMeUrl(),
+  return createHttpClient<void>(getMemberSignInControllerSignInMeUrl(),
   {      
     ...options,
     method: 'POST'
@@ -4792,18 +3452,6 @@ export const memberSignInControllerSignInMe = async ( options?: RequestInit): Pr
 /**
  * @summary 管理员代为签到
  */
-export type memberSignInControllerSignInByAdminResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberSignInControllerSignInByAdminResponseSuccess = (memberSignInControllerSignInByAdminResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerSignInByAdminResponse = (memberSignInControllerSignInByAdminResponseSuccess)
-
 export const getMemberSignInControllerSignInByAdminUrl = () => {
 
 
@@ -4812,9 +3460,9 @@ export const getMemberSignInControllerSignInByAdminUrl = () => {
   return `/member-signin/by-admin`
 }
 
-export const memberSignInControllerSignInByAdmin = async ( options?: RequestInit): Promise<memberSignInControllerSignInByAdminResponse> => {
+export const memberSignInControllerSignInByAdmin = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerSignInByAdminResponse>(getMemberSignInControllerSignInByAdminUrl(),
+  return createHttpClient<void>(getMemberSignInControllerSignInByAdminUrl(),
   {      
     ...options,
     method: 'POST'
@@ -4828,18 +3476,6 @@ export const memberSignInControllerSignInByAdmin = async ( options?: RequestInit
 /**
  * @summary 查询签到日志（按会员或日期）
  */
-export type memberSignInControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberSignInControllerListResponseSuccess = (memberSignInControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerListResponse = (memberSignInControllerListResponseSuccess)
-
 export const getMemberSignInControllerListUrl = (params: MemberSignInControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4855,9 +3491,9 @@ export const getMemberSignInControllerListUrl = (params: MemberSignInControllerL
   return stringifiedParams.length > 0 ? `/member-signin/logs?${stringifiedParams}` : `/member-signin/logs`
 }
 
-export const memberSignInControllerList = async (params: MemberSignInControllerListParams, options?: RequestInit): Promise<memberSignInControllerListResponse> => {
+export const memberSignInControllerList = async (params: MemberSignInControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerListResponse>(getMemberSignInControllerListUrl(params),
+  return createHttpClient<void>(getMemberSignInControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4871,18 +3507,6 @@ export const memberSignInControllerList = async (params: MemberSignInControllerL
 /**
  * @summary 会员签到状态（自助）
  */
-export type memberSignInControllerMeStatusResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberSignInControllerMeStatusResponseSuccess = (memberSignInControllerMeStatusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerMeStatusResponse = (memberSignInControllerMeStatusResponseSuccess)
-
 export const getMemberSignInControllerMeStatusUrl = () => {
 
 
@@ -4891,9 +3515,9 @@ export const getMemberSignInControllerMeStatusUrl = () => {
   return `/member-signin/me/status`
 }
 
-export const memberSignInControllerMeStatus = async ( options?: RequestInit): Promise<memberSignInControllerMeStatusResponse> => {
+export const memberSignInControllerMeStatus = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerMeStatusResponse>(getMemberSignInControllerMeStatusUrl(),
+  return createHttpClient<void>(getMemberSignInControllerMeStatusUrl(),
   {      
     ...options,
     method: 'GET'
@@ -4907,18 +3531,6 @@ export const memberSignInControllerMeStatus = async ( options?: RequestInit): Pr
 /**
  * @summary 会员签到日历（自助）
  */
-export type memberSignInControllerMeMonthResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberSignInControllerMeMonthResponseSuccess = (memberSignInControllerMeMonthResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerMeMonthResponse = (memberSignInControllerMeMonthResponseSuccess)
-
 export const getMemberSignInControllerMeMonthUrl = (params: MemberSignInControllerMeMonthParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4934,9 +3546,9 @@ export const getMemberSignInControllerMeMonthUrl = (params: MemberSignInControll
   return stringifiedParams.length > 0 ? `/member-signin/me/month?${stringifiedParams}` : `/member-signin/me/month`
 }
 
-export const memberSignInControllerMeMonth = async (params: MemberSignInControllerMeMonthParams, options?: RequestInit): Promise<memberSignInControllerMeMonthResponse> => {
+export const memberSignInControllerMeMonth = async (params: MemberSignInControllerMeMonthParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerMeMonthResponse>(getMemberSignInControllerMeMonthUrl(params),
+  return createHttpClient<void>(getMemberSignInControllerMeMonthUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4950,18 +3562,6 @@ export const memberSignInControllerMeMonth = async (params: MemberSignInControll
 /**
  * @summary 读取签到奖励配置
  */
-export type memberSignInControllerGetConfigResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberSignInControllerGetConfigResponseSuccess = (memberSignInControllerGetConfigResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerGetConfigResponse = (memberSignInControllerGetConfigResponseSuccess)
-
 export const getMemberSignInControllerGetConfigUrl = () => {
 
 
@@ -4970,9 +3570,9 @@ export const getMemberSignInControllerGetConfigUrl = () => {
   return `/member-signin/config`
 }
 
-export const memberSignInControllerGetConfig = async ( options?: RequestInit): Promise<memberSignInControllerGetConfigResponse> => {
+export const memberSignInControllerGetConfig = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerGetConfigResponse>(getMemberSignInControllerGetConfigUrl(),
+  return createHttpClient<void>(getMemberSignInControllerGetConfigUrl(),
   {      
     ...options,
     method: 'GET'
@@ -4986,18 +3586,6 @@ export const memberSignInControllerGetConfig = async ( options?: RequestInit): P
 /**
  * @summary 保存签到奖励配置
  */
-export type memberSignInControllerSaveConfigResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberSignInControllerSaveConfigResponseSuccess = (memberSignInControllerSaveConfigResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerSaveConfigResponse = (memberSignInControllerSaveConfigResponseSuccess)
-
 export const getMemberSignInControllerSaveConfigUrl = () => {
 
 
@@ -5006,9 +3594,9 @@ export const getMemberSignInControllerSaveConfigUrl = () => {
   return `/member-signin/config`
 }
 
-export const memberSignInControllerSaveConfig = async ( options?: RequestInit): Promise<memberSignInControllerSaveConfigResponse> => {
+export const memberSignInControllerSaveConfig = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerSaveConfigResponse>(getMemberSignInControllerSaveConfigUrl(),
+  return createHttpClient<void>(getMemberSignInControllerSaveConfigUrl(),
   {      
     ...options,
     method: 'POST'
@@ -5022,18 +3610,6 @@ export const memberSignInControllerSaveConfig = async ( options?: RequestInit): 
 /**
  * @summary 查询会员签到统计状态
  */
-export type memberSignInControllerGetMemberStatusResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberSignInControllerGetMemberStatusResponseSuccess = (memberSignInControllerGetMemberStatusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberSignInControllerGetMemberStatusResponse = (memberSignInControllerGetMemberStatusResponseSuccess)
-
 export const getMemberSignInControllerGetMemberStatusUrl = (params: MemberSignInControllerGetMemberStatusParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5049,9 +3625,9 @@ export const getMemberSignInControllerGetMemberStatusUrl = (params: MemberSignIn
   return stringifiedParams.length > 0 ? `/member-signin/member-status?${stringifiedParams}` : `/member-signin/member-status`
 }
 
-export const memberSignInControllerGetMemberStatus = async (params: MemberSignInControllerGetMemberStatusParams, options?: RequestInit): Promise<memberSignInControllerGetMemberStatusResponse> => {
+export const memberSignInControllerGetMemberStatus = async (params: MemberSignInControllerGetMemberStatusParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberSignInControllerGetMemberStatusResponse>(getMemberSignInControllerGetMemberStatusUrl(params),
+  return createHttpClient<void>(getMemberSignInControllerGetMemberStatusUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5065,18 +3641,6 @@ export const memberSignInControllerGetMemberStatus = async (params: MemberSignIn
 /**
  * @summary 获取积分配置
  */
-export type memberPointsControllerGetConfigResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberPointsControllerGetConfigResponseSuccess = (memberPointsControllerGetConfigResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberPointsControllerGetConfigResponse = (memberPointsControllerGetConfigResponseSuccess)
-
 export const getMemberPointsControllerGetConfigUrl = () => {
 
 
@@ -5085,9 +3649,9 @@ export const getMemberPointsControllerGetConfigUrl = () => {
   return `/member-points/config`
 }
 
-export const memberPointsControllerGetConfig = async ( options?: RequestInit): Promise<memberPointsControllerGetConfigResponse> => {
+export const memberPointsControllerGetConfig = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberPointsControllerGetConfigResponse>(getMemberPointsControllerGetConfigUrl(),
+  return createHttpClient<void>(getMemberPointsControllerGetConfigUrl(),
   {      
     ...options,
     method: 'GET'
@@ -5101,18 +3665,6 @@ export const memberPointsControllerGetConfig = async ( options?: RequestInit): P
 /**
  * @summary 保存积分配置
  */
-export type memberPointsControllerSaveResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberPointsControllerSaveResponseSuccess = (memberPointsControllerSaveResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberPointsControllerSaveResponse = (memberPointsControllerSaveResponseSuccess)
-
 export const getMemberPointsControllerSaveUrl = () => {
 
 
@@ -5121,9 +3673,9 @@ export const getMemberPointsControllerSaveUrl = () => {
   return `/member-points/config`
 }
 
-export const memberPointsControllerSave = async (memberPointsSaveConfigDto: MemberPointsSaveConfigDto, options?: RequestInit): Promise<memberPointsControllerSaveResponse> => {
+export const memberPointsControllerSave = async (memberPointsSaveConfigDto: MemberPointsSaveConfigDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberPointsControllerSaveResponse>(getMemberPointsControllerSaveUrl(),
+  return createHttpClient<void>(getMemberPointsControllerSaveUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5138,18 +3690,6 @@ export const memberPointsControllerSave = async (memberPointsSaveConfigDto: Memb
 /**
  * @summary 查询积分日志
  */
-export type memberPointsControllerListLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberPointsControllerListLogsResponseSuccess = (memberPointsControllerListLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberPointsControllerListLogsResponse = (memberPointsControllerListLogsResponseSuccess)
-
 export const getMemberPointsControllerListLogsUrl = (params: MemberPointsControllerListLogsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5165,9 +3705,40 @@ export const getMemberPointsControllerListLogsUrl = (params: MemberPointsControl
   return stringifiedParams.length > 0 ? `/member-points/logs?${stringifiedParams}` : `/member-points/logs`
 }
 
-export const memberPointsControllerListLogs = async (params: MemberPointsControllerListLogsParams, options?: RequestInit): Promise<memberPointsControllerListLogsResponse> => {
+export const memberPointsControllerListLogs = async (params: MemberPointsControllerListLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberPointsControllerListLogsResponse>(getMemberPointsControllerListLogsUrl(params),
+  return createHttpClient<void>(getMemberPointsControllerListLogsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 查询积分日志（分页）
+ */
+export const getMemberPointsControllerListLogsPagedUrl = (params?: MemberPointsControllerListLogsPagedParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/member-points/logs-paged?${stringifiedParams}` : `/member-points/logs-paged`
+}
+
+export const memberPointsControllerListLogsPaged = async (params?: MemberPointsControllerListLogsPagedParams, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getMemberPointsControllerListLogsPagedUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5181,18 +3752,6 @@ export const memberPointsControllerListLogs = async (params: MemberPointsControl
 /**
  * @summary 后台调整指定会员积分（正负均可）
  */
-export type memberPointsControllerAdjustResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type memberPointsControllerAdjustResponseSuccess = (memberPointsControllerAdjustResponse201) & {
-  headers: Headers;
-};
-;
-
-export type memberPointsControllerAdjustResponse = (memberPointsControllerAdjustResponseSuccess)
-
 export const getMemberPointsControllerAdjustUrl = () => {
 
 
@@ -5201,9 +3760,9 @@ export const getMemberPointsControllerAdjustUrl = () => {
   return `/member-points/adjust`
 }
 
-export const memberPointsControllerAdjust = async (memberPointsAdjustDto: MemberPointsAdjustDto, options?: RequestInit): Promise<memberPointsControllerAdjustResponse> => {
+export const memberPointsControllerAdjust = async (memberPointsAdjustDto: MemberPointsAdjustDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberPointsControllerAdjustResponse>(getMemberPointsControllerAdjustUrl(),
+  return createHttpClient<void>(getMemberPointsControllerAdjustUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5218,18 +3777,6 @@ export const memberPointsControllerAdjust = async (memberPointsAdjustDto: Member
 /**
  * @summary 拉取我的通知列表（管理员或会员）
  */
-export type notificationControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerListResponseSuccess = (notificationControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerListResponse = (notificationControllerListResponseSuccess)
-
 export const getNotificationControllerListUrl = (params?: NotificationControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5245,9 +3792,9 @@ export const getNotificationControllerListUrl = (params?: NotificationController
   return stringifiedParams.length > 0 ? `/notification/list?${stringifiedParams}` : `/notification/list`
 }
 
-export const notificationControllerList = async (params?: NotificationControllerListParams, options?: RequestInit): Promise<notificationControllerListResponse> => {
+export const notificationControllerList = async (params?: NotificationControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerListResponse>(getNotificationControllerListUrl(params),
+  return createHttpClient<void>(getNotificationControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5261,18 +3808,6 @@ export const notificationControllerList = async (params?: NotificationController
 /**
  * @summary 获取未读数
  */
-export type notificationControllerUnreadCountResponse200 = {
-  data: NotificationUnreadCountResponseDto
-  status: 200
-}
-    
-export type notificationControllerUnreadCountResponseSuccess = (notificationControllerUnreadCountResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerUnreadCountResponse = (notificationControllerUnreadCountResponseSuccess)
-
 export const getNotificationControllerUnreadCountUrl = () => {
 
 
@@ -5281,9 +3816,9 @@ export const getNotificationControllerUnreadCountUrl = () => {
   return `/notification/unread-count`
 }
 
-export const notificationControllerUnreadCount = async ( options?: RequestInit): Promise<notificationControllerUnreadCountResponse> => {
+export const notificationControllerUnreadCount = async ( options?: RequestInit): Promise<NotificationUnreadCountResponseDto> => {
   
-  return createHttpClient<notificationControllerUnreadCountResponse>(getNotificationControllerUnreadCountUrl(),
+  return createHttpClient<NotificationUnreadCountResponseDto>(getNotificationControllerUnreadCountUrl(),
   {      
     ...options,
     method: 'GET'
@@ -5297,18 +3832,6 @@ export const notificationControllerUnreadCount = async ( options?: RequestInit):
 /**
  * @summary 标记为已读
  */
-export type notificationControllerMarkReadResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationControllerMarkReadResponseSuccess = (notificationControllerMarkReadResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerMarkReadResponse = (notificationControllerMarkReadResponseSuccess)
-
 export const getNotificationControllerMarkReadUrl = () => {
 
 
@@ -5317,9 +3840,9 @@ export const getNotificationControllerMarkReadUrl = () => {
   return `/notification/mark-read`
 }
 
-export const notificationControllerMarkRead = async (notificationMarkReadDto: NotificationMarkReadDto, options?: RequestInit): Promise<notificationControllerMarkReadResponse> => {
+export const notificationControllerMarkRead = async (notificationMarkReadDto: NotificationMarkReadDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerMarkReadResponse>(getNotificationControllerMarkReadUrl(),
+  return createHttpClient<void>(getNotificationControllerMarkReadUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5334,18 +3857,6 @@ export const notificationControllerMarkRead = async (notificationMarkReadDto: No
 /**
  * @summary 获取单条通知详情（管理员或会员）
  */
-export type notificationControllerDetailResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerDetailResponseSuccess = (notificationControllerDetailResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerDetailResponse = (notificationControllerDetailResponseSuccess)
-
 export const getNotificationControllerDetailUrl = (id: string,) => {
 
 
@@ -5354,9 +3865,9 @@ export const getNotificationControllerDetailUrl = (id: string,) => {
   return `/notification/by-id/${id}`
 }
 
-export const notificationControllerDetail = async (id: string, options?: RequestInit): Promise<notificationControllerDetailResponse> => {
+export const notificationControllerDetail = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerDetailResponse>(getNotificationControllerDetailUrl(id),
+  return createHttpClient<void>(getNotificationControllerDetailUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -5370,18 +3881,6 @@ export const notificationControllerDetail = async (id: string, options?: Request
 /**
  * @summary 全部标记已读
  */
-export type notificationControllerMarkReadAllResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationControllerMarkReadAllResponseSuccess = (notificationControllerMarkReadAllResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerMarkReadAllResponse = (notificationControllerMarkReadAllResponseSuccess)
-
 export const getNotificationControllerMarkReadAllUrl = () => {
 
 
@@ -5390,9 +3889,9 @@ export const getNotificationControllerMarkReadAllUrl = () => {
   return `/notification/mark-read-all`
 }
 
-export const notificationControllerMarkReadAll = async ( options?: RequestInit): Promise<notificationControllerMarkReadAllResponse> => {
+export const notificationControllerMarkReadAll = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerMarkReadAllResponse>(getNotificationControllerMarkReadAllUrl(),
+  return createHttpClient<void>(getNotificationControllerMarkReadAllUrl(),
   {      
     ...options,
     method: 'POST'
@@ -5406,18 +3905,6 @@ export const notificationControllerMarkReadAll = async ( options?: RequestInit):
 /**
  * @summary 消息总览：三通道发送量统计（管理员）
  */
-export type notificationControllerAdminOverviewResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerAdminOverviewResponseSuccess = (notificationControllerAdminOverviewResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerAdminOverviewResponse = (notificationControllerAdminOverviewResponseSuccess)
-
 export const getNotificationControllerAdminOverviewUrl = (params?: NotificationControllerAdminOverviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5433,9 +3920,9 @@ export const getNotificationControllerAdminOverviewUrl = (params?: NotificationC
   return stringifiedParams.length > 0 ? `/notification/admin/overview?${stringifiedParams}` : `/notification/admin/overview`
 }
 
-export const notificationControllerAdminOverview = async (params?: NotificationControllerAdminOverviewParams, options?: RequestInit): Promise<notificationControllerAdminOverviewResponse> => {
+export const notificationControllerAdminOverview = async (params?: NotificationControllerAdminOverviewParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerAdminOverviewResponse>(getNotificationControllerAdminOverviewUrl(params),
+  return createHttpClient<void>(getNotificationControllerAdminOverviewUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5449,18 +3936,6 @@ export const notificationControllerAdminOverview = async (params?: NotificationC
 /**
  * @summary 消息总览：详情列表（管理员）
  */
-export type notificationControllerAdminOverviewListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerAdminOverviewListResponseSuccess = (notificationControllerAdminOverviewListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerAdminOverviewListResponse = (notificationControllerAdminOverviewListResponseSuccess)
-
 export const getNotificationControllerAdminOverviewListUrl = (params: NotificationControllerAdminOverviewListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5476,9 +3951,9 @@ export const getNotificationControllerAdminOverviewListUrl = (params: Notificati
   return stringifiedParams.length > 0 ? `/notification/admin/overview/list?${stringifiedParams}` : `/notification/admin/overview/list`
 }
 
-export const notificationControllerAdminOverviewList = async (params: NotificationControllerAdminOverviewListParams, options?: RequestInit): Promise<notificationControllerAdminOverviewListResponse> => {
+export const notificationControllerAdminOverviewList = async (params: NotificationControllerAdminOverviewListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerAdminOverviewListResponse>(getNotificationControllerAdminOverviewListUrl(params),
+  return createHttpClient<void>(getNotificationControllerAdminOverviewListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5492,18 +3967,6 @@ export const notificationControllerAdminOverviewList = async (params: Notificati
 /**
  * @summary 通知类型设置列表（管理员）
  */
-export type notificationControllerListTypeSettingsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerListTypeSettingsResponseSuccess = (notificationControllerListTypeSettingsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerListTypeSettingsResponse = (notificationControllerListTypeSettingsResponseSuccess)
-
 export const getNotificationControllerListTypeSettingsUrl = (params: NotificationControllerListTypeSettingsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5519,9 +3982,9 @@ export const getNotificationControllerListTypeSettingsUrl = (params: Notificatio
   return stringifiedParams.length > 0 ? `/notification/type-settings?${stringifiedParams}` : `/notification/type-settings`
 }
 
-export const notificationControllerListTypeSettings = async (params: NotificationControllerListTypeSettingsParams, options?: RequestInit): Promise<notificationControllerListTypeSettingsResponse> => {
+export const notificationControllerListTypeSettings = async (params: NotificationControllerListTypeSettingsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerListTypeSettingsResponse>(getNotificationControllerListTypeSettingsUrl(params),
+  return createHttpClient<void>(getNotificationControllerListTypeSettingsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5535,18 +3998,6 @@ export const notificationControllerListTypeSettings = async (params: Notificatio
 /**
  * @summary 创建或更新通知类型设置（管理员）
  */
-export type notificationControllerUpsertTypeSettingResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationControllerUpsertTypeSettingResponseSuccess = (notificationControllerUpsertTypeSettingResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerUpsertTypeSettingResponse = (notificationControllerUpsertTypeSettingResponseSuccess)
-
 export const getNotificationControllerUpsertTypeSettingUrl = () => {
 
 
@@ -5555,9 +4006,9 @@ export const getNotificationControllerUpsertTypeSettingUrl = () => {
   return `/notification/type-settings/upsert`
 }
 
-export const notificationControllerUpsertTypeSetting = async (notificationUpsertTypeSettingDto: NotificationUpsertTypeSettingDto, options?: RequestInit): Promise<notificationControllerUpsertTypeSettingResponse> => {
+export const notificationControllerUpsertTypeSetting = async (notificationUpsertTypeSettingDto: NotificationUpsertTypeSettingDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerUpsertTypeSettingResponse>(getNotificationControllerUpsertTypeSettingUrl(),
+  return createHttpClient<void>(getNotificationControllerUpsertTypeSettingUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5572,18 +4023,6 @@ export const notificationControllerUpsertTypeSetting = async (notificationUpsert
 /**
  * @summary 初始化常见通知类型设置（管理员）
  */
-export type notificationControllerInitTypeSettingsResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationControllerInitTypeSettingsResponseSuccess = (notificationControllerInitTypeSettingsResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerInitTypeSettingsResponse = (notificationControllerInitTypeSettingsResponseSuccess)
-
 export const getNotificationControllerInitTypeSettingsUrl = () => {
 
 
@@ -5592,9 +4031,9 @@ export const getNotificationControllerInitTypeSettingsUrl = () => {
   return `/notification/type-settings/init`
 }
 
-export const notificationControllerInitTypeSettings = async ( options?: RequestInit): Promise<notificationControllerInitTypeSettingsResponse> => {
+export const notificationControllerInitTypeSettings = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerInitTypeSettingsResponse>(getNotificationControllerInitTypeSettingsUrl(),
+  return createHttpClient<void>(getNotificationControllerInitTypeSettingsUrl(),
   {      
     ...options,
     method: 'POST'
@@ -5608,18 +4047,6 @@ export const notificationControllerInitTypeSettings = async ( options?: RequestI
 /**
  * @summary 获取某个订阅消息模板信息（会员端）
  */
-export type notificationControllerGetWxappTemplateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationControllerGetWxappTemplateResponseSuccess = (notificationControllerGetWxappTemplateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerGetWxappTemplateResponse = (notificationControllerGetWxappTemplateResponseSuccess)
-
 export const getNotificationControllerGetWxappTemplateUrl = (params: NotificationControllerGetWxappTemplateParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5635,9 +4062,9 @@ export const getNotificationControllerGetWxappTemplateUrl = (params: Notificatio
   return stringifiedParams.length > 0 ? `/notification/wxapp/template?${stringifiedParams}` : `/notification/wxapp/template`
 }
 
-export const notificationControllerGetWxappTemplate = async (params: NotificationControllerGetWxappTemplateParams, options?: RequestInit): Promise<notificationControllerGetWxappTemplateResponse> => {
+export const notificationControllerGetWxappTemplate = async (params: NotificationControllerGetWxappTemplateParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerGetWxappTemplateResponse>(getNotificationControllerGetWxappTemplateUrl(params),
+  return createHttpClient<void>(getNotificationControllerGetWxappTemplateUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5651,18 +4078,6 @@ export const notificationControllerGetWxappTemplate = async (params: Notificatio
 /**
  * @summary 上报用户订阅结果（会员端）
  */
-export type notificationControllerReportWxappSubscribeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationControllerReportWxappSubscribeResponseSuccess = (notificationControllerReportWxappSubscribeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationControllerReportWxappSubscribeResponse = (notificationControllerReportWxappSubscribeResponseSuccess)
-
 export const getNotificationControllerReportWxappSubscribeUrl = () => {
 
 
@@ -5671,9 +4086,9 @@ export const getNotificationControllerReportWxappSubscribeUrl = () => {
   return `/notification/wxapp/subscribe-report`
 }
 
-export const notificationControllerReportWxappSubscribe = async ( options?: RequestInit): Promise<notificationControllerReportWxappSubscribeResponse> => {
+export const notificationControllerReportWxappSubscribe = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationControllerReportWxappSubscribeResponse>(getNotificationControllerReportWxappSubscribeUrl(),
+  return createHttpClient<void>(getNotificationControllerReportWxappSubscribeUrl(),
   {      
     ...options,
     method: 'POST'
@@ -5687,18 +4102,6 @@ export const notificationControllerReportWxappSubscribe = async ( options?: Requ
 /**
  * @summary 模板列表
  */
-export type notificationTemplateControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationTemplateControllerListResponseSuccess = (notificationTemplateControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationTemplateControllerListResponse = (notificationTemplateControllerListResponseSuccess)
-
 export const getNotificationTemplateControllerListUrl = (params?: NotificationTemplateControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5714,9 +4117,9 @@ export const getNotificationTemplateControllerListUrl = (params?: NotificationTe
   return stringifiedParams.length > 0 ? `/notification/template/list?${stringifiedParams}` : `/notification/template/list`
 }
 
-export const notificationTemplateControllerList = async (params?: NotificationTemplateControllerListParams, options?: RequestInit): Promise<notificationTemplateControllerListResponse> => {
+export const notificationTemplateControllerList = async (params?: NotificationTemplateControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationTemplateControllerListResponse>(getNotificationTemplateControllerListUrl(params),
+  return createHttpClient<void>(getNotificationTemplateControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5730,18 +4133,6 @@ export const notificationTemplateControllerList = async (params?: NotificationTe
 /**
  * @summary 创建模板
  */
-export type notificationTemplateControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type notificationTemplateControllerCreateResponseSuccess = (notificationTemplateControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type notificationTemplateControllerCreateResponse = (notificationTemplateControllerCreateResponseSuccess)
-
 export const getNotificationTemplateControllerCreateUrl = () => {
 
 
@@ -5750,9 +4141,9 @@ export const getNotificationTemplateControllerCreateUrl = () => {
   return `/notification/template/create`
 }
 
-export const notificationTemplateControllerCreate = async (notificationTemplateCreateDto: NotificationTemplateCreateDto, options?: RequestInit): Promise<notificationTemplateControllerCreateResponse> => {
+export const notificationTemplateControllerCreate = async (notificationTemplateCreateDto: NotificationTemplateCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationTemplateControllerCreateResponse>(getNotificationTemplateControllerCreateUrl(),
+  return createHttpClient<void>(getNotificationTemplateControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5767,18 +4158,6 @@ export const notificationTemplateControllerCreate = async (notificationTemplateC
 /**
  * @summary 更新模板
  */
-export type notificationTemplateControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationTemplateControllerUpdateResponseSuccess = (notificationTemplateControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationTemplateControllerUpdateResponse = (notificationTemplateControllerUpdateResponseSuccess)
-
 export const getNotificationTemplateControllerUpdateUrl = (id: string,) => {
 
 
@@ -5788,9 +4167,9 @@ export const getNotificationTemplateControllerUpdateUrl = (id: string,) => {
 }
 
 export const notificationTemplateControllerUpdate = async (id: string,
-    notificationTemplateUpdateDto: NotificationTemplateUpdateDto, options?: RequestInit): Promise<notificationTemplateControllerUpdateResponse> => {
+    notificationTemplateUpdateDto: NotificationTemplateUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationTemplateControllerUpdateResponse>(getNotificationTemplateControllerUpdateUrl(id),
+  return createHttpClient<void>(getNotificationTemplateControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -5805,18 +4184,6 @@ export const notificationTemplateControllerUpdate = async (id: string,
 /**
  * @summary 删除模板
  */
-export type notificationTemplateControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationTemplateControllerRemoveResponseSuccess = (notificationTemplateControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationTemplateControllerRemoveResponse = (notificationTemplateControllerRemoveResponseSuccess)
-
 export const getNotificationTemplateControllerRemoveUrl = (id: string,) => {
 
 
@@ -5825,9 +4192,9 @@ export const getNotificationTemplateControllerRemoveUrl = (id: string,) => {
   return `/notification/template/${id}`
 }
 
-export const notificationTemplateControllerRemove = async (id: string, options?: RequestInit): Promise<notificationTemplateControllerRemoveResponse> => {
+export const notificationTemplateControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationTemplateControllerRemoveResponse>(getNotificationTemplateControllerRemoveUrl(id),
+  return createHttpClient<void>(getNotificationTemplateControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -5841,18 +4208,6 @@ export const notificationTemplateControllerRemove = async (id: string, options?:
 /**
  * @summary 模板类型的变量清单
  */
-export type notificationTemplateControllerVariablesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type notificationTemplateControllerVariablesResponseSuccess = (notificationTemplateControllerVariablesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type notificationTemplateControllerVariablesResponse = (notificationTemplateControllerVariablesResponseSuccess)
-
 export const getNotificationTemplateControllerVariablesUrl = (params?: NotificationTemplateControllerVariablesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5868,9 +4223,9 @@ export const getNotificationTemplateControllerVariablesUrl = (params?: Notificat
   return stringifiedParams.length > 0 ? `/notification/template/variables?${stringifiedParams}` : `/notification/template/variables`
 }
 
-export const notificationTemplateControllerVariables = async (params?: NotificationTemplateControllerVariablesParams, options?: RequestInit): Promise<notificationTemplateControllerVariablesResponse> => {
+export const notificationTemplateControllerVariables = async (params?: NotificationTemplateControllerVariablesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<notificationTemplateControllerVariablesResponse>(getNotificationTemplateControllerVariablesUrl(params),
+  return createHttpClient<void>(getNotificationTemplateControllerVariablesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5884,18 +4239,6 @@ export const notificationTemplateControllerVariables = async (params?: Notificat
 /**
  * @summary 滚动公告列表（可按类型筛选）
  */
-export type scrollNoticeControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type scrollNoticeControllerListResponseSuccess = (scrollNoticeControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerListResponse = (scrollNoticeControllerListResponseSuccess)
-
 export const getScrollNoticeControllerListUrl = (params: ScrollNoticeControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5911,9 +4254,9 @@ export const getScrollNoticeControllerListUrl = (params: ScrollNoticeControllerL
   return stringifiedParams.length > 0 ? `/content/notices?${stringifiedParams}` : `/content/notices`
 }
 
-export const scrollNoticeControllerList = async (params: ScrollNoticeControllerListParams, options?: RequestInit): Promise<scrollNoticeControllerListResponse> => {
+export const scrollNoticeControllerList = async (params: ScrollNoticeControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerListResponse>(getScrollNoticeControllerListUrl(params),
+  return createHttpClient<void>(getScrollNoticeControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -5927,18 +4270,6 @@ export const scrollNoticeControllerList = async (params: ScrollNoticeControllerL
 /**
  * @summary 创建滚动公告
  */
-export type scrollNoticeControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type scrollNoticeControllerCreateResponseSuccess = (scrollNoticeControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerCreateResponse = (scrollNoticeControllerCreateResponseSuccess)
-
 export const getScrollNoticeControllerCreateUrl = () => {
 
 
@@ -5947,9 +4278,9 @@ export const getScrollNoticeControllerCreateUrl = () => {
   return `/content/notices`
 }
 
-export const scrollNoticeControllerCreate = async (createScrollNoticeDto: CreateScrollNoticeDto, options?: RequestInit): Promise<scrollNoticeControllerCreateResponse> => {
+export const scrollNoticeControllerCreate = async (createScrollNoticeDto: CreateScrollNoticeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerCreateResponse>(getScrollNoticeControllerCreateUrl(),
+  return createHttpClient<void>(getScrollNoticeControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -5964,18 +4295,6 @@ export const scrollNoticeControllerCreate = async (createScrollNoticeDto: Create
 /**
  * @summary 更新滚动公告
  */
-export type scrollNoticeControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type scrollNoticeControllerUpdateResponseSuccess = (scrollNoticeControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerUpdateResponse = (scrollNoticeControllerUpdateResponseSuccess)
-
 export const getScrollNoticeControllerUpdateUrl = (id: string,) => {
 
 
@@ -5985,9 +4304,9 @@ export const getScrollNoticeControllerUpdateUrl = (id: string,) => {
 }
 
 export const scrollNoticeControllerUpdate = async (id: string,
-    updateScrollNoticeDto: UpdateScrollNoticeDto, options?: RequestInit): Promise<scrollNoticeControllerUpdateResponse> => {
+    updateScrollNoticeDto: UpdateScrollNoticeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerUpdateResponse>(getScrollNoticeControllerUpdateUrl(id),
+  return createHttpClient<void>(getScrollNoticeControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -6002,18 +4321,6 @@ export const scrollNoticeControllerUpdate = async (id: string,
 /**
  * @summary 删除滚动公告
  */
-export type scrollNoticeControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type scrollNoticeControllerRemoveResponseSuccess = (scrollNoticeControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerRemoveResponse = (scrollNoticeControllerRemoveResponseSuccess)
-
 export const getScrollNoticeControllerRemoveUrl = (id: string,) => {
 
 
@@ -6022,9 +4329,9 @@ export const getScrollNoticeControllerRemoveUrl = (id: string,) => {
   return `/content/notices/${id}`
 }
 
-export const scrollNoticeControllerRemove = async (id: string, options?: RequestInit): Promise<scrollNoticeControllerRemoveResponse> => {
+export const scrollNoticeControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerRemoveResponse>(getScrollNoticeControllerRemoveUrl(id),
+  return createHttpClient<void>(getScrollNoticeControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -6038,18 +4345,6 @@ export const scrollNoticeControllerRemove = async (id: string, options?: Request
 /**
  * @summary 启用指定公告（自动禁用同类型其他）
  */
-export type scrollNoticeControllerEnableResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type scrollNoticeControllerEnableResponseSuccess = (scrollNoticeControllerEnableResponse201) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerEnableResponse = (scrollNoticeControllerEnableResponseSuccess)
-
 export const getScrollNoticeControllerEnableUrl = (id: string,) => {
 
 
@@ -6058,9 +4353,9 @@ export const getScrollNoticeControllerEnableUrl = (id: string,) => {
   return `/content/notices/${id}/enable`
 }
 
-export const scrollNoticeControllerEnable = async (id: string, options?: RequestInit): Promise<scrollNoticeControllerEnableResponse> => {
+export const scrollNoticeControllerEnable = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerEnableResponse>(getScrollNoticeControllerEnableUrl(id),
+  return createHttpClient<void>(getScrollNoticeControllerEnableUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -6074,18 +4369,6 @@ export const scrollNoticeControllerEnable = async (id: string, options?: Request
 /**
  * @summary 小程序端：获取某类型当前启用公告
  */
-export type scrollNoticeControllerActiveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type scrollNoticeControllerActiveResponseSuccess = (scrollNoticeControllerActiveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type scrollNoticeControllerActiveResponse = (scrollNoticeControllerActiveResponseSuccess)
-
 export const getScrollNoticeControllerActiveUrl = (params: ScrollNoticeControllerActiveParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6101,9 +4384,9 @@ export const getScrollNoticeControllerActiveUrl = (params: ScrollNoticeControlle
   return stringifiedParams.length > 0 ? `/content/notices/active?${stringifiedParams}` : `/content/notices/active`
 }
 
-export const scrollNoticeControllerActive = async (params: ScrollNoticeControllerActiveParams, options?: RequestInit): Promise<scrollNoticeControllerActiveResponse> => {
+export const scrollNoticeControllerActive = async (params: ScrollNoticeControllerActiveParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<scrollNoticeControllerActiveResponse>(getScrollNoticeControllerActiveUrl(params),
+  return createHttpClient<void>(getScrollNoticeControllerActiveUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -6117,18 +4400,6 @@ export const scrollNoticeControllerActive = async (params: ScrollNoticeControlle
 /**
  * @summary 车型品牌列表（含缓存）
  */
-export type carDataControllerGetBrandsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type carDataControllerGetBrandsResponseSuccess = (carDataControllerGetBrandsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type carDataControllerGetBrandsResponse = (carDataControllerGetBrandsResponseSuccess)
-
 export const getCarDataControllerGetBrandsUrl = () => {
 
 
@@ -6137,9 +4408,9 @@ export const getCarDataControllerGetBrandsUrl = () => {
   return `/content/car/brands`
 }
 
-export const carDataControllerGetBrands = async ( options?: RequestInit): Promise<carDataControllerGetBrandsResponse> => {
+export const carDataControllerGetBrands = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<carDataControllerGetBrandsResponse>(getCarDataControllerGetBrandsUrl(),
+  return createHttpClient<void>(getCarDataControllerGetBrandsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6153,18 +4424,6 @@ export const carDataControllerGetBrands = async ( options?: RequestInit): Promis
 /**
  * @summary 车型车系列表（按品牌，含缓存）
  */
-export type carDataControllerGetSeriesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type carDataControllerGetSeriesResponseSuccess = (carDataControllerGetSeriesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type carDataControllerGetSeriesResponse = (carDataControllerGetSeriesResponseSuccess)
-
 export const getCarDataControllerGetSeriesUrl = (params: CarDataControllerGetSeriesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6180,9 +4439,9 @@ export const getCarDataControllerGetSeriesUrl = (params: CarDataControllerGetSer
   return stringifiedParams.length > 0 ? `/content/car/series?${stringifiedParams}` : `/content/car/series`
 }
 
-export const carDataControllerGetSeries = async (params: CarDataControllerGetSeriesParams, options?: RequestInit): Promise<carDataControllerGetSeriesResponse> => {
+export const carDataControllerGetSeries = async (params: CarDataControllerGetSeriesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<carDataControllerGetSeriesResponse>(getCarDataControllerGetSeriesUrl(params),
+  return createHttpClient<void>(getCarDataControllerGetSeriesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -6196,18 +4455,6 @@ export const carDataControllerGetSeries = async (params: CarDataControllerGetSer
 /**
  * @summary 天气：实时与预报（高德API）
  */
-export type weatherControllerGetWeatherResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type weatherControllerGetWeatherResponseSuccess = (weatherControllerGetWeatherResponse200) & {
-  headers: Headers;
-};
-;
-
-export type weatherControllerGetWeatherResponse = (weatherControllerGetWeatherResponseSuccess)
-
 export const getWeatherControllerGetWeatherUrl = (params: WeatherControllerGetWeatherParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6223,9 +4470,9 @@ export const getWeatherControllerGetWeatherUrl = (params: WeatherControllerGetWe
   return stringifiedParams.length > 0 ? `/content/weather?${stringifiedParams}` : `/content/weather`
 }
 
-export const weatherControllerGetWeather = async (params: WeatherControllerGetWeatherParams, options?: RequestInit): Promise<weatherControllerGetWeatherResponse> => {
+export const weatherControllerGetWeather = async (params: WeatherControllerGetWeatherParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<weatherControllerGetWeatherResponse>(getWeatherControllerGetWeatherUrl(params),
+  return createHttpClient<void>(getWeatherControllerGetWeatherUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -6239,18 +4486,6 @@ export const weatherControllerGetWeather = async (params: WeatherControllerGetWe
 /**
  * @summary 广告位列表（可按启用状态筛选）
  */
-export type adBannerControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adBannerControllerListResponseSuccess = (adBannerControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerListResponse = (adBannerControllerListResponseSuccess)
-
 export const getAdBannerControllerListUrl = (params: AdBannerControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6266,9 +4501,9 @@ export const getAdBannerControllerListUrl = (params: AdBannerControllerListParam
   return stringifiedParams.length > 0 ? `/content/banners?${stringifiedParams}` : `/content/banners`
 }
 
-export const adBannerControllerList = async (params: AdBannerControllerListParams, options?: RequestInit): Promise<adBannerControllerListResponse> => {
+export const adBannerControllerList = async (params: AdBannerControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerListResponse>(getAdBannerControllerListUrl(params),
+  return createHttpClient<void>(getAdBannerControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -6282,18 +4517,6 @@ export const adBannerControllerList = async (params: AdBannerControllerListParam
 /**
  * @summary 创建广告位
  */
-export type adBannerControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type adBannerControllerCreateResponseSuccess = (adBannerControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerCreateResponse = (adBannerControllerCreateResponseSuccess)
-
 export const getAdBannerControllerCreateUrl = () => {
 
 
@@ -6302,9 +4525,9 @@ export const getAdBannerControllerCreateUrl = () => {
   return `/content/banners`
 }
 
-export const adBannerControllerCreate = async (createBannerDto: CreateBannerDto, options?: RequestInit): Promise<adBannerControllerCreateResponse> => {
+export const adBannerControllerCreate = async (createBannerDto: CreateBannerDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerCreateResponse>(getAdBannerControllerCreateUrl(),
+  return createHttpClient<void>(getAdBannerControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -6319,18 +4542,6 @@ export const adBannerControllerCreate = async (createBannerDto: CreateBannerDto,
 /**
  * @summary 更新广告位
  */
-export type adBannerControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adBannerControllerUpdateResponseSuccess = (adBannerControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerUpdateResponse = (adBannerControllerUpdateResponseSuccess)
-
 export const getAdBannerControllerUpdateUrl = (id: string,) => {
 
 
@@ -6340,9 +4551,9 @@ export const getAdBannerControllerUpdateUrl = (id: string,) => {
 }
 
 export const adBannerControllerUpdate = async (id: string,
-    updateBannerDto: UpdateBannerDto, options?: RequestInit): Promise<adBannerControllerUpdateResponse> => {
+    updateBannerDto: UpdateBannerDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerUpdateResponse>(getAdBannerControllerUpdateUrl(id),
+  return createHttpClient<void>(getAdBannerControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -6357,18 +4568,6 @@ export const adBannerControllerUpdate = async (id: string,
 /**
  * @summary 删除广告位
  */
-export type adBannerControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adBannerControllerRemoveResponseSuccess = (adBannerControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerRemoveResponse = (adBannerControllerRemoveResponseSuccess)
-
 export const getAdBannerControllerRemoveUrl = (id: string,) => {
 
 
@@ -6377,9 +4576,9 @@ export const getAdBannerControllerRemoveUrl = (id: string,) => {
   return `/content/banners/${id}`
 }
 
-export const adBannerControllerRemove = async (id: string, options?: RequestInit): Promise<adBannerControllerRemoveResponse> => {
+export const adBannerControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerRemoveResponse>(getAdBannerControllerRemoveUrl(id),
+  return createHttpClient<void>(getAdBannerControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -6393,18 +4592,6 @@ export const adBannerControllerRemove = async (id: string, options?: RequestInit
 /**
  * @summary 启用/禁用广告位
  */
-export type adBannerControllerSetEnableResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type adBannerControllerSetEnableResponseSuccess = (adBannerControllerSetEnableResponse201) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerSetEnableResponse = (adBannerControllerSetEnableResponseSuccess)
-
 export const getAdBannerControllerSetEnableUrl = (id: string,) => {
 
 
@@ -6414,9 +4601,9 @@ export const getAdBannerControllerSetEnableUrl = (id: string,) => {
 }
 
 export const adBannerControllerSetEnable = async (id: string,
-    setBannerEnableDto: SetBannerEnableDto, options?: RequestInit): Promise<adBannerControllerSetEnableResponse> => {
+    setBannerEnableDto: SetBannerEnableDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerSetEnableResponse>(getAdBannerControllerSetEnableUrl(id),
+  return createHttpClient<void>(getAdBannerControllerSetEnableUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -6431,18 +4618,6 @@ export const adBannerControllerSetEnable = async (id: string,
 /**
  * @summary 小程序端：获取已启用广告位列表
  */
-export type adBannerControllerActiveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type adBannerControllerActiveResponseSuccess = (adBannerControllerActiveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type adBannerControllerActiveResponse = (adBannerControllerActiveResponseSuccess)
-
 export const getAdBannerControllerActiveUrl = () => {
 
 
@@ -6451,9 +4626,9 @@ export const getAdBannerControllerActiveUrl = () => {
   return `/content/banners/active`
 }
 
-export const adBannerControllerActive = async ( options?: RequestInit): Promise<adBannerControllerActiveResponse> => {
+export const adBannerControllerActive = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<adBannerControllerActiveResponse>(getAdBannerControllerActiveUrl(),
+  return createHttpClient<void>(getAdBannerControllerActiveUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6467,18 +4642,6 @@ export const adBannerControllerActive = async ( options?: RequestInit): Promise<
 /**
  * @summary 行政区查询（代理高德API）
  */
-export type districtControllerGetDistrictResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type districtControllerGetDistrictResponseSuccess = (districtControllerGetDistrictResponse200) & {
-  headers: Headers;
-};
-;
-
-export type districtControllerGetDistrictResponse = (districtControllerGetDistrictResponseSuccess)
-
 export const getDistrictControllerGetDistrictUrl = (params: DistrictControllerGetDistrictParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6494,9 +4657,9 @@ export const getDistrictControllerGetDistrictUrl = (params: DistrictControllerGe
   return stringifiedParams.length > 0 ? `/content/district?${stringifiedParams}` : `/content/district`
 }
 
-export const districtControllerGetDistrict = async (params: DistrictControllerGetDistrictParams, options?: RequestInit): Promise<districtControllerGetDistrictResponse> => {
+export const districtControllerGetDistrict = async (params: DistrictControllerGetDistrictParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<districtControllerGetDistrictResponse>(getDistrictControllerGetDistrictUrl(params),
+  return createHttpClient<void>(getDistrictControllerGetDistrictUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -6510,18 +4673,6 @@ export const districtControllerGetDistrict = async (params: DistrictControllerGe
 /**
  * @summary 服务队列列表（进行中/待处理）
  */
-export type queueControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueControllerListResponseSuccess = (queueControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerListResponse = (queueControllerListResponseSuccess)
-
 export const getQueueControllerListUrl = () => {
 
 
@@ -6530,9 +4681,9 @@ export const getQueueControllerListUrl = () => {
   return `/queue/list`
 }
 
-export const queueControllerList = async ( options?: RequestInit): Promise<queueControllerListResponse> => {
+export const queueControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerListResponse>(getQueueControllerListUrl(),
+  return createHttpClient<void>(getQueueControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6546,18 +4697,6 @@ export const queueControllerList = async ( options?: RequestInit): Promise<queue
 /**
  * @summary 队列摘要统计
  */
-export type queueControllerSummaryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueControllerSummaryResponseSuccess = (queueControllerSummaryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerSummaryResponse = (queueControllerSummaryResponseSuccess)
-
 export const getQueueControllerSummaryUrl = () => {
 
 
@@ -6566,9 +4705,9 @@ export const getQueueControllerSummaryUrl = () => {
   return `/queue/summary`
 }
 
-export const queueControllerSummary = async ( options?: RequestInit): Promise<queueControllerSummaryResponse> => {
+export const queueControllerSummary = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerSummaryResponse>(getQueueControllerSummaryUrl(),
+  return createHttpClient<void>(getQueueControllerSummaryUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6582,18 +4721,6 @@ export const queueControllerSummary = async ( options?: RequestInit): Promise<qu
 /**
  * @summary ETA 顶部汇总（按类型展示，按资源组计算）
  */
-export type queueControllerEtaSummaryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueControllerEtaSummaryResponseSuccess = (queueControllerEtaSummaryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerEtaSummaryResponse = (queueControllerEtaSummaryResponseSuccess)
-
 export const getQueueControllerEtaSummaryUrl = () => {
 
 
@@ -6602,9 +4729,9 @@ export const getQueueControllerEtaSummaryUrl = () => {
   return `/queue/eta-summary`
 }
 
-export const queueControllerEtaSummary = async ( options?: RequestInit): Promise<queueControllerEtaSummaryResponse> => {
+export const queueControllerEtaSummary = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerEtaSummaryResponse>(getQueueControllerEtaSummaryUrl(),
+  return createHttpClient<void>(getQueueControllerEtaSummaryUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6618,18 +4745,6 @@ export const queueControllerEtaSummary = async ( options?: RequestInit): Promise
 /**
  * @summary 添加到队列（支持多种模式）
  */
-export type queueControllerAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerAddResponseSuccess = (queueControllerAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerAddResponse = (queueControllerAddResponseSuccess)
-
 export const getQueueControllerAddUrl = () => {
 
 
@@ -6638,9 +4753,9 @@ export const getQueueControllerAddUrl = () => {
   return `/queue/add`
 }
 
-export const queueControllerAdd = async ( options?: RequestInit): Promise<queueControllerAddResponse> => {
+export const queueControllerAdd = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerAddResponse>(getQueueControllerAddUrl(),
+  return createHttpClient<void>(getQueueControllerAddUrl(),
   {      
     ...options,
     method: 'POST'
@@ -6654,18 +4769,6 @@ export const queueControllerAdd = async ( options?: RequestInit): Promise<queueC
 /**
  * @summary 创建服务订单并入队（先服务后付）
  */
-export type queueControllerCreateServiceOrderAndEnqueueResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerCreateServiceOrderAndEnqueueResponseSuccess = (queueControllerCreateServiceOrderAndEnqueueResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerCreateServiceOrderAndEnqueueResponse = (queueControllerCreateServiceOrderAndEnqueueResponseSuccess)
-
 export const getQueueControllerCreateServiceOrderAndEnqueueUrl = () => {
 
 
@@ -6674,9 +4777,9 @@ export const getQueueControllerCreateServiceOrderAndEnqueueUrl = () => {
   return `/queue/create-service-order-and-enqueue`
 }
 
-export const queueControllerCreateServiceOrderAndEnqueue = async ( options?: RequestInit): Promise<queueControllerCreateServiceOrderAndEnqueueResponse> => {
+export const queueControllerCreateServiceOrderAndEnqueue = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerCreateServiceOrderAndEnqueueResponse>(getQueueControllerCreateServiceOrderAndEnqueueUrl(),
+  return createHttpClient<void>(getQueueControllerCreateServiceOrderAndEnqueueUrl(),
   {      
     ...options,
     method: 'POST'
@@ -6690,18 +4793,6 @@ export const queueControllerCreateServiceOrderAndEnqueue = async ( options?: Req
 /**
  * @summary 设置当前执行任务索引
  */
-export type queueControllerSetCurrentResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerSetCurrentResponseSuccess = (queueControllerSetCurrentResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerSetCurrentResponse = (queueControllerSetCurrentResponseSuccess)
-
 export const getQueueControllerSetCurrentUrl = (id: string,) => {
 
 
@@ -6710,9 +4801,9 @@ export const getQueueControllerSetCurrentUrl = (id: string,) => {
   return `/queue/${id}/set-current`
 }
 
-export const queueControllerSetCurrent = async (id: string, options?: RequestInit): Promise<queueControllerSetCurrentResponse> => {
+export const queueControllerSetCurrent = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerSetCurrentResponse>(getQueueControllerSetCurrentUrl(id),
+  return createHttpClient<void>(getQueueControllerSetCurrentUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -6726,18 +4817,6 @@ export const queueControllerSetCurrent = async (id: string, options?: RequestIni
 /**
  * @summary 完成当前任务节点
  */
-export type queueControllerFinishTaskResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerFinishTaskResponseSuccess = (queueControllerFinishTaskResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerFinishTaskResponse = (queueControllerFinishTaskResponseSuccess)
-
 export const getQueueControllerFinishTaskUrl = (id: string,) => {
 
 
@@ -6746,9 +4825,9 @@ export const getQueueControllerFinishTaskUrl = (id: string,) => {
   return `/queue/${id}/finish-task`
 }
 
-export const queueControllerFinishTask = async (id: string, options?: RequestInit): Promise<queueControllerFinishTaskResponse> => {
+export const queueControllerFinishTask = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerFinishTaskResponse>(getQueueControllerFinishTaskUrl(id),
+  return createHttpClient<void>(getQueueControllerFinishTaskUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -6762,18 +4841,6 @@ export const queueControllerFinishTask = async (id: string, options?: RequestIni
 /**
  * @summary 确认整单已完成
  */
-export type queueControllerConfirmCompleteResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerConfirmCompleteResponseSuccess = (queueControllerConfirmCompleteResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerConfirmCompleteResponse = (queueControllerConfirmCompleteResponseSuccess)
-
 export const getQueueControllerConfirmCompleteUrl = (id: string,) => {
 
 
@@ -6782,9 +4849,9 @@ export const getQueueControllerConfirmCompleteUrl = (id: string,) => {
   return `/queue/${id}/confirm-complete`
 }
 
-export const queueControllerConfirmComplete = async (id: string, options?: RequestInit): Promise<queueControllerConfirmCompleteResponse> => {
+export const queueControllerConfirmComplete = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerConfirmCompleteResponse>(getQueueControllerConfirmCompleteUrl(id),
+  return createHttpClient<void>(getQueueControllerConfirmCompleteUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -6798,18 +4865,6 @@ export const queueControllerConfirmComplete = async (id: string, options?: Reque
 /**
  * @summary 开始第一步任务
  */
-export type queueControllerStartFirstResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueControllerStartFirstResponseSuccess = (queueControllerStartFirstResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerStartFirstResponse = (queueControllerStartFirstResponseSuccess)
-
 export const getQueueControllerStartFirstUrl = (id: string,) => {
 
 
@@ -6818,9 +4873,9 @@ export const getQueueControllerStartFirstUrl = (id: string,) => {
   return `/queue/${id}/start-first`
 }
 
-export const queueControllerStartFirst = async (id: string, options?: RequestInit): Promise<queueControllerStartFirstResponse> => {
+export const queueControllerStartFirst = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerStartFirstResponse>(getQueueControllerStartFirstUrl(id),
+  return createHttpClient<void>(getQueueControllerStartFirstUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -6834,18 +4889,6 @@ export const queueControllerStartFirst = async (id: string, options?: RequestIni
 /**
  * @summary 移出队列/取消
  */
-export type queueControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueControllerRemoveResponseSuccess = (queueControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueControllerRemoveResponse = (queueControllerRemoveResponseSuccess)
-
 export const getQueueControllerRemoveUrl = (id: string,) => {
 
 
@@ -6854,9 +4897,9 @@ export const getQueueControllerRemoveUrl = (id: string,) => {
   return `/queue/${id}`
 }
 
-export const queueControllerRemove = async (id: string, options?: RequestInit): Promise<queueControllerRemoveResponse> => {
+export const queueControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueControllerRemoveResponse>(getQueueControllerRemoveUrl(id),
+  return createHttpClient<void>(getQueueControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -6870,18 +4913,6 @@ export const queueControllerRemove = async (id: string, options?: RequestInit): 
 /**
  * @summary 队列类型列表（含步骤与可用商品）
  */
-export type queueTypeControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueTypeControllerListResponseSuccess = (queueTypeControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerListResponse = (queueTypeControllerListResponseSuccess)
-
 export const getQueueTypeControllerListUrl = () => {
 
 
@@ -6890,9 +4921,9 @@ export const getQueueTypeControllerListUrl = () => {
   return `/queue-types`
 }
 
-export const queueTypeControllerList = async ( options?: RequestInit): Promise<queueTypeControllerListResponse> => {
+export const queueTypeControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerListResponse>(getQueueTypeControllerListUrl(),
+  return createHttpClient<void>(getQueueTypeControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6906,18 +4937,6 @@ export const queueTypeControllerList = async ( options?: RequestInit): Promise<q
 /**
  * @summary 创建队列类型
  */
-export type queueTypeControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type queueTypeControllerCreateResponseSuccess = (queueTypeControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerCreateResponse = (queueTypeControllerCreateResponseSuccess)
-
 export const getQueueTypeControllerCreateUrl = () => {
 
 
@@ -6926,9 +4945,9 @@ export const getQueueTypeControllerCreateUrl = () => {
   return `/queue-types`
 }
 
-export const queueTypeControllerCreate = async ( options?: RequestInit): Promise<queueTypeControllerCreateResponse> => {
+export const queueTypeControllerCreate = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerCreateResponse>(getQueueTypeControllerCreateUrl(),
+  return createHttpClient<void>(getQueueTypeControllerCreateUrl(),
   {      
     ...options,
     method: 'POST'
@@ -6942,18 +4961,6 @@ export const queueTypeControllerCreate = async ( options?: RequestInit): Promise
 /**
  * @summary 更新队列类型
  */
-export type queueTypeControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueTypeControllerUpdateResponseSuccess = (queueTypeControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerUpdateResponse = (queueTypeControllerUpdateResponseSuccess)
-
 export const getQueueTypeControllerUpdateUrl = (id: number,) => {
 
 
@@ -6962,9 +4969,9 @@ export const getQueueTypeControllerUpdateUrl = (id: number,) => {
   return `/queue-types/${id}`
 }
 
-export const queueTypeControllerUpdate = async (id: number, options?: RequestInit): Promise<queueTypeControllerUpdateResponse> => {
+export const queueTypeControllerUpdate = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerUpdateResponse>(getQueueTypeControllerUpdateUrl(id),
+  return createHttpClient<void>(getQueueTypeControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT'
@@ -6978,18 +4985,6 @@ export const queueTypeControllerUpdate = async (id: number, options?: RequestIni
 /**
  * @summary 删除队列类型（若已被使用则拒绝）
  */
-export type queueTypeControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueTypeControllerRemoveResponseSuccess = (queueTypeControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerRemoveResponse = (queueTypeControllerRemoveResponseSuccess)
-
 export const getQueueTypeControllerRemoveUrl = (id: number,) => {
 
 
@@ -6998,9 +4993,9 @@ export const getQueueTypeControllerRemoveUrl = (id: number,) => {
   return `/queue-types/${id}`
 }
 
-export const queueTypeControllerRemove = async (id: number, options?: RequestInit): Promise<queueTypeControllerRemoveResponse> => {
+export const queueTypeControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerRemoveResponse>(getQueueTypeControllerRemoveUrl(id),
+  return createHttpClient<void>(getQueueTypeControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -7014,18 +5009,6 @@ export const queueTypeControllerRemove = async (id: number, options?: RequestIni
 /**
  * @summary 设置队列类型的步骤（覆盖式）
  */
-export type queueTypeControllerSetStepsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueTypeControllerSetStepsResponseSuccess = (queueTypeControllerSetStepsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerSetStepsResponse = (queueTypeControllerSetStepsResponseSuccess)
-
 export const getQueueTypeControllerSetStepsUrl = (id: number,) => {
 
 
@@ -7034,9 +5017,9 @@ export const getQueueTypeControllerSetStepsUrl = (id: number,) => {
   return `/queue-types/${id}/steps`
 }
 
-export const queueTypeControllerSetSteps = async (id: number, options?: RequestInit): Promise<queueTypeControllerSetStepsResponse> => {
+export const queueTypeControllerSetSteps = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerSetStepsResponse>(getQueueTypeControllerSetStepsUrl(id),
+  return createHttpClient<void>(getQueueTypeControllerSetStepsUrl(id),
   {      
     ...options,
     method: 'PUT'
@@ -7050,18 +5033,6 @@ export const queueTypeControllerSetSteps = async (id: number, options?: RequestI
 /**
  * @summary 设置队列类型的可用服务商品（覆盖式）
  */
-export type queueTypeControllerSetProductsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type queueTypeControllerSetProductsResponseSuccess = (queueTypeControllerSetProductsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type queueTypeControllerSetProductsResponse = (queueTypeControllerSetProductsResponseSuccess)
-
 export const getQueueTypeControllerSetProductsUrl = (id: number,) => {
 
 
@@ -7070,9 +5041,9 @@ export const getQueueTypeControllerSetProductsUrl = (id: number,) => {
   return `/queue-types/${id}/products`
 }
 
-export const queueTypeControllerSetProducts = async (id: number, options?: RequestInit): Promise<queueTypeControllerSetProductsResponse> => {
+export const queueTypeControllerSetProducts = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<queueTypeControllerSetProductsResponse>(getQueueTypeControllerSetProductsUrl(id),
+  return createHttpClient<void>(getQueueTypeControllerSetProductsUrl(id),
   {      
     ...options,
     method: 'PUT'
@@ -7083,18 +5054,6 @@ export const queueTypeControllerSetProducts = async (id: number, options?: Reque
 
 
 
-export type orderControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCreateResponseSuccess = (orderControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCreateResponse = (orderControllerCreateResponseSuccess)
-
 export const getOrderControllerCreateUrl = () => {
 
 
@@ -7103,9 +5062,9 @@ export const getOrderControllerCreateUrl = () => {
   return `/orders`
 }
 
-export const orderControllerCreate = async ( options?: RequestInit): Promise<orderControllerCreateResponse> => {
+export const orderControllerCreate = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCreateResponse>(getOrderControllerCreateUrl(),
+  return createHttpClient<void>(getOrderControllerCreateUrl(),
   {      
     ...options,
     method: 'POST'
@@ -7115,18 +5074,6 @@ export const orderControllerCreate = async ( options?: RequestInit): Promise<ord
 );}
 
 
-
-export type orderControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerListResponseSuccess = (orderControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerListResponse = (orderControllerListResponseSuccess)
 
 export const getOrderControllerListUrl = (params: OrderControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -7143,9 +5090,9 @@ export const getOrderControllerListUrl = (params: OrderControllerListParams,) =>
   return stringifiedParams.length > 0 ? `/orders?${stringifiedParams}` : `/orders`
 }
 
-export const orderControllerList = async (params: OrderControllerListParams, options?: RequestInit): Promise<orderControllerListResponse> => {
+export const orderControllerList = async (params: OrderControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerListResponse>(getOrderControllerListUrl(params),
+  return createHttpClient<void>(getOrderControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -7155,18 +5102,6 @@ export const orderControllerList = async (params: OrderControllerListParams, opt
 );}
 
 
-
-export type orderControllerCreateFkResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCreateFkResponseSuccess = (orderControllerCreateFkResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCreateFkResponse = (orderControllerCreateFkResponseSuccess)
 
 export const getOrderControllerCreateFkUrl = () => {
 
@@ -7176,9 +5111,9 @@ export const getOrderControllerCreateFkUrl = () => {
   return `/orders/_create-fk`
 }
 
-export const orderControllerCreateFk = async ( options?: RequestInit): Promise<orderControllerCreateFkResponse> => {
+export const orderControllerCreateFk = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCreateFkResponse>(getOrderControllerCreateFkUrl(),
+  return createHttpClient<void>(getOrderControllerCreateFkUrl(),
   {      
     ...options,
     method: 'POST'
@@ -7188,51 +5123,6 @@ export const orderControllerCreateFk = async ( options?: RequestInit): Promise<o
 );}
 
 
-
-export type orderControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerGetResponseSuccess = (orderControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerGetResponse = (orderControllerGetResponseSuccess)
-
-export const getOrderControllerGetUrl = (id: number,) => {
-
-
-  
-
-  return `/orders/${id}`
-}
-
-export const orderControllerGet = async (id: number, options?: RequestInit): Promise<orderControllerGetResponse> => {
-  
-  return createHttpClient<orderControllerGetResponse>(getOrderControllerGetUrl(id),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-export type orderControllerGetByNoResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerGetByNoResponseSuccess = (orderControllerGetByNoResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerGetByNoResponse = (orderControllerGetByNoResponseSuccess)
 
 export const getOrderControllerGetByNoUrl = (no: string,) => {
 
@@ -7242,9 +5132,9 @@ export const getOrderControllerGetByNoUrl = (no: string,) => {
   return `/orders/by-no/${no}`
 }
 
-export const orderControllerGetByNo = async (no: string, options?: RequestInit): Promise<orderControllerGetByNoResponse> => {
+export const orderControllerGetByNo = async (no: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerGetByNoResponse>(getOrderControllerGetByNoUrl(no),
+  return createHttpClient<void>(getOrderControllerGetByNoUrl(no),
   {      
     ...options,
     method: 'GET'
@@ -7255,18 +5145,6 @@ export const orderControllerGetByNo = async (no: string, options?: RequestInit):
 
 
 
-export type orderControllerWechatJsapiResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatJsapiResponseSuccess = (orderControllerWechatJsapiResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatJsapiResponse = (orderControllerWechatJsapiResponseSuccess)
-
 export const getOrderControllerWechatJsapiUrl = (id: number,) => {
 
 
@@ -7275,9 +5153,9 @@ export const getOrderControllerWechatJsapiUrl = (id: number,) => {
   return `/orders/${id}/pay/wechat-jsapi`
 }
 
-export const orderControllerWechatJsapi = async (id: number, options?: RequestInit): Promise<orderControllerWechatJsapiResponse> => {
+export const orderControllerWechatJsapi = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatJsapiResponse>(getOrderControllerWechatJsapiUrl(id),
+  return createHttpClient<void>(getOrderControllerWechatJsapiUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7287,18 +5165,6 @@ export const orderControllerWechatJsapi = async (id: number, options?: RequestIn
 );}
 
 
-
-export type orderControllerWechatNotifyResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatNotifyResponseSuccess = (orderControllerWechatNotifyResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatNotifyResponse = (orderControllerWechatNotifyResponseSuccess)
 
 export const getOrderControllerWechatNotifyUrl = () => {
 
@@ -7308,9 +5174,9 @@ export const getOrderControllerWechatNotifyUrl = () => {
   return `/orders/_notify/wechat`
 }
 
-export const orderControllerWechatNotify = async ( options?: RequestInit): Promise<orderControllerWechatNotifyResponse> => {
+export const orderControllerWechatNotify = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatNotifyResponse>(getOrderControllerWechatNotifyUrl(),
+  return createHttpClient<void>(getOrderControllerWechatNotifyUrl(),
   {      
     ...options,
     method: 'POST'
@@ -7320,18 +5186,6 @@ export const orderControllerWechatNotify = async ( options?: RequestInit): Promi
 );}
 
 
-
-export type orderControllerMarkPaidResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerMarkPaidResponseSuccess = (orderControllerMarkPaidResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerMarkPaidResponse = (orderControllerMarkPaidResponseSuccess)
 
 export const getOrderControllerMarkPaidUrl = (id: number,) => {
 
@@ -7341,9 +5195,9 @@ export const getOrderControllerMarkPaidUrl = (id: number,) => {
   return `/orders/${id}/pay/manual`
 }
 
-export const orderControllerMarkPaid = async (id: number, options?: RequestInit): Promise<orderControllerMarkPaidResponse> => {
+export const orderControllerMarkPaid = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerMarkPaidResponse>(getOrderControllerMarkPaidUrl(id),
+  return createHttpClient<void>(getOrderControllerMarkPaidUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7353,18 +5207,6 @@ export const orderControllerMarkPaid = async (id: number, options?: RequestInit)
 );}
 
 
-
-export type orderControllerAdjustCashierDiscountResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerAdjustCashierDiscountResponseSuccess = (orderControllerAdjustCashierDiscountResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerAdjustCashierDiscountResponse = (orderControllerAdjustCashierDiscountResponseSuccess)
 
 export const getOrderControllerAdjustCashierDiscountUrl = (id: number,) => {
 
@@ -7374,9 +5216,9 @@ export const getOrderControllerAdjustCashierDiscountUrl = (id: number,) => {
   return `/orders/${id}/adjust-cashier-discount`
 }
 
-export const orderControllerAdjustCashierDiscount = async (id: number, options?: RequestInit): Promise<orderControllerAdjustCashierDiscountResponse> => {
+export const orderControllerAdjustCashierDiscount = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerAdjustCashierDiscountResponse>(getOrderControllerAdjustCashierDiscountUrl(id),
+  return createHttpClient<void>(getOrderControllerAdjustCashierDiscountUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7386,18 +5228,6 @@ export const orderControllerAdjustCashierDiscount = async (id: number, options?:
 );}
 
 
-
-export type orderControllerPayByWashCardResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerPayByWashCardResponseSuccess = (orderControllerPayByWashCardResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerPayByWashCardResponse = (orderControllerPayByWashCardResponseSuccess)
 
 export const getOrderControllerPayByWashCardUrl = (id: number,) => {
 
@@ -7407,9 +5237,9 @@ export const getOrderControllerPayByWashCardUrl = (id: number,) => {
   return `/orders/${id}/pay/wash-card`
 }
 
-export const orderControllerPayByWashCard = async (id: number, options?: RequestInit): Promise<orderControllerPayByWashCardResponse> => {
+export const orderControllerPayByWashCard = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerPayByWashCardResponse>(getOrderControllerPayByWashCardUrl(id),
+  return createHttpClient<void>(getOrderControllerPayByWashCardUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7419,18 +5249,6 @@ export const orderControllerPayByWashCard = async (id: number, options?: Request
 );}
 
 
-
-export type orderControllerPayByGroupBalanceResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerPayByGroupBalanceResponseSuccess = (orderControllerPayByGroupBalanceResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerPayByGroupBalanceResponse = (orderControllerPayByGroupBalanceResponseSuccess)
 
 export const getOrderControllerPayByGroupBalanceUrl = (id: number,) => {
 
@@ -7440,9 +5258,9 @@ export const getOrderControllerPayByGroupBalanceUrl = (id: number,) => {
   return `/orders/${id}/pay/group-balance`
 }
 
-export const orderControllerPayByGroupBalance = async (id: number, options?: RequestInit): Promise<orderControllerPayByGroupBalanceResponse> => {
+export const orderControllerPayByGroupBalance = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerPayByGroupBalanceResponse>(getOrderControllerPayByGroupBalanceUrl(id),
+  return createHttpClient<void>(getOrderControllerPayByGroupBalanceUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7452,18 +5270,6 @@ export const orderControllerPayByGroupBalance = async (id: number, options?: Req
 );}
 
 
-
-export type orderControllerWechatMicropayResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatMicropayResponseSuccess = (orderControllerWechatMicropayResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatMicropayResponse = (orderControllerWechatMicropayResponseSuccess)
 
 export const getOrderControllerWechatMicropayUrl = (id: number,) => {
 
@@ -7473,9 +5279,9 @@ export const getOrderControllerWechatMicropayUrl = (id: number,) => {
   return `/orders/${id}/pay/wx-micropay`
 }
 
-export const orderControllerWechatMicropay = async (id: number, options?: RequestInit): Promise<orderControllerWechatMicropayResponse> => {
+export const orderControllerWechatMicropay = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatMicropayResponse>(getOrderControllerWechatMicropayUrl(id),
+  return createHttpClient<void>(getOrderControllerWechatMicropayUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7485,18 +5291,6 @@ export const orderControllerWechatMicropay = async (id: number, options?: Reques
 );}
 
 
-
-export type orderControllerCloseResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCloseResponseSuccess = (orderControllerCloseResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCloseResponse = (orderControllerCloseResponseSuccess)
 
 export const getOrderControllerCloseUrl = (id: number,) => {
 
@@ -7506,9 +5300,9 @@ export const getOrderControllerCloseUrl = (id: number,) => {
   return `/orders/${id}/close`
 }
 
-export const orderControllerClose = async (id: number, options?: RequestInit): Promise<orderControllerCloseResponse> => {
+export const orderControllerClose = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCloseResponse>(getOrderControllerCloseUrl(id),
+  return createHttpClient<void>(getOrderControllerCloseUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7518,18 +5312,6 @@ export const orderControllerClose = async (id: number, options?: RequestInit): P
 );}
 
 
-
-export type orderControllerCancelOrderResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCancelOrderResponseSuccess = (orderControllerCancelOrderResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCancelOrderResponse = (orderControllerCancelOrderResponseSuccess)
 
 export const getOrderControllerCancelOrderUrl = (id: number,) => {
 
@@ -7539,9 +5321,9 @@ export const getOrderControllerCancelOrderUrl = (id: number,) => {
   return `/orders/${id}/cancel`
 }
 
-export const orderControllerCancelOrder = async (id: number, options?: RequestInit): Promise<orderControllerCancelOrderResponse> => {
+export const orderControllerCancelOrder = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCancelOrderResponse>(getOrderControllerCancelOrderUrl(id),
+  return createHttpClient<void>(getOrderControllerCancelOrderUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7551,18 +5333,6 @@ export const orderControllerCancelOrder = async (id: number, options?: RequestIn
 );}
 
 
-
-export type orderControllerWriteoffResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWriteoffResponseSuccess = (orderControllerWriteoffResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWriteoffResponse = (orderControllerWriteoffResponseSuccess)
 
 export const getOrderControllerWriteoffUrl = (id: number,) => {
 
@@ -7572,9 +5342,9 @@ export const getOrderControllerWriteoffUrl = (id: number,) => {
   return `/orders/${id}/void`
 }
 
-export const orderControllerWriteoff = async (id: number, options?: RequestInit): Promise<orderControllerWriteoffResponse> => {
+export const orderControllerWriteoff = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWriteoffResponse>(getOrderControllerWriteoffUrl(id),
+  return createHttpClient<void>(getOrderControllerWriteoffUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7584,18 +5354,6 @@ export const orderControllerWriteoff = async (id: number, options?: RequestInit)
 );}
 
 
-
-export type orderControllerRestoreResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerRestoreResponseSuccess = (orderControllerRestoreResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerRestoreResponse = (orderControllerRestoreResponseSuccess)
 
 export const getOrderControllerRestoreUrl = (id: number,) => {
 
@@ -7605,9 +5363,9 @@ export const getOrderControllerRestoreUrl = (id: number,) => {
   return `/orders/${id}/restore`
 }
 
-export const orderControllerRestore = async (id: number, options?: RequestInit): Promise<orderControllerRestoreResponse> => {
+export const orderControllerRestore = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerRestoreResponse>(getOrderControllerRestoreUrl(id),
+  return createHttpClient<void>(getOrderControllerRestoreUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7617,18 +5375,6 @@ export const orderControllerRestore = async (id: number, options?: RequestInit):
 );}
 
 
-
-export type orderControllerCreateAfterSalesResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCreateAfterSalesResponseSuccess = (orderControllerCreateAfterSalesResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCreateAfterSalesResponse = (orderControllerCreateAfterSalesResponseSuccess)
 
 export const getOrderControllerCreateAfterSalesUrl = (id: number,) => {
 
@@ -7638,9 +5384,9 @@ export const getOrderControllerCreateAfterSalesUrl = (id: number,) => {
   return `/orders/${id}/after-sales`
 }
 
-export const orderControllerCreateAfterSales = async (id: number, options?: RequestInit): Promise<orderControllerCreateAfterSalesResponse> => {
+export const orderControllerCreateAfterSales = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCreateAfterSalesResponse>(getOrderControllerCreateAfterSalesUrl(id),
+  return createHttpClient<void>(getOrderControllerCreateAfterSalesUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7650,18 +5396,6 @@ export const orderControllerCreateAfterSales = async (id: number, options?: Requ
 );}
 
 
-
-export type orderControllerListAfterSalesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerListAfterSalesResponseSuccess = (orderControllerListAfterSalesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerListAfterSalesResponse = (orderControllerListAfterSalesResponseSuccess)
 
 export const getOrderControllerListAfterSalesUrl = (params: OrderControllerListAfterSalesParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -7678,9 +5412,9 @@ export const getOrderControllerListAfterSalesUrl = (params: OrderControllerListA
   return stringifiedParams.length > 0 ? `/orders/_after-sales?${stringifiedParams}` : `/orders/_after-sales`
 }
 
-export const orderControllerListAfterSales = async (params: OrderControllerListAfterSalesParams, options?: RequestInit): Promise<orderControllerListAfterSalesResponse> => {
+export const orderControllerListAfterSales = async (params: OrderControllerListAfterSalesParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerListAfterSalesResponse>(getOrderControllerListAfterSalesUrl(params),
+  return createHttpClient<void>(getOrderControllerListAfterSalesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -7690,18 +5424,6 @@ export const orderControllerListAfterSales = async (params: OrderControllerListA
 );}
 
 
-
-export type orderControllerAuditAfterSalesResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerAuditAfterSalesResponseSuccess = (orderControllerAuditAfterSalesResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerAuditAfterSalesResponse = (orderControllerAuditAfterSalesResponseSuccess)
 
 export const getOrderControllerAuditAfterSalesUrl = (id: number,) => {
 
@@ -7711,9 +5433,9 @@ export const getOrderControllerAuditAfterSalesUrl = (id: number,) => {
   return `/orders/_after-sales/${id}/audit`
 }
 
-export const orderControllerAuditAfterSales = async (id: number, options?: RequestInit): Promise<orderControllerAuditAfterSalesResponse> => {
+export const orderControllerAuditAfterSales = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerAuditAfterSalesResponse>(getOrderControllerAuditAfterSalesUrl(id),
+  return createHttpClient<void>(getOrderControllerAuditAfterSalesUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7723,18 +5445,6 @@ export const orderControllerAuditAfterSales = async (id: number, options?: Reque
 );}
 
 
-
-export type orderControllerShipExchangeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerShipExchangeResponseSuccess = (orderControllerShipExchangeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerShipExchangeResponse = (orderControllerShipExchangeResponseSuccess)
 
 export const getOrderControllerShipExchangeUrl = (id: number,) => {
 
@@ -7744,9 +5454,9 @@ export const getOrderControllerShipExchangeUrl = (id: number,) => {
   return `/orders/_after-sales/${id}/exchange-ship`
 }
 
-export const orderControllerShipExchange = async (id: number, options?: RequestInit): Promise<orderControllerShipExchangeResponse> => {
+export const orderControllerShipExchange = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerShipExchangeResponse>(getOrderControllerShipExchangeUrl(id),
+  return createHttpClient<void>(getOrderControllerShipExchangeUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7756,18 +5466,6 @@ export const orderControllerShipExchange = async (id: number, options?: RequestI
 );}
 
 
-
-export type orderControllerWechatRefundResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatRefundResponseSuccess = (orderControllerWechatRefundResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatRefundResponse = (orderControllerWechatRefundResponseSuccess)
 
 export const getOrderControllerWechatRefundUrl = (id: number,) => {
 
@@ -7777,9 +5475,9 @@ export const getOrderControllerWechatRefundUrl = (id: number,) => {
   return `/orders/${id}/refund`
 }
 
-export const orderControllerWechatRefund = async (id: number, options?: RequestInit): Promise<orderControllerWechatRefundResponse> => {
+export const orderControllerWechatRefund = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatRefundResponse>(getOrderControllerWechatRefundUrl(id),
+  return createHttpClient<void>(getOrderControllerWechatRefundUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7789,18 +5487,6 @@ export const orderControllerWechatRefund = async (id: number, options?: RequestI
 );}
 
 
-
-export type orderControllerWechatRefundNotifyResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatRefundNotifyResponseSuccess = (orderControllerWechatRefundNotifyResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatRefundNotifyResponse = (orderControllerWechatRefundNotifyResponseSuccess)
 
 export const getOrderControllerWechatRefundNotifyUrl = () => {
 
@@ -7810,9 +5496,9 @@ export const getOrderControllerWechatRefundNotifyUrl = () => {
   return `/orders/_notify/wechat-refund`
 }
 
-export const orderControllerWechatRefundNotify = async ( options?: RequestInit): Promise<orderControllerWechatRefundNotifyResponse> => {
+export const orderControllerWechatRefundNotify = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatRefundNotifyResponse>(getOrderControllerWechatRefundNotifyUrl(),
+  return createHttpClient<void>(getOrderControllerWechatRefundNotifyUrl(),
   {      
     ...options,
     method: 'POST'
@@ -7822,18 +5508,6 @@ export const orderControllerWechatRefundNotify = async ( options?: RequestInit):
 );}
 
 
-
-export type orderControllerWechatRefundV2NotifyResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerWechatRefundV2NotifyResponseSuccess = (orderControllerWechatRefundV2NotifyResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerWechatRefundV2NotifyResponse = (orderControllerWechatRefundV2NotifyResponseSuccess)
 
 export const getOrderControllerWechatRefundV2NotifyUrl = () => {
 
@@ -7843,9 +5517,9 @@ export const getOrderControllerWechatRefundV2NotifyUrl = () => {
   return `/orders/_notify/wechat-refund-v2`
 }
 
-export const orderControllerWechatRefundV2Notify = async ( options?: RequestInit): Promise<orderControllerWechatRefundV2NotifyResponse> => {
+export const orderControllerWechatRefundV2Notify = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerWechatRefundV2NotifyResponse>(getOrderControllerWechatRefundV2NotifyUrl(),
+  return createHttpClient<void>(getOrderControllerWechatRefundV2NotifyUrl(),
   {      
     ...options,
     method: 'POST'
@@ -7855,18 +5529,6 @@ export const orderControllerWechatRefundV2Notify = async ( options?: RequestInit
 );}
 
 
-
-export type orderControllerQueryRefundV2Response201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerQueryRefundV2ResponseSuccess = (orderControllerQueryRefundV2Response201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerQueryRefundV2Response = (orderControllerQueryRefundV2ResponseSuccess)
 
 export const getOrderControllerQueryRefundV2Url = (outRefundNo: string,) => {
 
@@ -7876,9 +5538,9 @@ export const getOrderControllerQueryRefundV2Url = (outRefundNo: string,) => {
   return `/orders/_refunds/${outRefundNo}/query-v2`
 }
 
-export const orderControllerQueryRefundV2 = async (outRefundNo: string, options?: RequestInit): Promise<orderControllerQueryRefundV2Response> => {
+export const orderControllerQueryRefundV2 = async (outRefundNo: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerQueryRefundV2Response>(getOrderControllerQueryRefundV2Url(outRefundNo),
+  return createHttpClient<void>(getOrderControllerQueryRefundV2Url(outRefundNo),
   {      
     ...options,
     method: 'POST'
@@ -7888,18 +5550,6 @@ export const orderControllerQueryRefundV2 = async (outRefundNo: string, options?
 );}
 
 
-
-export type orderControllerRetryRefundResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerRetryRefundResponseSuccess = (orderControllerRetryRefundResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerRetryRefundResponse = (orderControllerRetryRefundResponseSuccess)
 
 export const getOrderControllerRetryRefundUrl = (id: number,) => {
 
@@ -7909,9 +5559,9 @@ export const getOrderControllerRetryRefundUrl = (id: number,) => {
   return `/orders/_refunds/${id}/retry`
 }
 
-export const orderControllerRetryRefund = async (id: number, options?: RequestInit): Promise<orderControllerRetryRefundResponse> => {
+export const orderControllerRetryRefund = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerRetryRefundResponse>(getOrderControllerRetryRefundUrl(id),
+  return createHttpClient<void>(getOrderControllerRetryRefundUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7921,18 +5571,6 @@ export const orderControllerRetryRefund = async (id: number, options?: RequestIn
 );}
 
 
-
-export type orderControllerShipResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerShipResponseSuccess = (orderControllerShipResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerShipResponse = (orderControllerShipResponseSuccess)
 
 export const getOrderControllerShipUrl = (id: number,) => {
 
@@ -7942,9 +5580,9 @@ export const getOrderControllerShipUrl = (id: number,) => {
   return `/orders/${id}/ship`
 }
 
-export const orderControllerShip = async (id: number, options?: RequestInit): Promise<orderControllerShipResponse> => {
+export const orderControllerShip = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerShipResponse>(getOrderControllerShipUrl(id),
+  return createHttpClient<void>(getOrderControllerShipUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7954,18 +5592,6 @@ export const orderControllerShip = async (id: number, options?: RequestInit): Pr
 );}
 
 
-
-export type orderControllerEditTrackingResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerEditTrackingResponseSuccess = (orderControllerEditTrackingResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerEditTrackingResponse = (orderControllerEditTrackingResponseSuccess)
 
 export const getOrderControllerEditTrackingUrl = (id: number,) => {
 
@@ -7975,9 +5601,9 @@ export const getOrderControllerEditTrackingUrl = (id: number,) => {
   return `/orders/${id}/ship/edit-tracking`
 }
 
-export const orderControllerEditTracking = async (id: number, options?: RequestInit): Promise<orderControllerEditTrackingResponse> => {
+export const orderControllerEditTracking = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerEditTrackingResponse>(getOrderControllerEditTrackingUrl(id),
+  return createHttpClient<void>(getOrderControllerEditTrackingUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7987,18 +5613,6 @@ export const orderControllerEditTracking = async (id: number, options?: RequestI
 );}
 
 
-
-export type orderControllerReceiveResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerReceiveResponseSuccess = (orderControllerReceiveResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerReceiveResponse = (orderControllerReceiveResponseSuccess)
 
 export const getOrderControllerReceiveUrl = (id: number,) => {
 
@@ -8008,9 +5622,9 @@ export const getOrderControllerReceiveUrl = (id: number,) => {
   return `/orders/${id}/receive`
 }
 
-export const orderControllerReceive = async (id: number, options?: RequestInit): Promise<orderControllerReceiveResponse> => {
+export const orderControllerReceive = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerReceiveResponse>(getOrderControllerReceiveUrl(id),
+  return createHttpClient<void>(getOrderControllerReceiveUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8020,18 +5634,6 @@ export const orderControllerReceive = async (id: number, options?: RequestInit):
 );}
 
 
-
-export type orderControllerStartServiceResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerStartServiceResponseSuccess = (orderControllerStartServiceResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerStartServiceResponse = (orderControllerStartServiceResponseSuccess)
 
 export const getOrderControllerStartServiceUrl = (id: number,) => {
 
@@ -8041,9 +5643,9 @@ export const getOrderControllerStartServiceUrl = (id: number,) => {
   return `/orders/${id}/start-service`
 }
 
-export const orderControllerStartService = async (id: number, options?: RequestInit): Promise<orderControllerStartServiceResponse> => {
+export const orderControllerStartService = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerStartServiceResponse>(getOrderControllerStartServiceUrl(id),
+  return createHttpClient<void>(getOrderControllerStartServiceUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8053,18 +5655,6 @@ export const orderControllerStartService = async (id: number, options?: RequestI
 );}
 
 
-
-export type orderControllerFinishServiceResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerFinishServiceResponseSuccess = (orderControllerFinishServiceResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerFinishServiceResponse = (orderControllerFinishServiceResponseSuccess)
 
 export const getOrderControllerFinishServiceUrl = (id: number,) => {
 
@@ -8074,9 +5664,9 @@ export const getOrderControllerFinishServiceUrl = (id: number,) => {
   return `/orders/${id}/finish-service`
 }
 
-export const orderControllerFinishService = async (id: number, options?: RequestInit): Promise<orderControllerFinishServiceResponse> => {
+export const orderControllerFinishService = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerFinishServiceResponse>(getOrderControllerFinishServiceUrl(id),
+  return createHttpClient<void>(getOrderControllerFinishServiceUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8086,18 +5676,6 @@ export const orderControllerFinishService = async (id: number, options?: Request
 );}
 
 
-
-export type orderControllerCreateReviewResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerCreateReviewResponseSuccess = (orderControllerCreateReviewResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerCreateReviewResponse = (orderControllerCreateReviewResponseSuccess)
 
 export const getOrderControllerCreateReviewUrl = (id: number,) => {
 
@@ -8107,9 +5685,9 @@ export const getOrderControllerCreateReviewUrl = (id: number,) => {
   return `/orders/${id}/review`
 }
 
-export const orderControllerCreateReview = async (id: number, options?: RequestInit): Promise<orderControllerCreateReviewResponse> => {
+export const orderControllerCreateReview = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerCreateReviewResponse>(getOrderControllerCreateReviewUrl(id),
+  return createHttpClient<void>(getOrderControllerCreateReviewUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8120,18 +5698,6 @@ export const orderControllerCreateReview = async (id: number, options?: RequestI
 
 
 
-export type orderControllerGetReviewResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerGetReviewResponseSuccess = (orderControllerGetReviewResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerGetReviewResponse = (orderControllerGetReviewResponseSuccess)
-
 export const getOrderControllerGetReviewUrl = (id: number,) => {
 
 
@@ -8140,9 +5706,9 @@ export const getOrderControllerGetReviewUrl = (id: number,) => {
   return `/orders/${id}/review`
 }
 
-export const orderControllerGetReview = async (id: number, options?: RequestInit): Promise<orderControllerGetReviewResponse> => {
+export const orderControllerGetReview = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerGetReviewResponse>(getOrderControllerGetReviewUrl(id),
+  return createHttpClient<void>(getOrderControllerGetReviewUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8152,18 +5718,6 @@ export const orderControllerGetReview = async (id: number, options?: RequestInit
 );}
 
 
-
-export type orderControllerListReviewsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerListReviewsResponseSuccess = (orderControllerListReviewsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerListReviewsResponse = (orderControllerListReviewsResponseSuccess)
 
 export const getOrderControllerListReviewsUrl = (params: OrderControllerListReviewsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -8180,9 +5734,9 @@ export const getOrderControllerListReviewsUrl = (params: OrderControllerListRevi
   return stringifiedParams.length > 0 ? `/orders/_reviews?${stringifiedParams}` : `/orders/_reviews`
 }
 
-export const orderControllerListReviews = async (params: OrderControllerListReviewsParams, options?: RequestInit): Promise<orderControllerListReviewsResponse> => {
+export const orderControllerListReviews = async (params: OrderControllerListReviewsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerListReviewsResponse>(getOrderControllerListReviewsUrl(params),
+  return createHttpClient<void>(getOrderControllerListReviewsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -8192,18 +5746,6 @@ export const orderControllerListReviews = async (params: OrderControllerListRevi
 );}
 
 
-
-export type orderControllerDeleteReviewResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerDeleteReviewResponseSuccess = (orderControllerDeleteReviewResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerDeleteReviewResponse = (orderControllerDeleteReviewResponseSuccess)
 
 export const getOrderControllerDeleteReviewUrl = (id: number,) => {
 
@@ -8213,9 +5755,9 @@ export const getOrderControllerDeleteReviewUrl = (id: number,) => {
   return `/orders/_reviews/${id}/delete`
 }
 
-export const orderControllerDeleteReview = async (id: number, options?: RequestInit): Promise<orderControllerDeleteReviewResponse> => {
+export const orderControllerDeleteReview = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerDeleteReviewResponse>(getOrderControllerDeleteReviewUrl(id),
+  return createHttpClient<void>(getOrderControllerDeleteReviewUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8225,18 +5767,6 @@ export const orderControllerDeleteReview = async (id: number, options?: RequestI
 );}
 
 
-
-export type orderControllerReplyReviewResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type orderControllerReplyReviewResponseSuccess = (orderControllerReplyReviewResponse201) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerReplyReviewResponse = (orderControllerReplyReviewResponseSuccess)
 
 export const getOrderControllerReplyReviewUrl = (id: number,) => {
 
@@ -8246,9 +5776,9 @@ export const getOrderControllerReplyReviewUrl = (id: number,) => {
   return `/orders/_reviews/${id}/reply`
 }
 
-export const orderControllerReplyReview = async (id: number, options?: RequestInit): Promise<orderControllerReplyReviewResponse> => {
+export const orderControllerReplyReview = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerReplyReviewResponse>(getOrderControllerReplyReviewUrl(id),
+  return createHttpClient<void>(getOrderControllerReplyReviewUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -8259,18 +5789,6 @@ export const orderControllerReplyReview = async (id: number, options?: RequestIn
 
 
 
-export type orderControllerGetCompaniesResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerGetCompaniesResponseSuccess = (orderControllerGetCompaniesResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerGetCompaniesResponse = (orderControllerGetCompaniesResponseSuccess)
-
 export const getOrderControllerGetCompaniesUrl = () => {
 
 
@@ -8279,9 +5797,9 @@ export const getOrderControllerGetCompaniesUrl = () => {
   return `/orders/_logistics/companies`
 }
 
-export const orderControllerGetCompanies = async ( options?: RequestInit): Promise<orderControllerGetCompaniesResponse> => {
+export const orderControllerGetCompanies = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerGetCompaniesResponse>(getOrderControllerGetCompaniesUrl(),
+  return createHttpClient<void>(getOrderControllerGetCompaniesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -8291,18 +5809,6 @@ export const orderControllerGetCompanies = async ( options?: RequestInit): Promi
 );}
 
 
-
-export type orderControllerGetCompaniesFromTanshuResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerGetCompaniesFromTanshuResponseSuccess = (orderControllerGetCompaniesFromTanshuResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerGetCompaniesFromTanshuResponse = (orderControllerGetCompaniesFromTanshuResponseSuccess)
 
 export const getOrderControllerGetCompaniesFromTanshuUrl = () => {
 
@@ -8312,9 +5818,9 @@ export const getOrderControllerGetCompaniesFromTanshuUrl = () => {
   return `/orders/_logistics/companies/tanshu`
 }
 
-export const orderControllerGetCompaniesFromTanshu = async ( options?: RequestInit): Promise<orderControllerGetCompaniesFromTanshuResponse> => {
+export const orderControllerGetCompaniesFromTanshu = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerGetCompaniesFromTanshuResponse>(getOrderControllerGetCompaniesFromTanshuUrl(),
+  return createHttpClient<void>(getOrderControllerGetCompaniesFromTanshuUrl(),
   {      
     ...options,
     method: 'GET'
@@ -8324,18 +5830,6 @@ export const orderControllerGetCompaniesFromTanshu = async ( options?: RequestIn
 );}
 
 
-
-export type orderControllerQueryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type orderControllerQueryResponseSuccess = (orderControllerQueryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type orderControllerQueryResponse = (orderControllerQueryResponseSuccess)
 
 export const getOrderControllerQueryUrl = (params: OrderControllerQueryParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -8352,9 +5846,30 @@ export const getOrderControllerQueryUrl = (params: OrderControllerQueryParams,) 
   return stringifiedParams.length > 0 ? `/orders/_logistics/query?${stringifiedParams}` : `/orders/_logistics/query`
 }
 
-export const orderControllerQuery = async (params: OrderControllerQueryParams, options?: RequestInit): Promise<orderControllerQueryResponse> => {
+export const orderControllerQuery = async (params: OrderControllerQueryParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<orderControllerQueryResponse>(getOrderControllerQueryUrl(params),
+  return createHttpClient<void>(getOrderControllerQueryUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+export const getOrderControllerGetUrl = (id: number,) => {
+
+
+  
+
+  return `/orders/${id}`
+}
+
+export const orderControllerGet = async (id: number, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getOrderControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8368,18 +5883,6 @@ export const orderControllerQuery = async (params: OrderControllerQueryParams, o
 /**
  * @summary 创建集团（含首位管理员）
  */
-export type groupControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupControllerCreateResponseSuccess = (groupControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupControllerCreateResponse = (groupControllerCreateResponseSuccess)
-
 export const getGroupControllerCreateUrl = () => {
 
 
@@ -8388,9 +5891,9 @@ export const getGroupControllerCreateUrl = () => {
   return `/group`
 }
 
-export const groupControllerCreate = async (groupCreateDto: GroupCreateDto, options?: RequestInit): Promise<groupControllerCreateResponse> => {
+export const groupControllerCreate = async (groupCreateDto: GroupCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupControllerCreateResponse>(getGroupControllerCreateUrl(),
+  return createHttpClient<void>(getGroupControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -8401,18 +5904,6 @@ export const groupControllerCreate = async (groupCreateDto: GroupCreateDto, opti
 );}
 
 
-
-export type groupControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupControllerListResponseSuccess = (groupControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupControllerListResponse = (groupControllerListResponseSuccess)
 
 export const getGroupControllerListUrl = (params: GroupControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -8429,9 +5920,9 @@ export const getGroupControllerListUrl = (params: GroupControllerListParams,) =>
   return stringifiedParams.length > 0 ? `/group?${stringifiedParams}` : `/group`
 }
 
-export const groupControllerList = async (params: GroupControllerListParams, options?: RequestInit): Promise<groupControllerListResponse> => {
+export const groupControllerList = async (params: GroupControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupControllerListResponse>(getGroupControllerListUrl(params),
+  return createHttpClient<void>(getGroupControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -8441,18 +5932,6 @@ export const groupControllerList = async (params: GroupControllerListParams, opt
 );}
 
 
-
-export type groupControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupControllerGetResponseSuccess = (groupControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupControllerGetResponse = (groupControllerGetResponseSuccess)
 
 export const getGroupControllerGetUrl = (id: number,) => {
 
@@ -8462,9 +5941,9 @@ export const getGroupControllerGetUrl = (id: number,) => {
   return `/group/${id}`
 }
 
-export const groupControllerGet = async (id: number, options?: RequestInit): Promise<groupControllerGetResponse> => {
+export const groupControllerGet = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupControllerGetResponse>(getGroupControllerGetUrl(id),
+  return createHttpClient<void>(getGroupControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8474,18 +5953,6 @@ export const groupControllerGet = async (id: number, options?: RequestInit): Pro
 );}
 
 
-
-export type groupControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupControllerUpdateResponseSuccess = (groupControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupControllerUpdateResponse = (groupControllerUpdateResponseSuccess)
 
 export const getGroupControllerUpdateUrl = (id: number,) => {
 
@@ -8496,9 +5963,9 @@ export const getGroupControllerUpdateUrl = (id: number,) => {
 }
 
 export const groupControllerUpdate = async (id: number,
-    groupUpdateDto: GroupUpdateDto, options?: RequestInit): Promise<groupControllerUpdateResponse> => {
+    groupUpdateDto: GroupUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupControllerUpdateResponse>(getGroupControllerUpdateUrl(id),
+  return createHttpClient<void>(getGroupControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PATCH',
@@ -8510,18 +5977,6 @@ export const groupControllerUpdate = async (id: number,
 
 
 
-export type groupControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupControllerRemoveResponseSuccess = (groupControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupControllerRemoveResponse = (groupControllerRemoveResponseSuccess)
-
 export const getGroupControllerRemoveUrl = (id: number,) => {
 
 
@@ -8530,9 +5985,9 @@ export const getGroupControllerRemoveUrl = (id: number,) => {
   return `/group/${id}`
 }
 
-export const groupControllerRemove = async (id: number, options?: RequestInit): Promise<groupControllerRemoveResponse> => {
+export const groupControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupControllerRemoveResponse>(getGroupControllerRemoveUrl(id),
+  return createHttpClient<void>(getGroupControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -8543,18 +5998,6 @@ export const groupControllerRemove = async (id: number, options?: RequestInit): 
 
 
 
-export type groupMemberControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMemberControllerListResponseSuccess = (groupMemberControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMemberControllerListResponse = (groupMemberControllerListResponseSuccess)
-
 export const getGroupMemberControllerListUrl = (id: number,) => {
 
 
@@ -8563,9 +6006,9 @@ export const getGroupMemberControllerListUrl = (id: number,) => {
   return `/group/${id}/members`
 }
 
-export const groupMemberControllerList = async (id: number, options?: RequestInit): Promise<groupMemberControllerListResponse> => {
+export const groupMemberControllerList = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMemberControllerListResponse>(getGroupMemberControllerListUrl(id),
+  return createHttpClient<void>(getGroupMemberControllerListUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8579,18 +6022,6 @@ export const groupMemberControllerList = async (id: number, options?: RequestIni
 /**
  * @summary 添加成员（可批量）
  */
-export type groupMemberControllerAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupMemberControllerAddResponseSuccess = (groupMemberControllerAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupMemberControllerAddResponse = (groupMemberControllerAddResponseSuccess)
-
 export const getGroupMemberControllerAddUrl = (id: number,) => {
 
 
@@ -8600,9 +6031,9 @@ export const getGroupMemberControllerAddUrl = (id: number,) => {
 }
 
 export const groupMemberControllerAdd = async (id: number,
-    groupAddMembersDto: GroupAddMembersDto, options?: RequestInit): Promise<groupMemberControllerAddResponse> => {
+    groupAddMembersDto: GroupAddMembersDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMemberControllerAddResponse>(getGroupMemberControllerAddUrl(id),
+  return createHttpClient<void>(getGroupMemberControllerAddUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -8614,18 +6045,6 @@ export const groupMemberControllerAdd = async (id: number,
 
 
 
-export type groupMemberControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMemberControllerRemoveResponseSuccess = (groupMemberControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMemberControllerRemoveResponse = (groupMemberControllerRemoveResponseSuccess)
-
 export const getGroupMemberControllerRemoveUrl = (id: number,
     memberId: number,) => {
 
@@ -8636,9 +6055,9 @@ export const getGroupMemberControllerRemoveUrl = (id: number,
 }
 
 export const groupMemberControllerRemove = async (id: number,
-    memberId: number, options?: RequestInit): Promise<groupMemberControllerRemoveResponse> => {
+    memberId: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMemberControllerRemoveResponse>(getGroupMemberControllerRemoveUrl(id,memberId),
+  return createHttpClient<void>(getGroupMemberControllerRemoveUrl(id,memberId),
   {      
     ...options,
     method: 'DELETE'
@@ -8648,18 +6067,6 @@ export const groupMemberControllerRemove = async (id: number,
 );}
 
 
-
-export type groupMemberControllerSetAdminResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMemberControllerSetAdminResponseSuccess = (groupMemberControllerSetAdminResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMemberControllerSetAdminResponse = (groupMemberControllerSetAdminResponseSuccess)
 
 export const getGroupMemberControllerSetAdminUrl = (id: number,
     memberId: number,) => {
@@ -8672,9 +6079,9 @@ export const getGroupMemberControllerSetAdminUrl = (id: number,
 
 export const groupMemberControllerSetAdmin = async (id: number,
     memberId: number,
-    groupSetAdminDto: GroupSetAdminDto, options?: RequestInit): Promise<groupMemberControllerSetAdminResponse> => {
+    groupSetAdminDto: GroupSetAdminDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMemberControllerSetAdminResponse>(getGroupMemberControllerSetAdminUrl(id,memberId),
+  return createHttpClient<void>(getGroupMemberControllerSetAdminUrl(id,memberId),
   {      
     ...options,
     method: 'PATCH',
@@ -8685,18 +6092,6 @@ export const groupMemberControllerSetAdmin = async (id: number,
 );}
 
 
-
-export type groupVehicleControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupVehicleControllerListResponseSuccess = (groupVehicleControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupVehicleControllerListResponse = (groupVehicleControllerListResponseSuccess)
 
 export const getGroupVehicleControllerListUrl = (id: number,
     params: GroupVehicleControllerListParams,) => {
@@ -8715,9 +6110,9 @@ export const getGroupVehicleControllerListUrl = (id: number,
 }
 
 export const groupVehicleControllerList = async (id: number,
-    params: GroupVehicleControllerListParams, options?: RequestInit): Promise<groupVehicleControllerListResponse> => {
+    params: GroupVehicleControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupVehicleControllerListResponse>(getGroupVehicleControllerListUrl(id,params),
+  return createHttpClient<void>(getGroupVehicleControllerListUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -8731,18 +6126,6 @@ export const groupVehicleControllerList = async (id: number,
 /**
  * @summary 为集团新增车辆（直绑集团）
  */
-export type groupVehicleControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupVehicleControllerCreateResponseSuccess = (groupVehicleControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupVehicleControllerCreateResponse = (groupVehicleControllerCreateResponseSuccess)
-
 export const getGroupVehicleControllerCreateUrl = (id: number,) => {
 
 
@@ -8752,9 +6135,9 @@ export const getGroupVehicleControllerCreateUrl = (id: number,) => {
 }
 
 export const groupVehicleControllerCreate = async (id: number,
-    groupVehicleCreateDto: GroupVehicleCreateDto, options?: RequestInit): Promise<groupVehicleControllerCreateResponse> => {
+    groupVehicleCreateDto: GroupVehicleCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupVehicleControllerCreateResponse>(getGroupVehicleControllerCreateUrl(id),
+  return createHttpClient<void>(getGroupVehicleControllerCreateUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -8766,18 +6149,6 @@ export const groupVehicleControllerCreate = async (id: number,
 
 
 
-export type groupVehicleControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupVehicleControllerRemoveResponseSuccess = (groupVehicleControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupVehicleControllerRemoveResponse = (groupVehicleControllerRemoveResponseSuccess)
-
 export const getGroupVehicleControllerRemoveUrl = (id: number,
     vehicleId: number,) => {
 
@@ -8788,9 +6159,9 @@ export const getGroupVehicleControllerRemoveUrl = (id: number,
 }
 
 export const groupVehicleControllerRemove = async (id: number,
-    vehicleId: number, options?: RequestInit): Promise<groupVehicleControllerRemoveResponse> => {
+    vehicleId: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupVehicleControllerRemoveResponse>(getGroupVehicleControllerRemoveUrl(id,vehicleId),
+  return createHttpClient<void>(getGroupVehicleControllerRemoveUrl(id,vehicleId),
   {      
     ...options,
     method: 'DELETE'
@@ -8801,18 +6172,6 @@ export const groupVehicleControllerRemove = async (id: number,
 
 
 
-export type groupBalanceControllerSummaryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupBalanceControllerSummaryResponseSuccess = (groupBalanceControllerSummaryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupBalanceControllerSummaryResponse = (groupBalanceControllerSummaryResponseSuccess)
-
 export const getGroupBalanceControllerSummaryUrl = (id: number,) => {
 
 
@@ -8821,9 +6180,9 @@ export const getGroupBalanceControllerSummaryUrl = (id: number,) => {
   return `/group/${id}/balance`
 }
 
-export const groupBalanceControllerSummary = async (id: number, options?: RequestInit): Promise<groupBalanceControllerSummaryResponse> => {
+export const groupBalanceControllerSummary = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupBalanceControllerSummaryResponse>(getGroupBalanceControllerSummaryUrl(id),
+  return createHttpClient<void>(getGroupBalanceControllerSummaryUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8833,18 +6192,6 @@ export const groupBalanceControllerSummary = async (id: number, options?: Reques
 );}
 
 
-
-export type groupBalanceControllerLedgerResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupBalanceControllerLedgerResponseSuccess = (groupBalanceControllerLedgerResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupBalanceControllerLedgerResponse = (groupBalanceControllerLedgerResponseSuccess)
 
 export const getGroupBalanceControllerLedgerUrl = (id: number,
     params: GroupBalanceControllerLedgerParams,) => {
@@ -8863,9 +6210,42 @@ export const getGroupBalanceControllerLedgerUrl = (id: number,
 }
 
 export const groupBalanceControllerLedger = async (id: number,
-    params: GroupBalanceControllerLedgerParams, options?: RequestInit): Promise<groupBalanceControllerLedgerResponse> => {
+    params: GroupBalanceControllerLedgerParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupBalanceControllerLedgerResponse>(getGroupBalanceControllerLedgerUrl(id,params),
+  return createHttpClient<void>(getGroupBalanceControllerLedgerUrl(id,params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 按月累计消费金额（集团余额支付扣减）
+ */
+export const getGroupBalanceControllerMonthlyConsumptionUrl = (id: number,
+    params: GroupBalanceControllerMonthlyConsumptionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/group/${id}/balance/monthly-consumption?${stringifiedParams}` : `/group/${id}/balance/monthly-consumption`
+}
+
+export const groupBalanceControllerMonthlyConsumption = async (id: number,
+    params: GroupBalanceControllerMonthlyConsumptionParams, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getGroupBalanceControllerMonthlyConsumptionUrl(id,params),
   {      
     ...options,
     method: 'GET'
@@ -8879,18 +6259,6 @@ export const groupBalanceControllerLedger = async (id: number,
 /**
  * @summary 手工调账（正/负）
  */
-export type groupBalanceControllerAdjustResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupBalanceControllerAdjustResponseSuccess = (groupBalanceControllerAdjustResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupBalanceControllerAdjustResponse = (groupBalanceControllerAdjustResponseSuccess)
-
 export const getGroupBalanceControllerAdjustUrl = (id: number,) => {
 
 
@@ -8900,9 +6268,9 @@ export const getGroupBalanceControllerAdjustUrl = (id: number,) => {
 }
 
 export const groupBalanceControllerAdjust = async (id: number,
-    groupBalanceAdjustDto: GroupBalanceAdjustDto, options?: RequestInit): Promise<groupBalanceControllerAdjustResponse> => {
+    groupBalanceAdjustDto: GroupBalanceAdjustDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupBalanceControllerAdjustResponse>(getGroupBalanceControllerAdjustUrl(id),
+  return createHttpClient<void>(getGroupBalanceControllerAdjustUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -8917,18 +6285,6 @@ export const groupBalanceControllerAdjust = async (id: number,
 /**
  * @summary 创建集团余额充值订单（FK）
  */
-export type groupBalanceControllerCreateRechargeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupBalanceControllerCreateRechargeResponseSuccess = (groupBalanceControllerCreateRechargeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupBalanceControllerCreateRechargeResponse = (groupBalanceControllerCreateRechargeResponseSuccess)
-
 export const getGroupBalanceControllerCreateRechargeUrl = (id: number,) => {
 
 
@@ -8938,9 +6294,9 @@ export const getGroupBalanceControllerCreateRechargeUrl = (id: number,) => {
 }
 
 export const groupBalanceControllerCreateRecharge = async (id: number,
-    groupBalanceRechargeDto: GroupBalanceRechargeDto, options?: RequestInit): Promise<groupBalanceControllerCreateRechargeResponse> => {
+    groupBalanceRechargeDto: GroupBalanceRechargeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupBalanceControllerCreateRechargeResponse>(getGroupBalanceControllerCreateRechargeUrl(id),
+  return createHttpClient<void>(getGroupBalanceControllerCreateRechargeUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -8952,18 +6308,6 @@ export const groupBalanceControllerCreateRecharge = async (id: number,
 
 
 
-export type groupCardControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupCardControllerListResponseSuccess = (groupCardControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerListResponse = (groupCardControllerListResponseSuccess)
-
 export const getGroupCardControllerListUrl = (id: number,) => {
 
 
@@ -8972,9 +6316,9 @@ export const getGroupCardControllerListUrl = (id: number,) => {
   return `/group/${id}/cards`
 }
 
-export const groupCardControllerList = async (id: number, options?: RequestInit): Promise<groupCardControllerListResponse> => {
+export const groupCardControllerList = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerListResponse>(getGroupCardControllerListUrl(id),
+  return createHttpClient<void>(getGroupCardControllerListUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -8988,18 +6332,6 @@ export const groupCardControllerList = async (id: number, options?: RequestInit)
 /**
  * @summary 新购集团洗车卡（直接入账次数）
  */
-export type groupCardControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupCardControllerCreateResponseSuccess = (groupCardControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerCreateResponse = (groupCardControllerCreateResponseSuccess)
-
 export const getGroupCardControllerCreateUrl = (id: number,) => {
 
 
@@ -9009,9 +6341,9 @@ export const getGroupCardControllerCreateUrl = (id: number,) => {
 }
 
 export const groupCardControllerCreate = async (id: number,
-    groupCardCreateDto: GroupCardCreateDto, options?: RequestInit): Promise<groupCardControllerCreateResponse> => {
+    groupCardCreateDto: GroupCardCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerCreateResponse>(getGroupCardControllerCreateUrl(id),
+  return createHttpClient<void>(getGroupCardControllerCreateUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -9026,18 +6358,6 @@ export const groupCardControllerCreate = async (id: number,
 /**
  * @summary 集团洗车卡加次（后台）
  */
-export type groupCardControllerAddResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupCardControllerAddResponseSuccess = (groupCardControllerAddResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerAddResponse = (groupCardControllerAddResponseSuccess)
-
 export const getGroupCardControllerAddUrl = (id: number,
     cardId: number,) => {
 
@@ -9049,9 +6369,9 @@ export const getGroupCardControllerAddUrl = (id: number,
 
 export const groupCardControllerAdd = async (id: number,
     cardId: number,
-    groupCardAddDto: GroupCardAddDto, options?: RequestInit): Promise<groupCardControllerAddResponse> => {
+    groupCardAddDto: GroupCardAddDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerAddResponse>(getGroupCardControllerAddUrl(id,cardId),
+  return createHttpClient<void>(getGroupCardControllerAddUrl(id,cardId),
   {      
     ...options,
     method: 'POST',
@@ -9066,18 +6386,6 @@ export const groupCardControllerAdd = async (id: number,
 /**
  * @summary 集团洗车卡扣次（后台/收银台）
  */
-export type groupCardControllerConsumeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupCardControllerConsumeResponseSuccess = (groupCardControllerConsumeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerConsumeResponse = (groupCardControllerConsumeResponseSuccess)
-
 export const getGroupCardControllerConsumeUrl = (id: number,
     cardId: number,) => {
 
@@ -9089,9 +6397,9 @@ export const getGroupCardControllerConsumeUrl = (id: number,
 
 export const groupCardControllerConsume = async (id: number,
     cardId: number,
-    groupCardConsumeDto: GroupCardConsumeDto, options?: RequestInit): Promise<groupCardControllerConsumeResponse> => {
+    groupCardConsumeDto: GroupCardConsumeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerConsumeResponse>(getGroupCardControllerConsumeUrl(id,cardId),
+  return createHttpClient<void>(getGroupCardControllerConsumeUrl(id,cardId),
   {      
     ...options,
     method: 'POST',
@@ -9106,18 +6414,6 @@ export const groupCardControllerConsume = async (id: number,
 /**
  * @summary 集团洗车卡日志列表
  */
-export type groupCardControllerLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupCardControllerLogsResponseSuccess = (groupCardControllerLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerLogsResponse = (groupCardControllerLogsResponseSuccess)
-
 export const getGroupCardControllerLogsUrl = (id: number,
     cardId: number,
     params: GroupCardControllerLogsParams,) => {
@@ -9137,9 +6433,9 @@ export const getGroupCardControllerLogsUrl = (id: number,
 
 export const groupCardControllerLogs = async (id: number,
     cardId: number,
-    params: GroupCardControllerLogsParams, options?: RequestInit): Promise<groupCardControllerLogsResponse> => {
+    params: GroupCardControllerLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerLogsResponse>(getGroupCardControllerLogsUrl(id,cardId,params),
+  return createHttpClient<void>(getGroupCardControllerLogsUrl(id,cardId,params),
   {      
     ...options,
     method: 'GET'
@@ -9153,18 +6449,6 @@ export const groupCardControllerLogs = async (id: number,
 /**
  * @summary 删除集团洗车卡
  */
-export type groupCardControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupCardControllerRemoveResponseSuccess = (groupCardControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupCardControllerRemoveResponse = (groupCardControllerRemoveResponseSuccess)
-
 export const getGroupCardControllerRemoveUrl = (id: number,
     cardId: number,) => {
 
@@ -9175,9 +6459,9 @@ export const getGroupCardControllerRemoveUrl = (id: number,
 }
 
 export const groupCardControllerRemove = async (id: number,
-    cardId: number, options?: RequestInit): Promise<groupCardControllerRemoveResponse> => {
+    cardId: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupCardControllerRemoveResponse>(getGroupCardControllerRemoveUrl(id,cardId),
+  return createHttpClient<void>(getGroupCardControllerRemoveUrl(id,cardId),
   {      
     ...options,
     method: 'DELETE'
@@ -9191,18 +6475,6 @@ export const groupCardControllerRemove = async (id: number,
 /**
  * @summary 我的集团概览（名称/图标/余额/卡余次等）
  */
-export type groupMiniappControllerMyGroupSummaryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupSummaryResponseSuccess = (groupMiniappControllerMyGroupSummaryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupSummaryResponse = (groupMiniappControllerMyGroupSummaryResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupSummaryUrl = (params: GroupMiniappControllerMyGroupSummaryParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9218,9 +6490,9 @@ export const getGroupMiniappControllerMyGroupSummaryUrl = (params: GroupMiniappC
   return stringifiedParams.length > 0 ? `/group/miniapp/me/summary?${stringifiedParams}` : `/group/miniapp/me/summary`
 }
 
-export const groupMiniappControllerMyGroupSummary = async (params: GroupMiniappControllerMyGroupSummaryParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupSummaryResponse> => {
+export const groupMiniappControllerMyGroupSummary = async (params: GroupMiniappControllerMyGroupSummaryParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupSummaryResponse>(getGroupMiniappControllerMyGroupSummaryUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupSummaryUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9234,18 +6506,6 @@ export const groupMiniappControllerMyGroupSummary = async (params: GroupMiniappC
 /**
  * @summary 我的集团余额明细（最近 N 条）
  */
-export type groupMiniappControllerMyGroupLedgerResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupLedgerResponseSuccess = (groupMiniappControllerMyGroupLedgerResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupLedgerResponse = (groupMiniappControllerMyGroupLedgerResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupLedgerUrl = (params: GroupMiniappControllerMyGroupLedgerParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9261,9 +6521,9 @@ export const getGroupMiniappControllerMyGroupLedgerUrl = (params: GroupMiniappCo
   return stringifiedParams.length > 0 ? `/group/miniapp/me/ledger?${stringifiedParams}` : `/group/miniapp/me/ledger`
 }
 
-export const groupMiniappControllerMyGroupLedger = async (params: GroupMiniappControllerMyGroupLedgerParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupLedgerResponse> => {
+export const groupMiniappControllerMyGroupLedger = async (params: GroupMiniappControllerMyGroupLedgerParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupLedgerResponse>(getGroupMiniappControllerMyGroupLedgerUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupLedgerUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9277,18 +6537,6 @@ export const groupMiniappControllerMyGroupLedger = async (params: GroupMiniappCo
 /**
  * @summary 我的集团洗车卡列表（只读）
  */
-export type groupMiniappControllerMyGroupCardsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupCardsResponseSuccess = (groupMiniappControllerMyGroupCardsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupCardsResponse = (groupMiniappControllerMyGroupCardsResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupCardsUrl = (params: GroupMiniappControllerMyGroupCardsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9304,9 +6552,9 @@ export const getGroupMiniappControllerMyGroupCardsUrl = (params: GroupMiniappCon
   return stringifiedParams.length > 0 ? `/group/miniapp/me/cards?${stringifiedParams}` : `/group/miniapp/me/cards`
 }
 
-export const groupMiniappControllerMyGroupCards = async (params: GroupMiniappControllerMyGroupCardsParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupCardsResponse> => {
+export const groupMiniappControllerMyGroupCards = async (params: GroupMiniappControllerMyGroupCardsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupCardsResponse>(getGroupMiniappControllerMyGroupCardsUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9320,18 +6568,6 @@ export const groupMiniappControllerMyGroupCards = async (params: GroupMiniappCon
 /**
  * @summary 我的集团洗车卡详情
  */
-export type groupMiniappControllerMyGroupCardDetailResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupCardDetailResponseSuccess = (groupMiniappControllerMyGroupCardDetailResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupCardDetailResponse = (groupMiniappControllerMyGroupCardDetailResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupCardDetailUrl = (cardId: string,
     params: GroupMiniappControllerMyGroupCardDetailParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -9349,9 +6585,9 @@ export const getGroupMiniappControllerMyGroupCardDetailUrl = (cardId: string,
 }
 
 export const groupMiniappControllerMyGroupCardDetail = async (cardId: string,
-    params: GroupMiniappControllerMyGroupCardDetailParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupCardDetailResponse> => {
+    params: GroupMiniappControllerMyGroupCardDetailParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupCardDetailResponse>(getGroupMiniappControllerMyGroupCardDetailUrl(cardId,params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardDetailUrl(cardId,params),
   {      
     ...options,
     method: 'GET'
@@ -9365,18 +6601,6 @@ export const groupMiniappControllerMyGroupCardDetail = async (cardId: string,
 /**
  * @summary 我的集团洗车卡日志
  */
-export type groupMiniappControllerMyGroupCardLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupCardLogsResponseSuccess = (groupMiniappControllerMyGroupCardLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupCardLogsResponse = (groupMiniappControllerMyGroupCardLogsResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupCardLogsUrl = (cardId: string,
     params: GroupMiniappControllerMyGroupCardLogsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -9394,9 +6618,9 @@ export const getGroupMiniappControllerMyGroupCardLogsUrl = (cardId: string,
 }
 
 export const groupMiniappControllerMyGroupCardLogs = async (cardId: string,
-    params: GroupMiniappControllerMyGroupCardLogsParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupCardLogsResponse> => {
+    params: GroupMiniappControllerMyGroupCardLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupCardLogsResponse>(getGroupMiniappControllerMyGroupCardLogsUrl(cardId,params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardLogsUrl(cardId,params),
   {      
     ...options,
     method: 'GET'
@@ -9410,18 +6634,6 @@ export const groupMiniappControllerMyGroupCardLogs = async (cardId: string,
 /**
  * @summary 我的集团管理员列表（小程序展示）
  */
-export type groupMiniappControllerMyGroupAdminsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupAdminsResponseSuccess = (groupMiniappControllerMyGroupAdminsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupAdminsResponse = (groupMiniappControllerMyGroupAdminsResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupAdminsUrl = (params: GroupMiniappControllerMyGroupAdminsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9437,9 +6649,9 @@ export const getGroupMiniappControllerMyGroupAdminsUrl = (params: GroupMiniappCo
   return stringifiedParams.length > 0 ? `/group/miniapp/me/admins?${stringifiedParams}` : `/group/miniapp/me/admins`
 }
 
-export const groupMiniappControllerMyGroupAdmins = async (params: GroupMiniappControllerMyGroupAdminsParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupAdminsResponse> => {
+export const groupMiniappControllerMyGroupAdmins = async (params: GroupMiniappControllerMyGroupAdminsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupAdminsResponse>(getGroupMiniappControllerMyGroupAdminsUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupAdminsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9453,18 +6665,6 @@ export const groupMiniappControllerMyGroupAdmins = async (params: GroupMiniappCo
 /**
  * @summary 发起集团余额充值订单（FK），返回订单号
  */
-export type groupMiniappControllerMyGroupRechargeResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupMiniappControllerMyGroupRechargeResponseSuccess = (groupMiniappControllerMyGroupRechargeResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupRechargeResponse = (groupMiniappControllerMyGroupRechargeResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupRechargeUrl = (params: GroupMiniappControllerMyGroupRechargeParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9480,9 +6680,9 @@ export const getGroupMiniappControllerMyGroupRechargeUrl = (params: GroupMiniapp
   return stringifiedParams.length > 0 ? `/group/miniapp/me/recharge?${stringifiedParams}` : `/group/miniapp/me/recharge`
 }
 
-export const groupMiniappControllerMyGroupRecharge = async (params: GroupMiniappControllerMyGroupRechargeParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupRechargeResponse> => {
+export const groupMiniappControllerMyGroupRecharge = async (params: GroupMiniappControllerMyGroupRechargeParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupRechargeResponse>(getGroupMiniappControllerMyGroupRechargeUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupRechargeUrl(params),
   {      
     ...options,
     method: 'POST'
@@ -9496,18 +6696,6 @@ export const groupMiniappControllerMyGroupRecharge = async (params: GroupMiniapp
 /**
  * @summary 我的集团成员列表（管理员可见更多操作）
  */
-export type groupMiniappControllerMyGroupMembersResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerMyGroupMembersResponseSuccess = (groupMiniappControllerMyGroupMembersResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerMyGroupMembersResponse = (groupMiniappControllerMyGroupMembersResponseSuccess)
-
 export const getGroupMiniappControllerMyGroupMembersUrl = (params: GroupMiniappControllerMyGroupMembersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9523,9 +6711,9 @@ export const getGroupMiniappControllerMyGroupMembersUrl = (params: GroupMiniappC
   return stringifiedParams.length > 0 ? `/group/miniapp/me/members?${stringifiedParams}` : `/group/miniapp/me/members`
 }
 
-export const groupMiniappControllerMyGroupMembers = async (params: GroupMiniappControllerMyGroupMembersParams, options?: RequestInit): Promise<groupMiniappControllerMyGroupMembersResponse> => {
+export const groupMiniappControllerMyGroupMembers = async (params: GroupMiniappControllerMyGroupMembersParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerMyGroupMembersResponse>(getGroupMiniappControllerMyGroupMembersUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupMembersUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9539,18 +6727,6 @@ export const groupMiniappControllerMyGroupMembers = async (params: GroupMiniappC
 /**
  * @summary 按手机号添加集团成员（管理员）
  */
-export type groupMiniappControllerAddMemberByPhoneResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupMiniappControllerAddMemberByPhoneResponseSuccess = (groupMiniappControllerAddMemberByPhoneResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerAddMemberByPhoneResponse = (groupMiniappControllerAddMemberByPhoneResponseSuccess)
-
 export const getGroupMiniappControllerAddMemberByPhoneUrl = (params: GroupMiniappControllerAddMemberByPhoneParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9566,9 +6742,9 @@ export const getGroupMiniappControllerAddMemberByPhoneUrl = (params: GroupMiniap
   return stringifiedParams.length > 0 ? `/group/miniapp/me/members?${stringifiedParams}` : `/group/miniapp/me/members`
 }
 
-export const groupMiniappControllerAddMemberByPhone = async (params: GroupMiniappControllerAddMemberByPhoneParams, options?: RequestInit): Promise<groupMiniappControllerAddMemberByPhoneResponse> => {
+export const groupMiniappControllerAddMemberByPhone = async (params: GroupMiniappControllerAddMemberByPhoneParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerAddMemberByPhoneResponse>(getGroupMiniappControllerAddMemberByPhoneUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerAddMemberByPhoneUrl(params),
   {      
     ...options,
     method: 'POST'
@@ -9582,18 +6758,6 @@ export const groupMiniappControllerAddMemberByPhone = async (params: GroupMiniap
 /**
  * @summary 根据手机号查找会员（添加前预览）
  */
-export type groupMiniappControllerLookupMemberByPhoneResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type groupMiniappControllerLookupMemberByPhoneResponseSuccess = (groupMiniappControllerLookupMemberByPhoneResponse200) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerLookupMemberByPhoneResponse = (groupMiniappControllerLookupMemberByPhoneResponseSuccess)
-
 export const getGroupMiniappControllerLookupMemberByPhoneUrl = (params: GroupMiniappControllerLookupMemberByPhoneParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9609,9 +6773,9 @@ export const getGroupMiniappControllerLookupMemberByPhoneUrl = (params: GroupMin
   return stringifiedParams.length > 0 ? `/group/miniapp/me/lookup-member-by-phone?${stringifiedParams}` : `/group/miniapp/me/lookup-member-by-phone`
 }
 
-export const groupMiniappControllerLookupMemberByPhone = async (params: GroupMiniappControllerLookupMemberByPhoneParams, options?: RequestInit): Promise<groupMiniappControllerLookupMemberByPhoneResponse> => {
+export const groupMiniappControllerLookupMemberByPhone = async (params: GroupMiniappControllerLookupMemberByPhoneParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerLookupMemberByPhoneResponse>(getGroupMiniappControllerLookupMemberByPhoneUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerLookupMemberByPhoneUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9625,18 +6789,6 @@ export const groupMiniappControllerLookupMemberByPhone = async (params: GroupMin
 /**
  * @summary 移除集团成员（管理员）
  */
-export type groupMiniappControllerRemoveMemberResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type groupMiniappControllerRemoveMemberResponseSuccess = (groupMiniappControllerRemoveMemberResponse201) & {
-  headers: Headers;
-};
-;
-
-export type groupMiniappControllerRemoveMemberResponse = (groupMiniappControllerRemoveMemberResponseSuccess)
-
 export const getGroupMiniappControllerRemoveMemberUrl = (params: GroupMiniappControllerRemoveMemberParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9652,9 +6804,9 @@ export const getGroupMiniappControllerRemoveMemberUrl = (params: GroupMiniappCon
   return stringifiedParams.length > 0 ? `/group/miniapp/me/members/remove?${stringifiedParams}` : `/group/miniapp/me/members/remove`
 }
 
-export const groupMiniappControllerRemoveMember = async (params: GroupMiniappControllerRemoveMemberParams, options?: RequestInit): Promise<groupMiniappControllerRemoveMemberResponse> => {
+export const groupMiniappControllerRemoveMember = async (params: GroupMiniappControllerRemoveMemberParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<groupMiniappControllerRemoveMemberResponse>(getGroupMiniappControllerRemoveMemberUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerRemoveMemberUrl(params),
   {      
     ...options,
     method: 'POST'
@@ -9664,18 +6816,6 @@ export const groupMiniappControllerRemoveMember = async (params: GroupMiniappCon
 );}
 
 
-
-export type storeCategoryControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeCategoryControllerListResponseSuccess = (storeCategoryControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeCategoryControllerListResponse = (storeCategoryControllerListResponseSuccess)
 
 export const getStoreCategoryControllerListUrl = (params: StoreCategoryControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -9692,9 +6832,9 @@ export const getStoreCategoryControllerListUrl = (params: StoreCategoryControlle
   return stringifiedParams.length > 0 ? `/store/categories?${stringifiedParams}` : `/store/categories`
 }
 
-export const storeCategoryControllerList = async (params: StoreCategoryControllerListParams, options?: RequestInit): Promise<storeCategoryControllerListResponse> => {
+export const storeCategoryControllerList = async (params: StoreCategoryControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeCategoryControllerListResponse>(getStoreCategoryControllerListUrl(params),
+  return createHttpClient<void>(getStoreCategoryControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9705,18 +6845,6 @@ export const storeCategoryControllerList = async (params: StoreCategoryControlle
 
 
 
-export type storeCategoryControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type storeCategoryControllerCreateResponseSuccess = (storeCategoryControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type storeCategoryControllerCreateResponse = (storeCategoryControllerCreateResponseSuccess)
-
 export const getStoreCategoryControllerCreateUrl = () => {
 
 
@@ -9725,9 +6853,9 @@ export const getStoreCategoryControllerCreateUrl = () => {
   return `/store/categories`
 }
 
-export const storeCategoryControllerCreate = async (storeCategoryCreateDto: StoreCategoryCreateDto, options?: RequestInit): Promise<storeCategoryControllerCreateResponse> => {
+export const storeCategoryControllerCreate = async (storeCategoryCreateDto: StoreCategoryCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeCategoryControllerCreateResponse>(getStoreCategoryControllerCreateUrl(),
+  return createHttpClient<void>(getStoreCategoryControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -9739,18 +6867,6 @@ export const storeCategoryControllerCreate = async (storeCategoryCreateDto: Stor
 
 
 
-export type storeCategoryControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeCategoryControllerUpdateResponseSuccess = (storeCategoryControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeCategoryControllerUpdateResponse = (storeCategoryControllerUpdateResponseSuccess)
-
 export const getStoreCategoryControllerUpdateUrl = (id: number,) => {
 
 
@@ -9760,9 +6876,9 @@ export const getStoreCategoryControllerUpdateUrl = (id: number,) => {
 }
 
 export const storeCategoryControllerUpdate = async (id: number,
-    storeCategoryUpdateDto: StoreCategoryUpdateDto, options?: RequestInit): Promise<storeCategoryControllerUpdateResponse> => {
+    storeCategoryUpdateDto: StoreCategoryUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeCategoryControllerUpdateResponse>(getStoreCategoryControllerUpdateUrl(id),
+  return createHttpClient<void>(getStoreCategoryControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -9774,18 +6890,6 @@ export const storeCategoryControllerUpdate = async (id: number,
 
 
 
-export type storeCategoryControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeCategoryControllerRemoveResponseSuccess = (storeCategoryControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeCategoryControllerRemoveResponse = (storeCategoryControllerRemoveResponseSuccess)
-
 export const getStoreCategoryControllerRemoveUrl = (id: number,) => {
 
 
@@ -9794,9 +6898,9 @@ export const getStoreCategoryControllerRemoveUrl = (id: number,) => {
   return `/store/categories/${id}`
 }
 
-export const storeCategoryControllerRemove = async (id: number, options?: RequestInit): Promise<storeCategoryControllerRemoveResponse> => {
+export const storeCategoryControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeCategoryControllerRemoveResponse>(getStoreCategoryControllerRemoveUrl(id),
+  return createHttpClient<void>(getStoreCategoryControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -9806,18 +6910,6 @@ export const storeCategoryControllerRemove = async (id: number, options?: Reques
 );}
 
 
-
-export type storeProductControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeProductControllerListResponseSuccess = (storeProductControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerListResponse = (storeProductControllerListResponseSuccess)
 
 export const getStoreProductControllerListUrl = (params: StoreProductControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -9834,9 +6926,9 @@ export const getStoreProductControllerListUrl = (params: StoreProductControllerL
   return stringifiedParams.length > 0 ? `/store/products?${stringifiedParams}` : `/store/products`
 }
 
-export const storeProductControllerList = async (params: StoreProductControllerListParams, options?: RequestInit): Promise<storeProductControllerListResponse> => {
+export const storeProductControllerList = async (params: StoreProductControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerListResponse>(getStoreProductControllerListUrl(params),
+  return createHttpClient<void>(getStoreProductControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9847,18 +6939,6 @@ export const storeProductControllerList = async (params: StoreProductControllerL
 
 
 
-export type storeProductControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type storeProductControllerCreateResponseSuccess = (storeProductControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerCreateResponse = (storeProductControllerCreateResponseSuccess)
-
 export const getStoreProductControllerCreateUrl = () => {
 
 
@@ -9867,9 +6947,9 @@ export const getStoreProductControllerCreateUrl = () => {
   return `/store/products`
 }
 
-export const storeProductControllerCreate = async (storeProductCreateDto: StoreProductCreateDto, options?: RequestInit): Promise<storeProductControllerCreateResponse> => {
+export const storeProductControllerCreate = async (storeProductCreateDto: StoreProductCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerCreateResponse>(getStoreProductControllerCreateUrl(),
+  return createHttpClient<void>(getStoreProductControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -9881,18 +6961,6 @@ export const storeProductControllerCreate = async (storeProductCreateDto: StoreP
 
 
 
-export type storeProductControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeProductControllerGetResponseSuccess = (storeProductControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerGetResponse = (storeProductControllerGetResponseSuccess)
-
 export const getStoreProductControllerGetUrl = (id: number,) => {
 
 
@@ -9901,9 +6969,9 @@ export const getStoreProductControllerGetUrl = (id: number,) => {
   return `/store/products/${id}`
 }
 
-export const storeProductControllerGet = async (id: number, options?: RequestInit): Promise<storeProductControllerGetResponse> => {
+export const storeProductControllerGet = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerGetResponse>(getStoreProductControllerGetUrl(id),
+  return createHttpClient<void>(getStoreProductControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -9914,18 +6982,6 @@ export const storeProductControllerGet = async (id: number, options?: RequestIni
 
 
 
-export type storeProductControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeProductControllerUpdateResponseSuccess = (storeProductControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerUpdateResponse = (storeProductControllerUpdateResponseSuccess)
-
 export const getStoreProductControllerUpdateUrl = (id: number,) => {
 
 
@@ -9935,9 +6991,9 @@ export const getStoreProductControllerUpdateUrl = (id: number,) => {
 }
 
 export const storeProductControllerUpdate = async (id: number,
-    storeProductUpdateDto: StoreProductUpdateDto, options?: RequestInit): Promise<storeProductControllerUpdateResponse> => {
+    storeProductUpdateDto: StoreProductUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerUpdateResponse>(getStoreProductControllerUpdateUrl(id),
+  return createHttpClient<void>(getStoreProductControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -9949,18 +7005,6 @@ export const storeProductControllerUpdate = async (id: number,
 
 
 
-export type storeProductControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeProductControllerRemoveResponseSuccess = (storeProductControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerRemoveResponse = (storeProductControllerRemoveResponseSuccess)
-
 export const getStoreProductControllerRemoveUrl = (id: number,) => {
 
 
@@ -9969,9 +7013,9 @@ export const getStoreProductControllerRemoveUrl = (id: number,) => {
   return `/store/products/${id}`
 }
 
-export const storeProductControllerRemove = async (id: number, options?: RequestInit): Promise<storeProductControllerRemoveResponse> => {
+export const storeProductControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerRemoveResponse>(getStoreProductControllerRemoveUrl(id),
+  return createHttpClient<void>(getStoreProductControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -9982,18 +7026,6 @@ export const storeProductControllerRemove = async (id: number, options?: Request
 
 
 
-export type storeProductControllerUploadImageResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type storeProductControllerUploadImageResponseSuccess = (storeProductControllerUploadImageResponse201) & {
-  headers: Headers;
-};
-;
-
-export type storeProductControllerUploadImageResponse = (storeProductControllerUploadImageResponseSuccess)
-
 export const getStoreProductControllerUploadImageUrl = (id: number,) => {
 
 
@@ -10002,9 +7034,9 @@ export const getStoreProductControllerUploadImageUrl = (id: number,) => {
   return `/store/products/${id}/upload-image`
 }
 
-export const storeProductControllerUploadImage = async (id: number, options?: RequestInit): Promise<storeProductControllerUploadImageResponse> => {
+export const storeProductControllerUploadImage = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeProductControllerUploadImageResponse>(getStoreProductControllerUploadImageUrl(id),
+  return createHttpClient<void>(getStoreProductControllerUploadImageUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -10015,18 +7047,6 @@ export const storeProductControllerUploadImage = async (id: number, options?: Re
 
 
 
-export type storeInventoryControllerAdjustResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type storeInventoryControllerAdjustResponseSuccess = (storeInventoryControllerAdjustResponse201) & {
-  headers: Headers;
-};
-;
-
-export type storeInventoryControllerAdjustResponse = (storeInventoryControllerAdjustResponseSuccess)
-
 export const getStoreInventoryControllerAdjustUrl = () => {
 
 
@@ -10035,9 +7055,9 @@ export const getStoreInventoryControllerAdjustUrl = () => {
   return `/store/inventory/adjust`
 }
 
-export const storeInventoryControllerAdjust = async (storeInventoryAdjustDto: StoreInventoryAdjustDto, options?: RequestInit): Promise<storeInventoryControllerAdjustResponse> => {
+export const storeInventoryControllerAdjust = async (storeInventoryAdjustDto: StoreInventoryAdjustDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeInventoryControllerAdjustResponse>(getStoreInventoryControllerAdjustUrl(),
+  return createHttpClient<void>(getStoreInventoryControllerAdjustUrl(),
   {      
     ...options,
     method: 'POST',
@@ -10048,18 +7068,6 @@ export const storeInventoryControllerAdjust = async (storeInventoryAdjustDto: St
 );}
 
 
-
-export type storeInventoryControllerLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type storeInventoryControllerLogsResponseSuccess = (storeInventoryControllerLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type storeInventoryControllerLogsResponse = (storeInventoryControllerLogsResponseSuccess)
 
 export const getStoreInventoryControllerLogsUrl = (params: StoreInventoryControllerLogsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10076,9 +7084,9 @@ export const getStoreInventoryControllerLogsUrl = (params: StoreInventoryControl
   return stringifiedParams.length > 0 ? `/store/inventory/logs?${stringifiedParams}` : `/store/inventory/logs`
 }
 
-export const storeInventoryControllerLogs = async (params: StoreInventoryControllerLogsParams, options?: RequestInit): Promise<storeInventoryControllerLogsResponse> => {
+export const storeInventoryControllerLogs = async (params: StoreInventoryControllerLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<storeInventoryControllerLogsResponse>(getStoreInventoryControllerLogsUrl(params),
+  return createHttpClient<void>(getStoreInventoryControllerLogsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10088,18 +7096,6 @@ export const storeInventoryControllerLogs = async (params: StoreInventoryControl
 );}
 
 
-
-export type couponGroupControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponGroupControllerListResponseSuccess = (couponGroupControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponGroupControllerListResponse = (couponGroupControllerListResponseSuccess)
 
 export const getCouponGroupControllerListUrl = () => {
 
@@ -10109,9 +7105,9 @@ export const getCouponGroupControllerListUrl = () => {
   return `/coupon/groups`
 }
 
-export const couponGroupControllerList = async ( options?: RequestInit): Promise<couponGroupControllerListResponse> => {
+export const couponGroupControllerList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponGroupControllerListResponse>(getCouponGroupControllerListUrl(),
+  return createHttpClient<void>(getCouponGroupControllerListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -10122,18 +7118,6 @@ export const couponGroupControllerList = async ( options?: RequestInit): Promise
 
 
 
-export type couponGroupControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type couponGroupControllerCreateResponseSuccess = (couponGroupControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type couponGroupControllerCreateResponse = (couponGroupControllerCreateResponseSuccess)
-
 export const getCouponGroupControllerCreateUrl = () => {
 
 
@@ -10142,9 +7126,9 @@ export const getCouponGroupControllerCreateUrl = () => {
   return `/coupon/groups`
 }
 
-export const couponGroupControllerCreate = async (couponGroupCreateDto: CouponGroupCreateDto, options?: RequestInit): Promise<couponGroupControllerCreateResponse> => {
+export const couponGroupControllerCreate = async (couponGroupCreateDto: CouponGroupCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponGroupControllerCreateResponse>(getCouponGroupControllerCreateUrl(),
+  return createHttpClient<void>(getCouponGroupControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -10156,18 +7140,6 @@ export const couponGroupControllerCreate = async (couponGroupCreateDto: CouponGr
 
 
 
-export type couponGroupControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponGroupControllerUpdateResponseSuccess = (couponGroupControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponGroupControllerUpdateResponse = (couponGroupControllerUpdateResponseSuccess)
-
 export const getCouponGroupControllerUpdateUrl = (id: number,) => {
 
 
@@ -10177,9 +7149,9 @@ export const getCouponGroupControllerUpdateUrl = (id: number,) => {
 }
 
 export const couponGroupControllerUpdate = async (id: number,
-    couponGroupUpdateDto: CouponGroupUpdateDto, options?: RequestInit): Promise<couponGroupControllerUpdateResponse> => {
+    couponGroupUpdateDto: CouponGroupUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponGroupControllerUpdateResponse>(getCouponGroupControllerUpdateUrl(id),
+  return createHttpClient<void>(getCouponGroupControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -10191,18 +7163,6 @@ export const couponGroupControllerUpdate = async (id: number,
 
 
 
-export type couponGroupControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponGroupControllerRemoveResponseSuccess = (couponGroupControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponGroupControllerRemoveResponse = (couponGroupControllerRemoveResponseSuccess)
-
 export const getCouponGroupControllerRemoveUrl = (id: number,) => {
 
 
@@ -10211,9 +7171,9 @@ export const getCouponGroupControllerRemoveUrl = (id: number,) => {
   return `/coupon/groups/${id}`
 }
 
-export const couponGroupControllerRemove = async (id: number, options?: RequestInit): Promise<couponGroupControllerRemoveResponse> => {
+export const couponGroupControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponGroupControllerRemoveResponse>(getCouponGroupControllerRemoveUrl(id),
+  return createHttpClient<void>(getCouponGroupControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -10227,18 +7187,6 @@ export const couponGroupControllerRemove = async (id: number, options?: RequestI
 /**
  * @summary 卡券流水列表
  */
-export type couponControllerListLogsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponControllerListLogsResponseSuccess = (couponControllerListLogsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerListLogsResponse = (couponControllerListLogsResponseSuccess)
-
 export const getCouponControllerListLogsUrl = (params: CouponControllerListLogsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10254,9 +7202,9 @@ export const getCouponControllerListLogsUrl = (params: CouponControllerListLogsP
   return stringifiedParams.length > 0 ? `/coupons/logs?${stringifiedParams}` : `/coupons/logs`
 }
 
-export const couponControllerListLogs = async (params: CouponControllerListLogsParams, options?: RequestInit): Promise<couponControllerListLogsResponse> => {
+export const couponControllerListLogs = async (params: CouponControllerListLogsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerListLogsResponse>(getCouponControllerListLogsUrl(params),
+  return createHttpClient<void>(getCouponControllerListLogsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10270,18 +7218,6 @@ export const couponControllerListLogs = async (params: CouponControllerListLogsP
 /**
  * @summary 卡券列表
  */
-export type couponControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponControllerListResponseSuccess = (couponControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerListResponse = (couponControllerListResponseSuccess)
-
 export const getCouponControllerListUrl = (params: CouponControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10297,9 +7233,9 @@ export const getCouponControllerListUrl = (params: CouponControllerListParams,) 
   return stringifiedParams.length > 0 ? `/coupons?${stringifiedParams}` : `/coupons`
 }
 
-export const couponControllerList = async (params: CouponControllerListParams, options?: RequestInit): Promise<couponControllerListResponse> => {
+export const couponControllerList = async (params: CouponControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerListResponse>(getCouponControllerListUrl(params),
+  return createHttpClient<void>(getCouponControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10313,18 +7249,6 @@ export const couponControllerList = async (params: CouponControllerListParams, o
 /**
  * @summary 创建卡券
  */
-export type couponControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type couponControllerCreateResponseSuccess = (couponControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerCreateResponse = (couponControllerCreateResponseSuccess)
-
 export const getCouponControllerCreateUrl = () => {
 
 
@@ -10333,9 +7257,9 @@ export const getCouponControllerCreateUrl = () => {
   return `/coupons`
 }
 
-export const couponControllerCreate = async (couponCreateDto: CouponCreateDto, options?: RequestInit): Promise<couponControllerCreateResponse> => {
+export const couponControllerCreate = async (couponCreateDto: CouponCreateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerCreateResponse>(getCouponControllerCreateUrl(),
+  return createHttpClient<void>(getCouponControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -10350,18 +7274,6 @@ export const couponControllerCreate = async (couponCreateDto: CouponCreateDto, o
 /**
  * @summary 卡券详情
  */
-export type couponControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponControllerGetResponseSuccess = (couponControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerGetResponse = (couponControllerGetResponseSuccess)
-
 export const getCouponControllerGetUrl = (id: number,) => {
 
 
@@ -10370,9 +7282,9 @@ export const getCouponControllerGetUrl = (id: number,) => {
   return `/coupons/${id}`
 }
 
-export const couponControllerGet = async (id: number, options?: RequestInit): Promise<couponControllerGetResponse> => {
+export const couponControllerGet = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerGetResponse>(getCouponControllerGetUrl(id),
+  return createHttpClient<void>(getCouponControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -10386,18 +7298,6 @@ export const couponControllerGet = async (id: number, options?: RequestInit): Pr
 /**
  * @summary 更新卡券
  */
-export type couponControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponControllerUpdateResponseSuccess = (couponControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerUpdateResponse = (couponControllerUpdateResponseSuccess)
-
 export const getCouponControllerUpdateUrl = (id: number,) => {
 
 
@@ -10407,9 +7307,9 @@ export const getCouponControllerUpdateUrl = (id: number,) => {
 }
 
 export const couponControllerUpdate = async (id: number,
-    couponUpdateDto: CouponUpdateDto, options?: RequestInit): Promise<couponControllerUpdateResponse> => {
+    couponUpdateDto: CouponUpdateDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerUpdateResponse>(getCouponControllerUpdateUrl(id),
+  return createHttpClient<void>(getCouponControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -10424,18 +7324,6 @@ export const couponControllerUpdate = async (id: number,
 /**
  * @summary 删除卡券
  */
-export type couponControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type couponControllerRemoveResponseSuccess = (couponControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerRemoveResponse = (couponControllerRemoveResponseSuccess)
-
 export const getCouponControllerRemoveUrl = (id: number,) => {
 
 
@@ -10444,9 +7332,9 @@ export const getCouponControllerRemoveUrl = (id: number,) => {
   return `/coupons/${id}`
 }
 
-export const couponControllerRemove = async (id: number, options?: RequestInit): Promise<couponControllerRemoveResponse> => {
+export const couponControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerRemoveResponse>(getCouponControllerRemoveUrl(id),
+  return createHttpClient<void>(getCouponControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -10460,18 +7348,6 @@ export const couponControllerRemove = async (id: number, options?: RequestInit):
 /**
  * @summary 发放优惠券到指定会员
  */
-export type couponControllerIssueResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type couponControllerIssueResponseSuccess = (couponControllerIssueResponse201) & {
-  headers: Headers;
-};
-;
-
-export type couponControllerIssueResponse = (couponControllerIssueResponseSuccess)
-
 export const getCouponControllerIssueUrl = (id: number,) => {
 
 
@@ -10481,9 +7357,9 @@ export const getCouponControllerIssueUrl = (id: number,) => {
 }
 
 export const couponControllerIssue = async (id: number,
-    couponIssueDto: CouponIssueDto, options?: RequestInit): Promise<couponControllerIssueResponse> => {
+    couponIssueDto: CouponIssueDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<couponControllerIssueResponse>(getCouponControllerIssueUrl(id),
+  return createHttpClient<void>(getCouponControllerIssueUrl(id),
   {      
     ...options,
     method: 'POST',
@@ -10498,18 +7374,6 @@ export const couponControllerIssue = async (id: number,
 /**
  * @summary 会员优惠券实例列表
  */
-export type memberCouponAdminControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCouponAdminControllerListResponseSuccess = (memberCouponAdminControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCouponAdminControllerListResponse = (memberCouponAdminControllerListResponseSuccess)
-
 export const getMemberCouponAdminControllerListUrl = (params: MemberCouponAdminControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10525,9 +7389,9 @@ export const getMemberCouponAdminControllerListUrl = (params: MemberCouponAdminC
   return stringifiedParams.length > 0 ? `/member-coupons?${stringifiedParams}` : `/member-coupons`
 }
 
-export const memberCouponAdminControllerList = async (params: MemberCouponAdminControllerListParams, options?: RequestInit): Promise<memberCouponAdminControllerListResponse> => {
+export const memberCouponAdminControllerList = async (params: MemberCouponAdminControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCouponAdminControllerListResponse>(getMemberCouponAdminControllerListUrl(params),
+  return createHttpClient<void>(getMemberCouponAdminControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10541,18 +7405,6 @@ export const memberCouponAdminControllerList = async (params: MemberCouponAdminC
 /**
  * @summary 会员优惠券详情
  */
-export type memberCouponAdminControllerGetResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCouponAdminControllerGetResponseSuccess = (memberCouponAdminControllerGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCouponAdminControllerGetResponse = (memberCouponAdminControllerGetResponseSuccess)
-
 export const getMemberCouponAdminControllerGetUrl = (id: number,) => {
 
 
@@ -10561,9 +7413,9 @@ export const getMemberCouponAdminControllerGetUrl = (id: number,) => {
   return `/member-coupons/${id}`
 }
 
-export const memberCouponAdminControllerGet = async (id: number, options?: RequestInit): Promise<memberCouponAdminControllerGetResponse> => {
+export const memberCouponAdminControllerGet = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCouponAdminControllerGetResponse>(getMemberCouponAdminControllerGetUrl(id),
+  return createHttpClient<void>(getMemberCouponAdminControllerGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -10577,18 +7429,6 @@ export const memberCouponAdminControllerGet = async (id: number, options?: Reque
 /**
  * @summary 删除会员优惠券实例
  */
-export type memberCouponAdminControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCouponAdminControllerRemoveResponseSuccess = (memberCouponAdminControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCouponAdminControllerRemoveResponse = (memberCouponAdminControllerRemoveResponseSuccess)
-
 export const getMemberCouponAdminControllerRemoveUrl = (id: number,) => {
 
 
@@ -10597,9 +7437,9 @@ export const getMemberCouponAdminControllerRemoveUrl = (id: number,) => {
   return `/member-coupons/${id}`
 }
 
-export const memberCouponAdminControllerRemove = async (id: number, options?: RequestInit): Promise<memberCouponAdminControllerRemoveResponse> => {
+export const memberCouponAdminControllerRemove = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCouponAdminControllerRemoveResponse>(getMemberCouponAdminControllerRemoveUrl(id),
+  return createHttpClient<void>(getMemberCouponAdminControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -10613,18 +7453,6 @@ export const memberCouponAdminControllerRemove = async (id: number, options?: Re
 /**
  * @summary 修改有效期（开始/结束时间）
  */
-export type memberCouponAdminControllerUpdateExpiryResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type memberCouponAdminControllerUpdateExpiryResponseSuccess = (memberCouponAdminControllerUpdateExpiryResponse200) & {
-  headers: Headers;
-};
-;
-
-export type memberCouponAdminControllerUpdateExpiryResponse = (memberCouponAdminControllerUpdateExpiryResponseSuccess)
-
 export const getMemberCouponAdminControllerUpdateExpiryUrl = (id: number,) => {
 
 
@@ -10634,9 +7462,9 @@ export const getMemberCouponAdminControllerUpdateExpiryUrl = (id: number,) => {
 }
 
 export const memberCouponAdminControllerUpdateExpiry = async (id: number,
-    updateMemberCouponExpiryDto: UpdateMemberCouponExpiryDto, options?: RequestInit): Promise<memberCouponAdminControllerUpdateExpiryResponse> => {
+    updateMemberCouponExpiryDto: UpdateMemberCouponExpiryDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<memberCouponAdminControllerUpdateExpiryResponse>(getMemberCouponAdminControllerUpdateExpiryUrl(id),
+  return createHttpClient<void>(getMemberCouponAdminControllerUpdateExpiryUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -10651,18 +7479,6 @@ export const memberCouponAdminControllerUpdateExpiry = async (id: number,
 /**
  * @summary 小程序可领取优惠券列表（含售罄/达上限标记）
  */
-export type miniappCouponControllerListClaimableResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type miniappCouponControllerListClaimableResponseSuccess = (miniappCouponControllerListClaimableResponse200) & {
-  headers: Headers;
-};
-;
-
-export type miniappCouponControllerListClaimableResponse = (miniappCouponControllerListClaimableResponseSuccess)
-
 export const getMiniappCouponControllerListClaimableUrl = (params: MiniappCouponControllerListClaimableParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10678,9 +7494,9 @@ export const getMiniappCouponControllerListClaimableUrl = (params: MiniappCoupon
   return stringifiedParams.length > 0 ? `/coupon/miniapp/claimable?${stringifiedParams}` : `/coupon/miniapp/claimable`
 }
 
-export const miniappCouponControllerListClaimable = async (params: MiniappCouponControllerListClaimableParams, options?: RequestInit): Promise<miniappCouponControllerListClaimableResponse> => {
+export const miniappCouponControllerListClaimable = async (params: MiniappCouponControllerListClaimableParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<miniappCouponControllerListClaimableResponse>(getMiniappCouponControllerListClaimableUrl(params),
+  return createHttpClient<void>(getMiniappCouponControllerListClaimableUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10694,18 +7510,6 @@ export const miniappCouponControllerListClaimable = async (params: MiniappCoupon
 /**
  * @summary 小程序：我的优惠券列表
  */
-export type miniappCouponControllerMyCouponsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type miniappCouponControllerMyCouponsResponseSuccess = (miniappCouponControllerMyCouponsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type miniappCouponControllerMyCouponsResponse = (miniappCouponControllerMyCouponsResponseSuccess)
-
 export const getMiniappCouponControllerMyCouponsUrl = (params: MiniappCouponControllerMyCouponsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10721,9 +7525,9 @@ export const getMiniappCouponControllerMyCouponsUrl = (params: MiniappCouponCont
   return stringifiedParams.length > 0 ? `/coupon/miniapp/mine?${stringifiedParams}` : `/coupon/miniapp/mine`
 }
 
-export const miniappCouponControllerMyCoupons = async (params: MiniappCouponControllerMyCouponsParams, options?: RequestInit): Promise<miniappCouponControllerMyCouponsResponse> => {
+export const miniappCouponControllerMyCoupons = async (params: MiniappCouponControllerMyCouponsParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<miniappCouponControllerMyCouponsResponse>(getMiniappCouponControllerMyCouponsUrl(params),
+  return createHttpClient<void>(getMiniappCouponControllerMyCouponsUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10737,18 +7541,6 @@ export const miniappCouponControllerMyCoupons = async (params: MiniappCouponCont
 /**
  * @summary 小程序领取优惠券
  */
-export type miniappCouponControllerClaimResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type miniappCouponControllerClaimResponseSuccess = (miniappCouponControllerClaimResponse201) & {
-  headers: Headers;
-};
-;
-
-export type miniappCouponControllerClaimResponse = (miniappCouponControllerClaimResponseSuccess)
-
 export const getMiniappCouponControllerClaimUrl = (id: number,
     params: MiniappCouponControllerClaimParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10766,9 +7558,9 @@ export const getMiniappCouponControllerClaimUrl = (id: number,
 }
 
 export const miniappCouponControllerClaim = async (id: number,
-    params: MiniappCouponControllerClaimParams, options?: RequestInit): Promise<miniappCouponControllerClaimResponse> => {
+    params: MiniappCouponControllerClaimParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<miniappCouponControllerClaimResponse>(getMiniappCouponControllerClaimUrl(id,params),
+  return createHttpClient<void>(getMiniappCouponControllerClaimUrl(id,params),
   {      
     ...options,
     method: 'POST'
@@ -10782,18 +7574,6 @@ export const miniappCouponControllerClaim = async (id: number,
 /**
  * @summary 计算购物车/商品可用优惠券与预计折扣（预计算，不持久化）
  */
-export type miniappCouponControllerApplicableResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type miniappCouponControllerApplicableResponseSuccess = (miniappCouponControllerApplicableResponse201) & {
-  headers: Headers;
-};
-;
-
-export type miniappCouponControllerApplicableResponse = (miniappCouponControllerApplicableResponseSuccess)
-
 export const getMiniappCouponControllerApplicableUrl = (params: MiniappCouponControllerApplicableParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10810,9 +7590,9 @@ export const getMiniappCouponControllerApplicableUrl = (params: MiniappCouponCon
 }
 
 export const miniappCouponControllerApplicable = async (miniappCouponApplicableDto: MiniappCouponApplicableDto,
-    params: MiniappCouponControllerApplicableParams, options?: RequestInit): Promise<miniappCouponControllerApplicableResponse> => {
+    params: MiniappCouponControllerApplicableParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<miniappCouponControllerApplicableResponse>(getMiniappCouponControllerApplicableUrl(params),
+  return createHttpClient<void>(getMiniappCouponControllerApplicableUrl(params),
   {      
     ...options,
     method: 'POST',
@@ -10827,18 +7607,6 @@ export const miniappCouponControllerApplicable = async (miniappCouponApplicableD
 /**
  * @summary 公共-获取站点基础设置
  */
-export type systemSettingControllerGetPublicSettingResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetPublicSettingResponseSuccess = (systemSettingControllerGetPublicSettingResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetPublicSettingResponse = (systemSettingControllerGetPublicSettingResponseSuccess)
-
 export const getSystemSettingControllerGetPublicSettingUrl = () => {
 
 
@@ -10847,9 +7615,9 @@ export const getSystemSettingControllerGetPublicSettingUrl = () => {
   return `/system/public/site-setting`
 }
 
-export const systemSettingControllerGetPublicSetting = async ( options?: RequestInit): Promise<systemSettingControllerGetPublicSettingResponse> => {
+export const systemSettingControllerGetPublicSetting = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetPublicSettingResponse>(getSystemSettingControllerGetPublicSettingUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetPublicSettingUrl(),
   {      
     ...options,
     method: 'GET'
@@ -10863,18 +7631,6 @@ export const systemSettingControllerGetPublicSetting = async ( options?: Request
 /**
  * @summary 公共-获取必应每日壁纸URL
  */
-export type systemSettingControllerGetBingWallpaperResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetBingWallpaperResponseSuccess = (systemSettingControllerGetBingWallpaperResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetBingWallpaperResponse = (systemSettingControllerGetBingWallpaperResponseSuccess)
-
 export const getSystemSettingControllerGetBingWallpaperUrl = () => {
 
 
@@ -10883,9 +7639,9 @@ export const getSystemSettingControllerGetBingWallpaperUrl = () => {
   return `/system/public/bing-wallpaper`
 }
 
-export const systemSettingControllerGetBingWallpaper = async ( options?: RequestInit): Promise<systemSettingControllerGetBingWallpaperResponse> => {
+export const systemSettingControllerGetBingWallpaper = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetBingWallpaperResponse>(getSystemSettingControllerGetBingWallpaperUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetBingWallpaperUrl(),
   {      
     ...options,
     method: 'GET'
@@ -10899,18 +7655,6 @@ export const systemSettingControllerGetBingWallpaper = async ( options?: Request
 /**
  * @summary 获取站点基础设置
  */
-export type systemSettingControllerGetSettingResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetSettingResponseSuccess = (systemSettingControllerGetSettingResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetSettingResponse = (systemSettingControllerGetSettingResponseSuccess)
-
 export const getSystemSettingControllerGetSettingUrl = () => {
 
 
@@ -10919,9 +7663,9 @@ export const getSystemSettingControllerGetSettingUrl = () => {
   return `/system/site-setting`
 }
 
-export const systemSettingControllerGetSetting = async ( options?: RequestInit): Promise<systemSettingControllerGetSettingResponse> => {
+export const systemSettingControllerGetSetting = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetSettingResponse>(getSystemSettingControllerGetSettingUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetSettingUrl(),
   {      
     ...options,
     method: 'GET'
@@ -10935,18 +7679,6 @@ export const systemSettingControllerGetSetting = async ( options?: RequestInit):
 /**
  * @summary 保存站点基础设置
  */
-export type systemSettingControllerSaveSettingResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type systemSettingControllerSaveSettingResponseSuccess = (systemSettingControllerSaveSettingResponse201) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerSaveSettingResponse = (systemSettingControllerSaveSettingResponseSuccess)
-
 export const getSystemSettingControllerSaveSettingUrl = () => {
 
 
@@ -10955,9 +7687,9 @@ export const getSystemSettingControllerSaveSettingUrl = () => {
   return `/system/site-setting`
 }
 
-export const systemSettingControllerSaveSetting = async (systemSiteSettingSaveDto: SystemSiteSettingSaveDto, options?: RequestInit): Promise<systemSettingControllerSaveSettingResponse> => {
+export const systemSettingControllerSaveSetting = async (systemSiteSettingSaveDto: SystemSiteSettingSaveDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerSaveSettingResponse>(getSystemSettingControllerSaveSettingUrl(),
+  return createHttpClient<void>(getSystemSettingControllerSaveSettingUrl(),
   {      
     ...options,
     method: 'POST',
@@ -10970,20 +7702,33 @@ export const systemSettingControllerSaveSetting = async (systemSiteSettingSaveDt
 
 
 /**
+ * @summary 保存营业状态/营业时间（独立接口，避免覆盖站点其它配置）
+ */
+export const getSystemSettingControllerSaveBusinessSettingUrl = () => {
+
+
+  
+
+  return `/system/site-setting/business`
+}
+
+export const systemSettingControllerSaveBusinessSetting = async (systemBusinessSettingSaveDto: SystemBusinessSettingSaveDto, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getSystemSettingControllerSaveBusinessSettingUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      systemBusinessSettingSaveDto,)
+  }
+);}
+
+
+
+/**
  * @summary 公共-获取当前营业状态
  */
-export type systemSettingControllerGetPublicBusinessStatusResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetPublicBusinessStatusResponseSuccess = (systemSettingControllerGetPublicBusinessStatusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetPublicBusinessStatusResponse = (systemSettingControllerGetPublicBusinessStatusResponseSuccess)
-
 export const getSystemSettingControllerGetPublicBusinessStatusUrl = () => {
 
 
@@ -10992,9 +7737,9 @@ export const getSystemSettingControllerGetPublicBusinessStatusUrl = () => {
   return `/system/public/business-status`
 }
 
-export const systemSettingControllerGetPublicBusinessStatus = async ( options?: RequestInit): Promise<systemSettingControllerGetPublicBusinessStatusResponse> => {
+export const systemSettingControllerGetPublicBusinessStatus = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetPublicBusinessStatusResponse>(getSystemSettingControllerGetPublicBusinessStatusUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetPublicBusinessStatusUrl(),
   {      
     ...options,
     method: 'GET'
@@ -11008,18 +7753,6 @@ export const systemSettingControllerGetPublicBusinessStatus = async ( options?: 
 /**
  * @summary 获取小程序用户协议（HTML）
  */
-export type systemSettingControllerGetMiniappTermsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetMiniappTermsResponseSuccess = (systemSettingControllerGetMiniappTermsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetMiniappTermsResponse = (systemSettingControllerGetMiniappTermsResponseSuccess)
-
 export const getSystemSettingControllerGetMiniappTermsUrl = () => {
 
 
@@ -11028,9 +7761,9 @@ export const getSystemSettingControllerGetMiniappTermsUrl = () => {
   return `/system/miniapp-terms`
 }
 
-export const systemSettingControllerGetMiniappTerms = async ( options?: RequestInit): Promise<systemSettingControllerGetMiniappTermsResponse> => {
+export const systemSettingControllerGetMiniappTerms = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetMiniappTermsResponse>(getSystemSettingControllerGetMiniappTermsUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetMiniappTermsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -11044,18 +7777,6 @@ export const systemSettingControllerGetMiniappTerms = async ( options?: RequestI
 /**
  * @summary 保存小程序用户协议（HTML）
  */
-export type systemSettingControllerSaveMiniappTermsResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type systemSettingControllerSaveMiniappTermsResponseSuccess = (systemSettingControllerSaveMiniappTermsResponse201) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerSaveMiniappTermsResponse = (systemSettingControllerSaveMiniappTermsResponseSuccess)
-
 export const getSystemSettingControllerSaveMiniappTermsUrl = () => {
 
 
@@ -11064,14 +7785,15 @@ export const getSystemSettingControllerSaveMiniappTermsUrl = () => {
   return `/system/miniapp-terms`
 }
 
-export const systemSettingControllerSaveMiniappTerms = async ( options?: RequestInit): Promise<systemSettingControllerSaveMiniappTermsResponse> => {
+export const systemSettingControllerSaveMiniappTerms = async (systemMiniappTermsSaveDto: SystemMiniappTermsSaveDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerSaveMiniappTermsResponse>(getSystemSettingControllerSaveMiniappTermsUrl(),
+  return createHttpClient<void>(getSystemSettingControllerSaveMiniappTermsUrl(),
   {      
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      systemMiniappTermsSaveDto,)
   }
 );}
 
@@ -11080,18 +7802,6 @@ export const systemSettingControllerSaveMiniappTerms = async ( options?: Request
 /**
  * @summary 公共-输出小程序用户协议HTML
  */
-export type systemSettingControllerGetPublicMiniappTermsResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemSettingControllerGetPublicMiniappTermsResponseSuccess = (systemSettingControllerGetPublicMiniappTermsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemSettingControllerGetPublicMiniappTermsResponse = (systemSettingControllerGetPublicMiniappTermsResponseSuccess)
-
 export const getSystemSettingControllerGetPublicMiniappTermsUrl = () => {
 
 
@@ -11100,9 +7810,9 @@ export const getSystemSettingControllerGetPublicMiniappTermsUrl = () => {
   return `/system/public/miniapp-terms`
 }
 
-export const systemSettingControllerGetPublicMiniappTerms = async ( options?: RequestInit): Promise<systemSettingControllerGetPublicMiniappTermsResponse> => {
+export const systemSettingControllerGetPublicMiniappTerms = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemSettingControllerGetPublicMiniappTermsResponse>(getSystemSettingControllerGetPublicMiniappTermsUrl(),
+  return createHttpClient<void>(getSystemSettingControllerGetPublicMiniappTermsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -11116,18 +7826,6 @@ export const systemSettingControllerGetPublicMiniappTerms = async ( options?: Re
 /**
  * @summary 员工列表（分页/关键词）
  */
-export type systemEmployeeControllerListResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemEmployeeControllerListResponseSuccess = (systemEmployeeControllerListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemEmployeeControllerListResponse = (systemEmployeeControllerListResponseSuccess)
-
 export const getSystemEmployeeControllerListUrl = (params: SystemEmployeeControllerListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11143,9 +7841,9 @@ export const getSystemEmployeeControllerListUrl = (params: SystemEmployeeControl
   return stringifiedParams.length > 0 ? `/system/employees/list?${stringifiedParams}` : `/system/employees/list`
 }
 
-export const systemEmployeeControllerList = async (params: SystemEmployeeControllerListParams, options?: RequestInit): Promise<systemEmployeeControllerListResponse> => {
+export const systemEmployeeControllerList = async (params: SystemEmployeeControllerListParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemEmployeeControllerListResponse>(getSystemEmployeeControllerListUrl(params),
+  return createHttpClient<void>(getSystemEmployeeControllerListUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11159,18 +7857,6 @@ export const systemEmployeeControllerList = async (params: SystemEmployeeControl
 /**
  * @summary 新增员工：从现有会员绑定
  */
-export type systemEmployeeControllerCreateResponse201 = {
-  data: void
-  status: 201
-}
-    
-export type systemEmployeeControllerCreateResponseSuccess = (systemEmployeeControllerCreateResponse201) & {
-  headers: Headers;
-};
-;
-
-export type systemEmployeeControllerCreateResponse = (systemEmployeeControllerCreateResponseSuccess)
-
 export const getSystemEmployeeControllerCreateUrl = () => {
 
 
@@ -11179,9 +7865,9 @@ export const getSystemEmployeeControllerCreateUrl = () => {
   return `/system/employees`
 }
 
-export const systemEmployeeControllerCreate = async (createEmployeeDto: CreateEmployeeDto, options?: RequestInit): Promise<systemEmployeeControllerCreateResponse> => {
+export const systemEmployeeControllerCreate = async (createEmployeeDto: CreateEmployeeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemEmployeeControllerCreateResponse>(getSystemEmployeeControllerCreateUrl(),
+  return createHttpClient<void>(getSystemEmployeeControllerCreateUrl(),
   {      
     ...options,
     method: 'POST',
@@ -11196,18 +7882,6 @@ export const systemEmployeeControllerCreate = async (createEmployeeDto: CreateEm
 /**
  * @summary 编辑员工：姓名/职务/启用状态
  */
-export type systemEmployeeControllerUpdateResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemEmployeeControllerUpdateResponseSuccess = (systemEmployeeControllerUpdateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemEmployeeControllerUpdateResponse = (systemEmployeeControllerUpdateResponseSuccess)
-
 export const getSystemEmployeeControllerUpdateUrl = (id: string,) => {
 
 
@@ -11217,9 +7891,9 @@ export const getSystemEmployeeControllerUpdateUrl = (id: string,) => {
 }
 
 export const systemEmployeeControllerUpdate = async (id: string,
-    updateEmployeeDto: UpdateEmployeeDto, options?: RequestInit): Promise<systemEmployeeControllerUpdateResponse> => {
+    updateEmployeeDto: UpdateEmployeeDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemEmployeeControllerUpdateResponse>(getSystemEmployeeControllerUpdateUrl(id),
+  return createHttpClient<void>(getSystemEmployeeControllerUpdateUrl(id),
   {      
     ...options,
     method: 'PUT',
@@ -11234,18 +7908,6 @@ export const systemEmployeeControllerUpdate = async (id: string,
 /**
  * @summary 删除员工
  */
-export type systemEmployeeControllerRemoveResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemEmployeeControllerRemoveResponseSuccess = (systemEmployeeControllerRemoveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemEmployeeControllerRemoveResponse = (systemEmployeeControllerRemoveResponseSuccess)
-
 export const getSystemEmployeeControllerRemoveUrl = (id: string,) => {
 
 
@@ -11254,9 +7916,9 @@ export const getSystemEmployeeControllerRemoveUrl = (id: string,) => {
   return `/system/employees/${id}`
 }
 
-export const systemEmployeeControllerRemove = async (id: string, options?: RequestInit): Promise<systemEmployeeControllerRemoveResponse> => {
+export const systemEmployeeControllerRemove = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemEmployeeControllerRemoveResponse>(getSystemEmployeeControllerRemoveUrl(id),
+  return createHttpClient<void>(getSystemEmployeeControllerRemoveUrl(id),
   {      
     ...options,
     method: 'DELETE'
@@ -11270,18 +7932,6 @@ export const systemEmployeeControllerRemove = async (id: string, options?: Reque
 /**
  * @summary 根据手机号查找会员（用于新增员工前预览）
  */
-export type systemEmployeeControllerLookupMemberResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemEmployeeControllerLookupMemberResponseSuccess = (systemEmployeeControllerLookupMemberResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemEmployeeControllerLookupMemberResponse = (systemEmployeeControllerLookupMemberResponseSuccess)
-
 export const getSystemEmployeeControllerLookupMemberUrl = (params: SystemEmployeeControllerLookupMemberParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11297,9 +7947,9 @@ export const getSystemEmployeeControllerLookupMemberUrl = (params: SystemEmploye
   return stringifiedParams.length > 0 ? `/system/employees/lookup-member-by-phone?${stringifiedParams}` : `/system/employees/lookup-member-by-phone`
 }
 
-export const systemEmployeeControllerLookupMember = async (params: SystemEmployeeControllerLookupMemberParams, options?: RequestInit): Promise<systemEmployeeControllerLookupMemberResponse> => {
+export const systemEmployeeControllerLookupMember = async (params: SystemEmployeeControllerLookupMemberParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemEmployeeControllerLookupMemberResponse>(getSystemEmployeeControllerLookupMemberUrl(params),
+  return createHttpClient<void>(getSystemEmployeeControllerLookupMemberUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11313,18 +7963,6 @@ export const systemEmployeeControllerLookupMember = async (params: SystemEmploye
 /**
  * @summary 查询当前会员的员工档案（用于前端入口判断）
  */
-export type systemMiniappEmployeeControllerMyEmployeeProfileResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemMiniappEmployeeControllerMyEmployeeProfileResponseSuccess = (systemMiniappEmployeeControllerMyEmployeeProfileResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemMiniappEmployeeControllerMyEmployeeProfileResponse = (systemMiniappEmployeeControllerMyEmployeeProfileResponseSuccess)
-
 export const getSystemMiniappEmployeeControllerMyEmployeeProfileUrl = (params: SystemMiniappEmployeeControllerMyEmployeeProfileParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11340,9 +7978,9 @@ export const getSystemMiniappEmployeeControllerMyEmployeeProfileUrl = (params: S
   return stringifiedParams.length > 0 ? `/system/miniapp/employee/profile?${stringifiedParams}` : `/system/miniapp/employee/profile`
 }
 
-export const systemMiniappEmployeeControllerMyEmployeeProfile = async (params: SystemMiniappEmployeeControllerMyEmployeeProfileParams, options?: RequestInit): Promise<systemMiniappEmployeeControllerMyEmployeeProfileResponse> => {
+export const systemMiniappEmployeeControllerMyEmployeeProfile = async (params: SystemMiniappEmployeeControllerMyEmployeeProfileParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemMiniappEmployeeControllerMyEmployeeProfileResponse>(getSystemMiniappEmployeeControllerMyEmployeeProfileUrl(params),
+  return createHttpClient<void>(getSystemMiniappEmployeeControllerMyEmployeeProfileUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11356,18 +7994,6 @@ export const systemMiniappEmployeeControllerMyEmployeeProfile = async (params: S
 /**
  * @summary 员工-基础运营概览（今日/近7/近30/本月/上月）
  */
-export type systemMiniappEmployeeControllerOverviewResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemMiniappEmployeeControllerOverviewResponseSuccess = (systemMiniappEmployeeControllerOverviewResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemMiniappEmployeeControllerOverviewResponse = (systemMiniappEmployeeControllerOverviewResponseSuccess)
-
 export const getSystemMiniappEmployeeControllerOverviewUrl = (params: SystemMiniappEmployeeControllerOverviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11383,9 +8009,9 @@ export const getSystemMiniappEmployeeControllerOverviewUrl = (params: SystemMini
   return stringifiedParams.length > 0 ? `/system/miniapp/employee/overview?${stringifiedParams}` : `/system/miniapp/employee/overview`
 }
 
-export const systemMiniappEmployeeControllerOverview = async (params: SystemMiniappEmployeeControllerOverviewParams, options?: RequestInit): Promise<systemMiniappEmployeeControllerOverviewResponse> => {
+export const systemMiniappEmployeeControllerOverview = async (params: SystemMiniappEmployeeControllerOverviewParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemMiniappEmployeeControllerOverviewResponse>(getSystemMiniappEmployeeControllerOverviewUrl(params),
+  return createHttpClient<void>(getSystemMiniappEmployeeControllerOverviewUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11399,18 +8025,6 @@ export const systemMiniappEmployeeControllerOverview = async (params: SystemMini
 /**
  * @summary 员工-按日指标列表（净支付/洗车卡划扣/洗车数量合计）
  */
-export type systemMiniappEmployeeControllerDailyResponse200 = {
-  data: void
-  status: 200
-}
-    
-export type systemMiniappEmployeeControllerDailyResponseSuccess = (systemMiniappEmployeeControllerDailyResponse200) & {
-  headers: Headers;
-};
-;
-
-export type systemMiniappEmployeeControllerDailyResponse = (systemMiniappEmployeeControllerDailyResponseSuccess)
-
 export const getSystemMiniappEmployeeControllerDailyUrl = (params: SystemMiniappEmployeeControllerDailyParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11426,9 +8040,9 @@ export const getSystemMiniappEmployeeControllerDailyUrl = (params: SystemMiniapp
   return stringifiedParams.length > 0 ? `/system/miniapp/employee/daily?${stringifiedParams}` : `/system/miniapp/employee/daily`
 }
 
-export const systemMiniappEmployeeControllerDaily = async (params: SystemMiniappEmployeeControllerDailyParams, options?: RequestInit): Promise<systemMiniappEmployeeControllerDailyResponse> => {
+export const systemMiniappEmployeeControllerDaily = async (params: SystemMiniappEmployeeControllerDailyParams, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<systemMiniappEmployeeControllerDailyResponse>(getSystemMiniappEmployeeControllerDailyUrl(params),
+  return createHttpClient<void>(getSystemMiniappEmployeeControllerDailyUrl(params),
   {      
     ...options,
     method: 'GET'

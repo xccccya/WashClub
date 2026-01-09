@@ -7,7 +7,7 @@
  */
 
 /**
- * 背景图片 URL/相对路径（bgType=image 时）
+ * 【兼容】每 1 分获取积分（整数，旧字段）
  * @nullable
  */
-export type SystemSiteSettingSaveDtoBgImageUrl = { [key: string]: unknown } | null;
+export type MemberPointsSaveConfigDtoPointsPerFen = { [key: string]: unknown } | null;

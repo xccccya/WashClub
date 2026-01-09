@@ -88,10 +88,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import PlateInput from '../PlateInput.vue';
 import { absUrl } from '../../utils/http';
 import { ArrowDown } from '@element-plus/icons-vue';
+import { systemSettingControllerGetPublicSetting } from '@wash/api-client';
 
 const props = defineProps<{ 
 	orderKind: 'SERVICE'|'SP';
@@ -135,10 +136,21 @@ const pointsText = computed(()=> {
 	const n = Math.max(0, Number(props.pointsAvailable||0));
 	return Number.isFinite(n) ? String(n) : '0';
 });
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
+async function ensureSiteSetting(){
+	if (siteSetting.value) return;
+	try{
+		siteSetting.value = (await systemSettingControllerGetPublicSetting() as any) || null;
+	}catch{
+		siteSetting.value = { defaultMemberAvatarUrl: null };
+	}
+}
 const avatarSrc = computed(()=>{
 	try{
 		const raw = props.identity==='member' ? String(props.selectedMember?.avatarUrl || props.selectedMember?.avatar || '').trim() : '';
 		if (raw) return absUrl(raw);
+		const d = String(siteSetting.value?.defaultMemberAvatarUrl || '').trim();
+		if (d) return absUrl(d);
 		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
 	}catch{
 		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
@@ -181,6 +193,8 @@ const plateModel = computed({
 
 function openPlate(){ try{ (plateInputRef.value as any)?.open?.(); }catch{} }
 defineExpose({ openPlate });
+
+onMounted(()=>{ ensureSiteSetting(); });
 </script>
 
 <style scoped>

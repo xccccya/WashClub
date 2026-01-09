@@ -287,9 +287,9 @@
 						系统会自动识别本订单中标记为“计为洗车(次)”的服务商品数量作为需要扣减的次数，并从车辆所属集团或会员的洗车卡中优先扣减。次数不可手动修改。
 					</div>
 					<el-radio-group v-model="washPrefer" size="small">
-						<el-radio-button label="AUTO">自动选择</el-radio-button>
-						<el-radio-button label="GROUP">优先集团卡</el-radio-button>
-						<el-radio-button label="MEMBER">优先会员卡</el-radio-button>
+						<el-radio-button value="AUTO">自动选择</el-radio-button>
+						<el-radio-button value="GROUP">优先集团卡</el-radio-button>
+						<el-radio-button value="MEMBER">优先会员卡</el-radio-button>
 					</el-radio-group>
 					<div style="margin-top:12px; text-align:right;">
 						<el-button @click="showPay=false">取消</el-button>
@@ -324,8 +324,8 @@
 				<template v-if="currentOrder && (currentOrder.payMethod==='WECHAT_JSAPI' || currentOrder.payMethod==='WECHAT_MICROPAY')">
 					<el-form-item label="退款方式">
 						<el-radio-group v-model="refundMode">
-							<el-radio label="FULL" :disabled="hasPartialRefund">全额退款</el-radio>
-							<el-radio label="PART">部分退款</el-radio>
+							<el-radio value="FULL" :disabled="hasPartialRefund">全额退款</el-radio>
+							<el-radio value="PART">部分退款</el-radio>
 						</el-radio-group>
 					</el-form-item>
 					<el-form-item v-if="refundMode==='PART'" label="退款金额">
@@ -345,8 +345,8 @@
 
 		<el-dialog v-model="showShipDialog" :title="shipDialogTitle" width="560px">
 			<el-radio-group v-model="shipMode" style="margin-bottom:12px;">
-				<el-radio label="express">快递发货</el-radio>
-				<el-radio label="noExpress">无需快递发货</el-radio>
+				<el-radio value="express">快递发货</el-radio>
+				<el-radio value="noExpress">无需快递发货</el-radio>
 			</el-radio-group>
 			<div v-if="shipMode==='express'">
 				<div style="margin-bottom:10px;">

@@ -7,7 +7,6 @@
  */
 
 /**
- * 默认会员头像 URL/相对路径
  * @nullable
  */
-export type SystemSiteSettingSaveDtoDefaultMemberAvatarUrl = { [key: string]: unknown } | null;
+export type AdminMeDtoRoleId = { [key: string]: unknown } | null;

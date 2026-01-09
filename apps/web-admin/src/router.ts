@@ -8,6 +8,7 @@ import MemberCategories from './pages/MemberCategories.vue';
 import MemberTags from './pages/MemberTags.vue';
 import SystemRoles from './pages/SystemRoles.vue';
 import SystemAdmins from './pages/SystemAdmins.vue';
+import Forbidden from './pages/Forbidden.vue';
 import SystemFiles from './pages/SystemFiles.vue';
 import SystemSms from './pages/SystemSms.vue';
 import SystemBasic from './pages/SystemBasic.vue';
@@ -49,7 +50,8 @@ const router = createRouter({
 			meta: { requiresAuth: true },
 			children: [
 				{ path: '', redirect: '/dashboard' },
-				{ path: '/dashboard', component: Dashboard, meta: { perm: '*', title: '系统首页' } },
+				{ path: '/dashboard', component: Dashboard, meta: { perm: 'dashboard-metrics', title: '系统首页' } },
+				{ path: '/403', component: Forbidden, meta: { title: '无权限' } },
 				{ path: '/members', component: MemberList, meta: { perm: 'members', title: '会员列表' } },
 				{ path: '/member-signins', component: MemberSignins, meta: { perm: 'member-signins', title: '签到管理' } },
 				{ path: '/member-points', component: MemberPoints, meta: { perm: 'member-points', title: '积分管理' } },
@@ -157,7 +159,7 @@ router.beforeEach(async (to, _from, next) => {
 		// 权限校验：使用后端返回的 permissions（避免依赖未验签的 JWT payload）
 		const perm: string | undefined = (to.meta as any)?.perm;
 		if (perm && Array.isArray(u.permissions) && !u.permissions.includes('*')) {
-			return u.permissions.includes(perm) ? next() : next('/');
+			return u.permissions.includes(perm) ? next() : next('/403');
 		}
 	}
 	return next();

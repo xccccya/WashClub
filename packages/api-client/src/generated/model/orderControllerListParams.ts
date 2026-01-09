@@ -10,6 +10,7 @@ export type OrderControllerListParams = {
 type: string;
 status: string;
 payStatus: string;
+payMethod: string;
 scene: string;
 includeDeleted: string;
 memberId: string;

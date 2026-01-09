@@ -42,12 +42,18 @@
 					</div>
 				</el-form-item>
 				<el-form-item label="昵称" prop="name"><el-input v-model="form.name" /></el-form-item>
-				<el-form-item label="角色">
+				<el-form-item label="角色" prop="roleId">
 					<el-select v-model="form.roleId" placeholder="请选择角色" style="width:100%">
-						<el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+						<el-option
+							v-for="r in roles"
+							:key="r.id"
+							:label="r.enabled ? r.name : `${r.name}（已禁用）`"
+							:value="r.id"
+							:disabled="!r.enabled"
+						/>
 					</el-select>
 				</el-form-item>
-				<el-form-item v-if="!current?.id" label="密码" prop="密码"><el-input v-model="form.password" type="password" /></el-form-item>
+				<el-form-item v-if="!current?.id" label="密码" prop="password"><el-input v-model="form.password" type="password" /></el-form-item>
 				<el-form-item v-if="!current?.id" label="确认密码" prop="password2"><el-input v-model="form.password2" type="password" /></el-form-item>
 			</el-form>
 			<template #footer>
@@ -61,12 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import {
+	type AdminRoleOptionDto,
+	type AdminUserDto,
 	adminRoleControllerCreateAdmin,
 	adminRoleControllerListAdmins,
-	adminRoleControllerListRoles,
+	adminRoleControllerListRoleOptions,
 	adminRoleControllerRemoveAdmin,
 	adminRoleControllerUpdateAdmin,
 	systemSettingControllerGetPublicSetting,
@@ -77,23 +85,51 @@ import { Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { absUrl } from '../utils/http';
 
-type Role = { id: number; name: string };
-type Admin = { id: number; name?: string; phone: string; roleId?: number; roleRef?: Role; avatarUrl?: string | null };
-const admins = ref<Admin[]>([]);
-const roles = ref<Role[]>([]);
+const admins = ref<AdminUserDto[]>([]);
+const roles = ref<AdminRoleOptionDto[]>([]);
 const dialogVisible = ref(false);
-const current = ref<Admin | null>(null);
+const current = ref<AdminUserDto | null>(null);
 const formRef = ref();
-const form = ref<Partial<Admin & { password?: string; password2?: string }>>({ phone: '', name: '', roleId: undefined, password: '', password2: '', avatarUrl: undefined });
+const form = ref<Partial<AdminUserDto & { password?: string; password2?: string }>>({ phone: '', name: '', roleId: undefined, password: '', password2: '', avatarUrl: undefined });
+const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
 
 const rules = {
 	phone: [ { required: true, message: '请输入手机号', trigger: 'blur' } ],
 	name: [ { required: true, message: '请输入昵称', trigger: 'blur' } ],
-	password: [ { required: false, min: 6, message: '密码至少6位', trigger: 'blur' } ]
+	roleId: [ { required: true, message: '请选择角色', trigger: 'change' } ],
+	password: [ { required: false, min: 6, message: '密码至少6位', trigger: 'blur' } ],
+	password2: [
+		{
+			validator: (_: any, value: any, callback: any) => {
+				// 仅创建时校验确认密码
+				if (current.value?.id) return callback();
+				const p1 = String(form.value.password || '');
+				const p2 = String(value || '');
+				if (!p2) return callback(new Error('请再次输入密码'));
+				if (p1 !== p2) return callback(new Error('两次输入的密码不一致'));
+				return callback();
+			},
+			trigger: 'blur',
+		},
+	],
 };
 
 function toAbsUrl(path?: string | null) { if (!path) return ''; if (/^https?:\/\//i.test(path)) return path; return absUrl(path||''); }
-function formatAvatar(url?: string | null){ try { const site = JSON.parse(localStorage.getItem('siteSetting')||'{}'); const candidate = url || site?.defaultMemberAvatarUrl || ''; const u = toAbsUrl(candidate); return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } catch { return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png'); } }
+function formatAvatar(url?: string | null){
+	try{
+		const candidate = url || siteSetting.value?.defaultMemberAvatarUrl || '';
+		const u = toAbsUrl(candidate);
+		return u || absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	} catch {
+		return absUrl('/uploads/public/76c646c37ea0e38dc72b83bc4acd6720.png');
+	}
+}
+function onSiteSettingUpdated(ev: any){
+	try{
+		const next = ev?.detail || null;
+		if (next) siteSetting.value = next;
+	}catch{}
+}
 async function uploadAvatar(o:any){ const fd=new FormData(); fd.append('file', o.file); fd.append('dir','public'); fd.append('source','avatar'); const res=await fetch(`${API_BASE}/assets/upload`, { method:'POST', body: fd, headers: { Authorization: `Bearer ${localStorage.getItem('token')||''}` } }); const j=await res.json(); form.value.avatarUrl = j?.url || null; ElMessage.success('头像已上传'); }
 function onAvatarClear(){ form.value.avatarUrl = null; ElMessage.success('已恢复默认头像'); }
 const pickVisible = ref(false);
@@ -101,22 +137,22 @@ function openPickAvatar(){ pickVisible.value = true; }
 function onPicked(list:any[]){ const f = list?.[0]; if (f && f.url) { form.value.avatarUrl = f.url; ElMessage.success('已选择头像'); } pickVisible.value=false; }
 
 async function fetchAdmins(){
-	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
-	admins.value = (await adminRoleControllerListAdmins() as unknown) as Admin[];
+	admins.value = await adminRoleControllerListAdmins();
 }
 async function fetchRoles(){
-	// 注意：返回体类型在 openapi 中可能仍不完整，这里按实际后端返回（数组）使用
-	roles.value = (await adminRoleControllerListRoles() as unknown) as Role[];
+	roles.value = await adminRoleControllerListRoleOptions();
 }
 
 function openCreate(){ current.value = null; form.value = { phone: '', name: '', roleId: undefined, password: '', password2: '', avatarUrl: undefined }; dialogVisible.value = true; }
-function openEdit(row: Admin){ current.value = row; form.value = { id: row.id, phone: row.phone, name: row.name, roleId: row.roleId, avatarUrl: row.avatarUrl, password: '', password2: '' }; dialogVisible.value = true; }
+function openEdit(row: AdminUserDto){ current.value = row; form.value = { id: row.id, phone: row.phone, name: row.name, roleId: row.roleId ?? undefined, avatarUrl: row.avatarUrl, password: '', password2: '' }; dialogVisible.value = true; }
 
 async function onSave(){
 	try {
 		if (formRef.value) await formRef.value.validate();
 		if (!current.value?.id) {
 			if (!form.value?.password || form.value.password.length < 6) { ElMessage.error('请填写至少6位密码'); return; }
+			if (String(form.value.password || '') !== String(form.value.password2 || '')) { ElMessage.error('两次输入的密码不一致'); return; }
+			if (!form.value.roleId) { ElMessage.error('请选择角色'); return; }
 			const payload:any = { phone: form.value.phone, name: form.value.name, password: form.value.password, roleId: form.value.roleId, avatarUrl: form.value.avatarUrl };
 			await adminRoleControllerCreateAdmin(payload);
 		} else {
@@ -129,9 +165,22 @@ async function onSave(){
 	} catch (e:any) { ElMessage.error(String(e?.message||e||'保存失败')); }
 }
 
-async function remove(row: Admin){ if (row.id===1) return; await adminRoleControllerRemoveAdmin(String(row.id)); ElMessage.success('已删除'); fetchAdmins(); }
+async function remove(row: AdminUserDto){ if (row.id===1) return; await adminRoleControllerRemoveAdmin(String(row.id)); ElMessage.success('已删除'); fetchAdmins(); }
 
-onMounted(()=>{ fetchRoles(); fetchAdmins(); try{ systemSettingControllerGetPublicSetting().then((s:any)=>{ try{ localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{} }); }catch{} });
+onMounted(()=>{
+	fetchRoles();
+	fetchAdmins();
+	try{
+		systemSettingControllerGetPublicSetting().then((s:any)=>{
+			siteSetting.value = (s as any) || null;
+			try{ localStorage.setItem('siteSetting', JSON.stringify(s||{})); }catch{}
+		}).catch(()=>{
+			try{ siteSetting.value = JSON.parse(localStorage.getItem('siteSetting')||'{}') || null; }catch{}
+		});
+	}catch{}
+	try{ window.addEventListener('site-setting-updated', onSiteSettingUpdated as any); }catch{}
+});
+onBeforeUnmount(()=>{ try{ window.removeEventListener('site-setting-updated', onSiteSettingUpdated as any); }catch{} });
 </script>
 
 

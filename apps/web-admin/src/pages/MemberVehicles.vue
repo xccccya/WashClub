@@ -35,7 +35,21 @@
 		</template>
 		<el-table :data="list" stripe style="width:100%" highlight-current-row @row-dblclick="onRowDblClick">
 			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="plateNumber" label="车牌号" width="160" />
+			<el-table-column prop="plateNumber" label="车牌号" width="180">
+				<template #default="{ row }">
+					<div style="display:flex;align-items:center;gap:8px;">
+						<template v-if="isNoPlateRow(row)">
+							<el-tag type="info" effect="plain">无牌车</el-tag>
+							<el-tooltip effect="dark" placement="top" :content="`系统保留占位车牌：${noPlateNumber}`">
+								<span class="muted mono">{{ row.plateNumber }}</span>
+							</el-tooltip>
+						</template>
+						<template v-else>
+							<span class="mono">{{ row.plateNumber }}</span>
+						</template>
+					</div>
+				</template>
+			</el-table-column>
 			<el-table-column prop="vin" label="VIN" width="160">
 				<template #default="{ row }">{{ row.vin || '-' }}</template>
 			</el-table-column>
@@ -61,11 +75,22 @@
 			</el-table-column>
 			<el-table-column label="操作" width="320" fixed="right">
 				<template #default="{ row }">
-					<el-button size="small" link @click="openEdit(row)"><el-icon><Edit /></el-icon><span>编辑</span></el-button>
-					<el-button v-if="row.memberId" size="small" link type="warning" @click="openRebind(row)"><el-icon><RefreshRight /></el-icon><span>改绑</span></el-button>
-					<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)"><el-icon><Star /></el-icon><span>设为默认</span></el-button>
-					<el-button v-if="!row.memberId" size="small" link type="warning" @click="openBindMember(row)"><el-icon><User /></el-icon><span>绑定会员</span></el-button>
-					<el-button size="small" link type="danger" @click="openDelete(row)"><el-icon><Delete /></el-icon><span>删除</span></el-button>
+					<el-tooltip v-if="isNoPlateRow(row)" effect="dark" placement="top" content="系统保留无牌车：已锁定，不允许编辑/绑定/改绑/设默认/删除">
+						<span>
+							<el-button size="small" link disabled><el-icon><Edit /></el-icon><span>编辑</span></el-button>
+							<el-button size="small" link type="warning" disabled><el-icon><RefreshRight /></el-icon><span>改绑</span></el-button>
+							<el-button size="small" link type="success" disabled><el-icon><Star /></el-icon><span>设为默认</span></el-button>
+							<el-button size="small" link type="warning" disabled><el-icon><User /></el-icon><span>绑定会员</span></el-button>
+							<el-button size="small" link type="danger" disabled><el-icon><Delete /></el-icon><span>删除</span></el-button>
+						</span>
+					</el-tooltip>
+					<template v-else>
+						<el-button size="small" link @click="openEdit(row)"><el-icon><Edit /></el-icon><span>编辑</span></el-button>
+						<el-button v-if="row.memberId" size="small" link type="warning" @click="openRebind(row)"><el-icon><RefreshRight /></el-icon><span>改绑</span></el-button>
+						<el-button size="small" link type="success" :disabled="row.isDefault" @click="setDefault(row)"><el-icon><Star /></el-icon><span>设为默认</span></el-button>
+						<el-button v-if="!row.memberId" size="small" link type="warning" @click="openBindMember(row)"><el-icon><User /></el-icon><span>绑定会员</span></el-button>
+						<el-button size="small" link type="danger" @click="openDelete(row)"><el-icon><Delete /></el-icon><span>删除</span></el-button>
+					</template>
 				</template>
 			</el-table-column>
 		</el-table>
@@ -80,7 +105,12 @@
 						<el-option v-for="m in memberOptions" :key="m.id" :label="`${m.name || '会员'}（${m.phone}）`" :value="m.id" />
 					</el-select>
 				</el-form-item>
-				<el-form-item label="车牌号" required><el-input v-model="form.plateNumber" placeholder="例如 川A12345 或 川AD12345" /></el-form-item>
+				<el-form-item v-if="isNoPlateInput(form.plateNumber)" label="提示">
+					<el-alert type="warning" show-icon :closable="false" title="该车牌为系统保留“无牌车”占位车牌，已锁定。" description="请勿创建/绑定/修改为该车牌。如需使用无牌车下单/入队，请在收银端/服务队列使用“一键无牌车”。" />
+				</el-form-item>
+				<el-form-item label="车牌号" required>
+					<el-input v-model="form.plateNumber" :disabled="current ? isNoPlateRow(current) : false" placeholder="例如 川A12345 或 川AD12345" />
+				</el-form-item>
 				<el-form-item label="VIN"><el-input v-model="form.vin" placeholder="17位 VIN（可选）" /></el-form-item>
 				<!-- 品牌选择（首字母筛选 + 可搜索） -->
 				<el-form-item label="车辆品牌">
@@ -136,7 +166,7 @@
 			</el-form>
 			<template #footer>
 				<el-button @click="dialogVisible=false">取消</el-button>
-				<el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
+				<el-button type="primary" :loading="saving" :disabled="(current && isNoPlateRow(current)) || isNoPlateInput(form.plateNumber)" @click="onSave">保存</el-button>
 			</template>
 		</el-dialog>
 
@@ -174,8 +204,8 @@
 			<el-form label-width="120px">
 				<el-form-item label="改绑方式" required>
 					<el-radio-group v-model="rebindMode">
-						<el-radio label="toMember">换绑到其他会员</el-radio>
-						<el-radio label="toGuest">解除绑定（变为游客）</el-radio>
+						<el-radio value="toMember">换绑到其他会员</el-radio>
+						<el-radio value="toGuest">解除绑定（变为游客）</el-radio>
 					</el-radio-group>
 				</el-form-item>
 
@@ -215,6 +245,14 @@
 		<!-- 查看车辆信息（美化版） -->
 		<el-dialog v-model="viewDialog" title="车辆信息" width="920px">
 			<div v-if="viewItem" class="view-wrap">
+				<el-alert
+					v-if="isNoPlateRow(viewItem)"
+					type="warning"
+					show-icon
+					:closable="false"
+					title="系统保留无牌车：已锁定"
+					description="该车辆用于无牌车/忘记车牌的下单与入队占位。为避免误操作，不允许在后台编辑/删除/绑定/改绑。"
+				/>
 				<el-card shadow="never" class="vehicle-card">
 					<div class="vehicle-card__grid">
 						<div class="vehicle-card__main">
@@ -336,7 +374,7 @@ import {
 	vehicleControllerSetDefault,
 	vehicleControllerUpdateVehicle,
 } from '@wash/api-client';
-import { API_BASE } from '../config';
+import { API_BASE, resolveNoPlateNumber } from '../config';
 import { absUrl } from '../utils/http';
 import { ElMessage } from 'element-plus';
 import { ElIcon } from 'element-plus';
@@ -395,6 +433,18 @@ const current = ref<Vehicle | null>(null);
 const form = ref<any>({ plateNumber: '', vin: '', brandId: undefined as number | undefined, brandName: '', seriesId: undefined as number | undefined, seriesName: '', typeMain: '', typeSub: '', color: '', isDefault: false, memberId: undefined as number | undefined });
 const memberOptions = ref<MemberOption[]>([]);
 function toAbs(u?: string | null){ return absUrl(u || ''); }
+
+const noPlateNumber = resolveNoPlateNumber();
+function isNoPlateInput(plate: any): boolean {
+	try{
+		const s = String(plate || '').trim().toUpperCase();
+		const target = String(noPlateNumber || '川K00000').trim().toUpperCase();
+		return !!s && s === target;
+	}catch{ return false; }
+}
+function isNoPlateRow(row: any): boolean {
+	return isNoPlateInput(row?.plateNumber);
+}
 
 const delDialog = ref(false);
 const delId = ref<number | null>(null);
@@ -468,7 +518,10 @@ async function fetchRebindLogs() {
 const bindDialog = ref(false);
 const bindVehicle = ref<Vehicle | null>(null);
 const bindMemberId = ref<number | null>(null);
-function openBindMember(v: Vehicle){ bindVehicle.value = v; bindMemberId.value = null; bindDialog.value = true; }
+function openBindMember(v: Vehicle){
+	if (isNoPlateRow(v)) { ElMessage.warning('系统保留无牌车已锁定，禁止绑定会员'); return; }
+	bindVehicle.value = v; bindMemberId.value = null; bindDialog.value = true;
+}
 async function onBindSave(){
 	if (!bindVehicle.value?.id || !bindMemberId.value) { ElMessage.error('请选择会员'); return; }
 	await vehicleControllerBindMember(String(bindVehicle.value.id), String(bindMemberId.value));
@@ -604,8 +657,14 @@ function openCreate(mode: 'member'|'guest' = 'member'){
 	if (mode === 'member' && memberIdFilter.value) form.value.memberId = memberIdFilter.value;
 	dialogVisible.value = true;
 }
-function openEdit(v: Vehicle){ current.value = v; form.value = { ...v }; dialogVisible.value = true; }
-function openDelete(v: Vehicle){ delId.value = v.id; delDialog.value = true; }
+function openEdit(v: Vehicle){
+	if (isNoPlateRow(v)) { ElMessage.warning('系统保留无牌车已锁定，禁止编辑'); return; }
+	current.value = v; form.value = { ...v }; dialogVisible.value = true;
+}
+function openDelete(v: Vehicle){
+	if (isNoPlateRow(v)) { ElMessage.warning('系统保留无牌车已锁定，禁止删除'); return; }
+	delId.value = v.id; delDialog.value = true;
+}
 function openView(v: Vehicle){ viewItem.value = v; viewDialog.value = true; }
 function onRowDblClick(row: Vehicle){ openView(row); }
 
@@ -621,7 +680,10 @@ watch(
 	},
 );
 
-async function setDefault(v: Vehicle){ await vehicleControllerSetDefault(String(v.id)); ElMessage.success('已设为默认'); fetchList(); }
+async function setDefault(v: Vehicle){
+	if (isNoPlateRow(v)) { ElMessage.warning('系统保留无牌车已锁定，禁止设为默认'); return; }
+	await vehicleControllerSetDefault(String(v.id)); ElMessage.success('已设为默认'); fetchList();
+}
 
 function validatePlate(plate: string){ return /^[\u4e00-\u9fa5]{1}[A-Z]{1}[A-Z0-9\u4e00-\u9fa5]{5,6}$/.test(plate.replace(/\s+/g,'')); }
 
@@ -639,6 +701,7 @@ function formatDateTime(input?: string | null){
 }
 
 async function onSave(){
+	if (isNoPlateInput(form.value.plateNumber)) { ElMessage.error('该车牌为系统保留无牌车占位车牌，禁止创建/修改'); return; }
     if (!form.value.plateNumber || !validatePlate(form.value.plateNumber)) { ElMessage.error('请输入合法车牌号'); return; }
     if (!form.value.typeMain) { ElMessage.error('请选择车辆主类'); return; }
     saving.value = true;
@@ -734,6 +797,7 @@ const rebindMemberOptions = ref<MemberOption[]>([]);
 const rebindMembersLoading = ref(false);
 
 function openRebind(v: Vehicle) {
+	if (isNoPlateRow(v)) { ElMessage.warning('系统保留无牌车已锁定，禁止改绑'); return; }
 	rebindVehicle.value = v;
 	rebindDialog.value = true;
 	rebindMode.value = 'toMember';
