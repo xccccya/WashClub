@@ -8,9 +8,9 @@ import { PrismaService } from '../prisma.service.js';
 export class GroupMiniappController {
   constructor(private jwt: JwtService, private prisma: PrismaService) {}
 
-  private async getMemberIdFromToken(headers: Record<string, string>, tokenParam?: string): Promise<number> {
+  private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
     const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
     if (!token) throw new BadRequestException('缺少Token');
     try {
       const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
@@ -25,8 +25,8 @@ export class GroupMiniappController {
 
   @Get('me/summary')
   @ApiOperation({ summary: '我的集团概览（名称/图标/余额/卡余次等）' })
-  async myGroupSummary(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myGroupSummary(@Headers() headers: Record<string, string>) {
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, include: { group: { include: { balance: true } } } });
     if (!gm?.group) return { hasGroup: false } as any;
     const group = gm.group;
@@ -52,9 +52,8 @@ export class GroupMiniappController {
   async myGroupLedger(
     @Headers() headers: Record<string, string>,
     @Query('limit') limitStr?: string,
-    @Query('token') tokenParam?: string,
   ) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) return [];
     const take = Math.max(1, Math.min(50, Number(limitStr || 10)));
@@ -73,8 +72,8 @@ export class GroupMiniappController {
 
   @Get('me/cards')
   @ApiOperation({ summary: '我的集团洗车卡列表（只读）' })
-  async myGroupCards(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myGroupCards(@Headers() headers: Record<string, string>) {
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) return [];
     return this.prisma.groupWashCard.findMany({ where: { groupId: gm.groupId, status: 'ACTIVE' as any }, orderBy: { id: 'desc' } });
@@ -82,8 +81,8 @@ export class GroupMiniappController {
 
   @Get('me/card/:cardId')
   @ApiOperation({ summary: '我的集团洗车卡详情' })
-  async myGroupCardDetail(@Headers() headers: Record<string, string>, @Param('cardId') cardIdParam: string, @Query('token') tokenParam?: string){
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myGroupCardDetail(@Headers() headers: Record<string, string>, @Param('cardId') cardIdParam: string){
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) throw new BadRequestException('未绑定集团');
     const cardId = Number(cardIdParam || 0);
@@ -100,9 +99,8 @@ export class GroupMiniappController {
     @Param('cardId') cardIdParam: string,
     @Query('page') pageStr?: string,
     @Query('pageSize') pageSizeStr?: string,
-    @Query('token') tokenParam?: string,
   ){
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) throw new BadRequestException('未绑定集团');
     const cardId = Number(cardIdParam || 0);
@@ -140,8 +138,8 @@ export class GroupMiniappController {
 
   @Get('me/admins')
   @ApiOperation({ summary: '我的集团管理员列表（小程序展示）' })
-  async myGroupAdmins(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myGroupAdmins(@Headers() headers: Record<string, string>) {
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) return [];
     const admins = await this.prisma.groupMember.findMany({
@@ -161,12 +159,11 @@ export class GroupMiniappController {
   @ApiOperation({ summary: '发起集团余额充值订单（FK），返回订单号' })
   async myGroupRecharge(
     @Headers() headers: Record<string, string>,
-    @Query('token') tokenParam: string | undefined,
     @Query('amount') amountStr?: string,
     @Query('memberIdForPayment') memberIdForPaymentStr?: string,
   ) {
     // 为兼容小程序 GET/POST 习惯，这里通过 query 读取参数；同样兼容 body 的场景由前端统一用 POST+body
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true } });
     if (!gm?.groupId) throw new BadRequestException('未绑定集团');
     const amount = Number(amountStr || 0);
@@ -217,8 +214,8 @@ export class GroupMiniappController {
 
   @Get('me/members')
   @ApiOperation({ summary: '我的集团成员列表（管理员可见更多操作）' })
-  async myGroupMembers(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myGroupMembers(@Headers() headers: Record<string, string>) {
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true, role: true } });
     if (!gm?.groupId) return [];
     const list = await this.prisma.groupMember.findMany({
@@ -237,8 +234,8 @@ export class GroupMiniappController {
 
   @Get('me/lookup-member-by-phone')
   @ApiOperation({ summary: '根据手机号查找会员（添加前预览）' })
-  async lookupMemberByPhone(@Headers() headers: Record<string, string>, @Query('phone') phone?: string, @Query('token') tokenParam?: string) {
-    await this.getMemberIdFromToken(headers, tokenParam);
+  async lookupMemberByPhone(@Headers() headers: Record<string, string>, @Query('phone') phone?: string) {
+    await this.getMemberIdFromToken(headers);
     const p = String(phone || '').trim();
     if (!p) throw new BadRequestException('缺少手机号');
     const mem = await this.prisma.member.findUnique({ where: { phone: p }, select: { id: true, name: true, phone: true, avatarUrl: true } });
@@ -250,9 +247,8 @@ export class GroupMiniappController {
   async addMemberByPhone(
     @Headers() headers: Record<string, string>,
     @Query('phone') phoneParam?: string,
-    @Query('token') tokenParam?: string,
   ) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const memberId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId }, select: { groupId: true, role: true } });
     if (!gm?.groupId) throw new BadRequestException('未绑定集团');
     if (gm.role !== ('ADMIN' as any)) throw new BadRequestException('仅管理员可操作');
@@ -271,9 +267,8 @@ export class GroupMiniappController {
   async removeMember(
     @Headers() headers: Record<string, string>,
     @Query('memberId') memberIdParam?: string,
-    @Query('token') tokenParam?: string,
   ) {
-    const myId = await this.getMemberIdFromToken(headers, tokenParam);
+    const myId = await this.getMemberIdFromToken(headers);
     const gm = await this.prisma.groupMember.findUnique({ where: { memberId: myId }, select: { groupId: true, role: true } });
     if (!gm?.groupId) throw new BadRequestException('未绑定集团');
     if (gm.role !== ('ADMIN' as any)) throw new BadRequestException('仅管理员可操作');

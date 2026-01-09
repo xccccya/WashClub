@@ -182,6 +182,36 @@ export class WashCardService {
 
     // 共享管理
     listShares(cardId: number) { return this.prisma.washCardShare.findMany({ where: { cardId }, include: { member: true } }); }
+    private async assertOwnerForShareManage(requestMemberId: number, cardId: number) {
+        const card = await this.prisma.washCard.findUnique({ where: { id: cardId }, select: { id: true, ownerMemberId: true } });
+        if (!card) throw new BadRequestException('洗车卡不存在');
+        if (card.ownerMemberId !== requestMemberId) throw new UnauthorizedException('仅持有人可管理共享');
+        return card;
+    }
+    async listSharesForOwner(requestMemberId: number, cardId: number) {
+        await this.assertOwnerForShareManage(requestMemberId, cardId);
+        return this.listShares(cardId);
+    }
+    async addShareForOwnerByPhone(requestMemberId: number, cardId: number, phone: string) {
+        await this.assertOwnerForShareManage(requestMemberId, cardId);
+        const p = String(phone || '').trim();
+        if (!/^1\d{10}$/.test(p)) throw new BadRequestException('手机号格式不正确');
+        const member = await this.prisma.member.findUnique({ where: { phone: p }, select: { id: true, phone: true } });
+        if (!member) throw new BadRequestException('未找到该会员');
+        try {
+            return await this.addShare(cardId, member.id);
+        } catch (e: any) {
+            const msg = String(e?.message || '');
+            if (msg.includes('Unique constraint') || msg.includes('Unique') || msg.includes('P2002')) {
+                throw new BadRequestException('该会员已在共享列表中');
+            }
+            throw e;
+        }
+    }
+    async removeShareForOwner(requestMemberId: number, cardId: number, memberId: number) {
+        await this.assertOwnerForShareManage(requestMemberId, cardId);
+        return this.removeShare(cardId, memberId);
+    }
     async addShare(cardId: number, memberId: number) {
         const card = await this.prisma.washCard.findUnique({ where: { id: cardId } });
         if (!card) throw new BadRequestException('洗车卡不存在');

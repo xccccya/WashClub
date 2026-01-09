@@ -71,78 +71,97 @@
 		<el-dialog
 			v-model="dialogVisible"
 			:title="current?.id ? '编辑角色' : '新增角色'"
-			width="860px"
+			:width="'min(980px, calc(100vw - 32px))'"
 			align-center
 			destroy-on-close
 			append-to-body
 			class="role-dialog"
 		>
 			<el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="role-form">
-				<div class="grid2">
-					<el-form-item label="角色名称" prop="name">
-						<el-input v-model="form.name" maxlength="20" show-word-limit placeholder="例如：店长 / 收银员" />
-					</el-form-item>
-					<el-form-item label="启用" prop="enabled">
-						<el-switch v-model="form.enabled" />
-						<span class="muted" style="margin-left:10px;">禁用后该角色下的管理员将无法继续访问后台</span>
-					</el-form-item>
-				</div>
-
-				<el-form-item label="菜单权限" required class="perm-block">
-					<div class="perm-toolbar">
-						<div class="left">
-							<el-tag size="small" effect="light" type="info">
-								已选 {{ (form.permissions || []).length }} / {{ menus.length }}
-							</el-tag>
-							<el-input v-model="permKeyword" clearable placeholder="搜索权限（名称/Key）" class="perm-search">
-								<template #prefix><el-icon><Search /></el-icon></template>
-							</el-input>
+				<el-card class="role-card" shadow="never">
+					<template #header>
+						<div class="card-header">
+							<div class="title">基础信息</div>
+							<div class="desc">设置角色名称与启用状态</div>
 						</div>
-						<div class="right">
-							<el-button size="small" @click="selectAll"><el-icon><CircleCheck /></el-icon>全选</el-button>
-							<el-button size="small" @click="deselectAll"><el-icon><CircleClose /></el-icon>全不选</el-button>
-							<el-button size="small" @click="invertAll"><el-icon><Refresh /></el-icon>反选</el-button>
-						</div>
+					</template>
+					<div class="grid2">
+						<el-form-item label="角色名称" prop="name">
+							<el-input v-model="form.name" maxlength="20" show-word-limit placeholder="例如：店长 / 收银员" />
+						</el-form-item>
+						<el-form-item label="启用" prop="enabled">
+							<div class="inline">
+								<el-switch v-model="form.enabled" />
+								<span class="muted">禁用后该角色下的管理员将无法继续访问后台</span>
+							</div>
+						</el-form-item>
 					</div>
+				</el-card>
 
-					<el-scrollbar class="perm-scroll">
-						<el-collapse v-model="activeGroups" class="perm-collapse">
-							<el-collapse-item v-for="g in filteredMenuGroups" :key="g.key" :name="g.key">
-								<template #title>
-									<div class="perm-group__header">
-										<div class="title">
-											<el-checkbox
-												:model-value="isGroupChecked(g)"
-												:indeterminate="isGroupIndeterminate(g)"
-												@change="(val:any)=>toggleGroup(g, val)"
-											>
-												<span class="gname">{{ g.name }}</span>
-											</el-checkbox>
-										</div>
-										<div class="perm-group__tools">
-											<el-tag size="small" effect="light" type="info">{{ selectedCount(g) }}/{{ g.children.length }}</el-tag>
-											<el-button text size="small" @click.stop="toggleGroup(g, true)">全选</el-button>
-											<el-button text size="small" @click.stop="toggleGroup(g, false)">全不选</el-button>
-											<el-button text size="small" @click.stop="invertGroup(g)">反选</el-button>
-										</div>
-									</div>
-								</template>
-								<el-checkbox-group v-model="form.permissions" class="perm-grid">
-									<el-checkbox v-for="m in g.children" :key="m.key" :label="m.key">
-										<span class="perm-item">
-											<span class="name">{{ m.name }}</span>
-											<span class="key">{{ m.key }}</span>
-										</span>
-									</el-checkbox>
-								</el-checkbox-group>
-							</el-collapse-item>
-						</el-collapse>
-
-						<div v-if="filteredMenuGroups.every(g=>g.children.length===0)" class="perm-empty">
-							<el-empty description="没有匹配的权限项" />
+				<el-card class="role-card perm-card" shadow="never">
+					<template #header>
+						<div class="card-header">
+							<div class="title req">菜单权限</div>
+							<div class="desc">支持搜索与按分组快速全选/反选</div>
 						</div>
-					</el-scrollbar>
-				</el-form-item>
+					</template>
+
+					<el-form-item label=" " required class="perm-block">
+						<div class="perm-toolbar">
+							<div class="left">
+								<el-tag size="small" effect="light" type="info">
+									已选 {{ (form.permissions || []).length }} / {{ menus.length }}
+								</el-tag>
+								<el-input v-model="permKeyword" clearable placeholder="搜索权限（名称/Key）" class="perm-search">
+									<template #prefix><el-icon><Search /></el-icon></template>
+								</el-input>
+							</div>
+							<div class="right">
+								<el-button size="small" @click="selectAll"><el-icon><CircleCheck /></el-icon>全选</el-button>
+								<el-button size="small" @click="deselectAll"><el-icon><CircleClose /></el-icon>全不选</el-button>
+								<el-button size="small" @click="invertAll"><el-icon><Refresh /></el-icon>反选</el-button>
+							</div>
+						</div>
+
+						<el-scrollbar class="perm-scroll">
+							<el-collapse v-model="activeGroups" class="perm-collapse">
+								<el-collapse-item v-for="g in filteredMenuGroups" :key="g.key" :name="g.key">
+									<template #title>
+										<div class="perm-group__header">
+											<div class="title">
+												<el-checkbox
+													:model-value="isGroupChecked(g)"
+													:indeterminate="isGroupIndeterminate(g)"
+													@change="(val:any)=>toggleGroup(g, val)"
+												>
+													<span class="gname">{{ g.name }}</span>
+												</el-checkbox>
+											</div>
+											<div class="perm-group__tools">
+												<el-tag size="small" effect="light" type="info">{{ selectedCount(g) }}/{{ g.children.length }}</el-tag>
+												<el-button text size="small" @click.stop="toggleGroup(g, true)">全选</el-button>
+												<el-button text size="small" @click.stop="toggleGroup(g, false)">全不选</el-button>
+												<el-button text size="small" @click.stop="invertGroup(g)">反选</el-button>
+											</div>
+										</div>
+									</template>
+									<el-checkbox-group v-model="form.permissions" class="perm-grid">
+										<el-checkbox v-for="m in g.children" :key="m.key" :label="m.key">
+											<span class="perm-item">
+												<span class="name">{{ m.name }}</span>
+												<span class="key">{{ m.key }}</span>
+											</span>
+										</el-checkbox>
+									</el-checkbox-group>
+								</el-collapse-item>
+							</el-collapse>
+
+							<div v-if="filteredMenuGroups.every(g=>g.children.length===0)" class="perm-empty">
+								<el-empty description="没有匹配的权限项" />
+							</div>
+						</el-scrollbar>
+					</el-form-item>
+				</el-card>
 			</el-form>
 			<template #footer>
 				<el-button @click="dialogVisible=false" :disabled="saving">取消</el-button>
@@ -411,11 +430,49 @@ function selectedCount(g: MenuGroup){
 .role-name .text{ font-weight: 650; color: var(--el-text-color-primary); }
 
 .role-form{ width: 100%; }
+.role-card{ border-radius: 14px; border: 1px solid var(--el-border-color-lighter); background: var(--el-bg-color); }
+.role-card + .role-card{ margin-top: 12px; }
+.role-card :deep(.el-card__header){
+	padding: 12px 14px;
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 35%);
+	border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.role-card :deep(.el-card__body){ padding: 14px 14px 12px; }
+.card-header{ display:flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.card-header > *{ min-width: 0; }
+.card-header .title{ font-weight: 750; color: var(--el-text-color-primary); letter-spacing: .2px; }
+.card-header .desc{
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+	/* 关键：flex item 默认 min-width:auto 会导致右侧溢出被裁切 */
+	flex: 1 1 320px;
+	text-align: right;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+@media (max-width: 520px){
+	.card-header .desc{ text-align: left; }
+}
+.card-header .req{ position: relative; padding-left: 10px; }
+.card-header .req::before{
+	content: '*';
+	position: absolute;
+	left: 0;
+	top: 0;
+	color: var(--el-color-danger);
+	font-weight: 700;
+}
+
 .grid2{ display:grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
 @media (max-width: 860px){ .grid2{ grid-template-columns: 1fr; } }
 .muted{ color: var(--el-text-color-secondary); font-size: 12px; }
+.inline{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 
 .perm-block{ margin-top: 6px; }
+.perm-card :deep(.el-form-item__label){
+	/* “菜单权限”放到了卡片 header 里，这里用占位 label，避免整体对齐抖动 */
+	color: transparent;
+}
 .perm-toolbar{
 	width: 100%;
 	display:flex;
@@ -427,7 +484,10 @@ function selectedCount(g: MenuGroup){
 }
 .perm-toolbar .left{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .perm-toolbar .right{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.perm-search{ width: 260px; }
+.perm-search{ width: 340px; max-width: 100%; }
+.perm-toolbar .left :deep(.el-input){ flex: 1 1 260px; }
+.perm-toolbar .right :deep(.el-button){ border-radius: 10px; }
+.perm-toolbar > *{ min-width: 0; }
 .perm-scroll{
 	width: 100%;
 	max-height: 52vh;
@@ -442,7 +502,11 @@ function selectedCount(g: MenuGroup){
 	width: 100%;
 	max-width: 100%;
 	box-sizing: border-box;
-	padding-right: 12px;
+	/* Element Plus 的 scrollbar 是 overlay：必须预留更大的安全边距 */
+	padding-right: 28px;
+}
+.perm-scroll :deep(.el-scrollbar__bar.is-vertical){
+	right: 8px;
 }
 .perm-collapse{
 	width: 100%;
@@ -456,7 +520,7 @@ function selectedCount(g: MenuGroup){
 }
 .perm-collapse :deep(.el-collapse-item__header){
 	border-radius: 12px;
-	padding: 8px 12px;
+	padding: 10px 14px;
 	/* 关键：不要固定高度，否则换行会被压缩/裁切且容易触发横向溢出 */
 	min-height: 44px;
 	height: auto;
@@ -464,6 +528,9 @@ function selectedCount(g: MenuGroup){
 	background: color-mix(in oklab, var(--el-fill-color-light), transparent 45%);
 	border: 1px solid var(--el-border-color-light);
 	margin-bottom: 10px;
+	box-sizing: border-box;
+	/* 右侧还要额外留白，避免内容贴着滚动条或被覆盖 */
+	padding-right: 34px;
 }
 .perm-collapse :deep(.el-collapse-item__header .el-collapse-item__arrow){
 	/* 箭头对齐在中线，换行时更自然 */
@@ -502,6 +569,20 @@ function selectedCount(g: MenuGroup){
 	width: 100%;
 	min-width: 0;
 	margin-right: 0;
+	padding: 10px 10px;
+	border-radius: 12px;
+	border: 1px solid var(--el-border-color-lighter);
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 25%);
+	transition: transform .12s ease, border-color .12s ease, background .12s ease, box-shadow .12s ease;
+}
+.perm-grid :deep(.el-checkbox:hover){
+	border-color: color-mix(in oklab, var(--el-color-primary), var(--el-border-color-lighter) 70%);
+	box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+	transform: translateY(-1px);
+}
+.perm-grid :deep(.el-checkbox.is-checked){
+	background: color-mix(in oklab, var(--el-color-primary), var(--el-bg-color) 92%);
+	border-color: color-mix(in oklab, var(--el-color-primary), var(--el-border-color-lighter) 55%);
 }
 .perm-grid :deep(.el-checkbox__label){
 	min-width: 0;

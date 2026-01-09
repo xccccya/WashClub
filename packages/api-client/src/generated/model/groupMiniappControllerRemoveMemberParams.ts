@@ -8,5 +8,4 @@
 
 export type GroupMiniappControllerRemoveMemberParams = {
 memberId: string;
-token: string;
 };

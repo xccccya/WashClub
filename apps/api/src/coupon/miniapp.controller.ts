@@ -14,9 +14,9 @@ export class MiniappCouponController {
         private readonly svc: CouponService,
     ) {}
 
-    private async getMemberIdFromToken(headers: Record<string, string>, tokenParam?: string): Promise<number> {
+    private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+        const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
         const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
         const id = Number(decoded?.sub);
         if (!id || decoded?.type !== 'member') throw new Error('Token无效');
@@ -25,8 +25,8 @@ export class MiniappCouponController {
 
     @Get('claimable')
     @ApiOperation({ summary: '小程序可领取优惠券列表（含售罄/达上限标记）' })
-    async listClaimable(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    async listClaimable(@Headers() headers: Record<string, string>) {
+        const memberId = await this.getMemberIdFromToken(headers);
         const coupons = await this.prisma.coupon.findMany({ where: { enabled: true, allowMiniappClaim: true, type: 'COUPON' }, orderBy: [{ id: 'desc' }] });
         const result: any[] = [];
         for (const c of coupons) {
@@ -98,12 +98,11 @@ export class MiniappCouponController {
     @ApiOperation({ summary: '小程序：我的优惠券列表' })
     async myCoupons(
         @Headers() headers: Record<string, string>,
-        @Query('token') tokenParam?: string,
         @Query('used') used?: '0'|'1',
         @Query('expired') expired?: '0'|'1',
         @Query('notStarted') notStartedQ?: '0'|'1',
     ){
-        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const memberId = await this.getMemberIdFromToken(headers);
         const now = new Date();
         const where: any = { memberId };
         if (used === '0') where.usedAt = null;
@@ -125,8 +124,8 @@ export class MiniappCouponController {
 
     @Post(':id/claim')
     @ApiOperation({ summary: '小程序领取优惠券' })
-    async claim(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    async claim(@Param('id', ParseIntPipe) id: number, @Headers() headers: Record<string, string>) {
+        const memberId = await this.getMemberIdFromToken(headers);
         const r = await this.svc.claimForMember({ couponId: id, memberId });
         return r;
     }
@@ -137,9 +136,8 @@ export class MiniappCouponController {
     async applicable(
         @Headers() headers: Record<string, string>,
         @Body() body: MiniappCouponApplicableDto,
-        @Query('token') tokenParam?: string,
     ){
-        const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+        const memberId = await this.getMemberIdFromToken(headers);
         const items: Array<{ productId?: number|null; price: number; quantity: number }> = Array.isArray(body?.items) ? body.items : [];
         // 读取可用会员优惠券（未使用、未过期、已生效、启用）
         const now = new Date();

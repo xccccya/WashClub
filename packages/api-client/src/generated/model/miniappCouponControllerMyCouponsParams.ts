@@ -7,7 +7,6 @@
  */
 
 export type MiniappCouponControllerMyCouponsParams = {
-token: string;
 used: string;
 expired: string;
 notStarted: string;

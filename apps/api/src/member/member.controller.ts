@@ -4,6 +4,7 @@ import { MemberService } from './member.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { AdminOrEmployeeGuard } from '../auth/admin-or-employee.guard.js';
 import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto } from './member.dto.js';
 
 @ApiTags('member')
@@ -13,6 +14,8 @@ export class MemberController {
 
 	@Get('list')
 	@ApiOperation({ summary: '会员列表（分页/关键词）' })
+	@UseGuards(AdminOrEmployeeGuard)
+	@RequirePerm('members')
 	list(
 		@Query('page') page?: string,
 		@Query('pageSize') pageSize?: string,
@@ -63,41 +66,43 @@ export class MemberController {
 
 	// 放在参数路由之前，避免被 ":id" 匹配到
 	@Get('me/profile')
-	@ApiOperation({ summary: '查询当前会员资料（支持token参数）' })
-	me(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
+	@ApiOperation({ summary: '查询当前会员资料' })
+	me(@Headers() headers: Record<string, string>) {
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
 		return this.service.getProfileByToken(token);
 	}
 
 	@Get('me/growth-logs')
 	@ApiOperation({ summary: '查询当前会员成长值日志（持久化）' })
-	getGrowthLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string, @Query('token') tokenParam?: string){
+	getGrowthLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string){
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getGrowthLogsByToken(token, limit);
 	}
 
 	@Get('me/points-logs')
 	@ApiOperation({ summary: '查询当前会员积分日志（持久化）' })
-	getPointsLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string, @Query('token') tokenParam?: string){
+	getPointsLogs(@Headers() headers: Record<string, string>, @Query('limit') limitStr?: string){
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getPointsLogsByToken(token, limit);
 	}
 
 	@Get('me/points-stats')
 	@ApiOperation({ summary: '查询当前会员积分统计（当前/本月使用/本月获得）' })
-	getPointsStats(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string){
+	getPointsStats(@Headers() headers: Record<string, string>){
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
 		return (this.service as any).getPointsStatsByToken(token);
 	}
 
 	@Get(':id/growth-logs')
 	@ApiOperation({ summary: '根据会员ID查询成长值日志（管理后台使用）' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
 	getGrowthLogsByMember(@Param('id') id: string, @Query('limit') limitStr?: string){
 		const limit = limitStr ? Number(limitStr) : undefined;
 		return (this.service as any).getGrowthLogsByMemberId(Number(id), limit);
@@ -121,14 +126,16 @@ export class MemberController {
 
 	@Post('me/active')
 	@ApiOperation({ summary: '心跳：设置会员在线活跃状态' })
-	setActive(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
+	setActive(@Headers() headers: Record<string, string>) {
 		const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+		const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
 		return this.service.setActiveByToken(token);
 	}
 
 	@Get(':id')
 	@ApiOperation({ summary: '获取会员详情' })
+	@UseGuards(AdminOrEmployeeGuard)
+	@RequirePerm('members')
 	get(@Param('id') id: string) {
 		const n = Number(id);
 		if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('会员ID无效');
@@ -137,6 +144,8 @@ export class MemberController {
 
 	@Post('create')
 	@ApiOperation({ summary: '创建会员' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
 	create(
 		@Body()
 		body: CreateMemberDto,
@@ -152,6 +161,8 @@ export class MemberController {
 
 	@Put(':id')
 	@ApiOperation({ summary: '更新会员资料' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
 	update(
 		@Param('id') id: string,
 		@Body()
@@ -173,12 +184,16 @@ export class MemberController {
 
 	@Put(':id/password')
 	@ApiOperation({ summary: '设置/重置会员密码（管理员）' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
 	setPassword(@Param('id') id: string, @Body() body: SetMemberPasswordDto) {
 		return this.service.setPassword(Number(id), body.password);
 	}
 
 	@Delete(':id')
 	@ApiOperation({ summary: '删除会员' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('members')
 	remove(@Param('id') id: string) {
 		return this.service.remove(Number(id));
 	}

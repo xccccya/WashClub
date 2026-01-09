@@ -8,5 +8,4 @@
 
 export type GroupMiniappControllerMyGroupLedgerParams = {
 limit: string;
-token: string;
 };

@@ -8,5 +8,4 @@
 
 export type MemberControllerGetGrowthLogsParams = {
 limit: string;
-token: string;
 };

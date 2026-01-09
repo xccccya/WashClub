@@ -8,5 +8,4 @@
 
 export type GroupMiniappControllerLookupMemberByPhoneParams = {
 phone: string;
-token: string;
 };

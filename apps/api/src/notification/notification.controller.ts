@@ -4,6 +4,7 @@ import { NotificationService } from './notification.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { WxappSubscribeService } from './wxapp-subscribe.service.js';
+import { extractBearerToken } from '../auth/bearer.js';
 import {
 	NotificationListQueryDto,
 	NotificationAdminOverviewListQueryDto,
@@ -41,9 +42,8 @@ export class NotificationController {
 	}
 
     private async parseAuth(authHeader?: string): Promise<{ type: 'admin'|'member'; sub: number; permissions?: string[] }> {
-        const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
-        if (!m) throw new BadRequestException('未登录');
-        const token = m[1];
+        const token = extractBearerToken(authHeader);
+        if (!token) throw new BadRequestException('未登录');
         let decoded: any; try { decoded = this.jwt.verify(token); } catch { throw new BadRequestException('登录已过期'); }
         const sub = Number(decoded?.sub||0); if (!sub) throw new BadRequestException('身份无效');
         const type: 'admin'|'member' = decoded?.type === 'admin' ? 'admin' : 'member';

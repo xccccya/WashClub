@@ -10,7 +10,6 @@ import type {
   AddressAdminCreateDto,
   AddressAdminUpdateDto,
   AddressControllerAdminListParams,
-  AddressControllerMyListParams,
   AddressMyCreateDto,
   AddressMyUpdateDto,
   AdjustMemberGrowthDto,
@@ -48,9 +47,6 @@ import type {
   CreateRoleDto,
   CreateScrollNoticeDto,
   DistrictControllerGetDistrictParams,
-  FavoriteControllerAddParams,
-  FavoriteControllerMyListParams,
-  FavoriteControllerRemoveParams,
   FileControllerListParams,
   FileControllerUploadBody,
   GroupAddMembersDto,
@@ -66,14 +62,9 @@ import type {
   GroupCreateDto,
   GroupMiniappControllerAddMemberByPhoneParams,
   GroupMiniappControllerLookupMemberByPhoneParams,
-  GroupMiniappControllerMyGroupAdminsParams,
-  GroupMiniappControllerMyGroupCardDetailParams,
   GroupMiniappControllerMyGroupCardLogsParams,
-  GroupMiniappControllerMyGroupCardsParams,
   GroupMiniappControllerMyGroupLedgerParams,
-  GroupMiniappControllerMyGroupMembersParams,
   GroupMiniappControllerMyGroupRechargeParams,
-  GroupMiniappControllerMyGroupSummaryParams,
   GroupMiniappControllerRemoveMemberParams,
   GroupSetAdminDto,
   GroupUpdateDto,
@@ -84,10 +75,7 @@ import type {
   MemberControllerGetGrowthLogsByMemberParams,
   MemberControllerGetGrowthLogsParams,
   MemberControllerGetPointsLogsParams,
-  MemberControllerGetPointsStatsParams,
   MemberControllerListParams,
-  MemberControllerMeParams,
-  MemberControllerSetActiveParams,
   MemberCouponAdminControllerListParams,
   MemberPointsAdjustDto,
   MemberPointsControllerListLogsPagedParams,
@@ -102,9 +90,6 @@ import type {
   MetricsControllerSeriesParams,
   MetricsControllerTopProductsParams,
   MiniappCouponApplicableDto,
-  MiniappCouponControllerApplicableParams,
-  MiniappCouponControllerClaimParams,
-  MiniappCouponControllerListClaimableParams,
   MiniappCouponControllerMyCouponsParams,
   NotificationControllerAdminOverviewListParams,
   NotificationControllerAdminOverviewParams,
@@ -142,7 +127,6 @@ import type {
   SystemEmployeeControllerListParams,
   SystemEmployeeControllerLookupMemberParams,
   SystemMiniappEmployeeControllerDailyParams,
-  SystemMiniappEmployeeControllerMyEmployeeProfileParams,
   SystemMiniappEmployeeControllerOverviewParams,
   SystemMiniappTermsSaveDto,
   SystemSiteSettingSaveDto,
@@ -161,7 +145,6 @@ import type {
   UpdateScrollNoticeDto,
   VehicleControllerAdminListParams,
   VehicleControllerAdminRebindLogsParams,
-  VehicleControllerMyVehiclesParams,
   VehicleControllerSearchParams,
   VehicleCreateForMemberByPhoneDto,
   VehicleCreateForMemberDto,
@@ -171,10 +154,7 @@ import type {
   WashCardControllerAdminListParams,
   WashCardControllerAdminLogsParams,
   WashCardControllerAdminMemberStatsParams,
-  WashCardControllerMyGetParams,
-  WashCardControllerMyListParams,
   WashCardControllerMyLogsParams,
-  WashCardControllerMySetDefaultParams,
   WeatherControllerGetWeatherParams,
   WechatOneTapDto
 } from './model';
@@ -1415,26 +1395,19 @@ export const memberControllerGetGuestOrderOwner = async ( options?: RequestInit)
 
 
 /**
- * @summary 查询当前会员资料（支持token参数）
+ * @summary 查询当前会员资料
  */
-export const getMemberControllerMeUrl = (params: MemberControllerMeParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMemberControllerMeUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/member/me/profile?${stringifiedParams}` : `/member/me/profile`
+  return `/member/me/profile`
 }
 
-export const memberControllerMe = async (params: MemberControllerMeParams, options?: RequestInit): Promise<void> => {
+export const memberControllerMe = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMemberControllerMeUrl(params),
+  return createHttpClient<void>(getMemberControllerMeUrl(),
   {      
     ...options,
     method: 'GET'
@@ -1510,24 +1483,17 @@ export const memberControllerGetPointsLogs = async (params: MemberControllerGetP
 /**
  * @summary 查询当前会员积分统计（当前/本月使用/本月获得）
  */
-export const getMemberControllerGetPointsStatsUrl = (params: MemberControllerGetPointsStatsParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMemberControllerGetPointsStatsUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/member/me/points-stats?${stringifiedParams}` : `/member/me/points-stats`
+  return `/member/me/points-stats`
 }
 
-export const memberControllerGetPointsStats = async (params: MemberControllerGetPointsStatsParams, options?: RequestInit): Promise<void> => {
+export const memberControllerGetPointsStats = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMemberControllerGetPointsStatsUrl(params),
+  return createHttpClient<void>(getMemberControllerGetPointsStatsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -1600,24 +1566,17 @@ export const memberControllerAdjustGrowth = async (id: string,
 /**
  * @summary 心跳：设置会员在线活跃状态
  */
-export const getMemberControllerSetActiveUrl = (params: MemberControllerSetActiveParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMemberControllerSetActiveUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/member/me/active?${stringifiedParams}` : `/member/me/active`
+  return `/member/me/active`
 }
 
-export const memberControllerSetActive = async (params: MemberControllerSetActiveParams, options?: RequestInit): Promise<void> => {
+export const memberControllerSetActive = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMemberControllerSetActiveUrl(params),
+  return createHttpClient<void>(getMemberControllerSetActiveUrl(),
   {      
     ...options,
     method: 'POST'
@@ -2450,24 +2409,17 @@ export const vehicleControllerAdminRebindLogs = async (id: string,
 /**
  * @summary 我的车辆列表（会员端）
  */
-export const getVehicleControllerMyVehiclesUrl = (params: VehicleControllerMyVehiclesParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getVehicleControllerMyVehiclesUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/vehicle/me/list?${stringifiedParams}` : `/vehicle/me/list`
+  return `/vehicle/me/list`
 }
 
-export const vehicleControllerMyVehicles = async (params: VehicleControllerMyVehiclesParams, options?: RequestInit): Promise<void> => {
+export const vehicleControllerMyVehicles = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getVehicleControllerMyVehiclesUrl(params),
+  return createHttpClient<void>(getVehicleControllerMyVehiclesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2819,24 +2771,17 @@ export const washCardControllerAdminSetDefault = async (id: string, options?: Re
 /**
  * @summary 我的洗车卡列表（会员端）
  */
-export const getWashCardControllerMyListUrl = (params: WashCardControllerMyListParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getWashCardControllerMyListUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/wash-card/me/list?${stringifiedParams}` : `/wash-card/me/list`
+  return `/wash-card/me/list`
 }
 
-export const washCardControllerMyList = async (params: WashCardControllerMyListParams, options?: RequestInit): Promise<void> => {
+export const washCardControllerMyList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getWashCardControllerMyListUrl(params),
+  return createHttpClient<void>(getWashCardControllerMyListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2850,26 +2795,17 @@ export const washCardControllerMyList = async (params: WashCardControllerMyListP
 /**
  * @summary 我的洗车卡详情（会员端）
  */
-export const getWashCardControllerMyGetUrl = (id: string,
-    params: WashCardControllerMyGetParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getWashCardControllerMyGetUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/wash-card/me/${id}?${stringifiedParams}` : `/wash-card/me/${id}`
+  return `/wash-card/me/${id}`
 }
 
-export const washCardControllerMyGet = async (id: string,
-    params: WashCardControllerMyGetParams, options?: RequestInit): Promise<void> => {
+export const washCardControllerMyGet = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getWashCardControllerMyGetUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerMyGetUrl(id),
   {      
     ...options,
     method: 'GET'
@@ -2916,29 +2852,94 @@ export const washCardControllerMyLogs = async (id: string,
 /**
  * @summary 设置我的默认洗车卡（会员端）
  */
-export const getWashCardControllerMySetDefaultUrl = (id: string,
-    params: WashCardControllerMySetDefaultParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getWashCardControllerMySetDefaultUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/wash-card/me/${id}/set-default?${stringifiedParams}` : `/wash-card/me/${id}/set-default`
+  return `/wash-card/me/${id}/set-default`
 }
 
-export const washCardControllerMySetDefault = async (id: string,
-    params: WashCardControllerMySetDefaultParams, options?: RequestInit): Promise<void> => {
+export const washCardControllerMySetDefault = async (id: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getWashCardControllerMySetDefaultUrl(id,params),
+  return createHttpClient<void>(getWashCardControllerMySetDefaultUrl(id),
   {      
     ...options,
     method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 我的洗车卡共享成员列表（仅持有人）
+ */
+export const getWashCardControllerMySharesUrl = (id: string,) => {
+
+
+  
+
+  return `/wash-card/me/${id}/shares`
+}
+
+export const washCardControllerMyShares = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getWashCardControllerMySharesUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 添加共享成员（仅持有人，按手机号）
+ */
+export const getWashCardControllerMyAddShareUrl = (id: string,) => {
+
+
+  
+
+  return `/wash-card/me/${id}/shares`
+}
+
+export const washCardControllerMyAddShare = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getWashCardControllerMyAddShareUrl(id),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 移除共享成员（仅持有人）
+ */
+export const getWashCardControllerMyRemoveShareUrl = (id: string,
+    memberId: string,) => {
+
+
+  
+
+  return `/wash-card/me/${id}/shares/${memberId}`
+}
+
+export const washCardControllerMyRemoveShare = async (id: string,
+    memberId: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getWashCardControllerMyRemoveShareUrl(id,memberId),
+  {      
+    ...options,
+    method: 'DELETE'
     
     
   }
@@ -3004,24 +3005,17 @@ export const addressControllerListByMember = async (memberId: string, options?: 
 /**
  * @summary 我的收货地址列表（会员端）
  */
-export const getAddressControllerMyListUrl = (params: AddressControllerMyListParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getAddressControllerMyListUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/address/me/list?${stringifiedParams}` : `/address/me/list`
+  return `/address/me/list`
 }
 
-export const addressControllerMyList = async (params: AddressControllerMyListParams, options?: RequestInit): Promise<void> => {
+export const addressControllerMyList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getAddressControllerMyListUrl(params),
+  return createHttpClient<void>(getAddressControllerMyListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -3337,24 +3331,17 @@ export const cartControllerClearChecked = async ( options?: RequestInit): Promis
 
 
 
-export const getFavoriteControllerMyListUrl = (params: FavoriteControllerMyListParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getFavoriteControllerMyListUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/favorite/me/list?${stringifiedParams}` : `/favorite/me/list`
+  return `/favorite/me/list`
 }
 
-export const favoriteControllerMyList = async (params: FavoriteControllerMyListParams, options?: RequestInit): Promise<void> => {
+export const favoriteControllerMyList = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getFavoriteControllerMyListUrl(params),
+  return createHttpClient<void>(getFavoriteControllerMyListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -3365,26 +3352,17 @@ export const favoriteControllerMyList = async (params: FavoriteControllerMyListP
 
 
 
-export const getFavoriteControllerAddUrl = (productId: number,
-    params: FavoriteControllerAddParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getFavoriteControllerAddUrl = (productId: number,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/favorite/me/${productId}?${stringifiedParams}` : `/favorite/me/${productId}`
+  return `/favorite/me/${productId}`
 }
 
-export const favoriteControllerAdd = async (productId: number,
-    params: FavoriteControllerAddParams, options?: RequestInit): Promise<void> => {
+export const favoriteControllerAdd = async (productId: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getFavoriteControllerAddUrl(productId,params),
+  return createHttpClient<void>(getFavoriteControllerAddUrl(productId),
   {      
     ...options,
     method: 'POST'
@@ -3395,26 +3373,17 @@ export const favoriteControllerAdd = async (productId: number,
 
 
 
-export const getFavoriteControllerRemoveUrl = (productId: number,
-    params: FavoriteControllerRemoveParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getFavoriteControllerRemoveUrl = (productId: number,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/favorite/me/${productId}?${stringifiedParams}` : `/favorite/me/${productId}`
+  return `/favorite/me/${productId}`
 }
 
-export const favoriteControllerRemove = async (productId: number,
-    params: FavoriteControllerRemoveParams, options?: RequestInit): Promise<void> => {
+export const favoriteControllerRemove = async (productId: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getFavoriteControllerRemoveUrl(productId,params),
+  return createHttpClient<void>(getFavoriteControllerRemoveUrl(productId),
   {      
     ...options,
     method: 'DELETE'
@@ -6475,24 +6444,17 @@ export const groupCardControllerRemove = async (id: number,
 /**
  * @summary 我的集团概览（名称/图标/余额/卡余次等）
  */
-export const getGroupMiniappControllerMyGroupSummaryUrl = (params: GroupMiniappControllerMyGroupSummaryParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGroupMiniappControllerMyGroupSummaryUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/group/miniapp/me/summary?${stringifiedParams}` : `/group/miniapp/me/summary`
+  return `/group/miniapp/me/summary`
 }
 
-export const groupMiniappControllerMyGroupSummary = async (params: GroupMiniappControllerMyGroupSummaryParams, options?: RequestInit): Promise<void> => {
+export const groupMiniappControllerMyGroupSummary = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getGroupMiniappControllerMyGroupSummaryUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupSummaryUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6537,24 +6499,17 @@ export const groupMiniappControllerMyGroupLedger = async (params: GroupMiniappCo
 /**
  * @summary 我的集团洗车卡列表（只读）
  */
-export const getGroupMiniappControllerMyGroupCardsUrl = (params: GroupMiniappControllerMyGroupCardsParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGroupMiniappControllerMyGroupCardsUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/group/miniapp/me/cards?${stringifiedParams}` : `/group/miniapp/me/cards`
+  return `/group/miniapp/me/cards`
 }
 
-export const groupMiniappControllerMyGroupCards = async (params: GroupMiniappControllerMyGroupCardsParams, options?: RequestInit): Promise<void> => {
+export const groupMiniappControllerMyGroupCards = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardsUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6568,26 +6523,17 @@ export const groupMiniappControllerMyGroupCards = async (params: GroupMiniappCon
 /**
  * @summary 我的集团洗车卡详情
  */
-export const getGroupMiniappControllerMyGroupCardDetailUrl = (cardId: string,
-    params: GroupMiniappControllerMyGroupCardDetailParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGroupMiniappControllerMyGroupCardDetailUrl = (cardId: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/group/miniapp/me/card/${cardId}?${stringifiedParams}` : `/group/miniapp/me/card/${cardId}`
+  return `/group/miniapp/me/card/${cardId}`
 }
 
-export const groupMiniappControllerMyGroupCardDetail = async (cardId: string,
-    params: GroupMiniappControllerMyGroupCardDetailParams, options?: RequestInit): Promise<void> => {
+export const groupMiniappControllerMyGroupCardDetail = async (cardId: string, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardDetailUrl(cardId,params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupCardDetailUrl(cardId),
   {      
     ...options,
     method: 'GET'
@@ -6634,24 +6580,17 @@ export const groupMiniappControllerMyGroupCardLogs = async (cardId: string,
 /**
  * @summary 我的集团管理员列表（小程序展示）
  */
-export const getGroupMiniappControllerMyGroupAdminsUrl = (params: GroupMiniappControllerMyGroupAdminsParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGroupMiniappControllerMyGroupAdminsUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/group/miniapp/me/admins?${stringifiedParams}` : `/group/miniapp/me/admins`
+  return `/group/miniapp/me/admins`
 }
 
-export const groupMiniappControllerMyGroupAdmins = async (params: GroupMiniappControllerMyGroupAdminsParams, options?: RequestInit): Promise<void> => {
+export const groupMiniappControllerMyGroupAdmins = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getGroupMiniappControllerMyGroupAdminsUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupAdminsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6696,24 +6635,17 @@ export const groupMiniappControllerMyGroupRecharge = async (params: GroupMiniapp
 /**
  * @summary 我的集团成员列表（管理员可见更多操作）
  */
-export const getGroupMiniappControllerMyGroupMembersUrl = (params: GroupMiniappControllerMyGroupMembersParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGroupMiniappControllerMyGroupMembersUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/group/miniapp/me/members?${stringifiedParams}` : `/group/miniapp/me/members`
+  return `/group/miniapp/me/members`
 }
 
-export const groupMiniappControllerMyGroupMembers = async (params: GroupMiniappControllerMyGroupMembersParams, options?: RequestInit): Promise<void> => {
+export const groupMiniappControllerMyGroupMembers = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getGroupMiniappControllerMyGroupMembersUrl(params),
+  return createHttpClient<void>(getGroupMiniappControllerMyGroupMembersUrl(),
   {      
     ...options,
     method: 'GET'
@@ -7479,24 +7411,17 @@ export const memberCouponAdminControllerUpdateExpiry = async (id: number,
 /**
  * @summary 小程序可领取优惠券列表（含售罄/达上限标记）
  */
-export const getMiniappCouponControllerListClaimableUrl = (params: MiniappCouponControllerListClaimableParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMiniappCouponControllerListClaimableUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/coupon/miniapp/claimable?${stringifiedParams}` : `/coupon/miniapp/claimable`
+  return `/coupon/miniapp/claimable`
 }
 
-export const miniappCouponControllerListClaimable = async (params: MiniappCouponControllerListClaimableParams, options?: RequestInit): Promise<void> => {
+export const miniappCouponControllerListClaimable = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMiniappCouponControllerListClaimableUrl(params),
+  return createHttpClient<void>(getMiniappCouponControllerListClaimableUrl(),
   {      
     ...options,
     method: 'GET'
@@ -7541,26 +7466,17 @@ export const miniappCouponControllerMyCoupons = async (params: MiniappCouponCont
 /**
  * @summary 小程序领取优惠券
  */
-export const getMiniappCouponControllerClaimUrl = (id: number,
-    params: MiniappCouponControllerClaimParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMiniappCouponControllerClaimUrl = (id: number,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/coupon/miniapp/${id}/claim?${stringifiedParams}` : `/coupon/miniapp/${id}/claim`
+  return `/coupon/miniapp/${id}/claim`
 }
 
-export const miniappCouponControllerClaim = async (id: number,
-    params: MiniappCouponControllerClaimParams, options?: RequestInit): Promise<void> => {
+export const miniappCouponControllerClaim = async (id: number, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMiniappCouponControllerClaimUrl(id,params),
+  return createHttpClient<void>(getMiniappCouponControllerClaimUrl(id),
   {      
     ...options,
     method: 'POST'
@@ -7574,25 +7490,17 @@ export const miniappCouponControllerClaim = async (id: number,
 /**
  * @summary 计算购物车/商品可用优惠券与预计折扣（预计算，不持久化）
  */
-export const getMiniappCouponControllerApplicableUrl = (params: MiniappCouponControllerApplicableParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getMiniappCouponControllerApplicableUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/coupon/miniapp/applicable?${stringifiedParams}` : `/coupon/miniapp/applicable`
+  return `/coupon/miniapp/applicable`
 }
 
-export const miniappCouponControllerApplicable = async (miniappCouponApplicableDto: MiniappCouponApplicableDto,
-    params: MiniappCouponControllerApplicableParams, options?: RequestInit): Promise<void> => {
+export const miniappCouponControllerApplicable = async (miniappCouponApplicableDto: MiniappCouponApplicableDto, options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getMiniappCouponControllerApplicableUrl(params),
+  return createHttpClient<void>(getMiniappCouponControllerApplicableUrl(),
   {      
     ...options,
     method: 'POST',
@@ -7963,24 +7871,17 @@ export const systemEmployeeControllerLookupMember = async (params: SystemEmploye
 /**
  * @summary 查询当前会员的员工档案（用于前端入口判断）
  */
-export const getSystemMiniappEmployeeControllerMyEmployeeProfileUrl = (params: SystemMiniappEmployeeControllerMyEmployeeProfileParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getSystemMiniappEmployeeControllerMyEmployeeProfileUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
+  
 
-  return stringifiedParams.length > 0 ? `/system/miniapp/employee/profile?${stringifiedParams}` : `/system/miniapp/employee/profile`
+  return `/system/miniapp/employee/profile`
 }
 
-export const systemMiniappEmployeeControllerMyEmployeeProfile = async (params: SystemMiniappEmployeeControllerMyEmployeeProfileParams, options?: RequestInit): Promise<void> => {
+export const systemMiniappEmployeeControllerMyEmployeeProfile = async ( options?: RequestInit): Promise<void> => {
   
-  return createHttpClient<void>(getSystemMiniappEmployeeControllerMyEmployeeProfileUrl(params),
+  return createHttpClient<void>(getSystemMiniappEmployeeControllerMyEmployeeProfileUrl(),
   {      
     ...options,
     method: 'GET'

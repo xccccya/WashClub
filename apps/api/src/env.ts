@@ -11,6 +11,8 @@ const ENV_GUEST_MEMBER_ID_LEGACY = 'GUESS_MEMBER_ID' as const;
 const ENV_NO_PLATE_NUMBER = 'NO_PLATE_NUMBER' as const;
 const ENV_JWT_SECRET = 'JWT_SECRET' as const;
 const ENV_JWT_EXPIRES_IN = 'JWT_EXPIRES_IN' as const;
+const ENV_ADMIN_JWT_EXPIRES_IN = 'ADMIN_JWT_EXPIRES_IN' as const;
+const ENV_MEMBER_JWT_EXPIRES_IN = 'MEMBER_JWT_EXPIRES_IN' as const;
 const ENV_BCRYPT_SALT_ROUNDS = 'BCRYPT_SALT_ROUNDS' as const;
 
 export const DEFAULT_NO_PLATE_NUMBER = '川K00000' as const;
@@ -59,6 +61,27 @@ export function resolveJwtSecretEnv(): string {
  */
 export function resolveJwtExpiresInEnv(): string {
 	return getEnvTrimmed(ENV_JWT_EXPIRES_IN) ?? '7d';
+}
+
+/**
+ * 管理员 JWT 过期时间（可选），默认 1d。
+ *
+ * 注意：
+ * - 为避免历史环境变量 `JWT_EXPIRES_IN=7d` 意外把管理员 Token 拉长，
+ *   这里不回退到 `JWT_EXPIRES_IN`，仅使用专用变量或默认值。
+ */
+export function resolveAdminJwtExpiresInEnv(): string {
+	return getEnvTrimmed(ENV_ADMIN_JWT_EXPIRES_IN) ?? '1d';
+}
+
+/**
+ * 会员 JWT 过期时间（可选），默认 7d。
+ *
+ * 兼容：
+ * - 若未配置 `MEMBER_JWT_EXPIRES_IN`，回退到历史变量 `JWT_EXPIRES_IN`。
+ */
+export function resolveMemberJwtExpiresInEnv(): string {
+	return getEnvTrimmed(ENV_MEMBER_JWT_EXPIRES_IN) ?? getEnvTrimmed(ENV_JWT_EXPIRES_IN) ?? '7d';
 }
 
 /**

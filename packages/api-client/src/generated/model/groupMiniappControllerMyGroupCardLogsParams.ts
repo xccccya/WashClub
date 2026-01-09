@@ -9,5 +9,4 @@
 export type GroupMiniappControllerMyGroupCardLogsParams = {
 page: string;
 pageSize: string;
-token: string;
 };

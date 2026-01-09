@@ -10,5 +10,4 @@ export type SystemMiniappEmployeeControllerDailyParams = {
 range: string;
 start: string;
 end: string;
-token: string;
 };

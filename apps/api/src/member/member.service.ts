@@ -288,13 +288,6 @@ export class MemberService {
 			const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
 			const id = Number(decoded?.sub);
 			if (!id || decoded?.type !== 'member') throw new UnauthorizedException('Token无效');
-			// 额外的有效期限制：即使 JWT 未带 exp，也根据 iat 强制 7 天过期（可通过 env 覆盖）
-			const iatSec: number | undefined = typeof decoded?.iat === 'number' ? decoded.iat : undefined;
-			const maxAgeMs = process.env.MEMBER_TOKEN_MAXAGE_MS ? Number(process.env.MEMBER_TOKEN_MAXAGE_MS) : 7 * 24 * 60 * 60 * 1000;
-			if (iatSec && maxAgeMs > 0) {
-				const issuedAtMs = iatSec * 1000;
-				if (Date.now() - issuedAtMs > maxAgeMs) throw new UnauthorizedException('Token已过期');
-			}
 			const member: any = await this.findById(id);
 			// 附加集团绑定信息（用于小程序“集团客户”入口判断）
 			try {

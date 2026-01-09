@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { PERM_KEY } from './perm.decorator.js';
+import { extractBearerTokenFromHeaders } from './bearer.js';
 
 @Injectable()
 export class AdminGuard implements CanActivate {
@@ -10,10 +11,7 @@ export class AdminGuard implements CanActivate {
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {
 		const req: any = context.switchToHttp().getRequest();
-		const authHeader: string | undefined = req?.headers?.authorization || req?.headers?.Authorization;
-		if (!authHeader) throw new UnauthorizedException('未登录');
-		const m = /^Bearer\s+(.+)$/.exec(String(authHeader));
-		const token = m?.[1];
+		const token = extractBearerTokenFromHeaders(req?.headers);
 		if (!token) throw new UnauthorizedException('未登录');
 		let decoded: any;
 		try { decoded = this.jwt.verify(token); } catch { throw new UnauthorizedException('登录已过期'); }

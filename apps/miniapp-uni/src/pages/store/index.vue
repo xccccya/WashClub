@@ -420,7 +420,7 @@ async function addToCartFromList(p:any){
 		if (stock <= 0) { uni.showToast({ title:'已售罄', icon:'none' }); return; }
 		let inCart = 0;
 		try{
-			const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
+			const list:any[] = await (cartControllerMyList({ onlyChecked: 'false' } as any) as any);
 			inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(p.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 		}catch{}
 		if (inCart >= stock) { uni.showToast({ title:'超过商品库存', icon:'none' }); return; }

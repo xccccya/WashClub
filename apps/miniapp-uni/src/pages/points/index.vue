@@ -98,7 +98,7 @@ async function fetchStats(){ try{ const s:any = await memberControllerGetPointsS
 async function fetchLogs(){ try{ const rows:any[] = (await memberControllerGetPointsLogs({ limit: 100 } as any) as unknown) as any[]; logs.value = Array.isArray(rows)?rows:[]; }catch{ logs.value = []; } }
 async function fetchProfileLevel(){
   try{
-    const p:any = await memberControllerMe({} as any);
+    const p:any = await memberControllerMe();
     const m = Number(p?.level?.pointsMultiplier || 1);
     multiplier.value = Number.isFinite(m) && m >= 1 ? Math.floor(m) : 1;
   }catch{ multiplier.value = 1; }

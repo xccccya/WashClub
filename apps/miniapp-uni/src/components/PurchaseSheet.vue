@@ -516,7 +516,7 @@ async function loadApplicableCoupons(){
     couponLoading.value = true;
     try{
         const body:any = { items: buildApplicableItems() };
-        const res:any = await miniappCouponControllerApplicable(body, { token: '' } as any) as any;
+        const res:any = await (miniappCouponControllerApplicable(body as any) as any);
         applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
         selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
     }catch{ applicableCoupons.value = []; selectedCouponIds.value = new Set(); }
@@ -610,7 +610,7 @@ const pointsNote = computed(()=>{
 async function loadPointsMeta(){
     pointsLoading.value = true;
     try{
-        const profile = await (memberControllerMe({} as any) as any);
+        const profile = await (memberControllerMe() as any);
         pointsAvailable.value = Math.max(0, Number(profile?.points||0));
         const ss = await (systemSettingControllerGetPublicSetting() as any);
         fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
@@ -667,7 +667,7 @@ const memberDiscountAllowedByCoupons = computed(()=>{
 });
 async function loadMemberMeta(){
     try{
-        const profile = await (memberControllerMe({} as any) as any);
+        const profile = await (memberControllerMe() as any);
         const pct = Number((profile as any)?.level?.payDiscountPercent || 0);
         memberPayDiscountPercent.value = Math.max(0, pct);
     }catch{ memberPayDiscountPercent.value = 0; }
@@ -683,7 +683,7 @@ async function loadAddresses(){
 
 async function loadVehicles(){
 	try {
-		const profile = await (memberControllerMe({} as any) as any);
+		const profile = await (memberControllerMe() as any);
 		const vs: VehicleEx[] = Array.isArray(profile?.vehicles) ? profile.vehicles : [];
 		vehicles.value = vs;
 		selectedVehicleId.value = vs[0]?.id;
@@ -737,7 +737,7 @@ async function submit(){
 	// 允许优惠券超过应付，前端不拦截；后端会按最低支付 0.01 处理
 	// 获取会员信息
 	let profile: any = null;
-	try { profile = await (memberControllerMe({} as any) as any); } catch {}
+	try { profile = await (memberControllerMe() as any); } catch {}
 	const memberId = Number(profile?.id || 0);
 	if (!memberId) { uni.showToast({ title:'请先登录', icon:'none' }); return; }
 	// 服务商品：需要车辆

@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma.service.js';
 import type { AuthJwtPayload, CreateFkBody, CreateOrderBody, ProxyAdminSnapshot } from './order.types.js';
 import type { OrderType } from '@prisma/client';
+import { extractBearerToken } from '../auth/bearer.js';
 
 type CreateOrderParams = Parameters<OrderService['createOrder']>[0];
 
@@ -195,7 +196,7 @@ export class OrderController {
         @Headers('authorization') authHeader?: string,
     ) {
         // 统一鉴权：支持 admin 与 member
-        const token = /^Bearer\s+(.+)$/.exec(String(authHeader||''))?.[1];
+        const token = extractBearerToken(authHeader);
         if (!token) throw new UnauthorizedException('未登录');
         let decoded: AuthJwtPayload;
         try { decoded = this.jwt.verify(token) as AuthJwtPayload; } catch { throw new UnauthorizedException('登录已过期'); }

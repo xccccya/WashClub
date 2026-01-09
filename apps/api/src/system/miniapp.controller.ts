@@ -61,9 +61,9 @@ function formatLocalDate(d: Date): string {
 export class SystemMiniappEmployeeController {
   constructor(private jwt: JwtService, private prisma: PrismaService) {}
 
-  private async getMemberIdFromToken(headers: Record<string, string>, tokenParam?: string): Promise<number> {
+  private async getMemberIdFromToken(headers: Record<string, string>): Promise<number> {
     const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
     if (!token) throw new BadRequestException('缺少Token');
     try {
       const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
@@ -79,8 +79,8 @@ export class SystemMiniappEmployeeController {
 
   @Get('employee/profile')
   @ApiOperation({ summary: '查询当前会员的员工档案（用于前端入口判断）' })
-  async myEmployeeProfile(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async myEmployeeProfile(@Headers() headers: Record<string, string>) {
+    const memberId = await this.getMemberIdFromToken(headers);
     const emp = await this.prisma.employee.findUnique({ where: { memberId }, include: { member: { select: { id: true, name: true, phone: true } } } });
     if (!emp) return { isEmployee: false } as any;
     return { isEmployee: !!emp, enabled: !!emp.enabled, name: emp.name ?? emp.member?.name ?? '', title: emp.title ?? '', memberId: emp.memberId } as any;
@@ -88,8 +88,8 @@ export class SystemMiniappEmployeeController {
 
   @Get('employee/overview')
   @ApiOperation({ summary: '员工-基础运营概览（今日/近7/近30/本月/上月）' })
-  async overview(@Headers() headers: Record<string,string>, @Query('range') rangeKey?: RangeKey, @Query('token') tokenParam?: string){
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+  async overview(@Headers() headers: Record<string,string>, @Query('range') rangeKey?: RangeKey){
+    const memberId = await this.getMemberIdFromToken(headers);
     const emp = await this.assertEmployee(memberId);
     const { start, end } = getRange(rangeKey || 'today');
     const { start: prevStart, end: prevEnd, base } = getPrevRange(rangeKey || 'today');
@@ -167,9 +167,8 @@ export class SystemMiniappEmployeeController {
     @Query('range') rangeKey?: RangeKey,
     @Query('start') startStr?: string,
     @Query('end') endStr?: string,
-    @Query('token') tokenParam?: string,
   ){
-    const memberId = await this.getMemberIdFromToken(headers, tokenParam);
+    const memberId = await this.getMemberIdFromToken(headers);
     await this.assertEmployee(memberId);
     let start: Date; let end: Date;
     if (startStr || endStr) {

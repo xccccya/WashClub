@@ -213,7 +213,7 @@ async function fetchOrders(){
 		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: false });
 		authed.value = !!ok;
 		if (!ok) { orders.value = []; return; }
-		let profile: any = null; try { profile = await (memberControllerMe({} as any) as any); } catch {}
+		let profile: any = null; try { profile = await (memberControllerMe() as any); } catch {}
 		const memberId = profile?.id;
 		const q = buildQuery();
 		if (memberId) q.memberId = memberId;

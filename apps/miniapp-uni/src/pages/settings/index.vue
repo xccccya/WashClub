@@ -314,12 +314,9 @@ async function confirmH5PhoneChange(){
 	// 与微信端一致：一致性/占用校验
 	if (String(phone) === String(currentPhone.value||'')) { uni.showToast({ title: '新旧手机号一致', icon: 'none' }); return; }
 	try {
-		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
-		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
-		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
 		// 使用后端 changePhone purpose 的验证码进行更换
 		await authControllerChangePhone({ oldPhone: currentPhone.value, newPhone: phone, code: h5Code.value } as any);
-		const updated = (await memberControllerMe({} as any) as unknown) as any;
+		const updated = (await memberControllerMe() as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || phone;
 		closeH5PhoneDialog();
@@ -335,7 +332,7 @@ async function saveChanges(){
 		if (pendingPhone.value) body.phone = pendingPhone.value;
 		if (Object.keys(body).length === 0) { uni.showToast({ title: '没有修改项', icon: 'none' }); return; }
 		await memberControllerUpdate(String(user.value?.id || ''), body as any);
-		const updated = (await memberControllerMe({} as any) as unknown) as any;
+		const updated = (await memberControllerMe() as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || currentPhone.value;
 		uni.showToast({ title: '保存成功', icon: 'success' });

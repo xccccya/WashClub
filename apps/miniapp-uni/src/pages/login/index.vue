@@ -545,7 +545,7 @@ async function loginByPwd() {
 		const data = (await authControllerLogin({ phone: phone.value, password: pwd.value } as any)) as unknown as { token: string; user: any };
 		saveAuth(data.token, data.user);
 		try {
-			await memberControllerSetActive({} as any);
+			await memberControllerSetActive();
 		} catch {}
 		try {
 			uni.$emit?.('auth:changed');
@@ -581,7 +581,7 @@ async function loginByCode() {
 		const data = (await authControllerLoginByCode({ phone: phone.value, code: code.value } as any)) as unknown as { token: string; user: any };
 		saveAuth(data.token, data.user);
 		try {
-			await memberControllerSetActive({} as any);
+			await memberControllerSetActive();
 		} catch {}
 		try {
 			uni.$emit?.('auth:changed');
@@ -698,7 +698,7 @@ async function onGotPhoneNumber(e: any) {
 		if (resp?.ok && resp?.token) {
 			saveAuth(resp.token, resp.user);
 			try {
-				await memberControllerSetActive({} as any);
+				await memberControllerSetActive();
 			} catch {}
 			try {
 				uni.$emit?.('auth:changed');

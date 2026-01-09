@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MemberSignInService } from './signin.service.js';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { extractBearerToken } from '../auth/bearer.js';
 
 @ApiTags('member-signin')
 @Controller('member-signin')
@@ -13,8 +14,7 @@ export class MemberSignInController {
   @Post('me')
   @ApiOperation({ summary: '会员签到（自助）' })
   async signInMe(@Headers('authorization') authHeader?: string) {
-    const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
-    const token = m?.[1];
+    const token = extractBearerToken(authHeader);
     if (!token) throw new UnauthorizedException('未登录');
     return this.service.signInByToken(token);
   }
@@ -41,8 +41,7 @@ export class MemberSignInController {
   @Get('me/status')
   @ApiOperation({ summary: '会员签到状态（自助）' })
   async meStatus(@Headers('authorization') authHeader?: string){
-    const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
-    const token = m?.[1];
+    const token = extractBearerToken(authHeader);
     if (!token) throw new UnauthorizedException('未登录');
     return this.service.getStatusByToken(token);
   }
@@ -51,8 +50,7 @@ export class MemberSignInController {
   @Get('me/month')
   @ApiOperation({ summary: '会员签到日历（自助）' })
   async meMonth(@Headers('authorization') authHeader?: string, @Query('ym') ym?: string){
-    const m = /^Bearer\s+(.+)$/.exec(String(authHeader||''));
-    const token = m?.[1];
+    const token = extractBearerToken(authHeader);
     if (!token) throw new UnauthorizedException('未登录');
     return this.service.getMonthByToken(token, ym);
   }

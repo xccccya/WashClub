@@ -8,6 +8,7 @@ import { VehicleService } from '../member/vehicle.service.js';
 import { GroupService } from '../group/group.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { isNoPlateNumber, resolveGuestMemberIdEnv } from '../env.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 
 @ApiTags('queue')
 @Controller('queue')
@@ -28,6 +29,8 @@ export class QueueController {
 
     @Post('add')
     @ApiOperation({ summary: '添加到队列（支持多种模式）' })
+    @UseGuards(AdminGuard)
+    @RequirePerm('service-queue' as any)
     add(@Body() body: any) {
         const mode = String(body?.mode || '').trim();
         if (!mode) throw new BadRequestException('缺少添加方式');
@@ -54,6 +57,8 @@ export class QueueController {
 
     @Post('create-service-order-and-enqueue')
     @ApiOperation({ summary: '创建服务订单并入队（先服务后付）' })
+    @UseGuards(AdminGuard)
+    @RequirePerm('service-queue' as any)
     async createServiceOrderAndEnqueue(@Body() body: any, @Headers('authorization') authHeader?: string) {
         const queueTypeId = Number(body?.queueTypeId || 0);
         const incomingItemsRaw = Array.isArray(body?.items) ? body.items : null;

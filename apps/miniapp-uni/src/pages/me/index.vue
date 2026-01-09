@@ -264,7 +264,7 @@ function handleAuthChanged(){ loadAuthFromStorage();
     try {
         const t = uni.getStorageSync('token');
         if (t) {
-            memberControllerMe({} as any).then((profile:any)=>{
+            memberControllerMe().then((profile:any)=>{
                 if (profile) {
                     uni.setStorageSync('user', profile);
                     nickname.value = profile?.name || nickname.value;
@@ -287,7 +287,7 @@ onMounted(() => {
 	try {
 		const t = uni.getStorageSync('token');
 		if (t) {
-			memberControllerMe({} as any).then((profile:any)=>{
+			memberControllerMe().then((profile:any)=>{
 				if (profile) {
 					uni.setStorageSync('user', profile);
 					nickname.value = profile?.name || nickname.value;
@@ -300,7 +300,7 @@ onMounted(() => {
 					currentRequired.value = Number(profile?.currentRequiredGrowth || 0);
 				}
 			}).catch(()=>{});
-			try { memberControllerSetActive({} as any).catch(()=>{}); } catch {}
+			try { memberControllerSetActive().catch(()=>{}); } catch {}
 		}
 	} catch {}
 	try { uni.$on?.('auth:changed', handleAuthChanged); } catch {}
@@ -515,7 +515,7 @@ async function loadGroupFlag(){
 	try {
 		const t = uni.getStorageSync('token');
 		if (!t) { hasGroup.value = false; return; }
-		const me: any = await memberControllerMe({} as any);
+		const me: any = await memberControllerMe();
 		// 后端已补充 groupId/group 字段
 		hasGroup.value = !!(me?.groupId || me?.group?.id);
 		try{ const u = uni.getStorageSync('user') || {}; u.groupId = me?.groupId || (me?.group?.id || null); u.group = me?.group || null; uni.setStorageSync('user', u); }catch{}

@@ -172,7 +172,8 @@ export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean
 
   // 始终以服务端验证为准：调用 profile 校验 token 是否有效
   try {
-    const profile = await (memberControllerMe({} as any, { headers: { Authorization: `Bearer ${token}` } } as any) as any);
+    // SDK 底层会自动从 uni storage 读取 token 并加 Authorization 头，这里无需再拼 query token
+    const profile = await (memberControllerMe() as any);
     if (profile) { uni.setStorageSync('user', profile); uni.setStorageSync('loginAt', Date.now()); return true; }
   } catch {
     try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {}

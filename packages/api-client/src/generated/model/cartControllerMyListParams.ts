@@ -7,6 +7,5 @@
  */
 
 export type CartControllerMyListParams = {
-token: string;
 onlyChecked: string;
 };

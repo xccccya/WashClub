@@ -1508,22 +1508,13 @@
     "/member/me/profile": {
       "get": {
         "operationId": "MemberController_me",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
-        "summary": "查询当前会员资料（支持token参数）",
+        "summary": "查询当前会员资料",
         "tags": [
           "member"
         ]
@@ -1535,14 +1526,6 @@
         "parameters": [
           {
             "name": "limit",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
             "required": true,
             "in": "query",
             "schema": {
@@ -1572,14 +1555,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -1596,16 +1571,7 @@
     "/member/me/points-stats": {
       "get": {
         "operationId": "MemberController_getPointsStats",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -1694,16 +1660,7 @@
     "/member/me/active": {
       "post": {
         "operationId": "MemberController_setActive",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "201": {
             "description": ""
@@ -2606,16 +2563,7 @@
     "/vehicle/me/list": {
       "get": {
         "operationId": "VehicleController_myVehicles",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -2978,16 +2926,7 @@
     "/wash-card/me/list": {
       "get": {
         "operationId": "WashCardController_myList",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -3007,14 +2946,6 @@
             "name": "id",
             "required": true,
             "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -3058,14 +2989,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -3090,11 +3013,49 @@
             "schema": {
               "type": "string"
             }
-          },
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "设置我的默认洗车卡（会员端）",
+        "tags": [
+          "wash-card"
+        ]
+      }
+    },
+    "/wash-card/me/{id}/shares": {
+      "get": {
+        "operationId": "WashCardController_myShares",
+        "parameters": [
           {
-            "name": "token",
+            "name": "id",
             "required": true,
-            "in": "query",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "我的洗车卡共享成员列表（仅持有人）",
+        "tags": [
+          "wash-card"
+        ]
+      },
+      "post": {
+        "operationId": "WashCardController_myAddShare",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
             "schema": {
               "type": "string"
             }
@@ -3105,7 +3066,39 @@
             "description": ""
           }
         },
-        "summary": "设置我的默认洗车卡（会员端）",
+        "summary": "添加共享成员（仅持有人，按手机号）",
+        "tags": [
+          "wash-card"
+        ]
+      }
+    },
+    "/wash-card/me/{id}/shares/{memberId}": {
+      "delete": {
+        "operationId": "WashCardController_myRemoveShare",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "移除共享成员（仅持有人）",
         "tags": [
           "wash-card"
         ]
@@ -3178,16 +3171,7 @@
     "/address/me/list": {
       "get": {
         "operationId": "AddressController_myList",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -3366,14 +3350,6 @@
         "operationId": "CartController_myList",
         "parameters": [
           {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "onlyChecked",
             "required": true,
             "in": "query",
@@ -3517,16 +3493,7 @@
     "/favorite/me/list": {
       "get": {
         "operationId": "FavoriteController_myList",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -3548,14 +3515,6 @@
             "schema": {
               "type": "number"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -3576,14 +3535,6 @@
             "in": "path",
             "schema": {
               "type": "number"
-            }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -7386,16 +7337,7 @@
     "/group/miniapp/me/summary": {
       "get": {
         "operationId": "GroupMiniappController_myGroupSummary",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -7418,14 +7360,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -7442,16 +7376,7 @@
     "/group/miniapp/me/cards": {
       "get": {
         "operationId": "GroupMiniappController_myGroupCards",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -7471,14 +7396,6 @@
             "name": "cardId",
             "required": true,
             "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -7522,14 +7439,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -7546,16 +7455,7 @@
     "/group/miniapp/me/admins": {
       "get": {
         "operationId": "GroupMiniappController_myGroupAdmins",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -7602,16 +7502,7 @@
     "/group/miniapp/me/members": {
       "get": {
         "operationId": "GroupMiniappController_myGroupMembers",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -7627,14 +7518,6 @@
         "parameters": [
           {
             "name": "phone",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
             "required": true,
             "in": "query",
             "schema": {
@@ -7664,14 +7547,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -7691,14 +7566,6 @@
         "parameters": [
           {
             "name": "memberId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
             "required": true,
             "in": "query",
             "schema": {
@@ -8531,16 +8398,7 @@
     "/coupon/miniapp/claimable": {
       "get": {
         "operationId": "MiniappCouponController_listClaimable",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -8556,14 +8414,6 @@
       "get": {
         "operationId": "MiniappCouponController_myCoupons",
         "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "used",
             "required": true,
@@ -8611,14 +8461,6 @@
             "schema": {
               "type": "number"
             }
-          },
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -8635,16 +8477,7 @@
     "/coupon/miniapp/applicable": {
       "post": {
         "operationId": "MiniappCouponController_applicable",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -8983,16 +8816,7 @@
     "/system/miniapp/employee/profile": {
       "get": {
         "operationId": "SystemMiniappEmployeeController_myEmployeeProfile",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -9010,14 +8834,6 @@
         "parameters": [
           {
             "name": "range",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
             "required": true,
             "in": "query",
             "schema": {
@@ -9058,14 +8874,6 @@
           },
           {
             "name": "end",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "token",
             "required": true,
             "in": "query",
             "schema": {

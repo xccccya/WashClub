@@ -3,11 +3,28 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { config as dotenvConfig } from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function main() {
+	// 显式加载 .env：该脚本直接从 dist 导入 AppModule，不会经过 src/main.ts 的 dotenv 加载逻辑
+	// 兼容两种执行方式：
+	// - cwd=apps/api
+	// - cwd=repo root
+	const envCandidates = [
+		path.resolve(process.cwd(), '.env'),
+		path.resolve(process.cwd(), 'apps/api/.env'),
+		path.resolve(process.cwd(), 'prisma/.env'),
+		path.resolve(process.cwd(), 'apps/api/prisma/.env'),
+	];
+	for (const p of envCandidates) {
+		try {
+			if (fs.existsSync(p)) dotenvConfig({ path: p });
+		} catch {}
+	}
+
 	// Mode B: export from build output (dist) to keep runtime behavior consistent.
 	const distAppModulePath = path.resolve(__dirname, '../dist/app.module.js');
 	if (!fs.existsSync(distAppModulePath)) {

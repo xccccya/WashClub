@@ -8,5 +8,4 @@
 
 export type MemberControllerGetPointsLogsParams = {
 limit: string;
-token: string;
 };

@@ -184,7 +184,7 @@ const specKeyCache = reactive<Record<number, string[]>>({});
 
 async function loadCart(){
 	try {
-		items.value = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
+		items.value = await (cartControllerMyList({ onlyChecked: 'false' } as any) as any);
 		// 异步确保需要的规格名可用（用于将 "S/2" 转为 "大小：S/长度：2"）
 		ensureSpecKeysForItems(items.value).catch(()=>{});
 	} catch { items.value = []; }
@@ -249,7 +249,7 @@ async function loadApplicableCoupons(){
 		const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: false });
 		if (!authed) { applicableCoupons.value=[]; selectedCouponIds.value=new Set(); return; }
 		const body:any = { items: buildApplicableItems() };
-		const res:any = await miniappCouponControllerApplicable(body as any, { token: '' } as any);
+		const res:any = await (miniappCouponControllerApplicable(body as any) as any);
 		applicableCoupons.value = Array.isArray(res?.applicable) ? res.applicable : [];
 		selectedCouponIds.value = new Set(applicableCoupons.value.length ? [applicableCoupons.value[0].id] : []);
 	}catch{ applicableCoupons.value=[]; selectedCouponIds.value=new Set(); }
@@ -262,7 +262,7 @@ async function loadApplicableCoupons(){
         const ss:any = await systemSettingControllerGetPublicSetting() as any;
         fenPerPoint.value = Math.max(0, Number(ss?.pointsFenPerPoint||0));
         maxFenPerOrder.value = Math.max(0, Number(ss?.pointsMaxDeductFenPerOrder||0));
-        const prof:any = await memberControllerMe({ token: '' } as any) as any;
+        const prof:any = await (memberControllerMe() as any);
         memberPayDiscountPercent.value = Math.max(0, Number((prof as any)?.level?.payDiscountPercent||0));
     }catch{}
 })();

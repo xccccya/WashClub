@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Post, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Headers, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { StoreService } from './store.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { StoreInventoryAdjustDto } from './inventory.dto.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
+import { extractBearerToken } from '../auth/bearer.js';
 
 @ApiTags('StoreInventory')
 @Controller('store/inventory')
@@ -10,12 +13,16 @@ export class StoreInventoryController {
     constructor(private readonly store: StoreService, private readonly jwt: JwtService) {}
 
     @Post('adjust')
+    @UseGuards(AdminGuard)
+    @RequirePerm('store-inventory' as any)
     adjust(@Body() body: StoreInventoryAdjustDto, @Headers('authorization') authHeader?: string) {
         const operatorUserId = this.extractAdminIdFromAuthHeader(authHeader);
         return this.store.adjustInventory({ ...body, operatorUserId });
     }
 
     @Get('logs')
+    @UseGuards(AdminGuard)
+    @RequirePerm('store-inventory' as any)
     logs(
         @Query('productId') productId?: string,
         @Query('skuId') skuId?: string,
@@ -34,8 +41,7 @@ export class StoreInventoryController {
 
     private extractAdminIdFromAuthHeader(authHeader?: string): number | undefined {
         if (!authHeader) return undefined;
-        const m = /^Bearer\s+(.+)$/.exec(authHeader);
-        const token = m?.[1];
+        const token = extractBearerToken(authHeader);
         if (!token) return undefined;
         try {
             const decoded: any = this.jwt.verify(token);

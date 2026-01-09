@@ -8,5 +8,4 @@
 
 export type SystemMiniappEmployeeControllerOverviewParams = {
 range: string;
-token: string;
 };

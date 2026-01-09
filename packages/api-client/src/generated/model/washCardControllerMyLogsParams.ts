@@ -9,5 +9,4 @@
 export type WashCardControllerMyLogsParams = {
 page: string;
 pageSize: string;
-token: string;
 };

@@ -7,26 +7,26 @@ import { FavoriteService } from './favorite.service.js';
 export class FavoriteController {
     constructor(private service: FavoriteService) {}
 
-    private extractToken(headers: Record<string, string>, tokenParam?: string) {
+    private extractToken(headers: Record<string, string>) {
         const authHeader = (headers?.authorization || (headers as any)?.Authorization) as string | undefined;
-        return (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || tokenParam || '';
+        return (authHeader ? authHeader.replace(/^Bearer\s+/i, '') : '') || '';
     }
 
     @Get('me/list')
-    async myList(@Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-        const token = this.extractToken(headers, tokenParam);
+    async myList(@Headers() headers: Record<string, string>) {
+        const token = this.extractToken(headers);
         return this.service.list(token);
     }
 
     @Post('me/:productId')
-    async add(@Param('productId', ParseIntPipe) productId: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-        const token = this.extractToken(headers, tokenParam);
+    async add(@Param('productId', ParseIntPipe) productId: number, @Headers() headers: Record<string, string>) {
+        const token = this.extractToken(headers);
         return this.service.add(token, productId);
     }
 
     @Delete('me/:productId')
-    async remove(@Param('productId', ParseIntPipe) productId: number, @Headers() headers: Record<string, string>, @Query('token') tokenParam?: string) {
-        const token = this.extractToken(headers, tokenParam);
+    async remove(@Param('productId', ParseIntPipe) productId: number, @Headers() headers: Record<string, string>) {
+        const token = this.extractToken(headers);
         return this.service.remove(token, productId);
     }
 }

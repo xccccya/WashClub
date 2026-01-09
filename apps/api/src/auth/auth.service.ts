@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service.js';
 import { SmsService } from './sms.service.js';
 import { WechatTokenService } from './wechat-token.service.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { resolveAdminJwtExpiresInEnv, resolveMemberJwtExpiresInEnv } from '../env.js';
 
 @Injectable()
 export class AuthService {
@@ -169,7 +170,9 @@ export class AuthService {
 		// Step7: 发放登录 token
 		const token = await this.jwt.signAsync(
 			{ sub: member.id, type: 'member', phone: member.phone },
-			{ expiresIn: '7d' },
+			// NestJS 11 的 jsonwebtoken 类型对 expiresIn 更严格（StringValue | number），
+			// 但本项目允许通过环境变量传入 '7d'/'15m' 等字符串，这里做一次显式类型收敛。
+			{ expiresIn: resolveMemberJwtExpiresInEnv() as any },
 		);
 		return { ok: true, token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone }, createdNew, justBoundOpenId };
 	}
@@ -190,8 +193,11 @@ export class AuthService {
 		}
 		if (user.roleId && user.roleRef && !user.roleRef.enabled) throw new ForbiddenException('该角色已被禁用');
 		const permissions = Array.isArray(user.roleRef?.permissions) ? (user.roleRef?.permissions as any) : [];
-		const expiresIn = '1d';
-		const token = await this.jwt.signAsync({ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone }, { expiresIn });
+		const expiresIn = resolveAdminJwtExpiresInEnv() as any;
+		const token = await this.jwt.signAsync(
+			{ sub: user.id, type: 'admin', role: user.role, roleId: user.roleId, phone: user.phone },
+			{ expiresIn },
+		);
 		let expiresAt: number | undefined = undefined;
 		try { const decoded: any = this.jwt.decode(token); const exp = Number(decoded?.exp||0); if (exp) expiresAt = exp * 1000; } catch {}
 		return { token, expiresAt, user: { id: user.id, name: user.name ?? '', role: user.role, phone: user.phone, roleId: user.roleId ?? null, permissions, avatarUrl: (user as any).avatarUrl ?? null } };
@@ -212,7 +218,7 @@ export class AuthService {
 		// 正式：令牌 7 天过期
 		const token = await this.jwt.signAsync(
 			{ sub: member.id, type: 'member', phone: member.phone },
-			{ expiresIn: '7d' },
+			{ expiresIn: resolveMemberJwtExpiresInEnv() as any },
 		);
 		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone } };
 	}
@@ -274,7 +280,10 @@ export class AuthService {
 				}
 			} catch {}
 		}
-		const token = await this.jwt.signAsync({ sub: member.id, type: 'member', phone: member.phone }, { expiresIn: '7d' });
+		const token = await this.jwt.signAsync(
+			{ sub: member.id, type: 'member', phone: member.phone },
+			{ expiresIn: resolveMemberJwtExpiresInEnv() as any },
+		);
 		return { token, user: { id: member.id, name: member.name, role: 'member', phone: member.phone } };
 	}
 

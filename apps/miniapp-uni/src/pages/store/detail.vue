@@ -611,7 +611,7 @@ const displayPriceText = computed(() => {
 function initCollect(){
 	return (async () => {
 		try {
-			const list:any[] = await favoriteControllerMyList({ token: '' } as any) as any;
+			const list:any[] = await (favoriteControllerMyList() as any);
 			const set = new Set<number>(Array.isArray(list) ? list.map((x:any)=>x?.productId).filter((v:any)=>typeof v==='number') : []);
 			collected.value = set.has(product.value?.id || -1);
 		} catch { collected.value = false; }
@@ -623,8 +623,8 @@ async function toggleCollect(){
 	try {
 		const token = getToken(); if (!token) { uni.navigateTo({ url:'/pages/login/index' }); return; }
 		const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) return;
-		if (collected.value) { await favoriteControllerRemove(product.value.id, { token: '' } as any); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
-		else { await favoriteControllerAdd(product.value.id, { token: '' } as any); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
+		if (collected.value) { await (favoriteControllerRemove(product.value.id) as any); collected.value = false; uni.showToast({ title:'已取消收藏', icon:'none' }); }
+		else { await (favoriteControllerAdd(product.value.id) as any); collected.value = true; uni.showToast({ title:'已收藏', icon:'none' }); }
 	} catch {}
 }
 
@@ -648,7 +648,7 @@ async function addToCart(){
 		if (stock <= 0) { uni.showToast({ title:'库存不足', icon:'none' }); return; }
 		let inCart = 0;
 		try{
-			const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
+			const list:any[] = await (cartControllerMyList({ onlyChecked: 'false' } as any) as any);
 			if (product.value.specType === 'SINGLE') {
 				inCart = (Array.isArray(list)? list:[]).filter((row:any)=> Number(row?.productId)===Number(product.value?.id) && !row?.skuId).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 			} else {
@@ -760,7 +760,7 @@ function sanitizeHtml(html: string): string{
 async function refreshCartCount(){
 	try{
 		const token = getToken(); if (!token) { cartCount.value = 0; return; }
-		const list:any[] = await cartControllerMyList({ token: '', onlyChecked: 'false' } as any) as any;
+		const list:any[] = await (cartControllerMyList({ onlyChecked: 'false' } as any) as any);
 		const total = (Array.isArray(list)? list:[]).reduce((s:number,row:any)=> s + Number(row?.quantity||0), 0);
 		cartCount.value = Math.max(0, Number(total||0));
 	}catch{ cartCount.value = 0; }

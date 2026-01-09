@@ -273,7 +273,7 @@ function onTouchEnd(e:any){
 
 onMounted(async ()=>{
 	const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!ok) { return; }
-	const prof:any = await memberControllerMe({} as any);
+	const prof:any = await memberControllerMe();
 	growthPoints.value = Number(prof?.growthPoints||0);
 	currentRequired.value = Number(prof?.currentRequiredGrowth||0);
 	nextRequired.value = Number(prof?.nextRequiredGrowth||0);
