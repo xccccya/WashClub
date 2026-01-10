@@ -48,7 +48,7 @@
 		<view class="card">
 			<view class="list-head">
 				<text class="card-title">用户列表</text>
-				<text class="muted">{{ total ? `共 ${total} 条` : '' }}</text>
+				<text class="muted">{{ totalText }}</text>
 			</view>
 
 			<view v-if="loading && members.length===0" class="loading-text">加载中…</view>
@@ -315,6 +315,16 @@ const displayMembers = computed(() => {
 	return arr;
 });
 
+// 顶部“共 xxx 条”展示：筛选属于前端本地过滤，需要跟随展示列表变化
+const totalText = computed(() => {
+	if (washCardFilter.value === 'hasRemaining') {
+		// 这是“当前已加载范围内”的筛选结果数量；若后续加载更多会自动更新
+		const n = displayMembers.value.length;
+		return n > 0 ? `共 ${n} 条` : '';
+	}
+	return total.value > 0 ? `共 ${total.value} 条` : '';
+});
+
 async function runPool<T>(items: T[], limit: number, worker: (it: T) => Promise<void>) {
 	const queue = items.slice();
 	const n = Math.max(1, Math.min(8, Number(limit || 4) || 4));
@@ -431,12 +441,14 @@ async function fetchList(reset = false) {
 	}
 }
 
-function onSearch() {
-	fetchList(true);
+async function onSearch() {
+	await fetchList(true);
+	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 }
-function clearKeyword() {
+async function clearKeyword() {
 	keyword.value = '';
-	fetchList(true);
+	await fetchList(true);
+	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 }
 
 function call(phone?: string) {
