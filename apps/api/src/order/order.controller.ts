@@ -205,9 +205,24 @@ export class OrderController {
         let memberId: number | undefined = memberIdStr ? Number(memberIdStr) : undefined;
         let includeDeleted = String(includeDeletedStr||'').toLowerCase() === 'true';
         if (tokenType === 'member') {
-            // 会员仅能查询自己的订单，且不可查看已删除
             const selfId = Number(decoded?.sub);
-            memberId = Number.isFinite(selfId) ? selfId : undefined;
+            if (!Number.isFinite(selfId) || selfId <= 0) throw new UnauthorizedException('身份无效');
+
+            // employee 特判：已启用员工允许按 memberId 查询（用于小程序商家侧查看用户详情/统计）
+            // - 若未传 memberId，则默认仍查询自己，避免无意暴露全量订单
+            // - 始终不允许查看已删除订单
+            let isEmployee = false;
+            try {
+                const emp = await (this.prisma as any).employee.findUnique({ where: { memberId: selfId }, select: { enabled: true } });
+                isEmployee = !!emp?.enabled;
+            } catch {}
+            if (!isEmployee) {
+                // 普通会员：仅能查询自己的订单
+                memberId = selfId;
+            } else {
+                // 员工：允许显式传 memberId 查询指定会员；未传则仍回退到自己
+                if (!memberIdStr) memberId = selfId;
+            }
             includeDeleted = false;
         }
         const list = await this.orders.listOrders({ type: type as OrderType | undefined, status: status as any, payStatus: payStatus as any, payMethod, scene, includeDeleted, memberId, keyword, start, end });

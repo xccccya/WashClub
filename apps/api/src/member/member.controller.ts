@@ -7,6 +7,7 @@ import { RequirePerm } from '../auth/perm.decorator.js';
 import { AdminOrEmployeeGuard } from '../auth/admin-or-employee.guard.js';
 import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto } from './member.dto.js';
 import { extractBearerToken, extractBearerTokenFromHeaders } from '../auth/bearer.js';
+import { AllowEmployee } from '../auth/allow-employee.decorator.js';
 
 @ApiTags('member')
 @Controller('member')
@@ -16,6 +17,7 @@ export class MemberController {
 	@Get('list')
 	@ApiOperation({ summary: '会员列表（分页/关键词）' })
 	@UseGuards(AdminOrEmployeeGuard)
+	@AllowEmployee()
 	@RequirePerm('members')
 	list(
 		@Query('page') page?: string,
@@ -131,6 +133,7 @@ export class MemberController {
 	@Get(':id')
 	@ApiOperation({ summary: '获取会员详情' })
 	@UseGuards(AdminOrEmployeeGuard)
+	@AllowEmployee()
 	@RequirePerm('members')
 	get(@Param('id') id: string) {
 		const n = Number(id);

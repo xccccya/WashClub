@@ -1,5 +1,7 @@
 import { memberControllerGet, memberControllerList, orderControllerList, washCardControllerAdminMemberStats } from '@wash/api-client';
 
+declare const uni: any;
+
 export type MemberLite = {
   id?: number;
   uid?: number;
@@ -60,7 +62,19 @@ export async function listMembers(options: {
       page: Number(res?.page || page),
       pageSize: Number(res?.pageSize || pageSize),
     };
-  } catch {
+  } catch (e: any) {
+    // 避免“静默空列表”导致误判：给出提示，但仍返回空结构以保持页面逻辑稳定
+    try {
+      const msg = String(e?.message || '').trim();
+      // 简单分类：权限/登录问题优先提示
+      if (msg.includes('401') || msg.includes('未登录') || msg.includes('登录已过期')) {
+        uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
+      } else if (msg.includes('403') || msg.includes('无权限') || msg.includes('Forbidden')) {
+        uni.showToast({ title: '无权限访问用户列表', icon: 'none' });
+      } else {
+        uni.showToast({ title: msg ? `加载失败：${msg}` : '加载失败', icon: 'none' });
+      }
+    } catch {}
     return { items: [], total: 0, page, pageSize };
   }
 }

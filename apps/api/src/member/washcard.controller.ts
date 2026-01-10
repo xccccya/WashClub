@@ -5,6 +5,7 @@ import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { AdminOrEmployeeGuard } from '../auth/admin-or-employee.guard.js';
 import { extractBearerTokenFromHeaders } from '../auth/bearer.js';
+import { AllowEmployee } from '../auth/allow-employee.decorator.js';
 
 @ApiTags('wash-card')
 @Controller('wash-card')
@@ -16,6 +17,7 @@ export class WashCardController {
     @Get('member-stats')
     @ApiOperation({ summary: '按会员聚合洗车卡统计（管理员，用于详情抽屉顶部统计）' })
     @UseGuards(AdminOrEmployeeGuard)
+    @AllowEmployee()
     @RequirePerm('member-washcards')
     adminMemberStats(@Query('memberId') memberId?: string){
         const mid = Number(memberId || 0);
