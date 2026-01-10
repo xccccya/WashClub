@@ -236,7 +236,8 @@ export class MetricsController {
         const newMembersPromise = this.prisma.member.count({ where: { createdAt: { gte: start, lt: end } } });
 
         // 累计数据：累计交易金额（净额）、累计订单数、总会员数、总集团客户数
-        const cumulativePaymentsPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: 'PAID' as any, deletedAt: null } });
+        // 注意：累计支付需包含 REFUNDED 状态订单的 payAmount，以便与退款记录正确对冲（否则全额退款订单的退款会被重复扣减）
+        const cumulativePaymentsPromise = this.prisma.order.aggregate({ _sum: { payAmount: true }, where: { payStatus: { in: ['PAID', 'REFUNDED'] as any }, deletedAt: null } });
         const cumulativeRefundsPromise = this.prisma.refundRecord.aggregate({ _sum: { amount: true }, where: { status: 'SUCCESS' as any } });
         const cumulativeOrdersPromise = this.prisma.order.count({ where: { payStatus: 'PAID' as any, deletedAt: null } });
         const totalMembersPromise = this.prisma.member.count();
@@ -429,7 +430,7 @@ export class MetricsController {
             rev AS (
               SELECT DATE(o.paidAt) AS d, SUM(o.payAmount) AS amt
               FROM \`Order\` o
-              WHERE o.payStatus='PAID' AND o.paidAt >= ${start} AND o.paidAt < ${end}
+              WHERE o.payStatus='PAID' AND o.deletedAt IS NULL AND o.paidAt >= ${start} AND o.paidAt < ${end}
               GROUP BY DATE(o.paidAt)
             )
             SELECT dd.d AS d, COALESCE(rev.amt, 0) AS amt

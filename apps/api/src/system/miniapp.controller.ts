@@ -187,10 +187,11 @@ export class SystemMiniappEmployeeController {
         SELECT DATE(${Prisma.sql`${sDateStr}`}) AS d
         UNION ALL SELECT DATE_ADD(d, INTERVAL 1 DAY) FROM dd WHERE DATE_ADD(d, INTERVAL 1 DAY) < DATE(${Prisma.sql`${eDateStr}`})
       ),
+      -- 仅统计当前仍为已支付状态的订单，已退款订单不再计入（与 Dashboard 口径一致）
       pay AS (
         SELECT DATE(paidAt) AS d, SUM(payAmount) AS amt
         FROM \`Order\`
-        WHERE payStatus IN ('PAID','REFUNDED') AND deletedAt IS NULL AND paidAt >= ${start} AND paidAt < ${end}
+        WHERE payStatus = 'PAID' AND deletedAt IS NULL AND paidAt >= ${start} AND paidAt < ${end}
         GROUP BY DATE(paidAt)
       ),
       ref AS (
