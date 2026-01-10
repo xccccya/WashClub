@@ -263,6 +263,25 @@
 										{{ viewItem.isDefault ? '默认车' : '非默认' }}
 									</el-tag>
 								</div>
+								<div class="vehicle-card__meta">
+									<div class="meta-pill" title="品牌">
+										<img v-if="viewItem.brandImage" :src="toAbs(viewItem.brandImage)" class="meta-icon" />
+										<span class="meta-k">品牌</span>
+										<span class="meta-v">{{ viewItem.brand || '-' }}</span>
+									</div>
+									<div class="meta-pill" title="车系">
+										<span class="meta-k">车系</span>
+										<span class="meta-v">{{ viewItem.series || '-' }}</span>
+									</div>
+									<div class="meta-pill" title="类型">
+										<span class="meta-k">类型</span>
+										<span class="meta-v">{{ (viewItem.typeMain||'-') + (viewItem.typeSub?(' / '+viewItem.typeSub):'') }}</span>
+									</div>
+									<div class="meta-pill" title="颜色">
+										<span class="meta-k">颜色</span>
+										<el-tag size="small" class="meta-color" :style="colorTagStyle(viewItem.color)">{{ viewItem.color || '-' }}</el-tag>
+									</div>
+								</div>
 								<div class="vehicle-card__sub muted">
 									<span>ID {{ viewItem.id }}</span>
 									<span class="dot">·</span>
@@ -274,44 +293,147 @@
 							</div>
 
 							<div class="vehicle-card__kv">
-								<div class="kv">
-									<div class="k">品牌</div>
-									<div class="v">
-										<div class="brand-cell">
-											<img v-if="viewItem.brandImage" :src="toAbs(viewItem.brandImage)" class="brand-inline-img" />
-											<span>{{ viewItem.brand || '-' }}</span>
-										</div>
+								<div class="kv kv-strong">
+									<div class="k">累计消费金额</div>
+									<div class="v v-strong">
+										<el-skeleton v-if="metricsLoading" :rows="1" animated style="width: 120px;" />
+										<template v-else>
+											<span class="money">￥{{ formatMoney(metricsSpentAmount) }}</span>
+										</template>
+									</div>
+								</div>
+								<div class="kv kv-strong">
+									<div class="k">累计洗车次数</div>
+									<div class="v v-strong">
+										<el-skeleton v-if="metricsLoading" :rows="1" animated style="width: 90px;" />
+										<template v-else>
+											<span class="count">{{ metricsWashTimes }}</span>
+											<span class="unit">次</span>
+										</template>
+									</div>
+								</div>
+								<div class="kv kv-strong">
+									<div class="k">洗车卡划扣次数</div>
+									<div class="v v-strong">
+										<el-skeleton v-if="metricsLoading" :rows="1" animated style="width: 90px;" />
+										<template v-else>
+											<span class="count">{{ metricsWashCardDeductTimes }}</span>
+											<span class="unit">次</span>
+										</template>
 									</div>
 								</div>
 								<div class="kv">
-									<div class="k">车系</div>
-									<div class="v">
-										<span>{{ viewItem.series || '-' }}</span>
+									<div class="k">创建 / 修改</div>
+									<div class="v v-col">
+										<div class="v-line"><span class="muted">创建</span><span class="mono">{{ formatDateTime(viewItem.createdAt) }}</span></div>
+										<div class="v-line"><span class="muted">修改</span><span class="mono">{{ formatDateTime(viewItem.updatedAt) }}</span></div>
 									</div>
 								</div>
 								<div class="kv">
-									<div class="k">类型</div>
-									<div class="v">{{ (viewItem.typeMain||'-') + (viewItem.typeSub?(' / '+viewItem.typeSub):'') }}</div>
-								</div>
-								<div class="kv">
-									<div class="k">颜色</div>
+									<div class="k">最近一次到店</div>
 									<div class="v">
-										<el-tag size="small" :style="colorTagStyle(viewItem.color)">{{ viewItem.color || '-' }}</el-tag>
+										<el-skeleton v-if="lastVisitLoading" :rows="1" animated style="width: 160px;" />
+										<template v-else>
+											<span>{{ lastVisitAt ? formatDateTime(lastVisitAt) : '-' }}</span>
+											<el-button
+												v-if="canViewOrders() && lastVisitOrderId"
+												size="small"
+												link
+												type="primary"
+												@click="openOrderInNewTab(lastVisitOrderId)"
+											>
+												查看订单
+											</el-button>
+										</template>
 									</div>
 								</div>
 								<div class="kv">
-									<div class="k">创建</div>
-									<div class="v">{{ formatDateTime(viewItem.createdAt) }}</div>
-								</div>
-								<div class="kv">
-									<div class="k">修改</div>
-									<div class="v">{{ formatDateTime(viewItem.updatedAt) }}</div>
+									<div class="k">订单记录</div>
+									<div class="v">
+										<template v-if="canViewOrders()">
+											<el-button size="small" type="primary" plain @click="openOrdersDrawer">查看全部</el-button>
+											<span v-if="ordersTotalKnown" class="muted" style="font-size:12px;">共 {{ ordersTotal }} 单</span>
+										</template>
+										<template v-else>
+											<span class="muted">无权限</span>
+										</template>
+									</div>
 								</div>
 							</div>
 						</div>
 
 					</div>
 				</el-card>
+
+				<!-- 车辆订单记录（抽屉） -->
+				<el-drawer
+					v-model="ordersDrawer"
+					append-to-body
+					direction="rtl"
+					size="760px"
+					:with-header="true"
+				>
+					<template #header>
+						<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+							<div style="min-width:0;">
+								<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+									<span style="font-weight:700;">订单记录</span>
+									<el-tag size="small" effect="light">{{ viewItem?.plateNumber || '-' }}</el-tag>
+								</div>
+								<div class="muted" style="font-size:12px;margin-top:2px;">
+									最近到店：{{ lastVisitAt ? formatDateTime(lastVisitAt) : '—' }}
+								</div>
+							</div>
+							<div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+								<el-button size="small" @click="fetchVehicleOrders" :loading="ordersLoading">刷新</el-button>
+							</div>
+						</div>
+					</template>
+
+					<div style="padding: 8px 0;">
+						<el-skeleton v-if="ordersLoading && orders.length===0" :rows="6" animated />
+						<el-empty v-else-if="!ordersLoading && orders.length===0" description="暂无订单记录" />
+						<el-table v-else :data="orders" stripe size="small" style="width:100%">
+							<el-table-column prop="createdAt" label="时间" width="170">
+								<template #default="{ row }">{{ formatShortTime(row.createdAt) }}</template>
+							</el-table-column>
+							<el-table-column label="订单号" min-width="210" show-overflow-tooltip>
+								<template #default="{ row }">
+									<el-button link type="primary" class="mono" @click="openOrderInNewTab(row.id)">{{ row.no || `#${row.id}` }}</el-button>
+								</template>
+							</el-table-column>
+							<el-table-column label="类型" width="90">
+								<template #default="{ row }">{{ formatOrderType(row.type) }}</template>
+							</el-table-column>
+							<el-table-column label="状态" width="110">
+								<template #default="{ row }">
+									<el-tag size="small" :type="orderStatusTagType(row)">{{ formatOrderStatus(row) }}</el-tag>
+								</template>
+							</el-table-column>
+							<el-table-column label="金额" width="110" align="right">
+								<template #default="{ row }">￥{{ formatMoney(row.payAmount) }}</template>
+							</el-table-column>
+							<el-table-column label="操作" width="120" fixed="right">
+								<template #default="{ row }">
+									<el-button size="small" type="primary" link @click="openOrderInNewTab(row.id)">打开详情</el-button>
+								</template>
+							</el-table-column>
+						</el-table>
+
+						<div v-if="ordersTotal>ordersPageSize" style="margin-top:12px;display:flex;justify-content:flex-end;">
+							<el-pagination
+								background
+								layout="sizes, prev, pager, next, jumper"
+								:total="ordersTotal"
+								:page-size="ordersPageSize"
+								:current-page="ordersPage"
+								:page-sizes="[10,20,30,50]"
+								@current-change="(p:number)=>{ ordersPage=p; fetchVehicleOrders(); }"
+								@size-change="(s:number)=>{ ordersPageSize=s; ordersPage=1; fetchVehicleOrders(); }"
+							/>
+						</div>
+					</div>
+				</el-drawer>
 
 				<el-card shadow="never" class="inline-card rebind-logs-card">
 					<div class="section-head">
@@ -451,6 +573,24 @@ const delId = ref<number | null>(null);
 const viewDialog = ref(false);
 const viewItem = ref<Vehicle | null>(null);
 
+// 车辆订单 / 最近到店
+const lastVisitLoading = ref(false);
+const lastVisitAt = ref<string | null>(null);
+const lastVisitOrderId = ref<number | null>(null);
+const ordersDrawer = ref(false);
+const ordersLoading = ref(false);
+const orders = ref<any[]>([]);
+const ordersTotal = ref(0);
+const ordersTotalKnown = ref(false);
+const ordersPage = ref(1);
+const ordersPageSize = ref(20);
+
+// 车辆统计
+const metricsLoading = ref(false);
+const metricsWashCardDeductTimes = ref(0);
+const metricsSpentAmount = ref(0);
+const metricsWashTimes = ref(0);
+
 // 改绑记录
 const rebindLogsLoading = ref(false);
 const rebindLogs = ref<any[]>([]);
@@ -511,6 +651,177 @@ async function fetchRebindLogs() {
 		ElMessage.error(String(e?.message || e || '加载改绑记录失败'));
 	} finally {
 		rebindLogsLoading.value = false;
+	}
+}
+
+function canViewOrders(): boolean {
+	try {
+		const raw = localStorage.getItem('user') || '{}';
+		const u = JSON.parse(raw || '{}');
+		const perms = Array.isArray(u?.permissions) ? u.permissions : [];
+		return perms.includes('*') || perms.includes('orders');
+	} catch {
+		return false;
+	}
+}
+
+function openOrderInNewTab(orderId: number) {
+	const id = Number(orderId || 0);
+	if (!id) return;
+	try {
+		window.open(`/admin/orders/${id}`, '_blank');
+	} catch {
+		router.push(`/orders/${id}`);
+	}
+}
+
+function formatMoney(input: any): string {
+	const n = Number(input ?? 0);
+	if (!Number.isFinite(n)) return '0.00';
+	return n.toFixed(2);
+}
+
+function formatOrderType(t: any): string {
+	const s = String(t || '').toUpperCase();
+	if (s === 'SERVICE') return '服务';
+	if (s === 'SP') return '商品';
+	if (s === 'FK') return '付款';
+	return s || '-';
+}
+
+function formatOrderStatus(row: any): string {
+	// 优先按常用口径展示：已完成/待支付/进行中等
+	const type = String(row?.type || '').toUpperCase();
+	const pay = String(row?.payStatus || '').toUpperCase();
+	const f = String(row?.fulfillmentStatus || '').toUpperCase();
+	const status = String(row?.status || '').toUpperCase();
+
+	// 服务完成口径（与后端 last-visit 一致）
+	const serviceDone = type === 'SERVICE' && ((pay === 'PAID' && f === 'DONE') || status === 'FULFILLED');
+	if (serviceDone) return '已完成';
+	if (pay === 'UNPAID') return '待支付';
+	if (pay === 'PAID' && type === 'SERVICE' && (f === 'PENDING' || f === 'IN_SERVICE')) return '服务中';
+	if (pay === 'PAID' && type === 'SP' && (f === 'PENDING' || f === 'SHIPPED')) return '配送中';
+	if (status === 'CANCELLED' || pay === 'CANCELLED') return '已取消';
+	if (pay === 'REFUNDED') return '已退款';
+	return status || pay || '-';
+}
+
+function orderStatusTagType(row: any): 'success' | 'warning' | 'info' | 'danger' {
+	const txt = formatOrderStatus(row);
+	if (txt === '已完成') return 'success';
+	if (txt === '待支付') return 'warning';
+	if (txt === '已取消' || txt === '已退款') return 'danger';
+	return 'info';
+}
+
+async function fetchVehicleLastVisit() {
+	if (!viewItem.value?.id) return;
+	if (!canViewOrders()) {
+		lastVisitAt.value = null;
+		lastVisitOrderId.value = null;
+		return;
+	}
+	lastVisitLoading.value = true;
+	try {
+		const token = localStorage.getItem('token') || '';
+		const url = `${API_BASE}/vehicle/${viewItem.value.id}/last-visit`;
+		const res = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+		if (!res.ok) {
+			const ct = res.headers.get('content-type') || '';
+			if (ct.includes('application/json')) {
+				const j: any = await res.json().catch(() => ({}));
+				throw new Error(j?.message || `HTTP ${res.status}`);
+			}
+			throw new Error((await res.text()) || `HTTP ${res.status}`);
+		}
+		const j: any = await res.json();
+		lastVisitAt.value = j?.lastVisitAt ? String(j.lastVisitAt) : null;
+		lastVisitOrderId.value = Number(j?.serviceOrderId || 0) || null;
+	} catch (e: any) {
+		// 无权限时不打扰用户（页面已做权限提示）；其它错误给出轻提示
+		const msg = String(e?.message || e || '');
+		if (!/403|forbidden/i.test(msg)) ElMessage.error(msg || '加载最近到店失败');
+		lastVisitAt.value = null;
+		lastVisitOrderId.value = null;
+	} finally {
+		lastVisitLoading.value = false;
+	}
+}
+
+async function fetchVehicleMetrics() {
+	if (!viewItem.value?.id) return;
+	if (!canViewOrders()) {
+		metricsWashCardDeductTimes.value = 0;
+		metricsSpentAmount.value = 0;
+		metricsWashTimes.value = 0;
+		return;
+	}
+	metricsLoading.value = true;
+	try {
+		const token = localStorage.getItem('token') || '';
+		const url = `${API_BASE}/vehicle/${viewItem.value.id}/metrics`;
+		const res = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+		if (!res.ok) {
+			const ct = res.headers.get('content-type') || '';
+			if (ct.includes('application/json')) {
+				const j: any = await res.json().catch(() => ({}));
+				throw new Error(j?.message || `HTTP ${res.status}`);
+			}
+			throw new Error((await res.text()) || `HTTP ${res.status}`);
+		}
+		const j: any = await res.json();
+		metricsWashCardDeductTimes.value = Math.max(0, Number(j?.totalWashCardDeductTimes || 0) || 0);
+		metricsSpentAmount.value = Math.max(0, Number(j?.totalSpentAmount || 0) || 0);
+		metricsWashTimes.value = Math.max(0, Number(j?.totalWashTimes || 0) || 0);
+	} catch (e: any) {
+		const msg = String(e?.message || e || '');
+		if (!/403|forbidden/i.test(msg)) ElMessage.error(msg || '加载车辆统计失败');
+		metricsWashCardDeductTimes.value = 0;
+		metricsSpentAmount.value = 0;
+		metricsWashTimes.value = 0;
+	} finally {
+		metricsLoading.value = false;
+	}
+}
+
+async function fetchVehicleOrders() {
+	if (!viewItem.value?.id) return;
+	if (!canViewOrders()) return;
+	ordersLoading.value = true;
+	try {
+		const token = localStorage.getItem('token') || '';
+		const url = `${API_BASE}/vehicle/${viewItem.value.id}/orders?page=${ordersPage.value}&pageSize=${ordersPageSize.value}`;
+		const res = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+		if (!res.ok) {
+			const ct = res.headers.get('content-type') || '';
+			if (ct.includes('application/json')) {
+				const j: any = await res.json().catch(() => ({}));
+				throw new Error(j?.message || `HTTP ${res.status}`);
+			}
+			throw new Error((await res.text()) || `HTTP ${res.status}`);
+		}
+		const j: any = await res.json();
+		orders.value = Array.isArray(j?.items) ? j.items : [];
+		ordersTotal.value = Number(j?.total || 0);
+		ordersTotalKnown.value = true;
+	} catch (e: any) {
+		ElMessage.error(String(e?.message || e || '加载订单记录失败'));
+		orders.value = [];
+		ordersTotal.value = 0;
+		ordersTotalKnown.value = false;
+	} finally {
+		ordersLoading.value = false;
+	}
+}
+
+function openOrdersDrawer() {
+	if (!canViewOrders()) { ElMessage.error('无查看订单权限'); return; }
+	ordersDrawer.value = true;
+	// 首次打开时再拉取，避免弹窗打开即额外请求
+	if (!ordersTotalKnown.value && orders.value.length === 0) {
+		ordersPage.value = 1;
+		fetchVehicleOrders();
 	}
 }
 
@@ -672,6 +983,21 @@ watch(
 	() => viewDialog.value,
 	(v) => {
 		if (!v) return;
+		// 最近到店/订单记录
+		lastVisitAt.value = null;
+		lastVisitOrderId.value = null;
+		ordersDrawer.value = false;
+		orders.value = [];
+		ordersTotal.value = 0;
+		ordersTotalKnown.value = false;
+		ordersPage.value = 1;
+		ordersPageSize.value = 20;
+		fetchVehicleLastVisit();
+		metricsWashCardDeductTimes.value = 0;
+		metricsSpentAmount.value = 0;
+		metricsWashTimes.value = 0;
+		fetchVehicleMetrics();
+
 		rebindLogs.value = [];
 		rebindLogsTotal.value = 0;
 		rebindLogsPage.value = 1;
@@ -955,6 +1281,45 @@ function colorTagStyle(color?: string | null): any {
 }
 .vehicle-card__head{ display:flex; flex-direction:column; gap: 6px; margin-bottom: 10px; }
 .vehicle-card__plate{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
+.vehicle-card__meta{
+	display:flex;
+	align-items:center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 2px;
+}
+.meta-pill{
+	display:flex;
+	align-items:center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: #f8fafc;
+	border: 1px solid #eef2f7;
+	box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+	min-width: 0;
+}
+.meta-icon{
+	width:18px;
+	height:18px;
+	border-radius: 6px;
+	object-fit: contain;
+	background:#fff;
+	border:1px solid #eef2f7;
+	flex: 0 0 auto;
+}
+.meta-k{ font-size: 12px; color:#6b7280; flex: 0 0 auto; }
+.meta-v{
+	font-size: 12px;
+	color:#111827;
+	font-weight: 600;
+	min-width: 0;
+	max-width: 220px;
+	overflow:hidden;
+	text-overflow:ellipsis;
+	white-space:nowrap;
+}
+.meta-color :deep(.el-tag__content){ font-weight: 700; }
 .vehicle-card__sub{ font-size: 12px; display:flex; align-items:center; flex-wrap: wrap; gap: 6px; }
 .vehicle-card__sub .dot{ color:#c0c4cc; }
 .vehicle-card__kv{
@@ -965,12 +1330,20 @@ function colorTagStyle(color?: string | null): any {
 .kv{ background:#fafafa; border:1px solid #f0f2f5; border-radius: 10px; padding: 10px 10px; min-height: 54px; }
 .k{ font-size: 12px; color:#909399; margin-bottom: 6px; }
 .v{ font-size: 13px; color:#303133; display:flex; align-items:center; gap: 8px; min-width: 0; }
+.v-col{ flex-direction: column; align-items: flex-start; gap: 6px; }
+.v-line{ display:flex; align-items:center; gap: 8px; font-size: 12px; color:#303133; }
 .v :deep(.el-tag){ min-width: unset; }
 .vehicle-card__main{ min-width: 0; }
+.kv-strong{ background: linear-gradient(180deg, #f8fafc 0%, #f3f4f6 100%); border-color:#e5e7eb; }
+.v-strong{ font-size: 16px; font-weight: 700; letter-spacing: 0.2px; }
+.v-strong .money{ color:#111827; }
+.v-strong .count{ color:#111827; }
+.v-strong .unit{ font-size: 12px; font-weight: 600; color:#6b7280; margin-left: 2px; }
 
 @media (max-width: 980px){
 	.vehicle-card__grid{ grid-template-columns: 1fr; }
 	.vehicle-card__kv{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.meta-v{ max-width: 160px; }
 }
 
 .plate-chip { display:inline-block; padding: 2px 8px; border-radius: 12px; background: #f0f9eb; color: #67c23a; font-weight: 600; }

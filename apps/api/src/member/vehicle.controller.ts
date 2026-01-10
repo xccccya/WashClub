@@ -12,6 +12,7 @@ import {
     VehicleCreateForMemberDto,
     VehicleGuestCreateDto,
     VehicleMyCreateDto,
+    VehicleOrdersQueryDto,
     VehicleRebindLogsQueryDto,
     VehicleSearchQueryDto,
     VehicleUpdateDto,
@@ -179,6 +180,33 @@ export class VehicleController {
         return (this.service as any).adminGetRebindLogs(Number(id), Number(q?.page || 1), Number(q?.pageSize || 20));
     }
 
+    // 车辆相关订单（管理员，分页）
+    @Get(':id/orders')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders' as any)
+    @ApiOperation({ summary: '车辆相关订单列表（管理员，分页）' })
+    async adminOrders(@Param('id') id: string, @Query() q: VehicleOrdersQueryDto) {
+        return (this.service as any).adminListOrdersByVehicle(Number(id), Number(q?.page || 1), Number(q?.pageSize || 20));
+    }
+
+    // 最近一次到店（管理员）：按“最新已完成服务订单”的创建时间
+    @Get(':id/last-visit')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders' as any)
+    @ApiOperation({ summary: '车辆最近一次到店时间（管理员）' })
+    async adminLastVisit(@Param('id') id: string) {
+        return (this.service as any).adminGetLastVisitByVehicle(Number(id));
+    }
+
+    // 车辆统计（管理员）：累计洗车卡划扣次数/累计消费金额/累计洗车次数（按已完成订单）
+    @Get(':id/metrics')
+    @UseGuards(AdminGuard)
+    @RequirePerm('orders' as any)
+    @ApiOperation({ summary: '车辆统计（管理员）' })
+    async adminMetrics(@Param('id') id: string) {
+        return (this.service as any).adminGetVehicleMetrics(Number(id));
+    }
+
     // 我的车辆（会员端）
     @Get('me/list')
     @ApiOperation({ summary: '我的车辆列表（会员端）' })
@@ -201,6 +229,18 @@ export class VehicleController {
         if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
         return this.service.createForMember(memberId, body);
     }
+
+	// 查询车辆详情（管理员）
+	// 注意：必须放在所有静态路由（如 /search /list /me/list）之后，避免把 /vehicle/search 误匹配为 :id=search
+	@Get(':id')
+	@ApiOperation({ summary: '车辆详情（管理员）' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('member-vehicles' as any)
+	getVehicle(@Param('id') id: string) {
+		const vid = Number(id);
+		if (!Number.isFinite(vid) || vid <= 0) throw new BadRequestException('车辆ID不合法');
+		return this.service.getVehicle(vid);
+	}
 }
 
 

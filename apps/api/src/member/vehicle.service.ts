@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
 import { FileService } from '../file/file.service.js';
@@ -322,7 +323,7 @@ export class VehicleService {
     }
 
     getVehicle(vehicleId: number) {
-        return this.prisma.vehicle.findUnique({ where: { id: vehicleId }, include: { member: true } });
+        return this.prisma.vehicle.findUnique({ where: { id: vehicleId }, include: { member: true, group: true } as any });
     }
 
     async listByMember(memberId: number) {
@@ -466,6 +467,175 @@ export class VehicleService {
         }));
 
         return { items: mapped, total: Number(total || 0), page: p, pageSize: ps };
+    }
+
+    // 管理端：车辆相关订单（分页，按创建时间倒序）
+    async adminListOrdersByVehicle(vehicleId: number, page = 1, pageSize = 20) {
+        const vid = Number(vehicleId || 0);
+        if (!Number.isFinite(vid) || vid <= 0) throw new BadRequestException('车辆不存在');
+        const p = Math.max(1, Number(page || 1));
+        const ps = Math.max(1, Math.min(100, Number(pageSize || 20)));
+
+        const where: any = { vehicleId: vid, deletedAt: null };
+        const [items, total] = await Promise.all([
+            this.prisma.order.findMany({
+                where,
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                skip: (p - 1) * ps,
+                take: ps,
+                select: {
+                    id: true,
+                    no: true,
+                    type: true,
+                    status: true,
+                    payStatus: true,
+                    fulfillmentStatus: true,
+                    createdAt: true,
+                    payAmount: true,
+                    memberId: true,
+                    groupId: true,
+                },
+            }),
+            this.prisma.order.count({ where }),
+        ]);
+        return { items, total: Number(total || 0), page: p, pageSize: ps };
+    }
+
+    // 管理端：车辆最近一次到店时间（最新已完成的服务订单创建时间）
+    async adminGetLastVisitByVehicle(vehicleId: number) {
+        const vid = Number(vehicleId || 0);
+        if (!Number.isFinite(vid) || vid <= 0) throw new BadRequestException('车辆不存在');
+
+        const completedServiceWhere: any = {
+            vehicleId: vid,
+            type: 'SERVICE',
+            deletedAt: null,
+            OR: [
+                { AND: [{ payStatus: 'PAID' }, { fulfillmentStatus: 'DONE' }] },
+                // 兼容旧数据：服务完成可能仅写 status=FULFILLED
+                { status: 'FULFILLED' },
+            ],
+        };
+        const latest = await this.prisma.order.findFirst({
+            where: completedServiceWhere,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            select: { id: true, no: true, createdAt: true },
+        });
+        return {
+            lastVisitAt: latest?.createdAt ?? null,
+            serviceOrderId: latest?.id ?? null,
+            serviceOrderNo: latest?.no ?? null,
+        };
+    }
+
+    // 管理端：车辆统计（按“已完成订单”口径）
+    // - 累计消费金额：sum(payAmount + washCardDeductAmount)
+    // - 累计洗车次数：按订单项中 product.isCarWash=true 的 quantity 求和
+    // - 累计洗车卡划扣次数：服务划扣仅统计“已完成服务订单”；额外加上后台手动划扣(BACKEND_DEDUCT)且指定 vehicleId 的日志
+    async adminGetVehicleMetrics(vehicleId: number) {
+        const vid = Number(vehicleId || 0);
+        if (!Number.isFinite(vid) || vid <= 0) throw new BadRequestException('车辆不存在');
+
+        const completedWhere: Prisma.OrderWhereInput = {
+            vehicleId: vid,
+            deletedAt: null,
+            OR: [
+                { AND: [{ type: 'SERVICE' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'DONE' }] },
+                { AND: [{ type: 'SP' }, { payStatus: 'PAID' }, { fulfillmentStatus: 'RECEIVED' }] },
+                { AND: [{ type: 'FK' }, { payStatus: 'PAID' }] },
+                // 兼容旧数据
+                { AND: [{ type: 'SERVICE' }, { status: 'FULFILLED' }] },
+                { AND: [{ type: 'SP' }, { status: 'CLOSED' }] },
+            ],
+        };
+
+        const moneyAgg = await this.prisma.order.aggregate({
+            where: completedWhere,
+            _sum: { payAmount: true, washCardDeductAmount: true },
+        } as any);
+
+        const sumPay = Number((moneyAgg as any)?._sum?.payAmount || 0);
+        const sumDeduct = Number((moneyAgg as any)?._sum?.washCardDeductAmount || 0);
+        const totalSpentAmount = Number.isFinite(sumPay + sumDeduct) ? (sumPay + sumDeduct) : 0;
+
+        // SQL：累计洗车次数（避免把大量订单项拉回内存）
+        const washTimesRows = await (this.prisma as any).$queryRaw<
+            Array<{ washTimes: bigint | number | null }>
+        >`
+            SELECT COALESCE(SUM(oi.quantity), 0) AS washTimes
+            FROM \`OrderItem\` oi
+            JOIN \`Order\` o ON o.id = oi.orderId
+            JOIN \`Product\` p ON p.id = oi.productId
+            WHERE o.vehicleId = ${vid}
+              AND o.deletedAt IS NULL
+              AND p.isCarWash = 1
+              AND (
+                (o.type = 'SERVICE' AND ((o.payStatus = 'PAID' AND o.fulfillmentStatus = 'DONE') OR o.status = 'FULFILLED'))
+                OR (o.type = 'SP' AND ((o.payStatus = 'PAID' AND o.fulfillmentStatus = 'RECEIVED') OR o.status = 'CLOSED'))
+                OR (o.type = 'FK' AND o.payStatus = 'PAID')
+              )
+        `;
+        const washTimes = Number((washTimesRows?.[0] as any)?.washTimes ?? 0) || 0;
+
+        // SQL：累计洗车卡划扣次数（个人卡 + 集团卡）
+        // - SERVICE_DEDUCT：仅统计已完成服务订单（避免未完成/取消订单提前划扣造成统计偏差）
+        // - BACKEND_DEDUCT：后台手动划扣（通常无订单，也纳入）
+        const washCardDeductRows = await (this.prisma as any).$queryRaw<
+            Array<{ times: bigint | number | null }>
+        >`
+            SELECT COALESCE(SUM(t.times), 0) AS times
+            FROM (
+                -- 会员洗车卡：服务划扣（需订单完成）
+                SELECT COALESCE(SUM(-l.change), 0) AS times
+                FROM \`WashCardLog\` l
+                JOIN \`Order\` o ON o.id = l.serviceOrderId
+                WHERE l.vehicleId = ${vid}
+                  AND l.action = 'DEDUCT'
+                  AND l.reason = 'SERVICE_DEDUCT'
+                  AND o.deletedAt IS NULL
+                  AND o.type = 'SERVICE'
+                  AND ((o.payStatus = 'PAID' AND o.fulfillmentStatus = 'DONE') OR o.status = 'FULFILLED')
+
+                UNION ALL
+
+                -- 会员洗车卡：后台手动划扣（指定车辆）
+                SELECT COALESCE(SUM(-l.change), 0) AS times
+                FROM \`WashCardLog\` l
+                WHERE l.vehicleId = ${vid}
+                  AND l.action = 'DEDUCT'
+                  AND l.reason = 'BACKEND_DEDUCT'
+
+                UNION ALL
+
+                -- 集团洗车卡：服务划扣（需订单完成）
+                SELECT COALESCE(SUM(-l.change), 0) AS times
+                FROM \`GroupWashCardLog\` l
+                JOIN \`Order\` o ON o.id = l.serviceOrderId
+                WHERE l.vehicleId = ${vid}
+                  AND l.action = 'DEDUCT'
+                  AND l.reason = 'SERVICE_DEDUCT'
+                  AND o.deletedAt IS NULL
+                  AND o.type = 'SERVICE'
+                  AND ((o.payStatus = 'PAID' AND o.fulfillmentStatus = 'DONE') OR o.status = 'FULFILLED')
+
+                UNION ALL
+
+                -- 集团洗车卡：后台手动划扣（指定车辆）
+                SELECT COALESCE(SUM(-l.change), 0) AS times
+                FROM \`GroupWashCardLog\` l
+                WHERE l.vehicleId = ${vid}
+                  AND l.action = 'DEDUCT'
+                  AND l.reason = 'BACKEND_DEDUCT'
+            ) t
+        `;
+        const washCardDeductTimes = Number((washCardDeductRows?.[0] as any)?.times ?? 0) || 0;
+
+        return {
+            vehicleId: vid,
+            totalWashCardDeductTimes: Math.max(0, washCardDeductTimes),
+            totalSpentAmount: Math.max(0, Number(totalSpentAmount.toFixed(2))),
+            totalWashTimes: Math.max(0, washTimes),
+        };
     }
 
     async searchByPlateLike(keyword: string, limit = 15) {

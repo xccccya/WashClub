@@ -37,12 +37,23 @@
 			<el-table-column prop="vehicle" label="车辆/类型" min-width="320">
 				<template #default="{ row }">
 					<div class="vehicle">
-						<img v-if="row?.vehicle?.brandImage" :src="toAbs(row.vehicle.brandImage)" class="brand-img" />
 						<div class="v-text">
-							<div>
+							<div class="plate-line">
+								<span v-if="row?.vehicle?.brandImage" class="vehicle-brand-badge" aria-hidden="true">
+									<img :src="toAbs(row.vehicle.brandImage)" class="vehicle-brand-img" />
+								</span>
 								<el-tag v-if="row?.vehicle?.group" type="info" effect="plain" class="mr6"><el-icon class="mr4"><OfficeBuilding /></el-icon>{{ row.vehicle.group.name }}</el-tag>
 								<el-tag :type="row?.vehicle?.group ? 'info' : (row.guest ? 'warning' : 'danger')" class="mr6">{{ row?.vehicle?.group ? '集团客户' : (row.guest ? '游客' : '会员') }}</el-tag>
-								<strong>{{ plateLabel(row) }}</strong>
+								<el-button
+									v-if="row?.vehicle?.id"
+									link
+									type="primary"
+									class="plate-btn"
+									@click.stop="openVehicleInfo(row)"
+								>
+									{{ plateLabel(row) }}
+								</el-button>
+								<strong v-else class="plate-text">{{ plateLabel(row) }}</strong>
 							</div>
 							<div v-if="row?.vehicle?.member" class="u-line">
 								<span class="member">{{ row.vehicle.member.name || '-' }}（{{ row.vehicle.member.phone || '-' }}）</span>
@@ -305,117 +316,159 @@
 		</el-dialog>
 
 		<!-- 配置抽屉：队列类型/步骤/可用商品 -->
-		<el-drawer v-model="configDrawer" title="服务队列配置" size="70%" :with-header="true" :before-close="onBeforeCloseConfigDrawer">
-			<div class="config-flex">
+		<el-drawer v-model="configDrawer" title="服务队列配置" size="70%" :with-header="true" :before-close="onBeforeCloseConfigDrawer" class="config-drawer">
+			<div class="config-layout">
 				<div class="config-left">
 					<div class="config-left-top">
 						<strong>队列类型</strong>
 						<el-button size="small" type="primary" @click="openTypeEditor()"><el-icon><CirclePlus /></el-icon></el-button>
 					</div>
 					<el-input v-model="typeFilter" placeholder="搜索类型" clearable class="type-search" />
-					<el-menu :key="menuKey" :default-active="String(activeTypeId || '')" @select="onSelectType">
-						<el-menu-item v-for="t in filteredQueueTypes" :key="t.id" :index="String(t.id)">
-							<span>{{ t.name }}</span>
-							<el-tag v-if="!t.enabled" size="small" type="info" effect="plain" style="margin-left:8px;">禁用</el-tag>
-						</el-menu-item>
-					</el-menu>
+					<el-scrollbar class="config-left-scroll">
+						<el-menu :key="menuKey" :default-active="String(activeTypeId || '')" @select="onSelectType" class="type-menu">
+							<el-menu-item v-for="t in filteredQueueTypes" :key="t.id" :index="String(t.id)">
+								<span class="cfg-type-row">
+									<span class="cfg-type-dot" :style="cfgDotStyle(t.displayColor, 3)" />
+									<span class="cfg-type-name">{{ t.name }}</span>
+									<el-tag v-if="!t.enabled" size="small" type="info" effect="plain" class="cfg-type-disabled">禁用</el-tag>
+								</span>
+							</el-menu-item>
+						</el-menu>
+					</el-scrollbar>
 				</div>
 				<div class="config-right">
-					<div v-if="activeType">
-						<div class="config-right-head">
-							<div class="config-right-title">
-								<strong>{{ activeType.name }}</strong>
-								<el-tag v-if="!activeType.enabled" size="small" type="info" effect="plain">禁用</el-tag>
+					<el-scrollbar class="config-right-scroll">
+						<div v-if="activeType" class="config-right-inner">
+							<div class="config-right-head">
+								<div class="config-right-title">
+									<span class="cfg-type-dot cfg-type-dot--big" :style="cfgDotStyle(activeType.displayColor, 4)" />
+									<strong>{{ activeType.name }}</strong>
+									<el-tag v-if="!activeType.enabled" size="small" type="info" effect="plain">禁用</el-tag>
+								</div>
+								<div class="config-right-head-actions">
+									<el-button size="small" @click="openTypeEditor(activeType)">编辑</el-button>
+									<el-popconfirm title="确认删除该队列类型？" @confirm="onDeleteType(activeType.id)">
+										<template #reference>
+											<el-button size="small" type="danger">删除</el-button>
+										</template>
+									</el-popconfirm>
+								</div>
 							</div>
-							<div>
-								<el-button size="small" @click="openTypeEditor(activeType)">编辑</el-button>
-								<el-popconfirm title="确认删除该队列类型？" @confirm="onDeleteType(activeType.id)">
-									<template #reference>
-										<el-button size="small" type="danger">删除</el-button>
+
+							<div class="config-sections">
+								<el-card shadow="never" class="config-card">
+									<template #header>
+										<div class="cfg-card-head">
+											<span>步骤配置</span>
+										</div>
 									</template>
-								</el-popconfirm>
+									<el-table :data="stepEdits" size="small" class="config-table">
+										<el-table-column type="index" width="60" />
+										<el-table-column label="步骤名" min-width="200">
+											<template #default="{ row }"><el-input v-model="row.name" maxlength="20" show-word-limit placeholder="步骤名称（≤20字）" /></template>
+										</el-table-column>
+										<el-table-column label="时长(分钟)" min-width="200">
+											<template #default="{ row }"><el-input-number v-model="row.durationMin" :min="0" :max="120" /></template>
+										</el-table-column>
+										<el-table-column label="计入ETA" width="120">
+											<template #default="{ row }"><el-switch v-model="row.isEta" /></template>
+										</el-table-column>
+										<el-table-column label="操作" width="220">
+											<template #default="{ $index }">
+												<el-button size="small" @click="moveStep($index, -1)" :disabled="$index===0"><el-icon><ArrowUp /></el-icon></el-button>
+												<el-button size="small" @click="moveStep($index, 1)" :disabled="$index===stepEdits.length-1"><el-icon><ArrowDown /></el-icon></el-button>
+												<el-button size="small" type="danger" @click="removeStep($index)"><el-icon><Delete /></el-icon></el-button>
+											</template>
+										</el-table-column>
+									</el-table>
+									<div class="card-actions sticky">
+										<div class="card-actions__inner">
+											<el-button size="small" @click="addStep"><el-icon><CirclePlus /></el-icon>添加步骤</el-button>
+											<el-button size="small" type="primary" @click="saveSteps" :loading="savingSteps">保存步骤</el-button>
+										</div>
+									</div>
+								</el-card>
+
+								<el-card shadow="never" class="config-card">
+									<template #header>
+										<div class="cfg-card-head">
+											<span>ETA 配置</span>
+											<div class="cfg-card-head-actions">
+												<el-button size="small" type="primary" @click="saveType" :loading="savingType">保存类型</el-button>
+											</div>
+										</div>
+									</template>
+									<el-form :model="typeForm" label-width="120px" size="small" class="eta-form">
+										<el-row :gutter="12">
+											<el-col :span="12">
+												<el-form-item label="参与预计等待">
+													<el-switch v-model="typeForm.participateInEta" :active-value="true" :inactive-value="false" />
+												</el-form-item>
+											</el-col>
+											<el-col :span="12">
+												<el-form-item label="ETA 并行工位数">
+													<el-input-number v-model="typeForm.etaParallelSlots" :min="1" :max="99" :step="1" placeholder="未配置表示不计算" />
+												</el-form-item>
+											</el-col>
+											<el-col :span="12">
+												<el-form-item label="ETA 资源组 Key">
+													<el-input v-model="typeForm.etaGroupKey" placeholder="如 exterior / interior 等" />
+												</el-form-item>
+											</el-col>
+											<el-col :span="12">
+												<el-form-item label="类型配色">
+													<el-input v-model="typeForm.displayColor" placeholder="#409EFF 或 rgba(...)" />
+												</el-form-item>
+											</el-col>
+										</el-row>
+									</el-form>
+								</el-card>
+
+								<el-card shadow="never" class="config-card">
+									<template #header>
+										<div class="cfg-card-head">
+											<span>可用服务商品</span>
+										</div>
+									</template>
+									<div class="product-toolbar">
+										<el-input v-model="productKeyword" placeholder="搜索商品" clearable class="product-search" />
+										<el-button size="small" @click="loadServiceProducts">搜索</el-button>
+										<el-button size="small" @click="selectAllServiceProducts">全选可选</el-button>
+										<el-button size="small" @click="clearProductSelection">清空</el-button>
+									</div>
+									<el-table ref="serviceTableRef" :data="serviceProducts" size="small" height="260" :row-key="productRowKey" class="config-table">
+										<el-table-column label="图片" width="72">
+											<template #default="{ row }">
+												<img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" class="pimg" />
+												<div v-else class="pimg empty">无</div>
+											</template>
+										</el-table-column>
+										<el-table-column prop="name" label="商品" min-width="260" />
+										<el-table-column label="价格/区间" width="140">
+											<template #default="{ row }">
+												<template v-if="String(row?.specType||'')==='MULTI'">{{ skuPriceHint(row) }}</template>
+												<template v-else>{{ row.price }}</template>
+											</template>
+										</el-table-column>
+										<el-table-column prop="enabled" label="状态" width="100">
+											<template #default="{ row }"><el-tag :type="row.enabled ? 'success':'info'">{{ row.enabled?'启用':'停用' }}</el-tag></template>
+										</el-table-column>
+										<el-table-column label="可用于该队列" width="160">
+											<template #default="{ row }">
+												<el-switch :model-value="isAllowed(row.id)" :disabled="savingRowId===row.id || !row.enabled" @change="(v:boolean)=>onToggleAllowed(row.id,v)" />
+											</template>
+										</el-table-column>
+									</el-table>
+									<div class="card-actions sticky">
+										<div class="card-actions__inner">
+											<el-button size="small" type="primary" @click="saveTypeProducts" :loading="savingProducts">保存可用商品</el-button>
+										</div>
+									</div>
+								</el-card>
 							</div>
 						</div>
-						<el-card header="步骤配置" shadow="never" style="margin-bottom:12px;">
-							<el-table :data="stepEdits" size="small">
-								<el-table-column type="index" width="60" />
-								<el-table-column label="步骤名" min-width="200">
-									<template #default="{ row }"><el-input v-model="row.name" maxlength="20" show-word-limit placeholder="步骤名称（≤20字）" /></template>
-								</el-table-column>
-								<el-table-column label="时长(分钟)" min-width="200">
-									<template #default="{ row }"><el-input-number v-model="row.durationMin" :min="0" :max="120" /></template>
-								</el-table-column>
-								<el-table-column label="计入ETA" width="120">
-									<template #default="{ row }"><el-switch v-model="row.isEta" /></template>
-								</el-table-column>
-								<el-table-column label="操作" width="220">
-									<template #default="{ $index }">
-										<el-button size="small" @click="moveStep($index, -1)" :disabled="$index===0"><el-icon><ArrowUp /></el-icon></el-button>
-										<el-button size="small" @click="moveStep($index, 1)" :disabled="$index===stepEdits.length-1"><el-icon><ArrowDown /></el-icon></el-button>
-										<el-button size="small" type="danger" @click="removeStep($index)"><el-icon><Delete /></el-icon></el-button>
-									</template>
-								</el-table-column>
-							</el-table>
-							<div class="card-actions sticky" style="display:flex; gap:8px;">
-								<el-button size="small" @click="addStep"><el-icon><CirclePlus /></el-icon>添加步骤</el-button>
-								<el-button size="small" type="primary" @click="saveSteps" :loading="savingSteps">保存步骤</el-button>
-							</div>
-						</el-card>
-						<el-card header="ETA 配置" shadow="never" style="margin-bottom:12px;">
-							<el-form :model="typeForm" label-width="120px" size="small">
-								<el-form-item label="参与预计等待">
-									<el-switch v-model="typeForm.participateInEta" :active-value="true" :inactive-value="false" />
-								</el-form-item>
-								<el-form-item label="ETA 并行工位数">
-									<el-input-number v-model="typeForm.etaParallelSlots" :min="1" :max="99" :step="1" placeholder="未配置表示不计算" />
-								</el-form-item>
-								<el-form-item label="ETA 资源组 Key">
-									<el-input v-model="typeForm.etaGroupKey" placeholder="如 exterior / interior 等" />
-								</el-form-item>
-								<el-form-item label="类型配色">
-									<el-input v-model="typeForm.displayColor" placeholder="#409EFF 或 rgba(...)" />
-								</el-form-item>
-								<div style="text-align:right;">
-									<el-button size="small" type="primary" @click="saveType" :loading="savingType">保存类型</el-button>
-								</div>
-							</el-form>
-						</el-card>
-						<el-card header="可用服务商品" shadow="never">
-							<div style="display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap: wrap;">
-								<el-input v-model="productKeyword" placeholder="搜索商品" clearable style="width:260px;" />
-								<el-button size="small" @click="loadServiceProducts">搜索</el-button>
-								<el-button size="small" @click="selectAllServiceProducts">全选可选</el-button>
-								<el-button size="small" @click="clearProductSelection">清空</el-button>
-							</div>
-							<el-table ref="serviceTableRef" :data="serviceProducts" size="small" height="260" :row-key="productRowKey">
-								<el-table-column label="图片" width="72">
-									<template #default="{ row }">
-										<img v-if="row?.imageUrl" :src="toAbs(row.imageUrl)" class="pimg" />
-										<div v-else class="pimg empty">无</div>
-									</template>
-								</el-table-column>
-								<el-table-column prop="name" label="商品" min-width="260" />
-								<el-table-column label="价格/区间" width="140">
-									<template #default="{ row }">
-										<template v-if="String(row?.specType||'')==='MULTI'">{{ skuPriceHint(row) }}</template>
-										<template v-else>{{ row.price }}</template>
-									</template>
-								</el-table-column>
-								<el-table-column prop="enabled" label="状态" width="100">
-									<template #default="{ row }"><el-tag :type="row.enabled ? 'success':'info'">{{ row.enabled?'启用':'停用' }}</el-tag></template>
-								</el-table-column>
-								<el-table-column label="可用于该队列" width="160">
-									<template #default="{ row }">
-										<el-switch :model-value="isAllowed(row.id)" :disabled="savingRowId===row.id || !row.enabled" @change="(v:boolean)=>onToggleAllowed(row.id,v)" />
-									</template>
-								</el-table-column>
-							</el-table>
-							<div class="card-actions sticky" style="display:flex; gap:8px;">
-								<el-button size="small" type="primary" @click="saveTypeProducts" :loading="savingProducts">保存可用商品</el-button>
-							</div>
-						</el-card>
-					</div>
-					<el-empty v-else description="选择左侧队列类型以进行配置" />
+						<el-empty v-else description="选择左侧队列类型以进行配置" />
+					</el-scrollbar>
 				</div>
 			</div>
 		</el-drawer>
@@ -681,12 +734,25 @@
 			</div>
 			<!-- Step 1: 队列类型 -->
 			<div v-show="wizardStep===1" class="wiz-type">
-				<el-radio-group v-model="wizardQueueTypeId">
-					<el-radio v-for="t in queueTypes" :key="t.id" :value="t.id">{{ t.name }}</el-radio>
-				</el-radio-group>
+				<div class="type-grid">
+					<button
+						v-for="t in wizardQueueTypeCandidates"
+						:key="t.id"
+						type="button"
+						class="type-card"
+						:class="{ active: Number(wizardQueueTypeId||0)===Number(t.id||0) }"
+						@click="wizardQueueTypeId = t.id"
+					>
+						<div class="type-card__head">
+							<span class="type-dot" :style="t.displayColor ? { backgroundColor: t.displayColor } : {}" />
+							<div class="type-name">{{ t.name }}</div>
+						</div>
+						<div class="type-card__sub muted">{{ wizardTypeHint(t) }}</div>
+					</button>
+				</div>
 				<div class="wiz-actions">
 					<el-button size="large" @click="wizardStep=0">上一步</el-button>
-					<el-button size="large" type="primary" @click="wizardStep=2">下一步</el-button>
+					<el-button size="large" type="primary" @click="nextWizardFromType">下一步</el-button>
 				</div>
 			</div>
 			<!-- Step 2: 服务项目 -->
@@ -758,12 +824,20 @@
 				</template>
 			</el-dialog>
 		</el-drawer>
+
+		<!-- 车辆信息卡片（点击车牌弹出） -->
+		<VehicleInfoDialog
+			v-model="vehicleInfoVisible"
+			:vehicle-id="vehicleInfoVehicleId"
+			:no-plate-number="NO_PLATE_NUMBER_CONST"
+			order-url-prefix="/pos/orders"
+		/>
 	</BasePage>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { BasePage } from '@wash/shared-ui';
+import { BasePage, VehicleInfoDialog } from '@wash/shared-ui';
 import { absUrl } from '../utils/http';
 import { resolveNoPlateNumber } from '../config';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -824,6 +898,16 @@ function plateLabel(row: any): string {
 		if (isNoPlate(plate)) return `无牌车（#${Number(row?.id||0)||0}）`;
 		return plate || '-';
 	}catch{ return '-'; }
+}
+
+// 车辆信息卡片（点击车牌弹出）
+const vehicleInfoVisible = ref(false);
+const vehicleInfoVehicleId = ref<number | null>(null);
+function openVehicleInfo(row: any) {
+	const id = Number(row?.vehicle?.id || 0) || 0;
+	if (!id) { ElMessage.error('未找到车辆信息'); return; }
+	vehicleInfoVehicleId.value = id;
+	vehicleInfoVisible.value = true;
 }
 
 const list = ref<QueueItem[]>([]);
@@ -1307,9 +1391,49 @@ const queueTypes = ref<QueueType[]>([]);
 const activeTypeId = ref<number|undefined>(undefined);
 const activeType = computed(()=> queueTypes.value.find(t=>t.id===activeTypeId.value));
 function openConfigDrawer(){ configDrawer.value=true; if (!queueTypes.value.length) loadQueueTypes(); else loadServiceProducts(); }
-function onSelectType(idStr: string){ activeTypeId.value = Number(idStr||0)||undefined; syncStepEdits(); syncTypeForm(); loadTypeProductsSelection(); }
+
+// 配置抽屉内“未保存修改”追踪：程序同步不应触发脏值
+const suppressDirty = ref(false);
+function runWithoutDirty(fn: () => void){
+	suppressDirty.value = true;
+	try{ fn(); } finally { Promise.resolve().then(()=>{ suppressDirty.value = false; }); }
+}
+
+function hexToRgba(hex: string, alpha: number): string | null {
+	try{
+		let h = String(hex || '').trim();
+		if (!h.startsWith('#')) return null;
+		h = h.slice(1);
+		if (h.length === 3) h = h.split('').map(ch=>ch+ch).join('');
+		if (h.length === 8) h = h.slice(0, 6);
+		if (h.length !== 6) return null;
+		const r = parseInt(h.slice(0,2), 16);
+		const g = parseInt(h.slice(2,4), 16);
+		const b = parseInt(h.slice(4,6), 16);
+		if (![r,g,b].every(n=>Number.isFinite(n))) return null;
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}catch{ return null; }
+}
+function cfgDotStyle(color: string | null | undefined, ringPx = 3){
+	const c = String(color || '').trim();
+	if (!c) return {};
+	const ring = hexToRgba(c, 0.14) || 'rgba(15, 23, 42, 0.08)';
+	return { backgroundColor: c, boxShadow: `0 0 0 ${ringPx}px ${ring}` } as any;
+}
+
+function onSelectType(idStr: string){
+	activeTypeId.value = Number(idStr||0)||undefined;
+	syncStepEdits();
+	syncTypeForm();
+	loadTypeProductsSelection();
+}
 const stepEdits = ref<Array<{ name:string; durationMin:number; isEta?: boolean }>>([]);
-function syncStepEdits(){ const t = activeType.value; stepEdits.value = (t?.steps||[]).sort((a,b)=>a.orderIndex-b.orderIndex).map(s=>({ name: s.name, durationMin: s.durationMin, isEta: !!s.isEta })); }
+function syncStepEdits(){
+	const t = activeType.value;
+	runWithoutDirty(()=>{
+		stepEdits.value = (t?.steps||[]).sort((a,b)=>a.orderIndex-b.orderIndex).map(s=>({ name: s.name, durationMin: s.durationMin, isEta: !!s.isEta }));
+	});
+}
 function addStep(){ stepEdits.value.push({ name:'', durationMin:0 }); }
 function moveStep(i:number, d:number){ const j=i+d; if(j<0||j>=stepEdits.value.length) return; const arr=stepEdits.value; const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; }
 function removeStep(i:number){ stepEdits.value.splice(i,1); }
@@ -1329,7 +1453,14 @@ async function saveSteps(){
 		savingSteps.value = false;
 	}
 }
-function syncTypeForm(){ const t = activeType.value; typeForm.value = t ? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' } : { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' }; }
+function syncTypeForm(){
+	const t = activeType.value;
+	runWithoutDirty(()=>{
+		typeForm.value = t
+			? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' }
+			: { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' };
+	});
+}
 async function saveType(){
 	if (!typeForm.value.name) { ElMessage.error('请输入名称'); return; }
 	const payload:any = { name: typeForm.value.name, enabled: !!typeForm.value.enabled, sortWeight: Number(typeForm.value.sortWeight||0), remark: typeForm.value.remark||null, participateInEta: typeForm.value.participateInEta, etaParallelSlots: typeForm.value.etaParallelSlots===null?null:Number(typeForm.value.etaParallelSlots||0)||null, etaGroupKey: (String(typeForm.value.etaGroupKey||'').trim()||null), displayColor: (String(typeForm.value.displayColor||'').trim()||null) };
@@ -1367,7 +1498,11 @@ const filteredQueueTypes = computed(()=>{
 });
 
 function openTypeEditor(t?: any){
-	typeForm.value = t ? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' } : { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' };
+	runWithoutDirty(()=>{
+		typeForm.value = t
+			? { id: t.id, name: t.name, enabled: !!t.enabled, sortWeight: Number(t.sortWeight||0), remark: t.remark||'', participateInEta: t.participateInEta ?? null, etaParallelSlots: t.etaParallelSlots ?? null, etaGroupKey: t.etaGroupKey ?? '', displayColor: t.displayColor ?? '' }
+			: { id: undefined, name: '', enabled: true, sortWeight: 100, remark: '', participateInEta: null, etaParallelSlots: null, etaGroupKey: '', displayColor: '' };
+	});
 	typeDialogVisible.value = true;
 }
 
@@ -1385,8 +1520,8 @@ async function loadQueueTypes(){
 }
 
 // 未保存变更跟踪
-watch(stepEdits, ()=>{ dirtySteps.value = true; }, { deep: true });
-watch(typeForm, ()=>{ dirtyType.value = true; }, { deep: true });
+watch(stepEdits, ()=>{ if (suppressDirty.value) return; dirtySteps.value = true; }, { deep: true });
+watch(typeForm, ()=>{ if (suppressDirty.value) return; dirtyType.value = true; }, { deep: true });
 function markClean(){ dirtySteps.value=false; dirtyType.value=false; dirtyProducts.value=false; }
 watch(queueTypes, ()=>{ markClean(); });
 function onSavedSteps(){ dirtySteps.value=false; }
@@ -1425,7 +1560,15 @@ async function loadServiceProducts(){
 		}
 	} catch {}
 }
-async function loadTypeProductsSelection(){ const t = activeType.value; if (!t) return; const ids = new Set<number>((t.products||[]).map((x:any)=>x.productId)); const currentIds = new Set<number>((serviceProducts.value||[]).map(p=>p.id)); selectedProductIds.value = Array.from(ids).filter(id=> showDisabled.value ? true : currentIds.has(id)); }
+async function loadTypeProductsSelection(){
+	const t = activeType.value;
+	if (!t) return;
+	const ids = new Set<number>((t.products||[]).map((x:any)=>x.productId));
+	const currentIds = new Set<number>((serviceProducts.value||[]).map(p=>p.id));
+	runWithoutDirty(()=>{
+		selectedProductIds.value = Array.from(ids).filter(id=> showDisabled.value ? true : currentIds.has(id));
+	});
+}
 async function saveTypeProducts(){
 	const t = activeType.value;
 	if (!t) return;
@@ -1440,6 +1583,9 @@ async function saveTypeProducts(){
 function selectAllServiceProducts(){ const set = new Set<number>((serviceProducts.value||[]).filter(sp=>spSelectable(sp as any)).map(sp=>sp.id)); selectedProductIds.value = Array.from(set); }
 function clearProductSelection(){ selectedProductIds.value = []; }
 
+// 商品选择需要手动保存：仅用户操作触发 dirtyProducts
+watch(selectedProductIds, ()=>{ if (suppressDirty.value) return; dirtyProducts.value = true; }, { deep: true });
+
 // 入队向导（完整：车辆 + 类型 + 商品 + 确认）
 const wizardDrawer = ref(false);
 const wizardStep = ref(0);
@@ -1451,10 +1597,42 @@ const wizardSelectedProductNames = computed(()=>{ const map = new Map<number, Pr
 const wizardProductKeyword = ref('');
 const wizardProductsLoading = ref(false);
 
+const wizardQueueTypeCandidates = computed(() => {
+	// 入队仅允许选择启用类型（避免选择“已禁用/仅用于配置”的类型）
+	return (queueTypes.value || []).filter((t: any) => !!t?.enabled);
+});
+
+const etaByTypeId = computed(() => {
+	const m = new Map<number, any>();
+	for (const it of (etaSummary.value || [])) {
+		const id = Number((it as any)?.typeId || 0);
+		if (id) m.set(id, it);
+	}
+	return m;
+});
+
+function wizardTypeHint(t: any): string {
+	const s = etaByTypeId.value.get(Number(t?.id || 0));
+	if (s?.excludedFromEta) return '不计入预计等待';
+	if (s && s.etaConfigured === false) return '预计时间未配置';
+	if (s && typeof s.etaForNewCar === 'number') return `新车≈${s.etaForNewCar}分钟`;
+	if (t?.participateInEta === false) return '不计入预计等待';
+	if (!t?.etaParallelSlots || !t?.etaGroupKey) return '预计时间未配置';
+	return '可入队';
+}
+
+function nextWizardFromType() {
+	const id = Number(wizardQueueTypeId.value || 0) || 0;
+	if (!id) { ElMessage.error('请选择队列类型'); return; }
+	const ok = wizardQueueTypeCandidates.value.some((t: any) => Number(t?.id || 0) === id);
+	if (!ok) { ElMessage.error('该队列类型不可用（可能已禁用），请重新选择'); return; }
+	wizardStep.value = 2;
+}
+
 function openWizard(){
 	wizardDrawer.value=true;
 	wizardStep.value=0;
-	wizardQueueTypeId.value = queueTypes.value[0]?.id;
+	wizardQueueTypeId.value = wizardQueueTypeCandidates.value[0]?.id;
 	resetVehicleForm();
 	wizardSelectedProductIds.value=[];
 	wizardSkuByProduct.value={};
@@ -1793,7 +1971,7 @@ async function submitCreateOrderAndEnqueue(){ try{ if (!wizardQueueTypeId.value)
         resetVehicleForm();
         wizardSelectedProductIds.value=[];
         wizardSkuByProduct.value={};
-        wizardQueueTypeId.value = queueTypes.value[0]?.id;
+        wizardQueueTypeId.value = wizardQueueTypeCandidates.value[0]?.id;
         wizardDrawer.value=false;
         wizardStep.value=0;
         await fetchList();
@@ -1886,7 +2064,17 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 
 <style scoped>
 .eta-tags{ display:flex; align-items:center; gap:10px; flex-wrap: wrap; padding: 6px 8px; background: #fafafa; border: 1px dashed #e5e7eb; border-radius: 8px; }
-.actions-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.actions-bar{
+	display:flex;
+	align-items:center;
+	gap:12px;
+	flex-wrap:wrap;
+	padding: 10px 12px;
+	border-radius: 14px;
+	border: 1px solid #eef2f7;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+	box-shadow: 0 1px 12px rgba(15, 23, 42, 0.04);
+}
 .search-input{ width:340px; }
 .pos-table{ border-radius: 12px; overflow: hidden; border: 1px solid var(--el-border-color); box-shadow: 0 2px 10px rgba(0,0,0,.04); }
  .pos-table :deep(.el-table__header){ font-size: 15px; }
@@ -1896,9 +2084,35 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
  .step-switch{ width:180px; margin:0 8px; }
 .quick-filter{ display:flex; align-items:center; }
 .vehicle{ display:flex; align-items:center; gap:12px; }
-.brand-img{ width:28px;height:28px;object-fit:contain;border-radius:4px; border:1px solid #eee; }
+.plate-line{ display:flex; align-items:center; flex-wrap: wrap; gap: 0; }
+.vehicle-brand-badge{
+	width: 28px;
+	height: 28px;
+	border-radius: 10px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-right: 8px;
+	background: radial-gradient(120% 120% at 30% 20%, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 60%, rgba(241,245,249,1) 100%);
+	border: 1px solid #eef2f7;
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+	flex: 0 0 auto;
+}
+.vehicle-brand-img{
+	width: 18px;
+	height: 18px;
+	object-fit: contain;
+	filter: saturate(1.02) contrast(1.02);
+}
 .v-text{ display:flex; flex-direction:column; }
 .member{ margin-left:8px; color:#606266; }
+.plate-btn{
+	font-weight: 900;
+	font-size: 18px;
+	padding: 0 6px;
+	min-height: 36px;
+}
+.plate-text{ font-size: 18px; font-weight: 900; color:#111827; }
 .muted{ color:#909399; }
 .subline{ display:flex; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap; }
 .steps-cell{ display:block; width:100%; overflow:visible; }
@@ -1912,6 +2126,34 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .scan-wrap{ display:flex;flex-direction:column;gap:8px;align-items:center; }
 .video{ width:100%;max-height:420px;background:#000; }
 .scan-tip{ color:#909399;font-size:12px; }
+
+/* 入队向导 Step1：队列类型（卡片式大触控） */
+.type-grid{
+	display:grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 10px;
+}
+.type-card{
+	width: 100%;
+	text-align:left;
+	border: 1px solid #e5e7eb;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+	border-radius: 14px;
+	padding: 12px 12px;
+	cursor: pointer;
+	box-shadow: 0 1px 10px rgba(15, 23, 42, 0.04);
+	transition: box-shadow .15s ease, transform .05s ease, border-color .15s ease;
+}
+.type-card:hover{ border-color: rgba(64,158,255,.55); box-shadow: 0 6px 20px rgba(64,158,255,.10); }
+.type-card:active{ transform: translateY(1px); }
+.type-card.active{
+	border-color: rgba(64,158,255,.95);
+	box-shadow: 0 10px 24px rgba(64,158,255,.16);
+}
+.type-card__head{ display:flex; align-items:center; gap:10px; }
+.type-dot{ width:10px; height:10px; border-radius:999px; background: #cbd5e1; box-shadow: 0 0 0 3px rgba(203,213,225,.25); flex: 0 0 auto; }
+.type-name{ font-weight: 900; color:#111827; letter-spacing: -0.2px; }
+.type-card__sub{ margin-top: 6px; font-size: 12px; }
 
 /* 结算卡片（支付弹窗）美术升级 */
 .pay-dialog :deep(.el-dialog__header){ padding: 14px 16px 6px; }
@@ -2042,15 +2284,69 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 }
 
 /* 配置抽屉：横屏触控优化（参照后台并适配 12.7\"） */
-.config-flex{ display:flex; gap:12px; height: calc(100vh - 160px); }
-.config-left{ flex: 0 0 300px; border-right:1px solid #ebeef5; padding-right:12px; overflow:auto; }
+.config-layout{ display:flex; gap:14px; height: calc(100vh - 160px); }
+.config-drawer :deep(.el-drawer__body){ padding-top: 10px; }
+.config-left{
+	flex: 0 0 260px;
+	border-right: 1px solid #eef2f7;
+	padding-right: 14px;
+	min-width: 240px;
+}
 .config-left-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .type-search{ width:100%; margin: 6px 0 8px; }
-.config-left :deep(.el-menu-item){ height:48px; line-height:48px; font-size:15px; }
-.config-right{ flex:1; overflow:auto; padding-left:12px; }
-.config-right-head{ position: sticky; top: 0; background:#fff; z-index: 1; padding:6px 0; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.config-left-scroll{ height: calc(100% - 84px); }
+.type-menu{ border-right: none; }
+.config-left :deep(.el-menu-item){
+	height: 50px;
+	line-height: 50px;
+	font-size: 15px;
+	border-radius: 10px;
+	margin: 4px 0;
+}
+.config-left :deep(.el-menu-item.is-active){
+	background: rgba(64,158,255,.08);
+}
+.cfg-type-row{ display:flex; align-items:center; gap:10px; width:100%; min-width:0; }
+.cfg-type-name{ flex: 1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cfg-type-disabled{ margin-left:8px; }
+.cfg-type-dot{ width:10px; height:10px; border-radius:999px; background: #cbd5e1; flex: 0 0 auto; }
+.cfg-type-dot--big{ width:12px; height:12px; }
+
+.config-right{ flex:1; padding-left:14px; min-width: 0; }
+.config-right-scroll{ height: 100%; padding-right: 2px; }
+.config-right-inner{ padding-bottom: 10px; }
+.config-right-head{
+	position: sticky;
+	top: 0;
+	background: rgba(255,255,255,.96);
+	backdrop-filter: blur(6px);
+	z-index: 2;
+	padding: 10px 0 10px;
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	margin-bottom: 10px;
+	border-bottom: 1px solid #eef2f7;
+}
 .config-right-title{ display:flex; align-items:center; gap:8px; }
-.config-right :deep(.el-card__header){ padding: 10px 12px; font-weight: 600; }
+.config-right-head-actions{ display:flex; align-items:center; gap:8px; }
+.config-sections{ display:flex; flex-direction:column; gap:12px; }
+.config-card{
+	border-radius: 14px;
+	border: 1px solid #eef2f7;
+	box-shadow: 0 1px 12px rgba(15, 23, 42, 0.04);
+	overflow: hidden;
+}
+.config-right :deep(.el-card__header){
+	padding: 12px 14px;
+	font-weight: 900;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+	border-bottom: 1px solid #eef2f7;
+}
+.cfg-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.cfg-card-head-actions{ display:flex; align-items:center; gap:8px; }
+
+.config-table :deep(.el-table__inner-wrapper::before){ background: transparent; }
 .config-right :deep(.el-table .el-table__cell){ padding: 10px 8px; }
 .config-right :deep(.el-input__wrapper){ padding: 10px 12px; }
 .config-right :deep(.el-input-number .el-input__wrapper){ padding: 8px 10px; }
@@ -2066,7 +2362,31 @@ async function confirmPickStep(i: number){ try{ const row = stepPickerRow.value;
 .config-right :deep(.el-select .el-input__wrapper){ padding: 10px 12px; }
 .config-right :deep(.el-radio-button__inner){ padding: 8px 12px; }
 .config-right :deep(.el-form-item){ margin-bottom: 12px; }
-.card-actions.sticky{ position: sticky; bottom: 0; background: #fff; padding: 8px 0; }
+.card-actions.sticky{
+	position: sticky;
+	bottom: 0;
+	background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.92) 22%, #fff 100%);
+	padding: 10px 0 8px;
+	margin-top: 6px;
+}
+.card-actions__inner{
+	display:flex;
+	gap: 8px;
+	justify-content:flex-end;
+	padding: 0 2px;
+}
+
+.product-toolbar{
+	display:flex;
+	gap: 8px;
+	align-items:center;
+	flex-wrap:wrap;
+	margin-bottom: 10px;
+}
+.product-search{ width: 260px; }
+.eta-form :deep(.el-input){ width: 100%; }
+.eta-form :deep(.el-input-number){ width: 100%; }
+.eta-form :deep(.el-form-item__content){ min-width: 0; }
 
 /* 入队向导：触控友好布局与粘底操作区 */
 .wiz-vehicle{ padding-bottom: 56px; }
