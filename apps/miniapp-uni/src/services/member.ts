@@ -1,4 +1,5 @@
 import { memberControllerGet, memberControllerList, orderControllerList, washCardControllerAdminMemberStats } from '@wash/api-client';
+import { createHttpClient } from '@wash/shared-utils';
 
 declare const uni: any;
 
@@ -36,12 +37,14 @@ export async function listMembers(options: {
   page: number;
   pageSize: number;
   keyword?: string;
+  hasRemainingWashCard?: boolean;
   sortBy?: MemberSortBy | '' | null;
   sortOrder?: SortOrder | '' | null;
 }): Promise<PagedResult<MemberLite>> {
   const page = Math.max(1, Number(options?.page || 1) || 1);
   const pageSize = Math.max(1, Math.min(100, Number(options?.pageSize || 20) || 20));
   const keyword = String(options?.keyword || '').trim();
+  const hasRemainingWashCard = !!options?.hasRemainingWashCard;
   const sortBy = String(options?.sortBy || '').trim();
   const sortOrder = sortBy ? (String(options?.sortOrder || '').toLowerCase() === 'asc' ? 'asc' : 'desc') : '';
   try {
@@ -51,6 +54,7 @@ export async function listMembers(options: {
         page: String(page),
         pageSize: String(pageSize),
         keyword,
+        ...(hasRemainingWashCard ? { hasRemainingWashCard: '1' } : {}),
         ...(sortBy ? { sortBy } : {}),
         ...(sortOrder ? { sortOrder } : {}),
       } as any,
@@ -95,6 +99,36 @@ export type MemberWashCardStats = {
   deductTimes: number;
   remainingTimes: number;
 };
+
+export async function getMemberWashCardStatsBatch(memberIds: number[]): Promise<Record<string, MemberWashCardStats | null>> {
+  const ids = Array.from(new Set((Array.isArray(memberIds) ? memberIds : []).map((x) => Number(x || 0)).filter((n) => Number.isFinite(n) && n > 0)));
+  if (!ids.length) return {};
+  try {
+    const res: any = await createHttpClient(`/wash-card/member-stats/batch`, {
+      method: 'POST',
+      body: { memberIds: ids },
+    } as any);
+    const items: any[] = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+    const out: Record<string, MemberWashCardStats | null> = {};
+    for (const it of items) {
+      const id = Number(it?.memberId || 0);
+      if (!id) continue;
+      out[String(id)] = {
+        memberId: id,
+        deductTimes: Number(it?.deductTimes || 0) || 0,
+        remainingTimes: Number(it?.remainingTimes || 0) || 0,
+      };
+    }
+    // 对于未返回的 id，显式置为 0，避免前端反复请求
+    for (const id of ids) {
+      const k = String(id);
+      if (out[k] === undefined) out[k] = { memberId: id, deductTimes: 0, remainingTimes: 0 };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 export async function getMemberWashCardStats(memberId: number): Promise<MemberWashCardStats | null> {
   const id = Number(memberId || 0);

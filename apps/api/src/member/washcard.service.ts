@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { PrismaService } from '../prisma.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { NotificationService } from '../notification/notification.service.js';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class WashCardService {
@@ -357,6 +358,67 @@ export class WashCardService {
         const deductTimes = Math.max(0, Math.abs(sumChange));
 
         return { memberId: mid, deductTimes, remainingTimes } as any;
+    }
+
+    // 管理端：批量按会员聚合统计（用于列表页）
+    async getMembersStats(memberIds: number[]) {
+        const ids = Array.from(
+            new Set((Array.isArray(memberIds) ? memberIds : []).map((x) => Number(x || 0)).filter((n) => Number.isFinite(n) && n > 0)),
+        );
+        if (!ids.length) throw new BadRequestException('memberIds 不能为空');
+        if (ids.length > 200) throw new BadRequestException('memberIds 最多支持 200 个');
+
+        // 1) 余次：ACTIVE 且 remainingTimes>0 的卡余次求和（持有人 + 被共享可见卡）
+        type RemainRow = { memberId: number; remainingTimes: any };
+        const remainRows = await this.prisma.$queryRaw<RemainRow[]>(
+            Prisma.sql`
+                SELECT t.memberId AS memberId, SUM(t.remainingTimes) AS remainingTimes
+                FROM (
+                    SELECT wc.ownerMemberId AS memberId, wc.remainingTimes AS remainingTimes
+                    FROM \`WashCard\` wc
+                    WHERE wc.status = 'ACTIVE' AND wc.remainingTimes > 0 AND wc.ownerMemberId IN (${Prisma.join(ids)})
+                    UNION ALL
+                    SELECT wcs.memberId AS memberId, wc2.remainingTimes AS remainingTimes
+                    FROM \`WashCardShare\` wcs
+                    INNER JOIN \`WashCard\` wc2 ON wc2.id = wcs.cardId
+                    WHERE wc2.status = 'ACTIVE' AND wc2.remainingTimes > 0 AND wcs.memberId IN (${Prisma.join(ids)})
+                ) t
+                GROUP BY t.memberId
+            `,
+        );
+        const remainById = new Map<number, number>();
+        for (const r of Array.isArray(remainRows) ? remainRows : []) {
+            const id = Number((r as any)?.memberId || 0);
+            if (!id) continue;
+            remainById.set(id, Math.max(0, Number((r as any)?.remainingTimes || 0) || 0));
+        }
+
+        // 2) 累计划扣次数：服务划扣日志（action=DEDUCT, reason=SERVICE_DEDUCT）按 change 求和（change 为负数）
+        type DeductRow = { memberId: number; deductTimes: any };
+        const deductRows = await this.prisma.$queryRaw<DeductRow[]>(
+            Prisma.sql`
+                SELECT l.memberId AS memberId, ABS(SUM(l.\`change\`)) AS deductTimes
+                FROM \`WashCardLog\` l
+                WHERE l.memberId IS NOT NULL
+                  AND l.action = 'DEDUCT'
+                  AND l.reason = 'SERVICE_DEDUCT'
+                  AND l.memberId IN (${Prisma.join(ids)})
+                GROUP BY l.memberId
+            `,
+        );
+        const deductById = new Map<number, number>();
+        for (const r of Array.isArray(deductRows) ? deductRows : []) {
+            const id = Number((r as any)?.memberId || 0);
+            if (!id) continue;
+            deductById.set(id, Math.max(0, Number((r as any)?.deductTimes || 0) || 0));
+        }
+
+        const items = ids.map((id) => ({
+            memberId: id,
+            deductTimes: deductById.get(id) ?? 0,
+            remainingTimes: remainById.get(id) ?? 0,
+        }));
+        return { items } as any;
     }
 
     // 删除计次卡：同时删除共享与相关日志

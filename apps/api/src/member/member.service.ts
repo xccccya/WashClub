@@ -30,6 +30,7 @@ export class MemberService {
 		page?: number;
 		pageSize?: number;
 		keyword?: string;
+		hasRemainingWashCard?: boolean;
 		levelId?: number;
 		categoryId?: number;
 		tagId?: number;
@@ -52,6 +53,7 @@ export class MemberService {
 		const activeFrom = this.parseDateParam(query?.activeFrom);
 		const activeTo = this.parseDateParam(query?.activeTo);
 		const excludePlaceholders = !!query?.excludePlaceholders;
+		const hasRemainingWashCard = !!query?.hasRemainingWashCard;
 
 		const where: any = {};
 		if (keywordRaw) {
@@ -81,6 +83,18 @@ export class MemberService {
 			// 排除系统占位账号（游客/集团订单占位）：通过系统标签名过滤
 			where.tags = where.tags || {};
 			where.tags.none = { name: { in: ['GUEST_ORDER_OWNER', 'GROUP_ORDER_OWNER'] } };
+		}
+		if (hasRemainingWashCard) {
+			// 仅保留“有可用洗车卡余次”的会员：
+			// - 持有人：存在 ACTIVE 且 remainingTimes > 0 的卡
+			// - 被共享者：存在共享到自己的 ACTIVE 且 remainingTimes > 0 的卡
+			where.AND = where.AND || [];
+			where.AND.push({
+				OR: [
+					{ washCardsOwned: { some: { status: 'ACTIVE', remainingTimes: { gt: 0 } } } },
+					{ washCardShares: { some: { card: { status: 'ACTIVE', remainingTimes: { gt: 0 } } } } },
+				],
+			});
 		}
 		const whereFinal = Object.keys(where).length ? where : undefined;
 
@@ -159,6 +173,23 @@ export class MemberService {
 						FROM \`_MemberToMemberTag\` mt
 						INNER JOIN \`MemberTag\` t ON t.id = mt.B
 						WHERE mt.A = m.id AND t.name IN ('GUEST_ORDER_OWNER', 'GROUP_ORDER_OWNER')
+					)`,
+				);
+			}
+			if (hasRemainingWashCard) {
+				// 与 Prisma where 中 hasRemainingWashCard 的口径保持一致
+				whereSqlParts.push(
+					Prisma.sql`AND (
+						EXISTS (
+							SELECT 1 FROM \`WashCard\` wc
+							WHERE wc.ownerMemberId = m.id AND wc.status = 'ACTIVE' AND wc.remainingTimes > 0
+						)
+						OR EXISTS (
+							SELECT 1
+							FROM \`WashCardShare\` wcs
+							INNER JOIN \`WashCard\` wc2 ON wc2.id = wcs.cardId
+							WHERE wcs.memberId = m.id AND wc2.status = 'ACTIVE' AND wc2.remainingTimes > 0
+						)
 					)`,
 				);
 			}

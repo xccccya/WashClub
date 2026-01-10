@@ -24,6 +24,16 @@ export class WashCardController {
         return this.service.getMemberStats(mid);
     }
 
+    @Post('member-stats/batch')
+    @ApiOperation({ summary: '批量按会员聚合洗车卡统计（管理员/员工，用于列表页批量展示）' })
+    @UseGuards(AdminOrEmployeeGuard)
+    @AllowEmployee()
+    @RequirePerm('member-washcards')
+    adminMemberStatsBatch(@Body() body: { memberIds: number[] }){
+        const ids = Array.isArray(body?.memberIds) ? body.memberIds : [];
+        return this.service.getMembersStats(ids);
+    }
+
     @Get('list')
     @ApiOperation({ summary: '洗车卡列表（管理员，分页/关键词/按会员）' })
     @UseGuards(AdminGuard)

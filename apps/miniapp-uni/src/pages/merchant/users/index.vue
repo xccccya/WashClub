@@ -33,7 +33,7 @@
 				<text class="filter-label">筛选</text>
 				<view class="seg" :data-active="washCardFilter==='all'" @tap="setWashCardFilter('all')">全部</view>
 				<view class="seg" :data-active="washCardFilter==='hasRemaining'" @tap="setWashCardFilter('hasRemaining')">未用完洗车卡</view>
-				<text v-if="washCardFilter==='hasRemaining' && statsWarming" class="filter-tip">筛选中…</text>
+				<text v-if="washCardFilter==='hasRemaining' && filterLoading" class="filter-tip">筛选中…</text>
 			</view>
 
 			<view class="sort-row">
@@ -146,7 +146,7 @@ import { useSafeArea } from '../../../utils/safe-area';
 import { getToken } from '../../../utils/auth';
 import { resolveImageUrl } from '../../../utils/url';
 import { systemMiniappEmployeeControllerMyEmployeeProfile, systemSettingControllerGetPublicSetting } from '@wash/api-client';
-import { getMemberWashCardStats, listMembers, type MemberLite, type MemberWashCardStats, type MemberSortBy, type SortOrder } from '../../../services/member';
+import { getMemberWashCardStatsBatch, listMembers, type MemberLite, type MemberWashCardStats, type MemberSortBy, type SortOrder } from '../../../services/member';
 
 declare const uni: any;
 
@@ -170,7 +170,7 @@ const page = ref(1);
 const pageSize = ref(20);
 const loading = ref(false);
 const noMore = ref(false);
-const statsWarming = ref(false);
+const washStatsBatchLoading = ref(false);
 
 // 排序（与筛选分离）
 const sortBy = ref<MemberSortBy | ''>('');
@@ -216,7 +216,6 @@ async function applySortPending() {
 	sortOrder.value = pendingSortOrder.value || 'desc';
 	closeSortSheet();
 	await fetchList(true);
-	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 }
 
 function num(v: any): string {
@@ -261,7 +260,7 @@ function sortHintValue(m: MemberLite): string {
 
 // 洗车卡统计（用于“未用完洗车卡”筛选）
 const washStats = ref<Record<string, MemberWashCardStats | null>>({});
-const washStatsLoading = ref<Record<string, boolean>>({});
+const filterLoading = computed(() => washCardFilter.value === 'hasRemaining' && (loading.value || washStatsBatchLoading.value));
 
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
 async function ensureSiteSetting() {
@@ -281,11 +280,9 @@ function avatarOf(url?: string | null) {
 async function setWashCardFilter(v: 'all' | 'hasRemaining') {
 	if (washCardFilter.value === v) return;
 	washCardFilter.value = v;
-	if (v === 'hasRemaining') {
-		// 启用筛选后，从第一页开始更稳定（避免“加载了很多但筛选结果很少”的体验）
-		await fetchList(true);
-		await applyWashCardFilterWarmup();
-	}
+	// 切换筛选：从第一页重新拉取（后端返回真实 total）
+	if (v === 'all') washStats.value = {};
+	await fetchList(true);
 }
 
 function memberIdOf(m: MemberLite): number | null {
@@ -301,84 +298,30 @@ function remainingTimesOf(m: MemberLite): number | null {
 }
 
 const displayMembers = computed(() => {
-	const arr = members.value || [];
-	if (washCardFilter.value === 'hasRemaining') {
-		return arr.filter((m) => {
-			const id = memberIdOf(m);
-			if (!id) return false;
-			const st = washStats.value[String(id)];
-			// 统计未就绪时先不展示，避免筛选结果“闪动”
-			if (!st) return false;
-			return Number(st.remainingTimes || 0) > 0;
-		});
-	}
-	return arr;
+	// 筛选交由后端完成，这里仅作为“当前展示列表”的别名
+	return members.value || [];
 });
 
-// 顶部“共 xxx 条”展示：筛选属于前端本地过滤，需要跟随展示列表变化
+// 顶部“共 xxx 条”展示：筛选交由后端完成，total 为真实总数
 const totalText = computed(() => {
-	if (washCardFilter.value === 'hasRemaining') {
-		// 这是“当前已加载范围内”的筛选结果数量；若后续加载更多会自动更新
-		const n = displayMembers.value.length;
-		return n > 0 ? `共 ${n} 条` : '';
-	}
 	return total.value > 0 ? `共 ${total.value} 条` : '';
 });
-
-async function runPool<T>(items: T[], limit: number, worker: (it: T) => Promise<void>) {
-	const queue = items.slice();
-	const n = Math.max(1, Math.min(8, Number(limit || 4) || 4));
-	const runners = Array.from({ length: n }).map(async () => {
-		while (queue.length) {
-			const it = queue.shift();
-			if (it === undefined) return;
-			try {
-				await worker(it);
-			} catch {}
-		}
-	});
-	await Promise.all(runners);
-}
 
 async function ensureWashStatsForMembers(list: MemberLite[]) {
 	const ids = (list || [])
 		.map(memberIdOf)
 		.filter((v): v is number => typeof v === 'number' && v > 0);
 	const uniq = Array.from(new Set(ids));
-	const need = uniq.filter((id) => washStats.value[String(id)] === undefined && !washStatsLoading.value[String(id)]);
+	const need = uniq.filter((id) => washStats.value[String(id)] === undefined);
 	if (!need.length) return;
-	await runPool(
-		need,
-		4,
-		async (id) => {
-			washStatsLoading.value[String(id)] = true;
-			try {
-				const st = await getMemberWashCardStats(id);
-				washStats.value[String(id)] = st;
-			} finally {
-				washStatsLoading.value[String(id)] = false;
-			}
-		},
-	);
-}
-
-async function applyWashCardFilterWarmup() {
-	if (statsWarming.value) return;
-	statsWarming.value = true;
+	washStatsBatchLoading.value = true;
 	try {
-		// 先补齐当前已加载成员的统计
-		await ensureWashStatsForMembers(members.value);
-		// 若筛选后数量太少，自动再翻几页“填充”结果（有上限，避免无限请求）
-		let rounds = 0;
-		const maxRounds = 5;
-		while (!noMore.value && displayMembers.value.length < Math.min(12, pageSize.value) && rounds < maxRounds) {
-			rounds += 1;
-			page.value += 1;
-			await fetchList(false);
-			await ensureWashStatsForMembers(members.value);
+		const map = await getMemberWashCardStatsBatch(need);
+		for (const id of need) {
+			washStats.value[String(id)] = map[String(id)] ?? null;
 		}
 	} finally {
-		statsWarming.value = false;
+		washStatsBatchLoading.value = false;
 	}
 }
 
@@ -423,6 +366,7 @@ async function fetchList(reset = false) {
 			page: page.value,
 			pageSize: pageSize.value,
 			keyword: keyword.value,
+			hasRemainingWashCard: washCardFilter.value === 'hasRemaining',
 			sortBy: sortBy.value,
 			sortOrder: sortOrder.value,
 		});
@@ -432,7 +376,7 @@ async function fetchList(reset = false) {
 		else members.value = members.value.concat(rows);
 		if (!rows.length) noMore.value = true;
 		else if (total.value > 0 && members.value.length >= total.value) noMore.value = true;
-		// 轻量预热：仅当开启“未用完洗车卡”筛选时补齐统计
+		// 列表页展示“余次”徽标：仅当开启筛选时批量补齐统计（每页 1 次请求）
 		if (washCardFilter.value === 'hasRemaining') {
 			await ensureWashStatsForMembers(rows);
 		}
@@ -443,12 +387,10 @@ async function fetchList(reset = false) {
 
 async function onSearch() {
 	await fetchList(true);
-	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 }
 async function clearKeyword() {
 	keyword.value = '';
 	await fetchList(true);
-	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 }
 
 function call(phone?: string) {
@@ -489,7 +431,6 @@ onShow(async () => {
 	const ok = await ensureEmployeeAccess();
 	if (!ok) return;
 	await fetchList(true);
-	if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 });
 
 onPullDownRefresh(async () => {
@@ -497,7 +438,6 @@ onPullDownRefresh(async () => {
 		const ok = await ensureEmployeeAccess();
 		if (!ok) return;
 		await fetchList(true);
-		if (washCardFilter.value === 'hasRemaining') await applyWashCardFilterWarmup();
 	} finally {
 		try {
 			uni.stopPullDownRefresh();
