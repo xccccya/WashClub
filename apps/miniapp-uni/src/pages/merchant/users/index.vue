@@ -469,14 +469,14 @@ onLoad(() => {
 onShow(async () => {
 	const ok = await ensureEmployeeAccess();
 	if (!ok) return;
-	await fetchList(true);
+	await requestFetch(true);
 });
 
 onPullDownRefresh(async () => {
 	try {
 		const ok = await ensureEmployeeAccess();
 		if (!ok) return;
-		await fetchList(true);
+		await requestFetch(true);
 	} finally {
 		try {
 			uni.stopPullDownRefresh();
