@@ -55,10 +55,21 @@
 							<el-tag size="small" style="margin-right: 4px;">{{ t }}</el-tag>
 						</el-option>
 					</el-select>
+
+					<el-button v-if="hasFilters" class="reset-btn" @click="resetFilters">
+						<el-icon><RefreshLeft /></el-icon>
+						重置
+					</el-button>
 				</div>
 
 				<!-- 视图控制区域 -->
 				<div class="file-actions-view">
+					<el-tooltip content="刷新列表" placement="bottom">
+						<el-button @click="fetchList" circle>
+							<el-icon><Refresh /></el-icon>
+						</el-button>
+					</el-tooltip>
+
 					<el-button-group>
 						<el-button :type="viewMode==='grid' ? 'primary' : ''" @click="setViewMode('grid')">
 							<el-icon><Grid /></el-icon>
@@ -83,8 +94,32 @@
 					</el-select>
 				</div>
 			</div>
+
+			<!-- 当前筛选条件（可视化，便于快速清理） -->
+			<div v-if="hasFilters" class="active-filters">
+				<div class="active-filters__label">当前筛选：</div>
+				<div class="active-filters__tags">
+					<el-tag v-if="keyword" closable @close="keyword=''; fetchList()" type="info">
+						关键词：{{ keyword }}
+					</el-tag>
+					<el-tag v-if="mimeFilter" closable @close="mimeFilter=''; onFilterChanged()" type="info">
+						类型：{{ mimeFilterLabel }}
+					</el-tag>
+					<el-tag
+						v-for="t in tagFilters"
+						:key="t"
+						closable
+						@close="removeTagFilter(t)"
+						type="info"
+					>
+						标签：{{ t }}
+					</el-tag>
+				</div>
+			</div>
 		</template>
 
+		<!-- BasePage 内容区默认 overflow:hidden，这里提供可滚动容器 -->
+		<div class="files-scroll">
 		<!-- 选择控制栏 -->
 		<div class="file-selection-bar" v-if="files.length > 0">
 			<div class="selection-info">
@@ -135,6 +170,8 @@
 			</div>
 		</div>
 
+		<!-- 内容区域（统一 loading overlay / 空态） -->
+		<div class="files-content" v-loading="loading">
 		<!-- 网格视图 -->
 		<div v-if="viewMode==='grid'" class="files-grid" :style="{ '--thumb': thumbSize + 'px' }">
 			<div 
@@ -196,7 +233,7 @@
 				</div>
 				
 				<!-- 操作按钮 -->
-				<div class="file-actions">
+				<div class="file-actions" @click.stop>
 					<el-dropdown @command="(cmd:string)=>onCmd(cmd, it)" trigger="click" placement="bottom-end">
 						<el-button size="small" text class="action-btn">
 							<el-icon><MoreFilled /></el-icon>
@@ -234,29 +271,67 @@
 				</div>
 			</div>
 		</div>
-		<el-table v-else :data="files" stripe style="width:100%" @selection-change="onSel" @row-dblclick="(row:any)=>openDetail(row)">
+		<el-table
+			v-else
+			:data="files"
+			stripe
+			style="width:100%"
+			class="files-table"
+			@selection-change="onSel"
+			@row-dblclick="(row:any)=>openDetail(row)"
+		>
 			<el-table-column type="selection" width="48" />
-			<el-table-column label="预览" width="140">
-				<template #default="{ row }"><img v-if="row.mimeType && row.mimeType.startsWith('image/')" :src="thumb(row)" style="width:80px;height:60px;object-fit:cover;border:1px solid var(--el-border-color-lighter);border-radius:6px;" /></template>
+			<el-table-column label="预览" width="120">
+				<template #default="{ row }">
+					<div class="table-preview">
+						<img v-if="row.mimeType && row.mimeType.startsWith('image/')" :src="thumb(row)" :alt="row.filename" />
+						<el-icon v-else size="22" class="table-file-icon">
+							<VideoPlay v-if="row.mimeType?.startsWith('video/')" />
+							<Headset v-else-if="row.mimeType?.startsWith('audio/')" />
+							<Document v-else-if="row.mimeType?.includes('pdf')" />
+							<Folder v-else />
+						</el-icon>
+					</div>
+				</template>
 			</el-table-column>
-			<el-table-column prop="filename" label="文件名" />
+			<el-table-column prop="filename" label="文件名" min-width="260">
+				<template #default="{ row }">
+					<div class="table-filename">
+						<div class="table-filename__main" :title="row.filename">{{ row.filename }}</div>
+						<div class="table-filename__tags" v-if="(row as any).tagsJson?.length > 0">
+							<el-tag v-for="t in (row as any).tagsJson.slice(0, 2)" :key="t" size="small" type="info">{{ t }}</el-tag>
+							<span v-if="(row as any).tagsJson.length > 2" class="table-filename__more">+{{ (row as any).tagsJson.length - 2 }}</span>
+						</div>
+					</div>
+				</template>
+			</el-table-column>
 			<el-table-column prop="mimeType" label="类型" width="180" />
-			<el-table-column prop="size" label="大小(B)" width="120" />
+			<el-table-column prop="size" label="大小" width="120">
+				<template #default="{ row }">{{ fmtSize(row.size) }}</template>
+			</el-table-column>
 			<el-table-column prop="createdAt" label="时间" width="180">
 				<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
 			</el-table-column>
-			<el-table-column label="预览" width="120">
+			<el-table-column label="操作" width="220">
 				<template #default="{ row }">
-					<a :href="absUrl(row.url)" target="_blank">打开</a>
-				</template>
-			</el-table-column>
-			<el-table-column label="操作" width="160">
-				<template #default="{ row }">
-					<el-dropdown @command="(cmd:string)=>onCmd(cmd, row)">
-						<el-button size="small">操作</el-button>
+					<el-button text size="small" @click.stop="copy(absUrl(row.url))">
+						<el-icon><Link /></el-icon>
+						复制
+					</el-button>
+					<el-button text size="small" @click.stop="openDetail(row)">
+						<el-icon><View /></el-icon>
+						详情
+					</el-button>
+					<el-link class="table-open-link" :href="absUrl(row.url)" target="_blank" :underline="false" @click.stop>
+						打开
+					</el-link>
+					<el-dropdown @command="(cmd:string)=>onCmd(cmd, row)" trigger="click">
+						<el-button size="small">
+							更多
+							<el-icon class="el-icon--right"><MoreFilled /></el-icon>
+						</el-button>
 						<template #dropdown>
 							<el-dropdown-menu>
-								<el-dropdown-item command="copy-url">复制直链</el-dropdown-item>
 								<el-dropdown-item command="copy-md">复制Markdown</el-dropdown-item>
 								<el-dropdown-item command="copy-html">复制HTML</el-dropdown-item>
 								<el-dropdown-item divided command="delete" style="color: var(--el-color-danger);">删除</el-dropdown-item>
@@ -286,11 +361,19 @@
 
 		<!-- 空状态 -->
 		<el-empty v-else-if="!loading" description="暂无文件" :image-size="120">
-			<el-button type="primary">
-				<el-icon><UploadFilled /></el-icon>
-				上传第一个文件
+			<el-upload :http-request="upload" :show-file-list="false">
+				<el-button type="primary">
+					<el-icon><UploadFilled /></el-icon>
+					上传第一个文件
+				</el-button>
+			</el-upload>
+			<el-button v-if="hasFilters" style="margin-left: 8px;" @click="resetFilters">
+				<el-icon><RefreshLeft /></el-icon>
+				清空筛选
 			</el-button>
 		</el-empty>
+		</div>
+		</div>
 
 		<el-drawer v-model="detailVisible" :title="current?.filename || '文件详情'" size="480px" class="file-detail-drawer">
 			<div v-if="current" class="file-detail-content">
@@ -493,7 +576,7 @@ import {
 	UploadFilled, Grid, Refresh, Delete, Search, Picture, VideoPlay, 
 	Headset, Document, List, Select, Close, PriceTag, MoreFilled, 
 	Link, EditPen, View, Check, Folder, DocumentCopy, Connection,
-	FolderOpened
+	FolderOpened, RefreshLeft
 } from '@element-plus/icons-vue';
 
 type FileItem = { 
@@ -511,7 +594,6 @@ const files = ref<FileItem[]>([]);
 const selected = ref<Set<string>>(new Set());
 const keyword = ref('');
 const mimeFilter = ref('');
-const tagFilter = ref('');
 const tagFilters = ref<string[]>([]);
 const allTags = ref<string[]>([]);
 const viewMode = ref<'grid'|'table'>('grid');
@@ -533,6 +615,16 @@ const savingTags = ref(false);
 const batchTagVisible = ref(false);
 const refs = ref<any[]>([]);
 
+const hasFilters = computed(() => !!keyword.value || !!mimeFilter.value || tagFilters.value.length > 0);
+const mimeFilterLabel = computed(() => {
+	if (!mimeFilter.value) return '';
+	if (mimeFilter.value === 'image/') return '图片';
+	if (mimeFilter.value === 'video/') return '视频';
+	if (mimeFilter.value === 'audio/') return '音频';
+	if (mimeFilter.value === 'pdf') return 'PDF';
+	return mimeFilter.value;
+});
+
 function formatTime(dateInput: string | number){ 
 	const d = new Date(dateInput); 
 	if (isNaN(d.getTime())) return '无效日期';
@@ -548,7 +640,6 @@ async function fetchList(){
 			pageSize: pageSize.value,
 			q: keyword.value || undefined,
 			mimeType: mimeFilter.value || undefined,
-			tag: tagFilter.value || undefined,
 			tags: tagFilters.value.length ? tagFilters.value : undefined,
 		} as any) as unknown) as any;
 		files.value = Array.isArray(res?.items)? res.items : []; 
@@ -562,7 +653,17 @@ async function fetchList(){
 		loading.value = false;
 	}
 }
-function buildTags(list: any[]){ const set = new Set<string>(); for(const it of list){ const tags = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson : []; for(const t of tags){ if (t && typeof t === 'string') set.add(t); } } allTags.value = Array.from(new Set([...allTags.value, ...Array.from(set)])).sort(); }
+
+function buildTags(list: any[]) {
+	const set = new Set<string>();
+	for (const it of list) {
+		const tags = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson : [];
+		for (const t of tags) {
+			if (t && typeof t === 'string') set.add(t);
+		}
+	}
+	allTags.value = Array.from(new Set([...allTags.value, ...Array.from(set)])).sort();
+}
 async function upload(options:any){ 
 	try {
 		const file = options?.file as File; 
@@ -590,7 +691,15 @@ async function upload(options:any){
 		ElMessage.error(`上传失败: ${e?.message || e || '网络错误'}`);
 	}
 }
-async function remove(row: FileItem){ try { await assetControllerRemove(String(row.id)); ElMessage.success('已删除'); fetchList(); } catch (e:any){ ElMessage.error(String(e?.message||e||'删除失败')); } }
+async function remove(row: FileItem) {
+	try {
+		await assetControllerRemove(String(row.id));
+		ElMessage.success('已删除');
+		fetchList();
+	} catch (e: any) {
+		ElMessage.error(String(e?.message || e || '删除失败'));
+	}
+}
 function onSel(rows: FileItem[]){ selected.value = new Set(rows.map(r=>r.id)); }
 async function preheat(){ 
 	if (selected.value.size===0) return; 
@@ -610,24 +719,45 @@ async function cleanup(){
 		ElMessage.error(`清理失败: ${e?.message || e || '未知错误'}`);
 	}
 }
-function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'grid'; }
-function toggleSel(it: FileItem){ if (selected.value.has(it.id)) selected.value.delete(it.id); else selected.value.add(it.id); }
-function fmtSize(n:number){ if(n<1024) return n+'B'; if(n<1024*1024) return (n/1024).toFixed(1)+'KB'; if(n<1024*1024*1024) return (n/1024/1024).toFixed(1)+'MB'; return (n/1024/1024/1024).toFixed(1)+'GB'; }
+
+function toggleSel(it: FileItem) {
+	if (selected.value.has(it.id)) selected.value.delete(it.id);
+	else selected.value.add(it.id);
+}
+function fmtSize(n:number){
+	if (n < 1024) return `${n}B`;
+	if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+	if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)}MB`;
+	return `${(n / 1024 / 1024 / 1024).toFixed(1)}GB`;
+}
 function thumb(it:any){ return `${API_BASE}/assets/${it?.id}/thumbnail?size=${thumbSize.value}`; }
 function copy(text:string){ try{ navigator.clipboard?.writeText(text); ElMessage.success('已复制'); } catch {} }
 function copyMd(it:any){ copy(`![${it.filename}](${absUrl(it.url)})`); }
 function copyHtml(it:any){ copy(`<img src="${absUrl(it.url)}" alt="${it.filename}" />`); }
 
 function onCmd(cmd: string, it: FileItem){
-  if (cmd === 'copy-url') return copy(absUrl(it.url));
-  if (cmd === 'copy-md') return copyMd(it);
-  if (cmd === 'copy-html') return copyHtml(it);
-  if (cmd === 'delete') return remove(it);
+	if (cmd === 'copy-url') return copy(absUrl(it.url));
+	if (cmd === 'copy-md') return copyMd(it);
+	if (cmd === 'copy-html') return copyHtml(it);
+	if (cmd === 'delete') return remove(it);
 }
 
 function onPage(p:number){ page.value = p; fetchList(); }
 
 function onFilterChanged(){ page.value = 1; fetchList(); }
+
+function removeTagFilter(t: string) {
+	tagFilters.value = tagFilters.value.filter(x => x !== t);
+	onFilterChanged();
+}
+
+function resetFilters() {
+	keyword.value = '';
+	mimeFilter.value = '';
+	tagFilters.value = [];
+	page.value = 1;
+	fetchList();
+}
 
 function openDetail(it:any){ current.value = it; tagsDraft.value = Array.isArray((it as any).tagsJson) ? (it as any).tagsJson.join(',') : ''; detailVisible.value = true; refreshRefs(); }
 // 初始化选择器
@@ -783,6 +913,45 @@ async function fetchAllTags(){
 
 .thumb-size-select {
 	width: 100px;
+}
+
+/* 当前筛选条件 */
+.active-filters {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0 0 14px;
+	margin-top: -8px;
+	border-bottom: 1px solid var(--el-border-color-lighter);
+	margin-bottom: 16px;
+}
+.active-filters__label {
+	color: var(--el-text-color-secondary);
+	font-size: 13px;
+	white-space: nowrap;
+}
+.active-filters__tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-width: 0;
+}
+
+.reset-btn {
+	flex-shrink: 0;
+}
+
+/* BasePage 内容区默认 overflow:hidden，滚动由页面自行接管 */
+.files-scroll {
+	height: 100%;
+	min-height: 0;
+	overflow: auto;
+	padding-right: 2px; /* 给滚动条留一点呼吸 */
+}
+
+/* 内容区域：统一 loading overlay */
+.files-content {
+	min-height: 200px;
 }
 
 /* 选择控制栏 */
@@ -1032,6 +1201,53 @@ async function fetchAllTags(){
 		gap: 12px;
 		text-align: center;
 	}
+}
+
+/* 表格视图 */
+.files-table .table-preview {
+	width: 72px;
+	height: 54px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid var(--el-border-color-lighter);
+	background: var(--el-fill-color-lighter);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.files-table .table-preview img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.files-table .table-file-icon {
+	color: var(--el-text-color-secondary);
+}
+.table-filename {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+.table-filename__main {
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.table-filename__tags {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.table-filename__more {
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
+}
+.table-open-link {
+	margin: 0 8px;
+	font-size: 12px;
+	vertical-align: middle;
 }
 
 /* 保留原有样式的兼容 */
