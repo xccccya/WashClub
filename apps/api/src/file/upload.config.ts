@@ -27,7 +27,6 @@ export const ALLOWED_MIME_TYPES = {
 		'image/gif',
 		'image/webp',
 		'image/bmp',
-		'image/svg+xml',
 	],
 	// 文档类型
 	DOCUMENT: [
@@ -62,6 +61,15 @@ export const ALLOWED_MIME_TYPES = {
 export const DANGEROUS_EXTENSIONS = [
 	'.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js', '.jar',
 	'.php', '.asp', '.aspx', '.jsp', '.py', '.rb', '.pl', '.sh', '.ps1',
+	// XSS / HTML 注入风险（至少禁用 svg/html/htm）
+	'.svg', '.html', '.htm',
+];
+
+// 明确禁止的 MIME（至少禁用 svg/html/htm 对应类型；支持带 charset 的场景）
+export const BLOCKED_MIME_TYPES = [
+	'image/svg+xml',
+	'text/html',
+	'application/xhtml+xml',
 ];
 
 // 允许的目录名称（防止路径注入）
@@ -88,6 +96,15 @@ export function validateFileSecurity(
 	for (const dangerousExt of DANGEROUS_EXTENSIONS) {
 		if (ext.endsWith(dangerousExt)) {
 			return { isValid: false, error: '不允许上传此类型文件' };
+		}
+	}
+
+	// 2.1 检查明确禁止的 MIME（防止通过更换后缀绕过）
+	const lowerMime = String(mimeType || '').toLowerCase();
+	if (lowerMime) {
+		const hitBlocked = BLOCKED_MIME_TYPES.some((m) => lowerMime === m || lowerMime.startsWith(`${m};`));
+		if (hitBlocked) {
+			return { isValid: false, error: '不支持的文件类型' };
 		}
 	}
 

@@ -6,6 +6,36 @@ import { PrismaService } from '../prisma.service.js';
 export class FileBindingUtil {
 	constructor(private prisma: PrismaService) {}
 
+	private normalizeAssetUrl(input: string): string | null {
+		const raw = String(input || '').trim();
+		if (!raw) return null;
+		let s = raw;
+
+		// 1) 绝对 URL：取 pathname
+		if (/^https?:\/\//i.test(s)) {
+			try {
+				const u = new URL(s);
+				s = u.pathname || '';
+			} catch {
+				// fallback：继续走后续规则
+			}
+		}
+
+		// 2) 去掉 query/hash（兼容 /uploads/xxx.jpg?x=1#y）
+		s = s.split('#')[0].split('?')[0];
+
+		// 3) 统一到库里存的形态：/uploads/...
+		if (s.startsWith('uploads/')) s = `/${s}`;
+		if (!s.startsWith('/')) s = `/${s}`;
+
+		// 允许传入类似 /api/uploads/... 或 https://xxx.com/uploads/... → 截取到 /uploads/...
+		const idx = s.indexOf('/uploads/');
+		if (idx >= 0) s = s.slice(idx);
+
+		if (!s.startsWith('/uploads/')) return null;
+		return s;
+	}
+
 	/**
 	 * 从URL数组中提取文件资产ID
 	 */
@@ -13,10 +43,19 @@ export class FileBindingUtil {
 		if (!Array.isArray(urls) || urls.length === 0) return [];
 		
 		try {
+			const normalizedUrls = Array.from(
+				new Set(
+					urls
+						.map((u) => this.normalizeAssetUrl(u))
+						.filter((u): u is string => !!u),
+				),
+			);
+			if (normalizedUrls.length === 0) return [];
+
 			const prisma = this.prisma as any;
 			const results = await prisma.fileAsset.findMany({
 				where: {
-					url: { in: urls },
+					url: { in: normalizedUrls },
 					deletedAt: null
 				},
 				select: { id: true, url: true }

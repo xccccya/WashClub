@@ -522,7 +522,8 @@ async function saveTags(isBatch = false){
 			batchTagVisible.value = false;
 		} else if (current.value) {
 			await assetControllerUpdate(String(current.value.id), { tags } as any);
-			detailVisible.value = false;
+			// 仅保存，不关闭抽屉（避免删除/保存单个标签时把详情关掉）
+			(current.value as any).tagsJson = tags;
 		}
 		await fetchList();
 	} finally { savingTags.value = false; }
@@ -567,6 +568,7 @@ function removeTag(tagToRemove: string) {
 	if (current.value && (current.value as any).tagsJson) {
 		const updatedTags = ((current.value as any).tagsJson as string[]).filter(tag => tag !== tagToRemove);
 		tagsInput.value = updatedTags;
+		(current.value as any).tagsJson = updatedTags;
 		saveTags(false);
 	}
 }

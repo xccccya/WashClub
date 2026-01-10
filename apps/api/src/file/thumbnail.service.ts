@@ -14,11 +14,25 @@ export class ThumbnailService {
 	
 	constructor(private prisma: PrismaService) {}
 
+	private normalizeThumbSize(input: unknown): 120 | 240 | 480 {
+		const n = Math.round(Number(input));
+		if (n === 120) return 120;
+		if (n === 480) return 480;
+		return 240;
+	}
+
+	private buildThumbObjectKey(objectKey: string, size: 120 | 240 | 480): string {
+		const key = String(objectKey || '').replace(/\\/g, '/');
+		const base = key.replace(/\.[^/.]+$/, '');
+		return `${base}_thumb_${size}.jpg`;
+	}
+
 	/**
 	 * 异步生成缩略图（后台处理）
 	 */
 	async generateThumbnailAsync(fileId: string, size: number = 240): Promise<void> {
-		const queueKey = `${fileId}_${size}`;
+		const thumbSize = this.normalizeThumbSize(size);
+		const queueKey = `${fileId}_${thumbSize}`;
 		
 		// 防止重复处理
 		if (this.processingQueue.has(queueKey)) {
@@ -45,7 +59,7 @@ export class ThumbnailService {
 			
 			// 检查是否已存在
 			const variants = (file as any).variants || {};
-			if (variants[String(size)]) {
+			if (variants[String(thumbSize)]) {
 				return; // 已存在，跳过
 			}
 			
@@ -57,8 +71,8 @@ export class ThumbnailService {
 				return;
 			}
 			
-			const ext = (file.extension || '').toLowerCase() || 'jpg';
-			const targetKey = file.objectKey.replace(/\.(\w+)$/, (_m, g1) => `_thumb_${size}.${g1 || ext}`);
+			// 统一输出为 JPEG：文件名固定 .jpg
+			const targetKey = this.buildThumbObjectKey(file.objectKey, thumbSize);
 			const targetAbs = join(uploadsRoot, targetKey);
 			
 			// 确保目标目录存在
@@ -70,8 +84,8 @@ export class ThumbnailService {
 			// 生成缩略图
 			await sharp(srcAbs)
 				.resize({ 
-					width: size, 
-					height: size, 
+					width: thumbSize, 
+					height: thumbSize, 
 					fit: 'inside', 
 					withoutEnlargement: true 
 				})
@@ -93,7 +107,7 @@ export class ThumbnailService {
 				if (currentFile) {
 					const nextVariants = { 
 						...((currentFile as any).variants || {}), 
-						[String(size)]: url 
+						[String(thumbSize)]: url 
 					};
 					await tx.fileAsset.update({ 
 						where: { id: fileId }, 

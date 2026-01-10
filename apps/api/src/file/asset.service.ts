@@ -24,6 +24,28 @@ export class AssetService {
 		this.fileBindingUtil = new FileBindingUtil(prisma);
 	}
 
+	private normalizeThumbSize(input: unknown): 120 | 240 | 480 {
+		const n = Math.round(Number(input));
+		if (n === 120) return 120;
+		if (n === 480) return 480;
+		return 240;
+	}
+
+	private normalizeThumbSizes(sizes: unknown): Array<120 | 240 | 480> {
+		const arr = Array.isArray(sizes) ? sizes : [];
+		const out = new Set<120 | 240 | 480>();
+		for (const s of arr) out.add(this.normalizeThumbSize(s));
+		if (out.size === 0) out.add(120), out.add(240), out.add(480);
+		return Array.from(out);
+	}
+
+	private buildThumbObjectKey(objectKey: string, size: 120 | 240 | 480): string {
+		const key = String(objectKey || '').replace(/\\/g, '/');
+		// 去掉最后一个扩展名（若无扩展名则原样），统一输出为 .jpg
+		const base = key.replace(/\.[^/.]+$/, '');
+		return `${base}_thumb_${size}.jpg`;
+	}
+
 	private async computeSha256(buffer: Buffer) {
 		return crypto.createHash('sha256').update(buffer).digest('hex');
 	}
@@ -331,29 +353,37 @@ export class AssetService {
 	}
 
 	// 缩略图生成：支持图片缩略图生成，非图片返回原图
-	async getThumbnailUrl(id: string, size: number = 240) {
+	async getThumbnailUrl(id: string, size: number = 240, opts?: { generateIfMissing?: boolean }) {
 		const prisma = this.prisma as unknown as PrismaWithAssets;
 		const file = await prisma.fileAsset.findFirst({ where: { id, deletedAt: null } });
 		if (!file) throw new NotFoundException('文件不存在');
 		
 		// 非图片直接返回原图
 		if (!/^image\//i.test(file.mimeType)) return { url: file.url };
+		const thumbSize = this.normalizeThumbSize(size);
+		const generateIfMissing = opts?.generateIfMissing !== false;
 		
 		// 检查是否已存在缓存的变体
 		try { 
 			const variants = (file as any).variants || null; 
-			const key = String(size); 
+			const key = String(thumbSize); 
 			const url = variants?.[key]; 
 			if (url) {
 				// 验证文件是否还存在
 				const uploadsRoot = join(process.cwd(), 'uploads');
-				const variantPath = join(uploadsRoot, url.replace(/^\/uploads\//, ''));
+				const rel = String(url).replace(/^\/uploads\//, '').split('?')[0];
+				const variantPath = join(uploadsRoot, rel);
 				if (existsSync(variantPath)) {
 					return { url };
 				}
 			}
 		} catch {}
 		
+		// 仅用于预览/直链：不允许“未授权触发生成”时，直接回退原图
+		if (!generateIfMissing) {
+			return { url: file.url };
+		}
+
 		// 生成新的缩略图
 		const uploadsRoot = join(process.cwd(), 'uploads');
 		const srcAbs = join(uploadsRoot, file.objectKey);
@@ -364,9 +394,8 @@ export class AssetService {
 			return { url: file.url };
 		}
 		
-		const ext = (file.extension || '').toLowerCase() || 'jpg';
-		// 修复路径处理，统一使用正斜杠
-		const targetKey = file.objectKey.replace(/\.(\w+)$/, (_m, g1) => `_thumb_${size}.${g1 || ext}`);
+		// 统一输出为 JPEG：文件名固定使用 .jpg，避免“内容 JPEG、后缀 png/webp”不一致
+		const targetKey = this.buildThumbObjectKey(file.objectKey, thumbSize);
 		const targetAbs = join(uploadsRoot, targetKey);
 		
 		try {
@@ -379,8 +408,8 @@ export class AssetService {
 			// 使用 Sharp 生成缩略图，添加更详细的错误处理
 			await sharp(srcAbs)
 				.resize({ 
-					width: size, 
-					height: size, 
+					width: thumbSize, 
+					height: thumbSize, 
 					fit: 'inside', 
 					withoutEnlargement: true 
 				})
@@ -400,7 +429,7 @@ export class AssetService {
 					throw new Error('原文件在缩略图生成过程中被删除');
 				}
 				
-				const nextVariants = { ...((currentFile as any).variants || {}), [String(size)]: url } as any;
+				const nextVariants = { ...((currentFile as any).variants || {}), [String(thumbSize)]: url } as any;
 				await tx.fileAsset.update({ where: { id }, data: { variants: nextVariants } });
 			});
 			
@@ -427,19 +456,18 @@ export class AssetService {
 
 	// 触发缩略图生成（占位实现）
 	async ensureThumbnails(id: string, sizes: number[] = [120, 240, 480]) {
-		const prisma = this.prisma as unknown as PrismaWithAssets;
-		const file = await prisma.fileAsset.findFirst({ where: { id, deletedAt: null } });
-		if (!file) throw new NotFoundException('文件不存在');
-		// 占位：后续接入队列，这里仅返回待生成尺寸列表
-		return { scheduled: sizes };
+		const normalized = this.normalizeThumbSizes(sizes);
+		// 后台异步生成（不阻塞请求）
+		Promise.allSettled(normalized.map((s) => this.thumbnailService.generateThumbnailAsync(id, s))).catch(() => void 0);
+		return { scheduled: normalized };
 	}
 
 	async bulkEnsureThumbnails(ids: string[], sizes: number[] = [120,240,480]) {
-		const ok: string[] = [];
-		for (const id of ids) {
-			try { await this.getThumbnailUrl(id, sizes[0] || 240); ok.push(id); } catch {}
-		}
-		return { okCount: ok.length };
+		const normalizedSizes = this.normalizeThumbSizes(sizes);
+		const fileIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+		// 后台异步批量生成（每个 id * 每个 size）
+		this.thumbnailService.batchGenerateThumbnails(fileIds, normalizedSizes);
+		return { okCount: fileIds.length, scheduledSizes: normalizedSizes };
 	}
 
 	async cleanupVariants(ids?: string[]) {

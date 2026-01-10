@@ -1,9 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UploadedFile, UseInterceptors, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UploadedFile, UseGuards, UseInterceptors, Query } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileService } from './file.service.js';
 import multer from 'multer';
 import { validateFileSecurity, validateDirectoryName, FILE_SIZE_LIMITS } from './upload.config.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { RequirePerm } from '../auth/perm.decorator.js';
 
 @ApiTags('file')
 @Controller('file')
@@ -12,12 +14,17 @@ export class FileController {
 
 	@Get('list')
 	@ApiOperation({ summary: '列出指定目录下的文件（默认public）' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('system-files' as any)
 	list(@Query('dir') dir?: string) { return this.service.list(dir || 'public'); }
 
 	@Post('upload')
+	@UseGuards(AdminGuard)
+	@RequirePerm('system-files' as any)
 	@UseInterceptors(FileInterceptor('file', { 
 		storage: multer.memoryStorage(),
-		limits: { fileSize: FILE_SIZE_LIMITS.DEFAULT } // 添加默认文件大小限制
+		// 允许最大（避免 multer 先于 validateFileSecurity 拦截更大的视频/图片等）
+		limits: { fileSize: FILE_SIZE_LIMITS.VIDEO }
 	}))
 	@ApiConsumes('multipart/form-data')
 	@ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, dir: { type: 'string' } } } })
@@ -44,6 +51,8 @@ export class FileController {
 
 	@Delete(':path')
 	@ApiOperation({ summary: '删除指定路径文件' })
+	@UseGuards(AdminGuard)
+	@RequirePerm('system-files' as any)
 	remove(@Param('path') path: string) { return this.service.remove(decodeURIComponent(path)); }
 }
 
