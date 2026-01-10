@@ -61,7 +61,11 @@
 						<view class="name-row">
 							<text class="name">{{ m.name || '未命名用户' }}</text>
 							<view v-if="m.level?.name" class="pill level-pill">{{ m.level.name }}</view>
-							<view v-if="remainingTimesOf(m) !== null" class="pill washcard-pill" :class="{ 'washcard-pill--empty': (remainingTimesOf(m) || 0) <= 0 }">
+							<view
+								v-if="shouldShowWashCardStats && remainingTimesOf(m) !== null"
+								class="pill washcard-pill"
+								:class="{ 'washcard-pill--empty': (remainingTimesOf(m) || 0) <= 0 }"
+							>
 								余次 {{ remainingTimesOf(m) }}
 							</view>
 						</view>
@@ -183,6 +187,7 @@ const sortOptions = [
 	{ value: 'createdAt', label: '注册时间' },
 	{ value: 'totalPaidAmount', label: '累计消费金额' },
 	{ value: 'totalWashCount', label: '累计洗车次数' },
+	{ value: 'washCardRemainingTimes', label: '洗车卡剩余次数' },
 	{ value: 'lastVisitAt', label: '到店时间' },
 	{ value: 'lastActiveAt', label: '登录时间' },
 ] as const;
@@ -215,7 +220,9 @@ async function applySortPending() {
 	sortBy.value = pendingSortBy.value || '';
 	sortOrder.value = pendingSortOrder.value || 'desc';
 	closeSortSheet();
-	await fetchList(true);
+	const showAfter = washCardFilter.value === 'hasRemaining' || sortBy.value === 'washCardRemainingTimes';
+	bumpWashStatsEpoch({ clear: !showAfter });
+	await requestFetch(true);
 }
 
 function num(v: any): string {
@@ -253,6 +260,10 @@ function sortHintValue(m: MemberLite): string {
 	if (key === 'createdAt') return formatTime(m.createdAt);
 	if (key === 'totalPaidAmount') return formatMoney((m as any).totalPaidAmount);
 	if (key === 'totalWashCount') return `${num((m as any).totalWashCount)} 次`;
+	if (key === 'washCardRemainingTimes') {
+		const t = remainingTimesOf(m);
+		return t === null ? '-' : `${t} 次`;
+	}
 	if (key === 'lastVisitAt') return formatTime((m as any).lastVisitAt);
 	if (key === 'lastActiveAt') return formatTime(m.lastActiveAt);
 	return '-';
@@ -261,6 +272,12 @@ function sortHintValue(m: MemberLite): string {
 // 洗车卡统计（用于“未用完洗车卡”筛选）
 const washStats = ref<Record<string, MemberWashCardStats | null>>({});
 const filterLoading = computed(() => washCardFilter.value === 'hasRemaining' && (loading.value || washStatsBatchLoading.value));
+const washStatsEpoch = ref(0);
+const shouldShowWashCardStats = computed(() => washCardFilter.value === 'hasRemaining' || sortBy.value === 'washCardRemainingTimes');
+function bumpWashStatsEpoch(options: { clear?: boolean } = {}) {
+	washStatsEpoch.value += 1;
+	if (options.clear) washStats.value = {};
+}
 
 const siteSetting = ref<{ defaultMemberAvatarUrl?: string | null } | null>(null);
 async function ensureSiteSetting() {
@@ -281,8 +298,9 @@ async function setWashCardFilter(v: 'all' | 'hasRemaining') {
 	if (washCardFilter.value === v) return;
 	washCardFilter.value = v;
 	// 切换筛选：从第一页重新拉取（后端返回真实 total）
-	if (v === 'all') washStats.value = {};
-	await fetchList(true);
+	const showAfter = v === 'hasRemaining' || sortBy.value === 'washCardRemainingTimes';
+	bumpWashStatsEpoch({ clear: !showAfter });
+	await requestFetch(true);
 }
 
 function memberIdOf(m: MemberLite): number | null {
@@ -307,7 +325,10 @@ const totalText = computed(() => {
 	return total.value > 0 ? `共 ${total.value} 条` : '';
 });
 
-async function ensureWashStatsForMembers(list: MemberLite[]) {
+async function ensureWashStatsForMembers(list: MemberLite[], epoch: number) {
+	// 若状态已变化（取消筛选/切换排序等），放弃写入，避免“余次”在取消筛选后残留
+	if (epoch !== washStatsEpoch.value) return;
+	if (!shouldShowWashCardStats.value) return;
 	const ids = (list || [])
 		.map(memberIdOf)
 		.filter((v): v is number => typeof v === 'number' && v > 0);
@@ -317,6 +338,8 @@ async function ensureWashStatsForMembers(list: MemberLite[]) {
 	washStatsBatchLoading.value = true;
 	try {
 		const map = await getMemberWashCardStatsBatch(need);
+		if (epoch !== washStatsEpoch.value) return;
+		if (!shouldShowWashCardStats.value) return;
 		for (const id of need) {
 			washStats.value[String(id)] = map[String(id)] ?? null;
 		}
@@ -349,6 +372,15 @@ async function ensureEmployeeAccess(): Promise<boolean> {
 	return false;
 }
 
+const pendingFetch = ref<{ reset?: boolean } | null>(null);
+async function requestFetch(reset = false) {
+	if (loading.value) {
+		pendingFetch.value = { reset };
+		return;
+	}
+	await fetchList(reset);
+}
+
 async function fetchList(reset = false) {
 	if (loading.value) return;
 	if (reset) {
@@ -376,21 +408,28 @@ async function fetchList(reset = false) {
 		else members.value = members.value.concat(rows);
 		if (!rows.length) noMore.value = true;
 		else if (total.value > 0 && members.value.length >= total.value) noMore.value = true;
-		// 列表页展示“余次”徽标：仅当开启筛选时批量补齐统计（每页 1 次请求）
-		if (washCardFilter.value === 'hasRemaining') {
-			await ensureWashStatsForMembers(rows);
+		// 列表页展示“余次”相关信息：筛选“未用完洗车卡”或排序“洗车卡剩余次数”时批量补齐（每页 1 次请求）
+		if (shouldShowWashCardStats.value) {
+			const epoch = washStatsEpoch.value;
+			await ensureWashStatsForMembers(rows, epoch);
 		}
 	} finally {
 		loading.value = false;
+		// 若加载期间发生筛选/排序/搜索等变化，补一次最新请求（避免用户点击无效）
+		const p = pendingFetch.value;
+		if (p) {
+			pendingFetch.value = null;
+			await fetchList(!!p.reset);
+		}
 	}
 }
 
 async function onSearch() {
-	await fetchList(true);
+	await requestFetch(true);
 }
 async function clearKeyword() {
 	keyword.value = '';
-	await fetchList(true);
+	await requestFetch(true);
 }
 
 function call(phone?: string) {

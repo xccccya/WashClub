@@ -100,10 +100,10 @@ export class MemberService {
 
 		// 排序：
 		// - 基础字段：成长值/累计支付/积分/余额/注册时间/活跃时间（正序/倒序）
-		// - 派生字段：累计洗车次数/到店时间（正序/倒序，后端聚合计算以保证分页一致）
+		// - 派生字段：累计洗车次数/到店时间/洗车卡剩余次数（正序/倒序，后端聚合计算以保证分页一致）
 		const sortBy = String(query?.sortBy || '').trim();
 		const sortOrder = String(query?.sortOrder || '').toLowerCase() === 'asc' ? 'asc' : 'desc';
-		const derivedSort = sortBy === 'totalWashCount' || sortBy === 'lastVisitAt';
+		const derivedSort = sortBy === 'totalWashCount' || sortBy === 'lastVisitAt' || sortBy === 'washCardRemainingTimes';
 
 		// 1) 派生排序：用 SQL 聚合算出排序字段，先取当前页的 memberId，再批量查 member 详情
 		//    目的：保证“排序 + 分页”一致，避免前端/后端二次排序导致错页。
@@ -137,8 +137,23 @@ export class MemberService {
 				) x
 				GROUP BY x.memberId
 			`;
+			// 洗车卡余次：ACTIVE 且 remainingTimes>0 的卡余次求和（持有人 + 被共享者可见卡）
+			const washCardRemainAgg = Prisma.sql`
+				SELECT t.memberId AS memberId, SUM(t.remainingTimes) AS washCardRemainingTimes
+				FROM (
+					SELECT wc.ownerMemberId AS memberId, wc.remainingTimes AS remainingTimes
+					FROM \`WashCard\` wc
+					WHERE wc.status = 'ACTIVE' AND wc.remainingTimes > 0
+					UNION ALL
+					SELECT wcs.memberId AS memberId, wc2.remainingTimes AS remainingTimes
+					FROM \`WashCardShare\` wcs
+					INNER JOIN \`WashCard\` wc2 ON wc2.id = wcs.cardId
+					WHERE wc2.status = 'ACTIVE' AND wc2.remainingTimes > 0
+				) t
+				GROUP BY t.memberId
+			`;
 
-			const sortField = sortBy === 'lastVisitAt' ? 'lastVisitAt' : 'totalWashCount';
+			const sortField = sortBy === 'lastVisitAt' ? 'lastVisitAt' : (sortBy === 'washCardRemainingTimes' ? 'washCardRemainingTimes' : 'totalWashCount');
 			const sortFieldSql = Prisma.raw(sortField);
 			const sortDirSql = Prisma.raw(sortOrder === 'asc' ? 'ASC' : 'DESC');
 
@@ -195,17 +210,19 @@ export class MemberService {
 			}
 			const whereSql = Prisma.join(whereSqlParts, ' ');
 
-			type SortRow = { id: number; lastVisitAt: Date | null; totalWashCount: any };
+			type SortRow = { id: number; lastVisitAt: Date | null; totalWashCount: any; washCardRemainingTimes: any };
 			const sortRows = await this.prisma.$queryRaw<SortRow[]>(
 				Prisma.sql`
-					SELECT x.id, x.lastVisitAt, x.totalWashCount
+					SELECT x.id, x.lastVisitAt, x.totalWashCount, x.washCardRemainingTimes
 					FROM (
 						SELECT m.id AS id,
 							   v.lastVisitAt AS lastVisitAt,
-							   COALESCE(wc.totalWashCount, 0) AS totalWashCount
+							   COALESCE(wc.totalWashCount, 0) AS totalWashCount,
+							   COALESCE(wcr.washCardRemainingTimes, 0) AS washCardRemainingTimes
 						FROM \`Member\` m
 						LEFT JOIN (${visitAgg}) v ON v.memberId = m.id
 						LEFT JOIN (${washCountAgg}) wc ON wc.memberId = m.id
+						LEFT JOIN (${washCardRemainAgg}) wcr ON wcr.memberId = m.id
 						WHERE ${whereSql}
 					) x
 					ORDER BY (x.${sortFieldSql} IS NULL) ASC, x.${sortFieldSql} ${sortDirSql}, x.id DESC
@@ -236,6 +253,7 @@ export class MemberService {
 					const extra = extraById.get(id);
 					const lastVisitAtIso = extra?.lastVisitAt ? new Date(extra.lastVisitAt).toISOString() : null;
 					const totalWashCountNum = Number(extra?.totalWashCount || 0) || 0;
+					const washCardRemainingTimesNum = Number((extra as any)?.washCardRemainingTimes || 0) || 0;
 					return {
 						...m,
 						balance: Number(m.balance),
@@ -243,6 +261,7 @@ export class MemberService {
 						growthPoints: Number((m as any).growthPoints || 0),
 						lastVisitAt: lastVisitAtIso,
 						totalWashCount: totalWashCountNum,
+						washCardRemainingTimes: washCardRemainingTimesNum,
 					};
 				})
 				.filter(Boolean);

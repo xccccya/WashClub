@@ -21,6 +21,7 @@ export type MemberLite = {
   // 派生字段：当后端使用对应排序时会附带（用于前端展示排序依据）
   lastVisitAt?: string | null;
   totalWashCount?: number;
+  washCardRemainingTimes?: number;
 };
 
 export type PagedResult<T> = {
@@ -30,7 +31,7 @@ export type PagedResult<T> = {
   pageSize: number;
 };
 
-export type MemberSortBy = 'createdAt' | 'totalPaidAmount' | 'totalWashCount' | 'lastVisitAt' | 'lastActiveAt';
+export type MemberSortBy = 'createdAt' | 'totalPaidAmount' | 'totalWashCount' | 'lastVisitAt' | 'lastActiveAt' | 'washCardRemainingTimes';
 export type SortOrder = 'asc' | 'desc';
 
 export async function listMembers(options: {
