@@ -6,6 +6,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import App from './App.vue';
 import router from './router';
+import { initThemeFromStorage } from './theme';
 
 // 注册全局401处理器：SDK 请求返回 401 时自动清理登录态并跳转登录页
 // 说明：@wash/shared-utils 的 http client 会在 401 时调用 globalThis.__ON_HTTP_401__
@@ -27,6 +28,9 @@ import router from './router';
 		};
 	} catch {}
 })();
+
+// 主题初始化：尽量早应用到 <html>，避免闪烁
+initThemeFromStorage();
 
 const app = createApp(App);
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

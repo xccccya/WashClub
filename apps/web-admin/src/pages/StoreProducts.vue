@@ -1,15 +1,21 @@
 <template>
-	<div>
+	<div class="wc-page">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div class="toolbar">
-			<el-input v-model="keyword" placeholder="搜索名称/条码" style="width:220px;margin-right:8px;" @keyup.enter="fetchList" />
+		<div class="wc-toolbar">
+			<el-input v-model="keyword" placeholder="搜索名称/条码" class="wc-field wc-field--lg" @keyup.enter="fetchList" />
 			<el-button @click="fetchList">查询</el-button>
+			<div class="wc-spacer" />
 			<el-button type="primary" @click="openCreate">新增商品</el-button>
 		</div>
-		<div class="table-scroll"><el-table :data="list" border stripe size="small" style="min-width: 980px; width: 100%; border-radius:8px;">
+
+		<div class="wc-table-wrap">
+			<div class="wc-table-scroll">
+				<el-table :data="list" stripe size="small" style="min-width: 980px; width: 100%;">
 			<el-table-column prop="id" label="ID" width="70" />
 			<el-table-column label="主图" width="90">
-				<template #default="{ row }"><img :src="abs(row.imageUrl)" v-if="row.imageUrl" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #eee;" /></template>
+				<template #default="{ row }">
+					<img v-if="row.imageUrl" :src="abs(row.imageUrl)" class="product-thumb" />
+				</template>
 			</el-table-column>
 			<el-table-column prop="name" label="名称" min-width="160" />
 			<el-table-column prop="barcode" label="条码" width="160" />
@@ -42,36 +48,38 @@
 					<el-popconfirm title="确认删除？若被引用将失败，建议下架" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
 				</template>
 			</el-table-column>
-		</el-table></div>
+				</el-table>
+			</div>
+		</div>
 
-		<el-dialog v-model="show" :title="form.id ? '编辑商品' : '新增商品'" width="980px" :destroy-on-close="false">
+		<el-dialog v-model="show" :title="form.id ? '编辑商品' : '新增商品'" width="980px" :destroy-on-close="false" class="wc-dialog wc-product-dialog">
 			<el-tabs v-model="formTab">
 				<el-tab-pane label="基础信息" name="base">
-					<el-form label-width="100">
-						<el-form-item label="类型"><el-select v-model="form.type" :disabled="!!form.id"><el-option label="服务项目" value="SERVICE" /><el-option label="实物商品" value="PHYSICAL" /><el-option label="虚拟卡券" value="VIRTUAL_CARD" /></el-select></el-form-item>
+					<el-form label-width="100" class="wc-product-form">
+						<el-form-item label="类型"><el-select v-model="form.type" :disabled="!!form.id" class="wc-field wc-field--md"><el-option label="服务项目" value="SERVICE" /><el-option label="实物商品" value="PHYSICAL" /><el-option label="虚拟卡券" value="VIRTUAL_CARD" /></el-select></el-form-item>
 						<el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
 						<el-form-item label="条码">
-							<div style="display:flex;gap:8px;align-items:center;width:100%;">
+							<div class="inline-row">
 								<el-input v-model="form.barcode" maxlength="13" placeholder="仅数字，最多13位" @input="onBarcodeInput" />
 								<el-button @click="genBarcode">生成13位</el-button>
 							</div>
 						</el-form-item>
-						<el-form-item label="分类"><el-select v-model="form.categoryId" placeholder="选择分类"><el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+						<el-form-item label="分类"><el-select v-model="form.categoryId" placeholder="选择分类" class="wc-field wc-field--md"><el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
 						<el-form-item label="上架"><el-switch v-model="form.enabled" /></el-form-item>
 						<el-form-item v-if="form.type==='SERVICE'" label="计为洗车(次)"><el-switch v-model="form.isCarWash" /></el-form-item>
 						<el-form-item label="排序"><el-input-number v-model="form.sortWeight" :min="0" /></el-form-item>
 						<el-form-item label="商品图片">
-							<div style="width:100%;">
-								<div style="display:flex;flex-wrap:wrap;gap:8px;">
-									<div v-for="(img,i) in formImages" :key="img" style="position:relative;width:88px;height:88px;border-radius:8px;overflow:hidden;border:1px solid #eee;">
-										<img :src="abs(img)" style="width:100%;height:100%;object-fit:cover;" />
-										<div v-if="i===0" style="position:absolute;left:0;top:0;background:var(--app-primary);color:#fff;font-size:12px;padding:2px 4px;border-bottom-right-radius:6px;">主图</div>
-										<div @click="removeImage(i)" style="position:absolute;right:2px;top:2px;background:rgba(0,0,0,0.6);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</div>
+							<div class="images-field">
+								<div class="images-grid">
+									<div v-for="(img,i) in formImages" :key="img" class="image-card">
+										<img :src="abs(img)" class="image-card__img" />
+										<div v-if="i===0" class="image-card__badge">主图</div>
+										<div class="image-card__remove" @click="removeImage(i)">×</div>
 									</div>
 								</div>
-								<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-									<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-										<input type="file" multiple @change="onImagesChange" />
+								<div class="images-actions">
+									<div class="images-actions__left">
+										<input class="file-input" type="file" multiple @change="onImagesChange" />
 										<el-button size="small" @click="pickerVisible=true">从文件库选择</el-button>
 									</div>
 									<small>可添加多张图片，首张作为主图保存</small>
@@ -81,49 +89,56 @@
 					</el-form>
 				</el-tab-pane>
 				<el-tab-pane label="扩展信息" name="extra">
-					<el-form label-width="100">
+					<el-form label-width="100" class="wc-product-form">
 						<el-form-item v-if="form.type==='PHYSICAL'" label="发货形式">
-							<div style="display:flex;align-items:center;gap:12px;">
+							<div class="inline-row inline-row--loose">
 								<el-checkbox v-model="form.shipAllowExpress">允许快递配送</el-checkbox>
 								<el-checkbox v-model="form.shipAllowPickup">允许到店自提</el-checkbox>
 							</div>
-							<div style="color:#909399;margin-left:100px;" v-if="form.type==='PHYSICAL' && !(form.shipAllowExpress || form.shipAllowPickup)">至少选择一种发货形式</div>
+							<div class="form-tip" v-if="form.type==='PHYSICAL' && !(form.shipAllowExpress || form.shipAllowPickup)">至少选择一种发货形式</div>
 						</el-form-item>
-						<el-form-item label="规格类型"><el-select v-model="form.specType"><el-option label="单规格" value="SINGLE" /><el-option label="多规格" value="MULTI" /></el-select></el-form-item>
-						<div v-if="form.type==='SERVICE'" style="margin:-4px 0 8px 100px;color:#909399;">提示：服务商品不参与库存统计，库存项将自动隐藏。</div>
+						<el-form-item label="规格类型"><el-select v-model="form.specType" class="wc-field wc-field--sm"><el-option label="单规格" value="SINGLE" /><el-option label="多规格" value="MULTI" /></el-select></el-form-item>
+						<div v-if="form.type==='SERVICE'" class="form-tip">提示：服务商品不参与库存统计，库存项将自动隐藏。</div>
 						<template v-if="form.specType==='SINGLE'">
 							<el-form-item label="价格"><el-input-number v-model="form.price" :min="0" :step="0.1" /></el-form-item>
 							<el-form-item label="划线价"><el-input-number v-model="form.listPrice" :min="0" :step="0.1" /></el-form-item>
 							<el-form-item v-if="form.type!=='SERVICE'" label="库存"><el-input-number v-model="form.stockQuantity" :min="0" /></el-form-item>
-							<el-form-item v-if="form.type==='VIRTUAL_CARD'" label="绑定卡券"><el-select v-model="form.couponId" placeholder="选择卡券"><el-option v-for="c in couponOptions" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+							<el-form-item v-if="form.type==='VIRTUAL_CARD'" label="绑定卡券"><el-select v-model="form.couponId" placeholder="选择卡券" class="wc-field wc-field--md"><el-option v-for="c in couponOptions" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
 						</template>
 						<template v-else>
-							<div style="padding:8px 12px;background:#fafafa;border:1px dashed #ddd;border-radius:8px;">
-								<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><b>规格项定义</b><el-button size="small" @click="addSpecItem">新增规格项</el-button></div>
-								<div v-for="(sp,i) in specItems" :key="i" style="margin-bottom:8px;padding:8px;background:#fff;border:1px solid #eee;border-radius:6px;">
-									<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-										<el-input v-model="sp.name" placeholder="规格名，如 颜色/尺码" style="width:200px;" />
+							<div class="spec-panel">
+								<div class="spec-head">
+									<b>规格项定义</b>
+									<el-button size="small" @click="addSpecItem">新增规格项</el-button>
+								</div>
+								<div v-for="(sp,i) in specItems" :key="i" class="spec-item">
+									<div class="spec-item__row">
+										<el-input v-model="sp.name" placeholder="规格名，如 颜色/尺码" class="wc-field wc-field--md" />
 										<el-button size="small" type="danger" @click="removeSpecItem(i)">删除规格</el-button>
 									</div>
-									<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+									<div class="spec-item__values">
 										<el-tag v-for="(val,vi) in sp.values" :key="vi" closable @close="removeSpecValue(i,vi)">{{ val }}</el-tag>
-										<el-input v-model="specValueDraft" placeholder="输入规格值并回车" style="width:180px;" @keyup.enter="confirmAddSpecValue(i)" />
+										<el-input v-model="specValueDraft" placeholder="输入规格值并回车" class="wc-field wc-field--md" @keyup.enter="confirmAddSpecValue(i)" />
 									</div>
 								</div>
-								<div style="margin:8px 0;display:flex;gap:8px;align-items:center;"><el-button size="small" type="primary" @click="generateSkuMatrix"><el-icon style="margin-right:4px;"><Grid /></el-icon>生成规格组合</el-button><small>将覆盖当前 SKU 列表</small></div>
-								<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+								<div class="spec-actions">
+									<el-button size="small" type="primary" @click="generateSkuMatrix"><el-icon style="margin-right:4px;"><Grid /></el-icon>生成规格组合</el-button>
+									<small class="muted" style="margin-left:0;">将覆盖当前 SKU 列表</small>
+								</div>
+								<div class="sku-head">
 									<b>SKU 列表</b>
-									<div style="display:flex;gap:8px;align-items:center;">
+									<div class="sku-head__actions">
 										<el-button @click="addSku" size="small"><el-icon style="margin-right:4px;"><CirclePlus /></el-icon>新增SKU</el-button>
 										<el-button @click="batchGenSkuIfEmpty" size="small"><el-icon style="margin-right:4px;"><Promotion /></el-icon>为空项生成SKU编码</el-button>
 										<el-button @click="batchGenBarcodeIfEmpty" size="small"><el-icon style="margin-right:4px;"><Ticket /></el-icon>为空项生成条码</el-button>
 									</div>
 								</div>
-								<el-table :data="form.skus" size="small" border :fit="false" style="width:100%;">
+								<div class="wc-table-wrap wc-table-wrap--inner">
+									<el-table :data="form.skus" size="small" :fit="false" style="width:100%;">
 									<el-table-column label="名称"><template #default="{ row }"><el-input v-model="row.name" placeholder="规格名称" /></template></el-table-column>
 									<el-table-column label="SKU编码" width="220">
 										<template #default="{ row }">
-											<div style="display:flex;gap:6px;align-items:center;">
+											<div class="inline-row" style="gap:6px;">
 												<el-input v-model="row.skuCode" placeholder="自动/手填" />
 												<el-button size="small" @click="genRowSku(row)">生成</el-button>
 											</div>
@@ -131,7 +146,7 @@
 									</el-table-column>
 									<el-table-column label="条码" width="220">
 										<template #default="{ row }">
-											<div style="display:flex;gap:6px;align-items:center;">
+											<div class="inline-row" style="gap:6px;">
 												<el-input v-model="row.barcode" placeholder="13位数字" />
 												<el-button size="small" @click="genRowBarcode(row)">生成</el-button>
 											</div>
@@ -139,16 +154,16 @@
 									</el-table-column>
 									<el-table-column label="图片" width="160">
 										<template #default="{ row }">
-											<div style="display:flex;align-items:center;gap:8px;">
-												<img v-if="row.imageUrl" :src="abs(row.imageUrl)" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" />
+											<div class="sku-image-cell">
+												<img v-if="row.imageUrl" :src="abs(row.imageUrl)" class="sku-thumb" />
 												<el-upload :http-request="(o:any)=>onSkuUpload(row,o)" :show-file-list="false"><el-button size="small">上传</el-button></el-upload>
 												<el-button size="small" @click="openSkuPicker(row)">从文件库选择</el-button>
 											</div>
 										</template>
 									</el-table-column>
-									<el-table-column label="价格" width="180"><template #default="{ row }"><el-input-number v-model="row.price" :min="0" :step="0.1" controls-position="right" style="width:140px;" /></template></el-table-column>
-									<el-table-column label="划线价" width="180"><template #default="{ row }"><el-input-number v-model="row.listPrice" :min="0" :step="0.1" controls-position="right" style="width:140px;" /></template></el-table-column>
-									<el-table-column v-if="form.type!=='SERVICE'" label="库存" width="160"><template #default="{ row }"><el-input-number v-model="row.stockQuantity" :min="0" controls-position="right" style="width:120px;" /></template></el-table-column>
+									<el-table-column label="价格" width="180"><template #default="{ row }"><el-input-number v-model="row.price" :min="0" :step="0.1" controls-position="right" class="sku-number sku-number--price" /></template></el-table-column>
+									<el-table-column label="划线价" width="180"><template #default="{ row }"><el-input-number v-model="row.listPrice" :min="0" :step="0.1" controls-position="right" class="sku-number sku-number--price" /></template></el-table-column>
+									<el-table-column v-if="form.type!=='SERVICE'" label="库存" width="160"><template #default="{ row }"><el-input-number v-model="row.stockQuantity" :min="0" controls-position="right" class="sku-number sku-number--stock" /></template></el-table-column>
 									<el-table-column v-if="form.type==='VIRTUAL_CARD'" label="绑定卡券" min-width="240">
 										<template #default="{ row }">
 											<el-select v-model="row.couponId" placeholder="选择卡券" filterable style="width:100%;">
@@ -158,7 +173,8 @@
 									</el-table-column>
 									<el-table-column label="启用" width="90"><template #default="{ row }"><el-switch v-model="row.enabled" /></template></el-table-column>
 									<el-table-column label="操作" width="100"><template #default="{ $index }"><el-button size="small" type="danger" @click="removeSku($index)">删除</el-button></template></el-table-column>
-								</el-table>
+									</el-table>
+								</div>
 							</div>
 						</template>
 						<el-form-item label="积分抵扣"><el-switch v-model="form.pointsDeductible" /></el-form-item>
@@ -168,11 +184,11 @@
 					</el-form>
 				</el-tab-pane>
 				<el-tab-pane label="商品介绍" name="desc">
-					<div style="margin-bottom:8px; color:#666; display:flex; justify-content:space-between; align-items:center;">
+					<div class="desc-head">
 						<span>支持图片粘贴上传、基础排版与列表。</span>
 						<el-button size="small" @click="openInsertFromLib">从文件库插入图片</el-button>
 					</div>
-					<div ref="quillRef" style="height:360px;background:#fff;"></div>
+					<div ref="quillRef" class="quill-host"></div>
 				</el-tab-pane>
 			</el-tabs>
 			<template #footer>
@@ -181,8 +197,10 @@
 			</template>
 		</el-dialog>
 
-		<el-dialog v-model="showUpload" title="上传商品图片" width="520px">
-			<input type="file" @change="onFileChange" />
+		<el-dialog v-model="showUpload" title="上传商品图片" width="520px" class="wc-dialog">
+			<div class="upload-panel">
+				<input class="file-input" type="file" @change="onFileChange" />
+			</div>
 			<div v-if="uploadUrl" style="margin-top:12px;">已上传：<code>{{ uploadUrl }}</code></div>
 			<template #footer>
 				<el-button @click="showUpload=false">关闭</el-button>
@@ -578,10 +596,245 @@ function batchGenBarcodeIfEmpty(){ for(const r of (form.value.skus||[])){ if(!St
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; flex-wrap: wrap; gap:8px; width:100%; }
 .nowrap{ white-space:nowrap; }
-.muted{ color:#999; font-size:12px; margin-left:4px; }
-.table-scroll{ overflow:auto; width:100%; }
+.muted{ color: var(--el-text-color-secondary); font-size:12px; margin-left:4px; }
+.wc-table-scroll{ overflow:auto; width:100%; }
+
+.product-thumb{
+	width:56px;
+	height:56px;
+	object-fit:cover;
+	border-radius:10px;
+	border:1px solid var(--el-border-color-lighter);
+	background: var(--el-fill-color-lighter);
+}
+
+.inline-row{
+	display:flex;
+	gap:8px;
+	align-items:center;
+	width:100%;
+}
+.inline-row--loose{ gap:12px; }
+
+.images-field{ width:100%; }
+.images-grid{
+	display:flex;
+	flex-wrap:wrap;
+	gap:8px;
+}
+.image-card{
+	position:relative;
+	width:88px;
+	height:88px;
+	border-radius:12px;
+	overflow:hidden;
+	border:1px solid var(--el-border-color-lighter);
+	background: var(--el-fill-color-lighter);
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.image-card__img{
+	width:100%;
+	height:100%;
+	object-fit:cover;
+}
+.image-card__badge{
+	position:absolute;
+	left:0;
+	top:0;
+	background: var(--app-primary);
+	color:#fff;
+	font-size:12px;
+	padding:2px 6px;
+	border-bottom-right-radius:10px;
+}
+.image-card__remove{
+	position:absolute;
+	right:6px;
+	top:6px;
+	background: rgba(0,0,0,0.58);
+	color:#fff;
+	border-radius:9999px;
+	width:20px;
+	height:20px;
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	cursor:pointer;
+	user-select:none;
+	line-height:1;
+}
+.images-actions{
+	margin-top:8px;
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:10px;
+	flex-wrap:wrap;
+}
+.images-actions__left{
+	display:flex;
+	gap:8px;
+	align-items:center;
+	flex-wrap:wrap;
+}
+
+.file-input{ max-width: 260px; }
+/* 美化原生文件选择按钮（不改功能） */
+.file-input::file-selector-button{
+	margin-right:10px;
+	border:1px solid var(--el-border-color);
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 35%);
+	color: var(--el-text-color-primary);
+	padding:6px 10px;
+	border-radius:10px;
+	cursor:pointer;
+	transition: background .15s ease, border-color .15s ease;
+}
+.file-input:hover::file-selector-button{
+	background: var(--el-fill-color-light);
+	border-color: var(--el-border-color);
+}
+
+.form-tip{
+	color:#909399;
+	margin-left:100px;
+	margin-top:-4px;
+	margin-bottom:8px;
+}
+
+.spec-panel{
+	padding:10px 12px;
+	background: var(--el-fill-color-lighter);
+	border:1px dashed var(--el-border-color);
+	border-radius:12px;
+}
+.spec-head{
+	margin-bottom:10px;
+	display:flex;
+	justify-content:space-between;
+	align-items:center;
+}
+.spec-item{
+	margin-bottom:10px;
+	padding:10px;
+	background: var(--el-bg-color);
+	border:1px solid var(--el-border-color-lighter);
+	border-radius:10px;
+}
+.spec-item__row{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	margin-bottom:8px;
+	flex-wrap:wrap;
+}
+.spec-item__values{
+	display:flex;
+	flex-wrap:wrap;
+	gap:8px;
+	align-items:center;
+}
+.spec-actions{
+	margin:10px 0;
+	display:flex;
+	gap:10px;
+	align-items:center;
+	flex-wrap:wrap;
+}
+.sku-head{
+	margin-bottom:10px;
+	display:flex;
+	justify-content:space-between;
+	align-items:center;
+	gap:8px;
+	flex-wrap:wrap;
+}
+.sku-head__actions{
+	display:flex;
+	gap:8px;
+	align-items:center;
+	flex-wrap:wrap;
+}
+.wc-table-wrap--inner{
+	border-radius:12px;
+}
+.sku-image-cell{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	flex-wrap:wrap;
+}
+.sku-thumb{
+	width:36px;
+	height:36px;
+	object-fit:cover;
+	border-radius:10px;
+	border:1px solid var(--el-border-color-lighter);
+	background: var(--el-fill-color-lighter);
+}
+.sku-number--price{ width:140px; }
+.sku-number--stock{ width:120px; }
+
+.desc-head{
+	margin-bottom:8px;
+	color:#666;
+	display:flex;
+	justify-content:space-between;
+	align-items:center;
+	gap:10px;
+}
+
+.upload-panel{
+	display:flex;
+	align-items:center;
+	gap:10px;
+	flex-wrap:wrap;
+}
+
+/* Quill 暗色适配（Quill DOM 由运行时注入，需用 :deep） */
+.quill-host{
+	height: 360px;
+	border-radius: 10px;
+	overflow: hidden;
+	border: 1px solid var(--el-border-color);
+	background: var(--el-bg-color);
+}
+:deep(.quill-host .ql-toolbar.ql-snow){
+	border: none;
+	border-bottom: 1px solid var(--el-border-color);
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 40%);
+}
+:deep(.quill-host .ql-container.ql-snow){
+	border: none;
+	background: var(--el-bg-color);
+	color: var(--el-text-color-primary);
+}
+:deep(.quill-host .ql-editor){
+	min-height: 300px;
+	color: var(--el-text-color-primary);
+}
+:deep(.quill-host .ql-editor.ql-blank::before){
+	color: var(--el-text-color-placeholder);
+}
+:deep(.quill-host .ql-snow .ql-stroke){
+	stroke: var(--el-text-color-regular);
+}
+:deep(.quill-host .ql-snow .ql-fill){
+	fill: var(--el-text-color-regular);
+}
+:deep(.quill-host .ql-snow .ql-picker){
+	color: var(--el-text-color-regular);
+}
+:deep(.quill-host .ql-snow .ql-picker-options){
+	background: var(--el-bg-color-overlay);
+	border: 1px solid var(--el-border-color);
+}
+:deep(.quill-host .ql-snow .ql-tooltip){
+	background: var(--el-bg-color-overlay);
+	border: 1px solid var(--el-border-color);
+	color: var(--el-text-color-primary);
+}
 </style>
 
 

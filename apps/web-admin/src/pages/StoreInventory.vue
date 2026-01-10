@@ -1,19 +1,20 @@
 <template>
-	<div>
+	<div class="wc-page">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div class="card">
-			<div class="row">
-				<el-select v-model="categoryId" placeholder="选择商品分类" style="width:220px;" @change="onCategoryChange">
+		<div class="wc-surface wc-surface--padded">
+			<div class="wc-toolbar wc-toolbar--flat">
+				<el-select v-model="categoryId" placeholder="选择商品分类" class="wc-field wc-field--lg" @change="onCategoryChange">
 					<el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
 				</el-select>
-				<el-select v-model="productId" placeholder="选择商品" style="width:320px;" filterable :disabled="!categoryId" @change="onProductChange">
+				<el-select v-model="productId" placeholder="选择商品" class="wc-field wc-field--full wc-field--product" filterable :disabled="!categoryId" @change="onProductChange">
 					<el-option v-for="p in products" :key="p.id" :label="productLabel(p)" :value="p.id" />
 				</el-select>
-				<el-select v-if="selectedProduct?.specType==='MULTI'" v-model="skuId" placeholder="选择SKU" style="width:260px;" :disabled="!selectedProduct" @change="onSkuChange">
+				<el-select v-if="selectedProduct?.specType==='MULTI'" v-model="skuId" placeholder="选择SKU" class="wc-field wc-field--sku" :disabled="!selectedProduct" @change="onSkuChange">
 					<el-option v-for="s in skus" :key="s.id" :label="skuLabel(s)" :value="s.id" />
 				</el-select>
 			</div>
-			<div class="hint" v-if="selectedProduct">
+
+			<div class="wc-hint" v-if="selectedProduct">
 				<div>类型：<b>{{ typeLabel(selectedProduct.type) }}</b> ｜ 规格：<b>{{ specLabel(selectedProduct.specType) }}</b>
 					<span v-if="selectedProduct.type!=='SERVICE'"> ｜ 当前库存：
 						<span v-if="selectedProduct.specType==='MULTI'">{{ totalStock(selectedProduct) }}</span>
@@ -21,7 +22,8 @@
 					</span>
 				</div>
 			</div>
-			<div class="row">
+
+			<div class="wc-adjust">
 				<el-input-number
 					v-model="change"
 					:step="1"
@@ -30,22 +32,21 @@
 					:min="reason==='ADJUSTMENT' ? -999999 : 0"
 					:max="999999"
 				/>
-				<el-select v-model="reason" placeholder="原因" style="width:160px;" @change="onReasonChange">
+				<el-select v-model="reason" placeholder="原因" class="wc-field wc-field--sm" @change="onReasonChange">
 					<el-option label="入库" value="INBOUND" />
 					<el-option label="出库" value="OUTBOUND" />
 					<el-option label="调整" value="ADJUSTMENT" />
 				</el-select>
-				<el-input v-model="remark" placeholder="备注" style="flex:1;" />
+				<el-input v-model="remark" placeholder="备注" class="wc-field wc-field--full" />
 				<el-button type="primary" @click="doAdjust">
 					<el-icon style="vertical-align: middle; margin-right:4px;"><Check /></el-icon>
 					<span style="vertical-align: middle;">提交</span>
 				</el-button>
 			</div>
 		</div>
-		<div class="card" v-if="selectedProduct && selectedProduct.type!=='SERVICE'">
-			<div class="row" style="justify-content:space-between;">
-				<div class="row" style="margin-bottom:0;">
-					<el-select v-model="filterReason" placeholder="流水原因" style="width:140px;">
+		<div class="wc-surface wc-surface--padded" v-if="selectedProduct && selectedProduct.type!=='SERVICE'">
+			<div class="wc-toolbar">
+				<el-select v-model="filterReason" placeholder="流水原因" class="wc-field wc-field--xs">
 						<el-option label="全部" :value="''" />
 						<el-option label="入库" value="INBOUND" />
 						<el-option label="出库" value="OUTBOUND" />
@@ -55,43 +56,46 @@
 						<el-option label="退款回仓" value="REFUND_RETURN" />
 					</el-select>
 					<el-button @click="fetchLogs">查询记录</el-button>
-				</div>
-				<div class="row" style="margin-bottom:0;">
-					<el-pagination
-						:current-page="page"
-						:page-size="pageSize"
-						:total="total"
-						@current-change="onPageChange"
-						layout="prev, pager, next"
-					/>
-				</div>
+
+				<div class="wc-spacer" />
+
+				<el-pagination
+					:current-page="page"
+					:page-size="pageSize"
+					:total="total"
+					@current-change="onPageChange"
+					layout="prev, pager, next"
+				/>
 			</div>
-			<el-table :data="logs" border stripe size="small" style="width:100%;border-radius:8px;">
-				<el-table-column prop="id" label="ID" width="80" />
-				<el-table-column label="时间" width="180">
-					<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-				</el-table-column>
-				<el-table-column label="商品/SKU" min-width="220">
-					<template #default="{ row }">
-						<div class="nowrap">{{ row.product?.name || '-' }}<span v-if="row.sku">｜{{ row.sku?.name }}（{{ row.sku?.skuCode }}）</span></div>
-					</template>
-				</el-table-column>
-				<el-table-column label="变更" width="120">
-					<template #default="{ row }">
-						<span :style="{color: row.change>=0? '#2f8f2f':'#c0392b'}">{{ row.change>=0? '+'+row.change : row.change }}</span>
-					</template>
-				</el-table-column>
-				<el-table-column label="前后库存" width="160">
-					<template #default="{ row }">{{ row.beforeStock }} → {{ row.afterStock }}</template>
-				</el-table-column>
-				<el-table-column label="原因" width="140">
-					<template #default="{ row }">{{ reasonLabel(row.reason) }}</template>
-				</el-table-column>
-				<el-table-column prop="remark" label="备注" min-width="160" />
-				<el-table-column label="操作人" width="140">
-					<template #default="{ row }">{{ row.operatorUser?.name || row.operatorUser?.phone || '-' }}</template>
-				</el-table-column>
-			</el-table>
+
+			<div class="wc-table-wrap">
+				<el-table :data="logs" stripe size="small" style="width:100%;">
+					<el-table-column prop="id" label="ID" width="80" />
+					<el-table-column label="时间" width="180">
+						<template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+					</el-table-column>
+					<el-table-column label="商品/SKU" min-width="220">
+						<template #default="{ row }">
+							<div class="nowrap">{{ row.product?.name || '-' }}<span v-if="row.sku">｜{{ row.sku?.name }}（{{ row.sku?.skuCode }}）</span></div>
+						</template>
+					</el-table-column>
+					<el-table-column label="变更" width="120">
+						<template #default="{ row }">
+							<span class="inv-change" :data-sign="row.change>=0 ? 'pos' : 'neg'">{{ row.change>=0? '+'+row.change : row.change }}</span>
+						</template>
+					</el-table-column>
+					<el-table-column label="前后库存" width="160">
+						<template #default="{ row }">{{ row.beforeStock }} → {{ row.afterStock }}</template>
+					</el-table-column>
+					<el-table-column label="原因" width="140">
+						<template #default="{ row }">{{ reasonLabel(row.reason) }}</template>
+					</el-table-column>
+					<el-table-column prop="remark" label="备注" min-width="160" />
+					<el-table-column label="操作人" width="140">
+						<template #default="{ row }">{{ row.operatorUser?.name || row.operatorUser?.phone || '-' }}</template>
+					</el-table-column>
+				</el-table>
+			</div>
 		</div>
 	</div>
 </template>
@@ -192,9 +196,36 @@ onMounted(async ()=>{ await fetchCategories(); });
 </script>
 
 <style scoped>
-.card{ background:#fff; border:1px solid #eee; border-radius:8px; padding:12px; }
-.row{ display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-.hint{ color:#666; margin:-4px 0 8px 0; }
+.wc-toolbar--flat{
+	padding: 0;
+	border: none;
+	box-shadow: none;
+	background: transparent;
+}
+.wc-field--product{
+	min-width: 260px;
+}
+.wc-field--sku{
+	width: 260px;
+}
+.wc-hint{
+	color: var(--el-text-color-regular);
+	margin: 6px 0 10px;
+	font-size: 12px;
+}
+.wc-adjust{
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.nowrap{ white-space: nowrap; }
+.inv-change{
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+.inv-change[data-sign="pos"]{ color: var(--el-color-success); }
+.inv-change[data-sign="neg"]{ color: var(--el-color-danger); }
 </style>
 
 

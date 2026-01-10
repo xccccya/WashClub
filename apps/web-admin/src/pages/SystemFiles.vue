@@ -237,7 +237,7 @@
 		<el-table v-else :data="files" stripe style="width:100%" @selection-change="onSel" @row-dblclick="(row:any)=>openDetail(row)">
 			<el-table-column type="selection" width="48" />
 			<el-table-column label="预览" width="140">
-				<template #default="{ row }"><img v-if="row.mimeType && row.mimeType.startsWith('image/')" :src="thumb(row)" style="width:80px;height:60px;object-fit:cover;border:1px solid #eee;border-radius:6px;" /></template>
+				<template #default="{ row }"><img v-if="row.mimeType && row.mimeType.startsWith('image/')" :src="thumb(row)" style="width:80px;height:60px;object-fit:cover;border:1px solid var(--el-border-color-lighter);border-radius:6px;" /></template>
 			</el-table-column>
 			<el-table-column prop="filename" label="文件名" />
 			<el-table-column prop="mimeType" label="类型" width="180" />
@@ -829,7 +829,7 @@ async function fetchAllTags(){
 	border-radius: 12px;
 	overflow: hidden;
 	cursor: pointer;
-	background: #fff;
+	background: var(--el-bg-color);
 	transition: all 0.3s ease;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
@@ -941,7 +941,7 @@ async function fetchAllTags(){
 }
 
 .action-btn {
-	background: rgba(255, 255, 255, 0.9) !important;
+	background: color-mix(in oklab, var(--el-bg-color), transparent 10%) !important;
 	backdrop-filter: blur(4px);
 	border: 1px solid var(--el-border-color-lighter) !important;
 	width: 28px;
@@ -965,7 +965,7 @@ async function fetchAllTags(){
 
 .check-icon {
 	color: var(--el-color-primary);
-	background: #fff;
+	background: var(--el-bg-color);
 	border-radius: 50%;
 	padding: 4px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -1055,7 +1055,7 @@ async function fetchAllTags(){
 
 /* 文件预览区域 */
 .file-preview-section {
-	background: #fff;
+	background: var(--el-bg-color);
 	padding: 24px;
 	border-bottom: 1px solid var(--el-border-color-lighter);
 }
@@ -1139,7 +1139,7 @@ async function fetchAllTags(){
 
 /* 操作区域 */
 .file-actions-section {
-	background: #fff;
+	background: var(--el-bg-color);
 	padding: 20px 24px;
 	border-bottom: 1px solid var(--el-border-color-lighter);
 	display: grid;
@@ -1166,7 +1166,7 @@ async function fetchAllTags(){
 .file-tags-section,
 .file-url-section,
 .file-references-section {
-	background: #fff;
+	background: var(--el-bg-color);
 	padding: 20px 24px;
 	border-bottom: 1px solid var(--el-border-color-lighter);
 }

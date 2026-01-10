@@ -1,13 +1,16 @@
 <template>
-	<div>
+	<div class="wc-page">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div style="margin:12px 0;">
+		<div class="wc-toolbar">
+			<div class="wc-spacer" />
 			<el-button type="primary" @click="openCreate">
 				<el-icon style="vertical-align: middle; margin-right:4px;"><CirclePlus /></el-icon>
 				<span style="vertical-align: middle;">新增分类</span>
 			</el-button>
 		</div>
-		<el-table :data="list" border size="small" style="width: 100%">
+
+		<div class="wc-table-wrap">
+			<el-table :data="list" row-key="id" size="small" style="width: 100%">
 			<el-table-column prop="id" label="ID" width="60" />
 			<el-table-column prop="name" label="名称" />
 			<el-table-column prop="enabled" label="启用" width="80">
@@ -30,10 +33,11 @@
 					</el-popconfirm>
 				</template>
 			</el-table-column>
-		</el-table>
+			</el-table>
+		</div>
 
-		<el-dialog v-model="show" :title="form.id ? '编辑分类' : '新增分类'" width="520px">
-			<el-form label-width="80">
+		<el-dialog v-model="show" :title="form.id ? '编辑分类' : '新增分类'" width="520px" class="wc-dialog">
+			<el-form label-width="80" class="wc-form">
 				<el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>
 				<el-form-item label="排序"><el-input-number v-model="form.weight" :min="0" /></el-form-item>
@@ -77,6 +81,11 @@ onMounted(fetchList);
 </script>
 
 <style scoped>
+.wc-form :deep(.el-input),
+.wc-form :deep(.el-input-number),
+.wc-form :deep(.el-select){
+	width: 100%;
+}
 </style>
 
 

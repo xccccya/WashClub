@@ -1,48 +1,51 @@
 <template>
-	<div>
+	<div class="wc-page wc-coupon-list">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div class="toolbar">
-			<el-select v-model="query.groupId" placeholder="分组" clearable style="width:160px;margin-right:8px;">
+		<div class="wc-toolbar">
+			<el-select v-model="query.groupId" placeholder="分组" clearable class="wc-field">
 				<el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />
 			</el-select>
-			<el-select v-model="query.type" placeholder="类型" clearable style="width:160px;margin-right:8px;">
+			<el-select v-model="query.type" placeholder="类型" clearable class="wc-field">
 				<el-option label="优惠券" value="COUPON" />
 				<el-option label="洗车计次卡" value="WASH_CARD" />
 				<el-option label="集团洗车计次卡" value="GROUP_WASH_CARD" />
 			</el-select>
 			<el-button @click="fetchList">查询</el-button>
+			<div class="wc-spacer" />
 			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Plus /></el-icon>新增卡券</el-button>
 		</div>
-		<el-table :data="list" border size="small" style="width: 100%">
-			<el-table-column prop="id" label="ID" width="60" />
-			<el-table-column prop="name" label="名称" />
-			<el-table-column prop="type" label="类型" width="120">
-				<template #default="{ row }">{{ zhType(row.type) }}</template>
-			</el-table-column>
-			<el-table-column prop="group.name" label="分组" />
-			<el-table-column prop="enabled" label="启用" width="80">
-				<template #default="{ row }"> <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag> </template>
-			</el-table-column>
-			<el-table-column prop="expiryType" label="有效期类型" width="120">
-				<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
-			</el-table-column>
-			<el-table-column prop="startAt" label="开始时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
-			</el-table-column>
-			<el-table-column prop="endAt" label="结束时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
-			</el-table-column>
-			<el-table-column label="操作" width="480">
-				<template #default="{ row }">
-					<el-button size="small" @click="openView(row)"><el-icon style="margin-right:4px;"><View /></el-icon>查看</el-button>
-					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
-					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
-					<el-button size="small" type="success" @click="openIssue(row)"><el-icon style="margin-right:4px;"><Tickets /></el-icon>发放</el-button>
-				</template>
-			</el-table-column>
-		</el-table>
+		<div class="wc-table-wrap">
+			<el-table :data="list" size="small" style="width: 100%">
+				<el-table-column prop="id" label="ID" width="60" />
+				<el-table-column prop="name" label="名称" />
+				<el-table-column prop="type" label="类型" width="120">
+					<template #default="{ row }">{{ zhType(row.type) }}</template>
+				</el-table-column>
+				<el-table-column prop="group.name" label="分组" />
+				<el-table-column prop="enabled" label="启用" width="80">
+					<template #default="{ row }"> <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag> </template>
+				</el-table-column>
+				<el-table-column prop="expiryType" label="有效期类型" width="120">
+					<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
+				</el-table-column>
+				<el-table-column prop="startAt" label="开始时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
+				</el-table-column>
+				<el-table-column prop="endAt" label="结束时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
+				</el-table-column>
+				<el-table-column label="操作" width="480">
+					<template #default="{ row }">
+						<el-button size="small" @click="openView(row)"><el-icon style="margin-right:4px;"><View /></el-icon>查看</el-button>
+						<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
+						<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
+						<el-button size="small" type="success" @click="openIssue(row)"><el-icon style="margin-right:4px;"><Tickets /></el-icon>发放</el-button>
+					</template>
+				</el-table-column>
+			</el-table>
+		</div>
 
-		<el-dialog v-model="show" :title="form.id ? '编辑卡券' : '新增卡券'" width="840px">
+		<el-dialog v-model="show" :title="form.id ? '编辑卡券' : '新增卡券'" width="840px" class="wc-dialog">
 			<el-form label-width="100">
 				<el-form-item label="类型"><el-select v-model="form.type" :disabled="!!form.id"><el-option label="优惠券" value="COUPON" /><el-option label="洗车计次卡" value="WASH_CARD" /><el-option label="集团洗车计次卡" value="GROUP_WASH_CARD" /></el-select></el-form-item>
 				<el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
@@ -135,12 +138,12 @@
 		</el-dialog>
 
 		<!-- 发放对话框 -->
-		<el-dialog v-model="issueShow" title="发放优惠券" width="720px">
-			<div style="display:flex;gap:16px;align-items:flex-start;">
-				<div style="flex:1;">
+		<el-dialog v-model="issueShow" title="发放优惠券" width="720px" class="wc-dialog">
+			<div class="issue-body">
+				<div class="issue-main">
 					<MemberSelector v-model:selected="issueMemberIds" />
 				</div>
-				<div style="width:240px;">
+				<div class="issue-aside">
 					<el-form label-width="90">
 						<el-form-item label="每人张数"><el-input-number v-model="issueCount" :min="1" /></el-form-item>
 						<el-alert type="info" :closable="false" show-icon title="将按券配置校验发行总数与每人限领" />
@@ -154,7 +157,7 @@
 		</el-dialog>
 
 		<!-- 查看详情 -->
-		<el-dialog v-model="viewShow" title="卡券详情" width="640px">
+		<el-dialog v-model="viewShow" title="卡券详情" width="640px" class="wc-dialog">
 			<div v-if="view">
 				<el-descriptions :column="2" border>
 					<el-descriptions-item label="ID">{{ view.id }}</el-descriptions-item>
@@ -256,8 +259,27 @@ function formatLocal(d?: string){ try { if (!d) return '-'; const dt = new Date(
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; }
-.alert-desc { white-space: normal; line-height: 1.6; display:flex; flex-direction: column; gap: 6px; }
+.alert-desc {
+	white-space: normal;
+	line-height: 1.65;
+	display:flex;
+	flex-direction: column;
+	gap: 6px;
+	color: var(--el-text-color-regular);
+}
+.issue-body{
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+}
+.issue-main{ flex: 1; min-width: 0; }
+.issue-aside{
+	width: 240px;
+	padding: 10px 10px;
+	border-radius: 12px;
+	border: 1px solid color-mix(in oklab, var(--el-border-color), transparent 30%);
+	background: color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 50%);
+}
 </style>
 
 

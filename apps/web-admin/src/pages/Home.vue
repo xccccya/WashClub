@@ -260,6 +260,7 @@ import { ElMessage } from 'element-plus';
 import { absUrl } from '../utils/http';
 import FilePickerDialog from './_components/FilePickerDialog.vue';
 import { ArrowRight, Bell, Sunny } from '@element-plus/icons-vue';
+import { applyThemeToRoot, persistThemeSettings, readThemeSettings, type ColorSchemeKey, type ThemeMode } from '../theme';
 import {
 	authControllerUpdateAdminAvatar,
 	authControllerUpdateAdminNickname,
@@ -291,7 +292,7 @@ function selectPreset(key: 'default'|'green'|'violet'|'orange'|'macaron-pink'|'m
 
 function onCustomChange(){
 	// 自定义颜色走独立 custom 通道，避免覆盖默认首项
-	colorScheme.value = 'custom' as any;
+	colorScheme.value = 'custom';
 	applyTheme();
 }
 
@@ -589,28 +590,14 @@ function toggleFullscreen(){
 }
 
 // 主题与配色
-const theme = ref<'light'|'dark'>('light');
-const colorScheme = ref<'default'|'green'|'violet'|'orange'|'macaron-pink'|'macaron-blue'|'macaron-green'|'custom'>('default');
+const theme = ref<ThemeMode>('light');
+const colorScheme = ref<ColorSchemeKey>('default');
 const customColor = ref<string>('#409eff');
 function applyTheme(){
 	try{
-		const root = document.documentElement as HTMLElement;
-		// 主题
-		if (theme.value === 'dark') { root.setAttribute('data-theme', 'dark'); root.classList.add('dark'); }
-		else { root.removeAttribute('data-theme'); root.classList.remove('dark'); }
-		// 配色通道：default / 预设 / custom
-		if (colorScheme.value === 'default') root.removeAttribute('data-color-scheme');
-		else if (colorScheme.value === 'custom') root.setAttribute('data-color-scheme', 'default');
-		else root.setAttribute('data-color-scheme', colorScheme.value);
-		// 自定义主色仅在 custom 通道生效
-		root.style.removeProperty('--app-primary');
-		if (colorScheme.value === 'custom' && customColor.value) {
-			root.style.setProperty('--app-primary', customColor.value);
-		}
-		// 持久化
-		localStorage.setItem('theme', theme.value);
-		localStorage.setItem('colorScheme', colorScheme.value);
-		localStorage.setItem('customColor', customColor.value);
+		const settings = { theme: theme.value, colorScheme: colorScheme.value, customColor: customColor.value };
+		applyThemeToRoot(settings);
+		persistThemeSettings(settings);
 	}catch{}
 }
 
@@ -692,9 +679,10 @@ onMounted(()=>{
 		reloadBusiness();
 	// 初始化主题
 	try {
-		const t = localStorage.getItem('theme'); if (t==='dark'||t==='light') theme.value = t as any;
-		const c = localStorage.getItem('colorScheme'); if (c && ['default','green','violet','orange','macaron-pink','macaron-blue','macaron-green','custom'].includes(c)) colorScheme.value = c as any;
-		const cc = localStorage.getItem('customColor'); if (cc) customColor.value = cc;
+		const s = readThemeSettings();
+		theme.value = s.theme;
+		colorScheme.value = s.colorScheme;
+		customColor.value = s.customColor;
 		applyTheme();
 	} catch {}
 });
@@ -1446,7 +1434,7 @@ try{ window.addEventListener('site-setting-updated', onSiteSettingUpdated as any
 .color-input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
 /* 通知抽屉样式 */
 .notify-drawer{ display:flex; flex-direction:column; height:100%; }
-.notify-drawer__header{ display:flex; align-items:center; justify-content:space-between; padding:8px 8px 6px; border-bottom:1px solid #eee; }
+.notify-drawer__header{ display:flex; align-items:center; justify-content:space-between; padding:8px 8px 6px; border-bottom:1px solid var(--el-border-color-lighter); }
 .notify-drawer__header .title{ font-weight:700; }
 .notify-list{ padding:8px; }
 .notify-item{ padding:10px 10px 8px; border-radius:8px; border:1px solid var(--el-border-color-light); margin-bottom:8px; cursor: default; }

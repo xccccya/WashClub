@@ -1,48 +1,52 @@
 <template>
-	<div>
+	<div class="wc-page wc-member-coupons">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div class="toolbar">
-			<el-input v-model="query.memberId" placeholder="会员ID" style="width:140px;margin-right:8px;" />
-			<el-input v-model="query.couponId" placeholder="卡券ID" style="width:140px;margin-right:8px;" />
-			<el-select v-model="query.used" placeholder="是否已使用" clearable style="width:160px;margin-right:8px;">
+		<div class="wc-toolbar">
+			<el-input v-model="query.memberId" placeholder="会员ID" class="wc-field wc-field--sm" />
+			<el-input v-model="query.couponId" placeholder="卡券ID" class="wc-field wc-field--sm" />
+			<el-select v-model="query.used" placeholder="是否已使用" clearable class="wc-field">
 				<el-option label="未使用" value="0" />
 				<el-option label="已使用" value="1" />
 			</el-select>
-			<el-select v-model="query.expired" placeholder="是否过期" clearable style="width:160px;margin-right:8px;">
+			<el-select v-model="query.expired" placeholder="是否过期" clearable class="wc-field">
 				<el-option label="未过期" value="0" />
 				<el-option label="已过期" value="1" />
 			</el-select>
 			<el-button @click="fetchList"><el-icon style="margin-right:4px;"><Search /></el-icon>查询</el-button>
 		</div>
-		<el-table :data="list.items" border size="small" style="width: 100%">
-			<el-table-column prop="id" label="ID" width="60" />
-			<el-table-column prop="member.name" label="会员" min-width="160">
-				<template #default="{ row }">{{ row.member?.name }}（{{ row.member?.phone }}）</template>
-			</el-table-column>
-			<el-table-column prop="coupon.name" label="卡券名称" min-width="160" />
-			<el-table-column prop="expiryType" label="有效期类型" width="120">
-				<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
-			</el-table-column>
-			<el-table-column prop="startAt" label="开始时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
-			</el-table-column>
-			<el-table-column prop="endAt" label="结束时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
-			</el-table-column>
-			<el-table-column prop="usedAt" label="使用时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.usedAt) }}</template>
-			</el-table-column>
-			<el-table-column label="操作" width="300">
-				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>修改有效期</el-button>
-					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
-				</template>
-			</el-table-column>
-		</el-table>
+		<div class="wc-table-wrap">
+			<el-table :data="list.items" size="small" style="width: 100%">
+				<el-table-column prop="id" label="ID" width="60" />
+				<el-table-column prop="member.name" label="会员" min-width="160">
+					<template #default="{ row }">{{ row.member?.name }}（{{ row.member?.phone }}）</template>
+				</el-table-column>
+				<el-table-column prop="coupon.name" label="卡券名称" min-width="160" />
+				<el-table-column prop="expiryType" label="有效期类型" width="120">
+					<template #default="{ row }">{{ zhExpiryType(row.expiryType) }}</template>
+				</el-table-column>
+				<el-table-column prop="startAt" label="开始时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.startAt) }}</template>
+				</el-table-column>
+				<el-table-column prop="endAt" label="结束时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.endAt) }}</template>
+				</el-table-column>
+				<el-table-column prop="usedAt" label="使用时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.usedAt) }}</template>
+				</el-table-column>
+				<el-table-column label="操作" width="300">
+					<template #default="{ row }">
+						<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>修改有效期</el-button>
+						<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
+					</template>
+				</el-table-column>
+			</el-table>
+		</div>
 
-		<el-pagination v-if="list.total>pageSize" background layout="prev, pager, next" :total="list.total" :page-size="pageSize" :current-page="page" @current-change="onPage" style="margin-top:12px" />
+		<div class="wc-pagination" v-if="list.total>pageSize">
+			<el-pagination background layout="prev, pager, next" :total="list.total" :page-size="pageSize" :current-page="page" @current-change="onPage" />
+		</div>
 
-		<el-dialog v-model="show" title="修改有效期" width="520px">
+		<el-dialog v-model="show" title="修改有效期" width="520px" class="wc-dialog">
 			<el-form label-width="100">
 				<el-form-item label="有效期">
 					<el-date-picker v-model="range" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:100%" />
@@ -126,7 +130,6 @@ function formatLocal(d?: string | Date | null): string{
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; }
 </style>
 
 

@@ -23,7 +23,7 @@
 		<transition name="fade">
 			<div v-if="loadingMask" class="loading-mask">
 				<div class="loading-inner">
-					<el-icon class="spin" color="#409eff" size="28"><Loading /></el-icon>
+					<el-icon class="spin" color="var(--el-color-primary)" size="28"><Loading /></el-icon>
 					<div class="loading-text">加载中...</div>
 				</div>
 			</div>
@@ -129,13 +129,13 @@ onUnmounted(()=>{ try{ document.body.classList.remove('login-page'); }catch{} })
 .brand{ display:flex; align-items:center; gap:12px; color:#fff; }
 .brand .logo{ width:36px; height:36px; object-fit:contain; border-radius:0; box-shadow:none; background: transparent; }
 .brand .title{ font-size:20px; font-weight:700; letter-spacing:.3px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-.card{ backdrop-filter: blur(8px); background: color-mix(in oklab, #fff, transparent 10%); box-shadow: 0 8px 30px rgba(0,0,0,.12); }
+.card{ backdrop-filter: blur(8px); background: color-mix(in oklab, var(--el-bg-color), transparent 10%); box-shadow: 0 8px 30px rgba(0,0,0,.12); }
 .card-title{ margin:0 0 10px; font-size:18px; }
 /* 页面加载遮罩 */
-.loading-mask{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#fff; z-index:9; }
+.loading-mask{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: var(--el-bg-color); z-index:9; }
 .loading-inner{ display:flex; flex-direction:column; align-items:center; gap:8px; }
 .spin{ animation: spin 1s linear infinite; }
-.loading-text{ color:#606266; font-size:13px; }
+.loading-text{ color: var(--el-text-color-regular); font-size:13px; }
 .loading-mask :deep(svg){ width: 32px; height: 32px; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .fade-enter-active, .fade-leave-active{ transition: opacity .24s ease; }

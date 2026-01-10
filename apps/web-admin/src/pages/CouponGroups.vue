@@ -1,25 +1,27 @@
 <template>
-	<div>
+	<div class="wc-page wc-coupon-groups">
 		<!-- 标题已移除，使用顶部面包屑信息替代 -->
-		<div style="margin:12px 0;">
+		<div class="wc-toolbar">
 			<el-button type="primary" @click="openCreate"><el-icon style="margin-right:4px;"><Collection /></el-icon>新增分组</el-button>
 		</div>
-		<el-table :data="list" border size="small" style="width: 100%">
-			<el-table-column prop="id" label="ID" width="60" />
-			<el-table-column prop="name" label="名称" />
-			<el-table-column prop="enabled" label="启用" width="80">
-				<template #default="{ row }"> <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag> </template>
-			</el-table-column>
-			<el-table-column prop="weight" label="排序" width="100" />
-			<el-table-column label="操作" width="220">
-				<template #default="{ row }">
-					<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
-					<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
-				</template>
-			</el-table-column>
-		</el-table>
+		<div class="wc-table-wrap">
+			<el-table :data="list" size="small" style="width: 100%">
+				<el-table-column prop="id" label="ID" width="60" />
+				<el-table-column prop="name" label="名称" />
+				<el-table-column prop="enabled" label="启用" width="80">
+					<template #default="{ row }"> <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag> </template>
+				</el-table-column>
+				<el-table-column prop="weight" label="排序" width="100" />
+				<el-table-column label="操作" width="220">
+					<template #default="{ row }">
+						<el-button size="small" @click="openEdit(row)"><el-icon style="margin-right:4px;"><EditPen /></el-icon>编辑</el-button>
+						<el-popconfirm title="确认删除？" @confirm="remove(row.id)"><template #reference><el-button size="small" type="danger"><el-icon style="margin-right:4px;"><Delete /></el-icon>删除</el-button></template></el-popconfirm>
+					</template>
+				</el-table-column>
+			</el-table>
+		</div>
 
-		<el-dialog v-model="show" :title="form.id ? '编辑分组' : '新增分组'" width="520px">
+		<el-dialog v-model="show" :title="form.id ? '编辑分组' : '新增分组'" width="520px" class="wc-dialog">
 			<el-form label-width="80">
 				<el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
 				<el-form-item label="启用"><el-switch v-model="form.enabled" /></el-form-item>

@@ -1,5 +1,5 @@
 <template>
-	<el-dialog v-model="visible" :title="title || '选择文件'" width="1000px" class="file-picker-dialog">
+	<el-dialog v-model="visible" :title="title || '选择文件'" width="1000px" class="wc-dialog file-picker-dialog">
 		<!-- 工具栏 -->
 		<div class="picker-toolbar">
 			<div class="toolbar-main">
@@ -392,7 +392,7 @@
 				</div>
 			</div>
 		</el-drawer>
-		<el-dialog v-model="batchTagVisible" title="批量打标签" width="420px">
+		<el-dialog v-model="batchTagVisible" title="批量打标签" width="420px" class="wc-dialog">
 			<el-select v-model="tagsInput" multiple filterable allow-create default-first-option placeholder="输入后回车创建或选择标签" style="width:100%">
 				<el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
 			</el-select>
@@ -675,7 +675,7 @@ function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'gri
 	border-radius: 8px;
 	overflow: hidden;
 	cursor: pointer;
-	background: #fff;
+	background: var(--el-bg-color);
 	transition: all 0.2s ease;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
@@ -775,7 +775,7 @@ function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'gri
 
 .picker-check-icon {
 	color: var(--el-color-primary);
-	background: #fff;
+	background: var(--el-bg-color);
 	border-radius: 50%;
 	padding: 3px;
 	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
@@ -905,7 +905,7 @@ function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'gri
 
 /* 文件预览区域 */
 .picker-preview-section {
-	background: #fff;
+	background: var(--el-bg-color);
 	padding: 20px;
 	border-bottom: 1px solid var(--el-border-color-lighter);
 }
@@ -990,7 +990,7 @@ function toggleView(){ viewMode.value = viewMode.value==='grid' ? 'table' : 'gri
 .picker-tags-section,
 .picker-url-section,
 .picker-references-section {
-	background: #fff;
+	background: var(--el-bg-color);
 	padding: 16px 20px;
 	border-bottom: 1px solid var(--el-border-color-lighter);
 }

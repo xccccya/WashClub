@@ -1,16 +1,18 @@
 <template>
-	<div>
-		<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-			<el-input v-model="keyword" placeholder="搜索姓名/手机号" style="width:220px;" />
+	<div class="wc-member-selector">
+		<div class="wc-member-selector__toolbar">
+			<el-input v-model="keyword" placeholder="搜索姓名/手机号" class="wc-field wc-field--lg" />
 			<el-button @click="fetchMembers" :loading="loading">搜索</el-button>
 		</div>
-		<el-table :data="items" @selection-change="onSelect" height="360" size="small" border>
-			<el-table-column type="selection" width="48" />
-			<el-table-column prop="id" label="ID" width="60" />
-			<el-table-column prop="name" label="昵称" />
-			<el-table-column prop="phone" label="手机号" width="120" />
-		</el-table>
-		<div style="margin-top:8px;display:flex;justify-content:flex-end;">
+		<div class="wc-table-wrap wc-member-selector__table">
+			<el-table :data="items" @selection-change="onSelect" height="360" size="small" style="width:100%">
+				<el-table-column type="selection" width="48" />
+				<el-table-column prop="id" label="ID" width="60" />
+				<el-table-column prop="name" label="昵称" />
+				<el-table-column prop="phone" label="手机号" width="120" />
+			</el-table>
+		</div>
+		<div class="wc-pagination">
 			<el-pagination background layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="onPage" />
 		</div>
 	</div>
@@ -51,6 +53,16 @@ onMounted(fetchMembers);
 </script>
 
 <style scoped>
+.wc-member-selector__toolbar{
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-bottom: 10px;
+	flex-wrap: wrap;
+}
+.wc-member-selector__table{
+	border-radius: 12px;
+}
 </style>
 
 

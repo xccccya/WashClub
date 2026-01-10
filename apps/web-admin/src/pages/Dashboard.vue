@@ -70,7 +70,7 @@
 						@keydown.space.prevent="goOrders"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#409eff"><ShoppingBag /></el-icon>
+							<el-icon size="32" color="var(--el-color-primary)"><ShoppingBag /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">订单笔数</div>
@@ -97,7 +97,7 @@
 						@keydown.space.prevent="goWashOrders"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#409eff"><Tickets /></el-icon>
+							<el-icon size="32" color="var(--el-color-primary)"><Tickets /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">洗车数量(总)</div>
@@ -122,7 +122,7 @@
 						@keydown.space.prevent="goPaidOrders"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#67c23a"><Money /></el-icon>
+							<el-icon size="32" color="var(--el-color-success)"><Money /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">支付金额(净)</div>
@@ -147,7 +147,7 @@
 						@keydown.space.prevent="goWashcardOrders"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#e6a23c"><CreditCard /></el-icon>
+							<el-icon size="32" color="var(--el-color-warning)"><CreditCard /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">洗车卡划扣</div>
@@ -172,7 +172,7 @@
 						@keydown.space.prevent="goActiveMembers"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#f56c6c"><User /></el-icon>
+							<el-icon size="32" color="var(--el-color-danger)"><User /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">活跃会员数</div>
@@ -197,7 +197,7 @@
 						@keydown.space.prevent="goNewMembers"
 					>
 						<div class="metric-icon">
-							<el-icon size="32" color="#909399"><UserFilled /></el-icon>
+							<el-icon size="32" color="var(--el-text-color-secondary)"><UserFilled /></el-icon>
 						</div>
 						<div class="meta">
 							<div class="label">新增会员数</div>
@@ -223,7 +223,7 @@
 			<el-row :gutter="12">
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#67c23a"><Money /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-success)"><Money /></el-icon></div>
 						<div class="meta">
 							<div class="label">累计交易金额(净)</div>
 							<div class="value">{{ formatCurrency(data?.cumulative?.transactionAmount ?? 0) }}</div>
@@ -232,7 +232,7 @@
 				</el-col>
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#409eff"><Tickets /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-primary)"><Tickets /></el-icon></div>
 						<div class="meta">
 							<div class="label">累计订单数</div>
 							<div class="value">{{ data?.cumulative?.orderCount ?? '-' }}</div>
@@ -241,7 +241,7 @@
 				</el-col>
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#409eff"><Tickets /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-primary)"><Tickets /></el-icon></div>
 						<div class="meta">
 							<div class="label">累计洗车数量</div>
 							<div class="value">{{ data?.cumulative?.washCount ?? '-' }}</div>
@@ -250,7 +250,7 @@
 				</el-col>
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#e6a23c"><CreditCard /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-warning)"><CreditCard /></el-icon></div>
 						<div class="meta">
 							<div class="label">累计洗车卡划扣(次)</div>
 							<div class="value">{{ data?.cumulative?.washcardDeductTimes ?? '-' }}</div>
@@ -259,7 +259,7 @@
 				</el-col>
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#f56c6c"><User /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-danger)"><User /></el-icon></div>
 						<div class="meta">
 							<div class="label">总会员数</div>
 							<div class="value">{{ data?.cumulative?.totalMembers ?? '-' }}</div>
@@ -268,7 +268,7 @@
 				</el-col>
 				<el-col :xs="24" :sm="12" :md="8" :lg="4">
 					<div class="metric-item">
-						<div class="metric-icon"><el-icon size="28" color="#e6a23c"><OfficeBuilding /></el-icon></div>
+						<div class="metric-icon"><el-icon size="28" color="var(--el-color-warning)"><OfficeBuilding /></el-icon></div>
 						<div class="meta">
 							<div class="label">总集团客户数</div>
 							<div class="value">{{ data?.cumulative?.totalGroups ?? '-' }}</div>
@@ -373,7 +373,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { ElMessage } from 'element-plus';
 import { ShoppingBag, Money, CreditCard, User, UserFilled, Tickets, OfficeBuilding, RefreshRight, RefreshLeft } from '@element-plus/icons-vue';
 import { use } from 'echarts/core';
@@ -443,6 +443,7 @@ const seriesLoading = ref(false);
 const ordersOption = ref<any>({});
 const paymentsOption = ref<any>({});
 const washcardOption = ref<any>({});
+const xDatesRef = ref<any[]>([]);
 const ordersPoints = ref<any[]>([]);
 const paymentsPoints = ref<any[]>([]);
 const washcardPoints = ref<any[]>([]);
@@ -679,14 +680,12 @@ async function fetchSeries(q: MetricsTimeQuery = lastQuery.value){
       metricsControllerSeries({ metric: 'washcount', ...(q as any) } as any) as any,
     ]);
     const xDates = (orders?.points||[]).map((p:any)=>p.date);
+    xDatesRef.value = xDates;
     ordersPoints.value = orders?.points||[];
     paymentsPoints.value = payments?.points||[];
     washcardPoints.value = washcard?.points||[];
     washcountPoints.value = washcount?.points||[];
-    const primary = getPrimaryColor();
-    ordersOption.value = buildLineOption(xDates, ordersPoints.value.map((p:any)=>p.value), '订单笔数', 'default', primary);
-    paymentsOption.value = buildLineOption(xDates, paymentsPoints.value.map((p:any)=>p.value), '支付金额(净)', 'currency', primary);
-    washcardOption.value = buildLineOption(xDates, washcardPoints.value.map((p:any)=>p.value), '洗车卡划扣(次)', 'default', primary);
+    rebuildChartOptions();
   }catch(e:any){ ElMessage.error(e?.message?.replace(/^[^:\s]*:\s*/, '') || '加载图表失败'); }
   finally{ seriesLoading.value = false; }
 }
@@ -733,8 +732,29 @@ const dailySummary = computed(() => {
 	return { orders, washcount, washcard, payments };
 });
 
+function cssVar(name: string, fallback: string): string {
+	try {
+		const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+		return v || fallback;
+	} catch {
+		return fallback;
+	}
+}
+
 function getPrimaryColor(){
-  try{ const c = getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary').trim(); return c || '#409eff'; }catch{ return '#409eff'; }
+	return cssVar('--el-color-primary', '#409eff');
+}
+
+function getChartSkin(){
+	const primary = getPrimaryColor();
+	return {
+		primary,
+		textPrimary: cssVar('--el-text-color-primary', '#303133'),
+		textSecondary: cssVar('--el-text-color-secondary', '#606266'),
+		border: cssVar('--el-border-color-lighter', '#ebeef5'),
+		fill: cssVar('--el-fill-color-light', 'rgba(0,0,0,0.04)'),
+		bgOverlay: cssVar('--el-bg-color-overlay', cssVar('--el-bg-color', '#fff')),
+	};
 }
 
 function hexToRgba(hex:string, alpha:number){
@@ -745,13 +765,36 @@ function hexToRgba(hex:string, alpha:number){
 }
 
 function buildLineOption(x:any[], y:number[], name:string, valueType: 'default'|'currency' = 'default', primary:string = '#409eff'){
+  const skin = getChartSkin();
   const area = hexToRgba(primary, 0.12);
   return {
+    backgroundColor: 'transparent',
     color: [primary],
-    tooltip: { trigger: 'axis', valueFormatter: (v:number)=> valueType==='currency' ? formatCurrency(v) : String(v) },
-    grid: { left: 40, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'category', data: x, boundaryGap: false },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    textStyle: { color: skin.textSecondary },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: skin.bgOverlay,
+      borderColor: skin.border,
+      textStyle: { color: skin.textPrimary },
+      valueFormatter: (v:number)=> valueType==='currency' ? formatCurrency(v) : String(v),
+    },
+    grid: { left: 40, right: 20, top: 30, bottom: 30, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: x,
+      boundaryGap: false,
+      axisLabel: { color: skin.textSecondary },
+      axisLine: { lineStyle: { color: skin.border } },
+      axisTick: { lineStyle: { color: skin.border } },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: skin.textSecondary },
+      axisLine: { lineStyle: { color: skin.border } },
+      axisTick: { lineStyle: { color: skin.border } },
+      splitLine: { lineStyle: { type: 'dashed', color: skin.border } },
+    },
     series: [{
       name,
       type: 'line',
@@ -776,7 +819,35 @@ function buildLineOption(x:any[], y:number[], name:string, valueType: 'default'|
   };
 }
 
-onMounted(() => { applyFilter(); });
+function rebuildChartOptions(){
+	try{
+		const xDates = xDatesRef.value || [];
+		if (!xDates.length) return;
+		const primary = getPrimaryColor();
+		ordersOption.value = buildLineOption(xDates, (ordersPoints.value||[]).map((p:any)=>p.value), '订单笔数', 'default', primary);
+		paymentsOption.value = buildLineOption(xDates, (paymentsPoints.value||[]).map((p:any)=>p.value), '支付金额(净)', 'currency', primary);
+		washcardOption.value = buildLineOption(xDates, (washcardPoints.value||[]).map((p:any)=>p.value), '洗车卡划扣(次)', 'default', primary);
+	}catch{}
+}
+
+let themeObserver: MutationObserver | null = null;
+onMounted(() => {
+	applyFilter();
+	try{
+		themeObserver = new MutationObserver(() => {
+			// 主题/主色切换时重建图表 option（不重新拉取数据）
+			rebuildChartOptions();
+		});
+		themeObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-theme', 'data-color-scheme', 'style', 'class'],
+		});
+	}catch{}
+});
+onBeforeUnmount(() => {
+	try { themeObserver?.disconnect(); } catch {}
+	themeObserver = null;
+});
 </script>
 
 <style scoped>

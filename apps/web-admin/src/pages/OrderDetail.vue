@@ -949,14 +949,14 @@ const exchangeShipments = computed(() => {
 	align-items:center;
 	gap:8px;
 	font-weight: 800;
-	color:#1f2937;
+	color: var(--el-text-color-primary);
 	letter-spacing: 0.2px;
 }
 .section-icon{ color: var(--icon-color); }
 .section-header__actions{ display:flex; align-items:center; gap:8px; flex-wrap: wrap; justify-content: flex-end; }
 .points-chips :deep(.el-tag){ margin-right: 0; }
 
-.text-muted{ color:#909399; }
+.text-muted{ color: var(--el-text-color-secondary); }
 .text-danger{ color:#b91c1c; font-weight: 600; }
 
 .section-header--base{ --bar-gradient: linear-gradient(180deg, #3b82f6, #22c55e); --icon-color:#3b82f6; }
@@ -975,34 +975,38 @@ const exchangeShipments = computed(() => {
 	gap: 10px;
 	padding: 10px;
 	border-radius: 10px;
-	background: linear-gradient(180deg, #f8fafc, #ffffff);
-	border: 1px solid #f0f2f5;
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--el-bg-color), var(--el-fill-color-light) 60%),
+		var(--el-bg-color)
+	);
+	border: 1px solid var(--el-border-color-lighter);
 	margin-bottom: 12px;
 }
 .stat{
 	padding: 10px 12px;
 	border-radius: 10px;
-	background:#fff;
-	border: 1px solid #f3f4f6;
+	background: var(--el-bg-color);
+	border: 1px solid var(--el-border-color-lighter);
 	min-width: 0;
 }
-.stat__label{ color:#6b7280; font-size: 12px; }
-.stat__value{ color:#111827; font-weight: 800; margin-top: 4px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
-.stat__value--primary{ color:#2563eb; }
-.stat__value--success{ color:#16a34a; }
-.stat__value--muted{ color:#374151; font-weight: 700; }
+.stat__label{ color: var(--el-text-color-secondary); font-size: 12px; }
+.stat__value{ color: var(--el-text-color-primary); font-weight: 800; margin-top: 4px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.stat__value--primary{ color: var(--el-color-primary); }
+.stat__value--success{ color: var(--el-color-success); }
+.stat__value--muted{ color: var(--el-text-color-regular); font-weight: 700; }
 .stat--right .stat__value{ font-weight: 700; }
 
-.item-img{ width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #ebeef5; background:#fff; }
+.item-img{ width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid var(--el-border-color-lighter); background: var(--el-bg-color); }
 
-.logistics-box{ background:#fafafa; border:1px solid #f0f2f5; border-radius:10px; padding:12px; }
+.logistics-box{ background: var(--el-fill-color-lighter); border:1px solid var(--el-border-color-lighter); border-radius:10px; padding:12px; }
 .logistics-row{ display:flex; align-items:center; gap:12px; }
 .logistics-logo{ width:28px; height:28px; object-fit:contain; }
 .logistics-main{ flex:1; min-width:0; }
-.logistics-line{ color:#303133; line-height: 1.6; }
-.logistics-subtitle{ font-weight: 700; color:#303133; margin-bottom: 8px; }
+.logistics-line{ color: var(--el-text-color-regular); line-height: 1.6; }
+.logistics-subtitle{ font-weight: 700; color: var(--el-text-color-primary); margin-bottom: 8px; }
 .exchange-list{ display:flex; flex-direction: column; gap:10px; }
-.exchange-item{ padding-top: 10px; border-top: 1px dashed #e5e7eb; }
+.exchange-item{ padding-top: 10px; border-top: 1px dashed var(--el-border-color-lighter); }
 .exchange-item:first-child{ padding-top: 0; border-top: 0; }
 
 .points-change{ font-weight: 700; }
@@ -1010,21 +1014,21 @@ const exchangeShipments = computed(() => {
 .points-change--neg{ color:#ef4444; }
 
 .coupon-list{ display:flex; flex-direction: column; gap:8px; }
-.coupon-item{ display:flex; align-items:center; justify-content: space-between; background: #fafafa; border:1px dashed #e5e7eb; border-radius:8px; padding:8px 12px; }
+.coupon-item{ display:flex; align-items:center; justify-content: space-between; background: var(--el-fill-color-lighter); border:1px dashed var(--el-border-color-lighter); border-radius:8px; padding:8px 12px; }
 .coupon-left{ display:flex; flex-direction: column; gap:4px; }
-.coupon-name{ font-weight: 600; color:#303133; }
-.coupon-meta{ display:flex; gap:12px; color:#606266; font-size:12px; }
+.coupon-name{ font-weight: 600; color: var(--el-text-color-primary); }
+.coupon-meta{ display:flex; gap:12px; color: var(--el-text-color-regular); font-size:12px; }
 .coupon-right{ display:flex; align-items:center; gap:8px; }
-.coupon-summary{ text-align:right; color:#67C23A; font-weight:600; margin-top:4px; }
+.coupon-summary{ text-align:right; color: var(--el-color-success); font-weight:600; margin-top:4px; }
 
-.points-card__hint{ margin-top: 10px; color:#909399; font-size: 12px; }
+.points-card__hint{ margin-top: 10px; color: var(--el-text-color-secondary); font-size: 12px; }
 
 /* Element Plus 细节统一 */
-.order-detail :deep(.el-card__header){ padding: 12px 16px; border-bottom: 1px solid #f0f2f5; }
+.order-detail :deep(.el-card__header){ padding: 12px 16px; border-bottom: 1px solid var(--el-border-color-lighter); }
 .order-detail :deep(.el-card__body){ padding: 12px 16px; }
-.order-detail :deep(.el-descriptions__label){ color:#606266; }
-.order-detail :deep(.el-table th.el-table__cell){ background:#fafafa; }
-.order-detail :deep(.el-timeline-item__timestamp){ color:#909399; }
+.order-detail :deep(.el-descriptions__label){ color: var(--el-text-color-regular); }
+.order-detail :deep(.el-table th.el-table__cell){ background: var(--el-fill-color-lighter); }
+.order-detail :deep(.el-timeline-item__timestamp){ color: var(--el-text-color-secondary); }
 .section-timeline{ margin-top: 4px; }
 
 @media (max-width: 640px){

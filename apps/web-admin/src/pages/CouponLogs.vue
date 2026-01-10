@@ -1,24 +1,25 @@
 <template>
-	<div>
-		<div class="toolbar">
-			<el-input v-model="query.memberId" placeholder="会员ID" style="width:140px;margin-right:8px;" />
-			<el-input v-model="query.orderId" placeholder="订单ID" style="width:140px;margin-right:8px;" />
+	<div class="wc-page wc-coupon-logs">
+		<div class="wc-toolbar">
+			<el-input v-model="query.memberId" placeholder="会员ID" class="wc-field wc-field--sm" />
+			<el-input v-model="query.orderId" placeholder="订单ID" class="wc-field wc-field--sm" />
 			<el-button @click="fetchList" :loading="loading">
 				<el-icon style="vertical-align: middle; margin-right:4px;"><Search /></el-icon>
 				<span style="vertical-align: middle;">查询</span>
 			</el-button>
 		</div>
-		<el-table :data="list.items" border size="small" style="width: 100%">
-			<el-table-column prop="id" label="ID" width="80" />
-			<el-table-column prop="member.name" label="会员" min-width="160">
-				<template #default="{ row }">{{ row.member?.name || '-' }}（{{ row.member?.phone || '-' }}）</template>
-			</el-table-column>
-			<el-table-column prop="order.no" label="订单号" min-width="160">
-				<template #default="{ row }">{{ row.order?.no || row.orderId }}</template>
-			</el-table-column>
-			<el-table-column prop="couponSnapshot" label="卡券信息" min-width="320">
-				<template #default="{ row }">
-					<el-popover trigger="hover" width="460px">
+		<div class="wc-table-wrap">
+			<el-table :data="list.items" size="small" style="width: 100%">
+				<el-table-column prop="id" label="ID" width="80" />
+				<el-table-column prop="member.name" label="会员" min-width="160">
+					<template #default="{ row }">{{ row.member?.name || '-' }}（{{ row.member?.phone || '-' }}）</template>
+				</el-table-column>
+				<el-table-column prop="order.no" label="订单号" min-width="160">
+					<template #default="{ row }">{{ row.order?.no || row.orderId }}</template>
+				</el-table-column>
+				<el-table-column prop="couponSnapshot" label="卡券信息" min-width="320">
+					<template #default="{ row }">
+						<el-popover trigger="hover" width="460px" popper-class="wc-log-popover">
 						<template #reference>
 							<div style="display:flex;align-items:center;gap:8px;">
 								<el-tag type="info">查看</el-tag>
@@ -57,14 +58,17 @@
 							</el-descriptions>
 						</div>
 					</el-popover>
-				</template>
-			</el-table-column>
-			<el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
-			<el-table-column prop="createdAt" label="记录时间" width="200">
-				<template #default="{ row }">{{ formatLocal(row.createdAt) }}</template>
-			</el-table-column>
-		</el-table>
-		<el-pagination v-if="list.total>pageSize" background layout="prev, pager, next" :total="list.total" :page-size="pageSize" :current-page="page" @current-change="onPage" style="margin-top:12px" />
+					</template>
+				</el-table-column>
+				<el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
+				<el-table-column prop="createdAt" label="记录时间" width="200">
+					<template #default="{ row }">{{ formatLocal(row.createdAt) }}</template>
+				</el-table-column>
+			</el-table>
+		</div>
+		<div class="wc-pagination" v-if="list.total>pageSize">
+			<el-pagination background layout="prev, pager, next" :total="list.total" :page-size="pageSize" :current-page="page" @current-change="onPage" />
+		</div>
 	</div>
 </template>
 
@@ -135,7 +139,6 @@ onMounted(fetchList);
 </script>
 
 <style scoped>
-.toolbar{ display:flex; align-items:center; margin:12px 0; }
 .log-pop :deep(.el-descriptions__label){ width: 88px; }
 .log-pop{ padding:4px 2px; }
 </style>
