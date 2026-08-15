@@ -4,7 +4,20 @@ import { PrismaService } from '../prisma.service.js';
 import { SmsService } from './sms.service.js';
 import { WechatTokenService } from './wechat-token.service.js';
 import { hashPassword, verifyPassword } from './password.js';
-import { resolveAdminJwtExpiresInEnv, resolveMemberJwtExpiresInEnv } from '../env.js';
+import { resolveAdminJwtExpiresInEnv, resolveJwtSecretEnv, resolveMemberJwtExpiresInEnv } from '../env.js';
+import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+
+type ChangePhoneStage = 'old' | 'new';
+
+type StoredChangePhoneCode = {
+	version: 'v1';
+	attempts: number;
+	salt: string;
+	digest: string;
+};
+
+const CHANGE_PHONE_MAX_ATTEMPTS = 5;
+const CHANGE_PHONE_CODE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -95,6 +108,40 @@ export class AuthService {
 			suffix += alphabet[idx];
 		}
 		return `用户${suffix}`;
+	}
+
+	private changePhonePurpose(memberId: number, stage: ChangePhoneStage): string {
+		return `changePhone:v2:${memberId}:${stage}`;
+	}
+
+	private hashChangePhoneCode(salt: string, code: string): string {
+		return createHmac('sha256', resolveJwtSecretEnv())
+			.update(`change-phone:v1:${salt}:${code}`, 'utf8')
+			.digest('hex');
+	}
+
+	private encodeChangePhoneCode(code: string, attempts = 0): string {
+		const salt = randomBytes(16).toString('hex');
+		const digest = this.hashChangePhoneCode(salt, code);
+		return `v1$${attempts}$${salt}$${digest}`;
+	}
+
+	private encodeStoredChangePhoneCode(record: StoredChangePhoneCode): string {
+		return `${record.version}$${record.attempts}$${record.salt}$${record.digest}`;
+	}
+
+	private parseStoredChangePhoneCode(value: string): StoredChangePhoneCode | null {
+		const [version, attemptsRaw, salt, digest, extra] = String(value || '').split('$');
+		const attempts = Number(attemptsRaw);
+		if (extra !== undefined || version !== 'v1' || !Number.isInteger(attempts) || attempts < 0) return null;
+		if (!/^[a-f0-9]{32}$/i.test(salt || '') || !/^[a-f0-9]{64}$/i.test(digest || '')) return null;
+		return { version: 'v1', attempts, salt, digest };
+	}
+
+	private matchesStoredChangePhoneCode(record: StoredChangePhoneCode, submittedCode: string): boolean {
+		const expected = Buffer.from(record.digest, 'hex');
+		const actual = Buffer.from(this.hashChangePhoneCode(record.salt, submittedCode), 'hex');
+		return expected.length === actual.length && timingSafeEqual(expected, actual);
 	}
 
 	private async generateUniqueMemberUid(): Promise<number> {
@@ -224,10 +271,10 @@ export class AuthService {
 	}
 
 	// 发送短信验证码（5分钟有效，含频控：60秒内同一手机号不重复发送；每日最多10条）
-	async sendLoginCode(rawPhone: string, rawPurpose?: string) {
+	async sendLoginCode(rawPhone: string, rawPurpose?: 'login' | 'resetPwd') {
 		const phone = String(rawPhone || '').trim();
 		if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('手机号格式不正确');
-		const purpose = rawPurpose === 'resetPwd' ? 'resetPwd' : (rawPurpose === 'changePhone' ? 'changePhone' : 'login');
+		const purpose = rawPurpose === 'resetPwd' ? 'resetPwd' : 'login';
 		const now = new Date();
 		const fiveMinLater = new Date(Date.now() + 5 * 60 * 1000);
 		// 频控：60秒内不重复发
@@ -239,11 +286,65 @@ export class AuthService {
 		const countToday = await this.prisma.smsCode.count({ where: { phone, createdAt: { gte: startOfDay }, purpose } });
 		if (countToday >= 10) throw new BadRequestException('当日发送次数过多，请明日再试');
 		// 生成 6 位数字验证码
-		const code = Math.floor(100000 + Math.random() * 900000).toString();
+		const code = randomInt(100000, 1000000).toString();
 		// 发送短信
 		await this.sms.sendLoginCode(phone, code, 5);
 		// 存库
 		await this.prisma.smsCode.create({ data: { phone, code, purpose, expiresAt: fiveMinLater } });
+		return { ok: true };
+	}
+
+	async sendChangePhoneCode(memberId: number, stage: ChangePhoneStage, rawNewPhone?: string) {
+		const member = await this.prisma.member.findUnique({ where: { id: memberId }, select: { id: true, phone: true } });
+		if (!member) throw new UnauthorizedException('会员账号不存在');
+
+		let phone = member.phone;
+		if (stage === 'new') {
+			phone = String(rawNewPhone || '').trim();
+			if (!/^1\d{10}$/.test(phone)) throw new BadRequestException('手机号格式不正确');
+			if (phone === member.phone) throw new BadRequestException('新旧手机号一致');
+			const occupied = await this.prisma.member.findUnique({ where: { phone }, select: { id: true } });
+			if (occupied && occupied.id !== memberId) throw new BadRequestException('该手机号已被其他账号绑定');
+		}
+
+		const purpose = this.changePhonePurpose(memberId, stage);
+		const now = new Date();
+		const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+		const [recentForBinding, recentForPhone] = await Promise.all([
+			this.prisma.smsCode.findFirst({ where: { purpose, createdAt: { gt: oneMinuteAgo } }, orderBy: { id: 'desc' } }),
+			this.prisma.smsCode.findFirst({
+				where: {
+					phone,
+					purpose: { startsWith: 'changePhone:v2:' },
+					createdAt: { gt: oneMinuteAgo },
+				},
+				orderBy: { id: 'desc' },
+			}),
+		]);
+		if (recentForBinding || recentForPhone) throw new BadRequestException('发送太频繁，请稍后再试');
+
+		const startOfDay = new Date(now);
+		startOfDay.setHours(0, 0, 0, 0);
+		const [countForBinding, countForPhone] = await Promise.all([
+			this.prisma.smsCode.count({ where: { purpose, createdAt: { gte: startOfDay } } }),
+			this.prisma.smsCode.count({
+				where: {
+					phone,
+					purpose: { startsWith: 'changePhone:v2:' },
+					createdAt: { gte: startOfDay },
+				},
+			}),
+		]);
+		if (countForBinding >= 10 || countForPhone >= 10) throw new BadRequestException('当日发送次数过多，请明日再试');
+
+		const code = randomInt(100000, 1000000).toString();
+		await this.sms.sendLoginCode(phone, code, 5);
+		const expiresAt = new Date(now.getTime() + CHANGE_PHONE_CODE_TTL_MS);
+		const storedCode = this.encodeChangePhoneCode(code);
+		await this.prisma.$transaction([
+			this.prisma.smsCode.updateMany({ where: { purpose, usedAt: null }, data: { usedAt: now } }),
+			this.prisma.smsCode.create({ data: { phone, code: storedCode, purpose, expiresAt } }),
+		]);
 		return { ok: true };
 	}
 
@@ -308,30 +409,102 @@ export class AuthService {
 		return { ok: true };
 	}
 
-	// 更换会员手机号（校验 purpose: 'changePhone' 验证码），若通过则更新会员手机号
-	async changeMemberPhoneByCode(rawOldPhone: string, rawNewPhone: string, rawCode: string) {
-		const oldPhone = String(rawOldPhone || '').trim();
-		const newPhone = String(rawNewPhone || '').trim();
+	private async verifyChangePhoneCode(memberId: number, stage: ChangePhoneStage, phone: string, rawCode: string) {
 		const code = String(rawCode || '').trim();
-		if (!/^1\d{10}$/.test(oldPhone) || !/^1\d{10}$/.test(newPhone)) throw new BadRequestException('手机号格式不正确');
-		if (oldPhone === newPhone) throw new BadRequestException('新旧手机号一致');
 		if (!/^\d{6}$/.test(code)) throw new BadRequestException('验证码格式不正确');
-		// 校验验证码（下发给新手机号）
-		const now = new Date();
-		const record = await this.prisma.smsCode.findFirst({ where: { phone: newPhone, code, purpose: 'changePhone', usedAt: null }, orderBy: { id: 'desc' } });
-		if (!record) throw new UnauthorizedException('验证码错误');
-		if (record.expiresAt < now) throw new UnauthorizedException('验证码已过期');
-		// 查找旧手机号会员
-		const member = await this.prisma.member.findUnique({ where: { phone: oldPhone } });
+		const purpose = this.changePhonePurpose(memberId, stage);
+
+		// attempts 编码在现有 SmsCode.code 字段中。通过 code 作为 CAS 条件，避免并发错误
+		// 请求相互覆盖计数；若竞争失败则重新读取最新值继续判断。
+		for (let retry = 0; retry <= CHANGE_PHONE_MAX_ATTEMPTS; retry++) {
+			const record = await this.prisma.smsCode.findFirst({
+				where: { phone, purpose, usedAt: null },
+				orderBy: { id: 'desc' },
+			});
+			if (!record) throw new UnauthorizedException('验证码错误或已使用');
+
+			const now = new Date();
+			const stored = this.parseStoredChangePhoneCode(record.code);
+			if (record.expiresAt <= now || !stored) {
+				await this.prisma.smsCode.updateMany({
+					where: { id: record.id, code: record.code, usedAt: null },
+					data: { usedAt: now },
+				});
+				throw new UnauthorizedException(record.expiresAt <= now ? '验证码已过期' : '验证码错误或已失效');
+			}
+			if (stored.attempts >= CHANGE_PHONE_MAX_ATTEMPTS) {
+				throw new UnauthorizedException('验证码已被验证或错误次数过多');
+			}
+
+			const matched = this.matchesStoredChangePhoneCode(stored, code);
+			const attempts = matched ? CHANGE_PHONE_MAX_ATTEMPTS : stored.attempts + 1;
+			const exhausted = !matched && attempts >= CHANGE_PHONE_MAX_ATTEMPTS;
+			// 正确请求同样必须先赢得一次 CAS：将 attempts 置满并重新加盐，锁定该码，
+			// 防止大量并发猜测都基于同一旧值完成比较后绕过尝试次数限制。
+			const nextStoredCode = matched
+				? this.encodeChangePhoneCode(code, attempts)
+				: this.encodeStoredChangePhoneCode({ ...stored, attempts });
+			const updated = await this.prisma.smsCode.updateMany({
+				where: { id: record.id, code: record.code, usedAt: null, expiresAt: { gt: now } },
+				data: {
+					code: nextStoredCode,
+					...(exhausted ? { usedAt: now } : {}),
+				},
+			});
+			if (updated.count === 1) {
+				if (matched) return { id: record.id, storedCode: nextStoredCode, purpose };
+				throw new UnauthorizedException(exhausted ? '验证码错误次数过多，请重新获取' : '验证码错误');
+			}
+		}
+
+		throw new UnauthorizedException('验证码错误或已使用');
+	}
+
+	// 会员身份来自 token；当前手机号与新手机号验证码分别绑定 member、手机号和阶段。
+	async changeMemberPhoneByCode(memberId: number, rawNewPhone: string, rawOldPhoneCode: string, rawNewPhoneCode: string) {
+		const newPhone = String(rawNewPhone || '').trim();
+		if (!/^1\d{10}$/.test(newPhone)) throw new BadRequestException('手机号格式不正确');
+		const member = await this.prisma.member.findUnique({ where: { id: memberId }, select: { id: true, phone: true } });
 		if (!member) throw new UnauthorizedException('会员账号不存在');
-		// 检查新手机号是否被占用
-		const exists = await this.prisma.member.findUnique({ where: { phone: newPhone } }).catch(()=>null);
-		if (exists) throw new BadRequestException('该手机号已被其他账号绑定');
-		// 更新手机号，并使验证码失效
-		await this.prisma.$transaction([
-			this.prisma.member.update({ where: { id: member.id }, data: { phone: newPhone } }),
-			this.prisma.smsCode.update({ where: { id: record.id }, data: { usedAt: new Date() } })
-		]);
+		if (member.phone === newPhone) throw new BadRequestException('新旧手机号一致');
+
+		const occupied = await this.prisma.member.findUnique({ where: { phone: newPhone }, select: { id: true } });
+		if (occupied && occupied.id !== memberId) throw new BadRequestException('该手机号已被其他账号绑定');
+
+		const oldVerification = await this.verifyChangePhoneCode(memberId, 'old', member.phone, rawOldPhoneCode);
+		const newVerification = await this.verifyChangePhoneCode(memberId, 'new', newPhone, rawNewPhoneCode);
+
+		try {
+			await this.prisma.$transaction(async (tx) => {
+				const current = await tx.member.findUnique({ where: { id: memberId }, select: { id: true, phone: true } });
+				if (!current || current.phone !== member.phone) throw new UnauthorizedException('会员手机号已变化，请重新验证');
+				const conflict = await tx.member.findUnique({ where: { phone: newPhone }, select: { id: true } });
+				if (conflict && conflict.id !== memberId) throw new BadRequestException('该手机号已被其他账号绑定');
+				const now = new Date();
+
+				const oldConsumed = await tx.smsCode.updateMany({
+					where: { id: oldVerification.id, code: oldVerification.storedCode, usedAt: null, expiresAt: { gt: now } },
+					data: { usedAt: now },
+				});
+				const newConsumed = await tx.smsCode.updateMany({
+					where: { id: newVerification.id, code: newVerification.storedCode, usedAt: null, expiresAt: { gt: now } },
+					data: { usedAt: now },
+				});
+				if (oldConsumed.count !== 1 || newConsumed.count !== 1) throw new UnauthorizedException('验证码已使用或已过期');
+
+				await tx.member.update({ where: { id: memberId }, data: { phone: newPhone } });
+				await tx.smsCode.updateMany({
+					where: { purpose: { in: [oldVerification.purpose, newVerification.purpose] }, usedAt: null },
+					data: { usedAt: now },
+				});
+			}, { timeout: 10_000 });
+		} catch (error: unknown) {
+			const errorCode = error && typeof error === 'object' && 'code' in error
+				? String(error.code)
+				: '';
+			if (errorCode === 'P2002') throw new BadRequestException('该手机号已被其他账号绑定');
+			throw error;
+		}
 		return { ok: true };
 	}
 

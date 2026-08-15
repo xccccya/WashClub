@@ -95,7 +95,7 @@ API 启动会立即连接数据库；配置存在但数据库不可达时，服�
 | `VITE_AMAP_BASE` | miniapp | 可选，默认 `https://restapi.amap.com` |
 | `VITE_STORE_LOCATION` | miniapp | 门店坐标，格式 `经度,纬度` |
 
-审计发现历史探数 key 已进入已跟踪代码，必须轮换；长期应优先通过 API 代理第三方请求，避免客户端暴露服务端 key。
+审计发现历史探数 key 已进入已跟踪代码，必须在服务商侧轮换并检查调用记录。当前车型品牌/车系请求已统一通过后端 `/content/car/*` 代理，由 API 进程读取 `TANSHU_CAR_API_KEY`；Web、POS 和小程序不得持有该变量、第三方服务端 key 或对应 `VITE_*` 变量。删除客户端固定值不能撤销历史泄露。
 
 ## 三端 API 基址
 

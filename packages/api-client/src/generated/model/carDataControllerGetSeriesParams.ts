@@ -7,5 +7,9 @@
  */
 
 export type CarDataControllerGetSeriesParams = {
-brandId: string;
+/**
+ * 车型品牌 ID
+ * @minimum 1
+ */
+brandId: number;
 };

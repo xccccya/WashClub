@@ -1,10 +1,12 @@
-import { Body, Controller, Post, BadRequestException, Get, Req, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Post, BadRequestException, ForbiddenException, Get, HttpCode, HttpStatus, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiProperty, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
-import { IsNotEmpty, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator';
 import { AdminGuard } from './admin.guard.js';
 import { AdminMeDto } from './role.dto.js';
 import { RequirePerm } from './perm.decorator.js';
+import { AdminOrMemberGuard } from './admin-or-member.guard.js';
+import { AuthOkResponseDto, ChangePhoneDto, ChangePhoneSendCodeDto, SendCodeDto } from './auth.dto.js';
 
 class LoginDto {
 	@ApiProperty({ description: '手机号', example: '13800138000' })
@@ -16,17 +18,6 @@ class LoginDto {
 	@IsString({ message: '请输入密码' })
 	@MinLength(6, { message: '密码至少6位' })
 	password!: string;
-}
-
-class SendCodeDto {
-	@IsString()
-	@IsNotEmpty()
-	phone!: string;
-
-	@IsString()
-	@IsOptional()
-	@IsIn(['login', 'resetPwd', 'changePhone'])
-	purpose?: string; // login=登录/注册，resetPwd=重置密码，changePhone=更换手机号
 }
 
 class LoginByCodeDto {
@@ -51,20 +42,6 @@ class ResetPasswordDto {
 	@IsString()
 	@MinLength(6)
 	newPassword!: string;
-}
-
-class ChangePhoneByCodeDto {
-	@IsString()
-	@IsNotEmpty()
-	oldPhone!: string;
-
-	@IsString()
-	@IsNotEmpty()
-	newPhone!: string;
-
-	@IsString()
-	@IsNotEmpty()
-	code!: string;
 }
 
 class ResolvePhoneDto {
@@ -105,10 +82,25 @@ class UpdateAdminAvatarDto {
 	avatarUrl?: string | null;
 }
 
+interface MemberAuthenticatedRequest {
+	user?: {
+		kind?: string;
+		id?: number | string;
+		memberId?: number | string;
+	};
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
 	constructor(private service: AuthService) {}
+
+	private requireMemberId(req: MemberAuthenticatedRequest): number {
+		if (req?.user?.kind !== 'member') throw new ForbiddenException('仅会员可操作');
+		const memberId = Number(req.user.memberId);
+		if (!Number.isFinite(memberId) || memberId <= 0) throw new ForbiddenException('会员身份无效');
+		return memberId;
+	}
 
 	@Post('login')
 	@ApiOperation({ summary: '会员登录（账号+密码）' })
@@ -118,7 +110,9 @@ export class AuthController {
 
 	// 发送短信验证码（登录用途）
 	@Post('send-code')
-	@ApiOperation({ summary: '发送短信验证码（登录/注册/重置/换号）' })
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: '发送短信验证码（登录/注册/重置密码）' })
+	@ApiOkResponse({ type: AuthOkResponseDto })
 	sendLoginCode(@Body() dto: SendCodeDto) {
 		return this.service.sendLoginCode(dto.phone, dto.purpose);
 	}
@@ -137,11 +131,29 @@ export class AuthController {
 		return this.service.resetMemberPasswordByCode(dto.phone, dto.code, dto.newPassword);
 	}
 
-	// 短信验证码更换会员手机号（用途 purpose: changePhone）
+	@Post('change-phone/send-code')
+	@HttpCode(HttpStatus.OK)
+	@UseGuards(AdminOrMemberGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: '发送更换手机号验证码（当前手机号或新手机号）' })
+	@ApiOkResponse({ type: AuthOkResponseDto })
+	@ApiUnauthorizedResponse({ description: '未登录或登录已过期' })
+	@ApiForbiddenResponse({ description: '当前身份不是会员' })
+	sendChangePhoneCode(@Req() req: MemberAuthenticatedRequest, @Body() dto: ChangePhoneSendCodeDto) {
+		return this.service.sendChangePhoneCode(this.requireMemberId(req), dto.stage, dto.newPhone);
+	}
+
+	// 必须同时验证当前手机号和新手机号；会员身份只从 Bearer token 推导。
 	@Post('change-phone')
-	@ApiOperation({ summary: '更换会员手机号（短信验证码）' })
-	changePhone(@Body() dto: ChangePhoneByCodeDto) {
-		return this.service.changeMemberPhoneByCode(dto.oldPhone, dto.newPhone, dto.code);
+	@HttpCode(HttpStatus.OK)
+	@UseGuards(AdminOrMemberGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: '更换会员手机号（双短信验证码）' })
+	@ApiOkResponse({ type: AuthOkResponseDto })
+	@ApiUnauthorizedResponse({ description: '登录或验证码无效' })
+	@ApiForbiddenResponse({ description: '当前身份不是会员' })
+	changePhone(@Req() req: MemberAuthenticatedRequest, @Body() dto: ChangePhoneDto) {
+		return this.service.changeMemberPhoneByCode(this.requireMemberId(req), dto.newPhone, dto.oldPhoneCode, dto.newPhoneCode);
 	}
 
 	// 通过微信实时手机号能力返回的 code 获取纯手机号

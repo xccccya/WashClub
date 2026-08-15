@@ -146,6 +146,14 @@ pnpm generate:client
 | API DTO / Controller / OpenAPI | API build、重新生成 SDK、`pnpm -F @wash/api-client build`，再构建四个客户端目标 | 请求参数、响应结构、权限、错误分支 |
 | 全仓回归 | `pnpm build`，再执行 miniapp 的两个 build | 下方冒烟清单 |
 
+API P0 安全回归测试需要先完成 API build，再运行：
+
+```bash
+pnpm -F WashClubAPI test:security
+```
+
+当前该脚本覆盖改手机号鉴权/重放、管理权限元数据和公开队列脱敏；它不是完整 API 集成测试，也不会连接真实短信或数据库。
+
 建议的前端全目标验证命令：
 
 ```bash
@@ -166,11 +174,11 @@ pnpm -F miniapp-uni build:mp-weixin
 
 ## 7. 当前质量门禁的真实状态
 
-目前仓库还没有可靠的自动质量门禁：
+目前仓库只有最小 P0 安全测试基线，还没有可靠的全仓自动质量门禁：
 
 - 根目录存在 `pnpm lint` 和 `pnpm format`，但任何 workspace 都没有对应脚本；它们不是有效校验。
 - ESLint 配置当前只有忽略目录，没有启用代码规则。
-- 没有单元测试、集成测试或 E2E 测试脚本。
+- API 有 `test:security`，但没有覆盖订单、支付、退款、前端或真实数据库的完整单元/集成/E2E 测试套件。
 - 没有 `vue-tsc` / uni-app 类型检查脚本。
 - Vite build 负责转译和打包，不等同于完整的 Vue SFC 类型检查。
 - `@wash/api-client` 与 `@wash/shared-utils` 的 `tsc` build 能检查各自 TypeScript，但不能替代三端检查。

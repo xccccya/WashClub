@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, BadRequestException, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { MemberService } from './member.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { AdminGuard } from '../auth/admin.guard.js';
@@ -16,6 +16,7 @@ export class MemberController {
 
 	@Get('list')
 	@ApiOperation({ summary: '会员列表（分页/关键词）' })
+	@ApiQuery({ name: 'hasRemainingWashCard', required: false, type: String })
 	@UseGuards(AdminOrEmployeeGuard)
 	@AllowEmployee()
 	@RequirePerm('members')

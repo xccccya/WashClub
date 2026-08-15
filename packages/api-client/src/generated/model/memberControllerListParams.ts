@@ -10,6 +10,7 @@ export type MemberControllerListParams = {
 page: string;
 pageSize: string;
 keyword: string;
+hasRemainingWashCard?: string;
 levelId: string;
 categoryId: string;
 tagId: string;

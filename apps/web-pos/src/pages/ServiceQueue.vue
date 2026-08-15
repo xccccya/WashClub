@@ -860,7 +860,7 @@ import {
 	queueControllerCreateServiceOrderAndEnqueue,
 	queueControllerEtaSummary,
 	queueControllerFinishTask,
-	queueControllerList,
+	queueControllerManageList,
 	queueControllerRemove,
 	queueControllerSetCurrent,
 	queueControllerStartFirst,
@@ -1048,7 +1048,7 @@ function combinedRemainingModel(row: QueueItem, index: number){
 async function fetchList(){
 	try {
 		loading.value = true;
-		const res = (await queueControllerList()) as any;
+		const res = await queueControllerManageList();
 		list.value = (res || []) as QueueItem[];
 	}
 	catch { list.value = []; }

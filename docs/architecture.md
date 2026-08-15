@@ -151,7 +151,7 @@ flowchart TD
 
 门店创建服务订单时会从商品/SKU 读取价格，但“创建订单”和“加入队列”不是同一个事务；后者失败可能遗留孤立订单。确认完工后的订单同步和通知也发生在队列事务之外。
 
-当前 `set-current`、`finish-task`、`confirm-complete`、`start-first` 等状态写接口缺少 Guard；公开队列列表还会 include 车辆关联的完整 Member/Group。修复前不得向不可信网络直接暴露这些接口。
+第一阶段安全修复后，`set-current`、`finish-task`、`confirm-complete`、`start-first`、删除和入队等写操作均要求管理员 `service-queue` 权限，当前不向员工开放。管理端和 POS 使用受保护的 `GET /queue/manage-list`；公开 `GET /queue/list` 只查询 `IN_QUEUE`/`SERVING`，数据库投影不读取手机号、订单号或完整会员对象，响应再经白名单 mapper 和服务端车牌遮罩。公开 ETA 也只计算启用类型与进行中队列。
 
 ### 6.4 超时、取消、售后和退款
 
@@ -201,28 +201,32 @@ flowchart TD
 
 - AdminGuard 会重新查询 User 和角色状态，并支持 `*` 或 `@RequirePerm()` 精确权限。
 - AdminOrEmployeeGuard 接受管理员，或被 Employee 记录标记的会员；员工允许与否由 `@AllowEmployee()` 控制，没有更细的员工权限模型。
-- AdminOrMemberGuard 目前主要用于文件资产上传。
+- AdminOrMemberGuard 用于需要兼容管理员/会员的文件资产上传，也用于改手机号入口的统一 Bearer 验证；改手机号 Controller 会在 Guard 后进一步显式拒绝 admin，仅接受 `kind=member`。
 
 部分 Controller/Service 自行解析 JWT，行为不一致，有的不会重新检查账号或角色是否已禁用。新增接口必须使用统一 Guard，不得复制手写 Bearer 解析。
 
-当前已确认的高风险鉴权问题：
+第一阶段已经关闭的鉴权问题：
 
-1. `POST /auth/change-phone` 不要求当前会员身份或旧手机号证明，存在账号接管风险。
-2. Content、会员等级/类别/标签、商品/分类、优惠券组、队列类型等多个管理写接口缺少管理员 Guard。
-3. 若干队列状态写接口公开。
-4. 车辆路由使用的 `vehicles` 权限键与已定义的 `member-vehicles` 不一致。
-5. demo seed 的角色权限键已过期。
-6. 没有全局限流；CORS 当前完全开放。
+1. `POST /auth/change-phone` 现在要求会员 token，memberId 从 token 推导，并同时验证当前手机号和新手机号验证码。验证码与 member/手机号/阶段/有效期/尝试次数绑定，双码与手机号更新在事务中条件消费；旧单验证码契约不再兼容。
+2. 本轮列出的 Content、会员等级/类别/标签、商品/分类、优惠券组、队列类型和队列状态写接口已补 `AdminGuard` 与真实权限键。
+3. 公开队列与管理队列已拆分，公开响应不包含 Member/Group、手机号、密码、openId、VIN、订单 ID 或完整车牌。
+
+仍待处理的鉴权问题包括：
+
+1. 车辆路由使用的 `vehicles` 权限键与已定义的 `member-vehicles` 不一致。
+2. demo seed 的角色权限键已过期。
+3. 没有全局限流；CORS 当前完全开放。
+4. 会员列表的内联新建标签和 POS 队列入口仍需按权限做前端降级；后端写接口保持默认拒绝。
 
 这些是安全修复清单，不是允许继续沿用的设计约定。
 
 ## 8. OpenAPI 与客户端
 
-运行时 Swagger UI 位于 `/docs`，生成快照为 `apps/api/openapi.json`。当前快照约有 251 个 path、307 个 operation 和 90 个 schema，但 operation 没有声明 security，且不少写操作缺少 requestBody schema。
+运行时 Swagger UI 位于 `/docs`，生成快照为 `apps/api/openapi.json`。当前快照有 257 个 path、314 个 operation 和 105 个 schema。本阶段改动的鉴权接口已声明 Bearer security，车型、改手机号和队列响应已补 DTO；全仓仍有大量 operation 缺少响应 schema，且部分写操作仍使用无法反射的内联请求体。
 
 原因包括：
 
-- `.addBearerAuth()` 只定义了 bearer scheme，Controller 没有普遍声明 `@ApiBearerAuth()`。
+- `.addBearerAuth()` 只定义 bearer scheme；未显式声明 `@ApiBearerAuth()` 的 Controller 仍不会自动生成 operation security。
 - 大量请求体使用 interface、type 或内联类型，Swagger 和 ValidationPipe 无法获取运行时元数据。
 
 `pnpm --filter WashClubAPI run openapi` 会先构建，再导入完整 AppModule。它会连接数据库、尝试 Redis、启动定时任务并覆盖 `openapi.json`，最后脚本强制退出。它不是纯静态生成命令；只能在隔离环境、有正确配置时运行，并审查生成 diff。
@@ -240,10 +244,10 @@ flowchart TD
 
 ### P0：暴露或资金风险
 
-- 修复公开改手机号的账号接管路径。
+- 已完成第一阶段：修复公开改手机号的账号接管路径。
 - 订单创建改为服务端定价、严格 DTO 校验并校验会员所有权。
-- 给所有管理写接口和队列状态写接口补 Guard/权限。
-- 修复公开订单详情和队列列表的数据泄漏。
+- 已完成本轮范围：给列出的管理写接口和队列状态写接口补 Guard/权限；全仓仍需继续审计。
+- 已修复公开队列列表的数据泄漏；公开订单详情和所有权仍待处理。
 - 为微信支付/退款回调校验签名、商户、appid、订单号和金额。
 - 禁用 `scripts/deploy-production.sh` 等危险旧脚本并轮换仓库历史凭据。
 

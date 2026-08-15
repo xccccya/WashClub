@@ -484,6 +484,8 @@ import { BasePage } from '@wash/shared-ui';
 import {
 	carDataControllerGetBrands,
 	carDataControllerGetSeries,
+	type CarBrandGroupDto,
+	type CarSeriesDto,
 	memberControllerGet,
 	memberControllerList,
 	vehicleControllerAdminList,
@@ -851,11 +853,8 @@ const typeSubMap: Record<string, string[]> = {
 const colorOptions = ['黑色','白色','灰色','银色','红色','金色（米/香槟）','蓝色','棕色（褐/咖啡）','紫色','绿色','粉色','黄色','橙色','其他（彩绘/混合）'];
 function typeSubOptions(main?: string){ return main ? (typeSubMap[main] || []) : []; }
 
-// 车型外部接口
-const API_KEY = '79c9ec9af0555d0de315b5675f6b1453';
-type BrandItem = { main_brand_id: number; main_brand_name: string; letter: string; img?: string; brand_list: Array<{ brand_id: number; brand_name: string; img?: string }> };
+// 车型数据统一通过后端代理获取，客户端不持有第三方服务密钥。
 type FlatBrand = { brand_id: number; brand_name: string; main_brand_name: string; letter: string; img?: string };
-type SeriesItem = { series_id: number; series_name: string; scale?: string };
 const brandLetters = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ');
 const selectedLetter = ref<string | null>(null);
 const brandLoading = ref(false);
@@ -865,7 +864,7 @@ const brandOptionsAll = ref<FlatBrand[]>([]);
 const brandOptions = ref<FlatBrand[]>([]);
 const brandSelectRef = ref();
 const brandSelectKey = ref(0);
-const seriesOptions = ref<SeriesItem[]>([]);
+const seriesOptions = ref<CarSeriesDto[]>([]);
 const lockTypeBySeries = ref(false);
 
 function selectLetter(ch: string | null){
@@ -881,8 +880,7 @@ function applyBrandFilter(){
 async function fetchBrands(){
     brandLoading.value = true;
     try {
-        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
-        const arr = (await carDataControllerGetBrands() as unknown) as BrandItem[];
+		const arr: CarBrandGroupDto[] = await carDataControllerGetBrands();
         const flat: FlatBrand[] = [];
         for (const mb of arr){
             for (const b of (mb.brand_list || [])){
@@ -899,9 +897,7 @@ async function fetchSeries(brandId: number){
     if (!brandId) { seriesOptions.value = []; return; }
     seriesLoading.value = true;
     try {
-        // 注意：目前 openapi.json 未完整描述返回体类型，orval 会生成 data:void；这里按实际后端返回（数组）使用
-        const arr = (await carDataControllerGetSeries({ brandId } as any) as unknown) as any[];
-        seriesOptions.value = arr.map(s => ({ series_id: s.series_id, series_name: s.series_name, scale: s.scale }));
+		seriesOptions.value = await carDataControllerGetSeries({ brandId });
     } catch { seriesOptions.value = []; }
     finally { seriesLoading.value = false; }
 }

@@ -7,9 +7,10 @@ import { DistrictController } from './district.controller.js';
 import { AdBannerService } from './ad-banner.service.js';
 import { AdBannerController } from './ad-banner.controller.js';
 import { FileModule } from '../file/file.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
-    imports: [FileModule],
+    imports: [FileModule, AuthModule],
     controllers: [ScrollNoticeController, CarDataController, WeatherController, AdBannerController, DistrictController],
     providers: [ScrollNoticeService, AdBannerService],
 })

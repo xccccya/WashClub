@@ -32,13 +32,13 @@
 					<view class="row">
 						<view class="plate-wrap">
 							<image v-if="item?.vehicle?.brandImage" class="brand-icon" :src="toAbs(item.vehicle.brandImage)" />
-							<text class="plate">{{ maskPlate(item.plateNumber) }}</text>
+							<text class="plate">{{ item.displayPlate }}</text>
 							<text class="brand-series" v-if="item?.vehicle">{{ (item?.vehicle?.brand||'-') + ' / ' + (item?.vehicle?.series||'-') }}</text>
 						</view>
 						<view style="display:flex; align-items:center; gap: 8rpx;">
 							<view v-if="item?.queueType?.name" class="type-tag" :style="item?.queueType?.displayColor ? { background: item.queueType.displayColor, color:'#fff', borderColor: item.queueType.displayColor } : {}">{{ item.queueType.name }}</view>
-							<text v-if="item?.vehicle?.group" class="tag member">集团客户</text>
-							<text v-else class="tag" :class="item.guest?'guest':'member'">{{ item.guest ? '游客' : ('会员' + last4(item?.vehicle?.member?.phone)) }}</text>
+							<text v-if="item.customerKind === 'GROUP'" class="tag member">集团客户</text>
+							<text v-else class="tag" :class="item.customerKind === 'GUEST' ? 'guest' : 'member'">{{ item.customerKind === 'GUEST' ? '游客' : '会员' }}</text>
 						</view>
 					</view>
 					<view class="row">
@@ -91,17 +91,6 @@ const selectedType = computed(()=> etaSummary.value.find(t=>t.typeId===selectedT
 function selectType(id: number | null){ selectedTypeId.value = id; fetchList(); }
 
 function toAbs(u?: string | null){ if (!u) return ''; if (/^https?:\/\//i.test(String(u))) return String(u); return `${API_BASE}${String(u).startsWith('/')?u:('/'+u)}`; }
-
-function maskPlate(plate: string){
-    const s = String(plate||'');
-    if (s.length <= 2) return s + '**';
-    // 保留首尾，其余用 *
-    const head = s.slice(0, 2);
-    const tail = s.slice(-1);
-    return head + '***' + tail;
-}
-
-function last4(phone?: string | null){ const s = String(phone||'').trim(); return s ? s.slice(-4) : ''; }
 
 function stepClass(item: any, index: number, t: any){
     const arr = ['step'];
@@ -197,5 +186,4 @@ function remainingMinutesModel(row: any): number {
 .chip-sub { margin-left: 8rpx; font-size: 20rpx; opacity: .85; }
 .type-tag { font-size: 22rpx; padding: 4rpx 8rpx; border-radius: 999rpx; background:#eef2ff; border: 2rpx dashed #c7d2fe; color:#3730a3; }
 </style>
-
 

@@ -25,6 +25,7 @@ import { MemberPointsController } from './points.controller.js';
 import { MemberPointsService } from './points.service.js';
 import { NotificationModule } from '../notification/notification.module.js';
 import { resolveJwtSecretEnv } from '../env.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
 	imports: [
@@ -33,6 +34,7 @@ import { resolveJwtSecretEnv } from '../env.js';
 		}),
 		FileModule,
 		NotificationModule,
+		AuthModule,
 	],
 	controllers: [MemberController, MemberLevelController, MemberCategoryController, MemberTagController, VehicleController, WashCardController, AddressController, CartController, FavoriteController, MemberSignInController, MemberPointsController],
 	providers: [MemberService, MemberLevelService, MemberCategoryService, MemberTagService, VehicleService, WashCardService, AddressService, CartService, FavoriteService, MemberSignInService, MemberPointsService],

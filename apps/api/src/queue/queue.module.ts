@@ -10,12 +10,14 @@ import { OrderModule } from '../order/order.module.js';
 import { GroupService } from '../group/group.service.js';
 import { NotificationModule } from '../notification/notification.module.js';
 import { resolveJwtSecretEnv } from '../env.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
     imports: [
         FileModule,
         OrderModule,
         NotificationModule,
+		AuthModule,
         JwtModule.register({ secret: resolveJwtSecretEnv() }),
     ],
     providers: [QueueService, VehicleService, QueueTypeService, GroupService],

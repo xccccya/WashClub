@@ -180,7 +180,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { BasePage } from '@wash/shared-ui';
 import { useRouter } from 'vue-router';
-import { metricsControllerOverview, orderControllerList, queueControllerEtaSummary, queueControllerList } from '@wash/api-client';
+import { metricsControllerOverview, orderControllerList, queueControllerEtaSummary, queueControllerManageList } from '@wash/api-client';
 import { ShoppingBag, Money, CreditCard, User, UserFilled, Tickets, ShoppingCart } from '@element-plus/icons-vue';
 
 const router = useRouter();
@@ -294,7 +294,7 @@ async function fetchQueueSummary(){
 	try{
 		const [eta, list] = await Promise.all([
 			(queueControllerEtaSummary() as any).catch(()=>[]),
-			(queueControllerList() as any).catch(()=>[]),
+			queueControllerManageList().catch(()=>[]),
 		]);
 		const counts = new Map<number, number>();
 		(list||[]).forEach((x:any)=>{ const id = Number(x?.queueTypeId || x?.queueType?.id || 0); if (!id) return; counts.set(id, (counts.get(id)||0)+1); });

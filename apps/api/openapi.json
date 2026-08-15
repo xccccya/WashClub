@@ -56,11 +56,18 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOkResponseDto"
+                }
+              }
+            }
           }
         },
-        "summary": "发送短信验证码（登录/注册/重置/换号）",
+        "summary": "发送短信验证码（登录/注册/重置密码）",
         "tags": [
           "auth"
         ]
@@ -116,6 +123,49 @@
         ]
       }
     },
+    "/auth/change-phone/send-code": {
+      "post": {
+        "operationId": "AuthController_sendChangePhoneCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePhoneSendCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOkResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或登录已过期"
+          },
+          "403": {
+            "description": "当前身份不是会员"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送更换手机号验证码（当前手机号或新手机号）",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/change-phone": {
       "post": {
         "operationId": "AuthController_changePhone",
@@ -125,17 +175,35 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangePhoneByCodeDto"
+                "$ref": "#/components/schemas/ChangePhoneDto"
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOkResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "登录或验证码无效"
+          },
+          "403": {
+            "description": "当前身份不是会员"
           }
         },
-        "summary": "更换会员手机号（短信验证码）",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "更换会员手机号（双短信验证码）",
         "tags": [
           "auth"
         ]
@@ -1384,6 +1452,14 @@
             }
           },
           {
+            "name": "hasRemainingWashCard",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "levelId",
             "required": true,
             "in": "query",
@@ -1831,6 +1907,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建会员等级",
         "tags": [
           "member-level"
@@ -1855,6 +1936,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新会员等级",
         "tags": [
           "member-level"
@@ -1877,6 +1963,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除会员等级",
         "tags": [
           "member-level"
@@ -1892,6 +1983,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "获取成长值换算配置",
         "tags": [
           "member-level"
@@ -1905,6 +2001,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "保存成长值换算配置",
         "tags": [
           "member-level"
@@ -1920,6 +2021,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "会员分类列表",
         "tags": [
           "member-category"
@@ -1943,6 +2049,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建会员分类",
         "tags": [
           "member-category"
@@ -1977,6 +2088,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新会员分类",
         "tags": [
           "member-category"
@@ -1999,6 +2115,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除会员分类",
         "tags": [
           "member-category"
@@ -2014,6 +2135,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "会员标签列表",
         "tags": [
           "member-tag"
@@ -2037,6 +2163,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建会员标签",
         "tags": [
           "member-tag"
@@ -2071,6 +2202,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新会员标签",
         "tags": [
           "member-tag"
@@ -2093,6 +2229,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除会员标签",
         "tags": [
           "member-tag"
@@ -2141,6 +2282,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "标签下的会员列表（分页/关键词）",
         "tags": [
           "member-tag"
@@ -2354,6 +2500,28 @@
         "tags": [
           "vehicle"
         ]
+      },
+      "get": {
+        "operationId": "VehicleController_getVehicle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "车辆详情（管理员）",
+        "tags": [
+          "vehicle"
+        ]
       }
     },
     "/vehicle/{id}/set-default": {
@@ -2560,6 +2728,100 @@
         ]
       }
     },
+    "/vehicle/{id}/orders": {
+      "get": {
+        "operationId": "VehicleController_adminOrders",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码（从1开始）",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "车辆相关订单列表（管理员，分页）",
+        "tags": [
+          "vehicle"
+        ]
+      }
+    },
+    "/vehicle/{id}/last-visit": {
+      "get": {
+        "operationId": "VehicleController_adminLastVisit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "车辆最近一次到店时间（管理员）",
+        "tags": [
+          "vehicle"
+        ]
+      }
+    },
+    "/vehicle/{id}/metrics": {
+      "get": {
+        "operationId": "VehicleController_adminMetrics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "车辆统计（管理员）",
+        "tags": [
+          "vehicle"
+        ]
+      }
+    },
     "/vehicle/me/list": {
       "get": {
         "operationId": "VehicleController_myVehicles",
@@ -2619,6 +2881,21 @@
           }
         },
         "summary": "按会员聚合洗车卡统计（管理员，用于详情抽屉顶部统计）",
+        "tags": [
+          "wash-card"
+        ]
+      }
+    },
+    "/wash-card/member-stats/batch": {
+      "post": {
+        "operationId": "WashCardController_adminMemberStatsBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "批量按会员聚合洗车卡统计（管理员/员工，用于列表页批量展示）",
         "tags": [
           "wash-card"
         ]
@@ -4550,6 +4827,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "滚动公告列表（可按类型筛选）",
         "tags": [
           "content"
@@ -4573,6 +4855,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建滚动公告",
         "tags": [
           "content"
@@ -4607,6 +4894,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新滚动公告",
         "tags": [
           "content"
@@ -4629,6 +4921,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除滚动公告",
         "tags": [
           "content"
@@ -4653,6 +4950,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "启用指定公告（自动禁用同类型其他）",
         "tags": [
           "content"
@@ -4689,7 +4991,20 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CarBrandGroupDto"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "车型数据服务未配置或暂不可用"
           }
         },
         "summary": "车型品牌列表（含缓存）",
@@ -4706,14 +5021,30 @@
             "name": "brandId",
             "required": true,
             "in": "query",
+            "description": "车型品牌 ID",
             "schema": {
-              "type": "string"
+              "minimum": 1,
+              "example": 1,
+              "type": "number"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CarSeriesDto"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "车型数据服务未配置或暂不可用"
           }
         },
         "summary": "车型车系列表（按品牌，含缓存）",
@@ -4764,6 +5095,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "广告位列表（可按启用状态筛选）",
         "tags": [
           "content"
@@ -4787,6 +5123,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建广告位",
         "tags": [
           "content"
@@ -4821,6 +5162,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新广告位",
         "tags": [
           "content"
@@ -4843,6 +5189,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除广告位",
         "tags": [
           "content"
@@ -4877,6 +5228,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "启用/禁用广告位",
         "tags": [
           "content"
@@ -4952,10 +5308,50 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicQueueItemDto"
+                  }
+                }
+              }
+            }
           }
         },
-        "summary": "服务队列列表（进行中/待处理）",
+        "summary": "服务队列公开列表（仅进行中，字段已脱敏）",
+        "tags": [
+          "queue"
+        ]
+      }
+    },
+    "/queue/manage-list": {
+      "get": {
+        "operationId": "QueueController_manageList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedQueueItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "服务队列管理列表（管理员）",
         "tags": [
           "queue"
         ]
@@ -4967,7 +5363,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueSummaryDto"
+                }
+              }
+            }
           }
         },
         "summary": "队列摘要统计",
@@ -4982,7 +5385,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QueueEtaSummaryDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "ETA 顶部汇总（按类型展示，按资源组计算）",
@@ -5000,6 +5413,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "添加到队列（支持多种模式）",
         "tags": [
           "queue"
@@ -5024,6 +5442,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建服务订单并入队（先服务后付）",
         "tags": [
           "queue"
@@ -5048,6 +5471,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "设置当前执行任务索引",
         "tags": [
           "queue"
@@ -5072,6 +5500,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "完成当前任务节点",
         "tags": [
           "queue"
@@ -5096,6 +5529,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "确认整单已完成",
         "tags": [
           "queue"
@@ -5120,6 +5558,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "开始第一步任务",
         "tags": [
           "queue"
@@ -5144,6 +5587,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "移出队列/取消",
         "tags": [
           "queue"
@@ -5159,6 +5607,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "队列类型列表（含步骤与可用商品）",
         "tags": [
           "queue-types"
@@ -5172,6 +5625,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "创建队列类型",
         "tags": [
           "queue-types"
@@ -5196,6 +5654,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "更新队列类型",
         "tags": [
           "queue-types"
@@ -5218,6 +5681,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "删除队列类型（若已被使用则拒绝）",
         "tags": [
           "queue-types"
@@ -5242,6 +5710,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "设置队列类型的步骤（覆盖式）",
         "tags": [
           "queue-types"
@@ -5266,6 +5739,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "设置队列类型的可用服务商品（覆盖式）",
         "tags": [
           "queue-types"
@@ -7582,6 +8060,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreCategory"
         ]
@@ -7615,6 +8098,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreCategory"
         ]
@@ -7636,6 +8124,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreCategory"
         ]
@@ -7705,6 +8198,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreProduct"
         ]
@@ -7759,6 +8257,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreProduct"
         ]
@@ -7780,6 +8283,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreProduct"
         ]
@@ -7803,6 +8311,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "StoreProduct"
         ]
@@ -7905,6 +8418,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "CouponGroup"
         ]
@@ -7927,6 +8445,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "CouponGroup"
         ]
@@ -7960,6 +8483,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "CouponGroup"
         ]
@@ -7981,6 +8509,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "CouponGroup"
         ]
@@ -8889,7 +9422,37 @@
       },
       "SendCodeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "接收短信的手机号",
+            "example": "13800138000"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "验证码用途",
+            "enum": [
+              "login",
+              "resetPwd"
+            ],
+            "default": "login"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "AuthOkResponseDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
       },
       "LoginByCodeDto": {
         "type": "object",
@@ -8899,9 +9462,51 @@
         "type": "object",
         "properties": {}
       },
-      "ChangePhoneByCodeDto": {
+      "ChangePhoneSendCodeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "stage": {
+            "type": "string",
+            "description": "换号验证阶段",
+            "enum": [
+              "old",
+              "new"
+            ]
+          },
+          "newPhone": {
+            "type": "string",
+            "description": "新手机号；stage=new 时必填",
+            "example": "13900139000"
+          }
+        },
+        "required": [
+          "stage"
+        ]
+      },
+      "ChangePhoneDto": {
+        "type": "object",
+        "properties": {
+          "newPhone": {
+            "type": "string",
+            "description": "新手机号",
+            "example": "13900139000"
+          },
+          "oldPhoneCode": {
+            "type": "string",
+            "description": "发送到当前手机号的验证码",
+            "example": "123456"
+          },
+          "newPhoneCode": {
+            "type": "string",
+            "description": "发送到新手机号的验证码",
+            "example": "654321"
+          }
+        },
+        "required": [
+          "newPhone",
+          "oldPhoneCode",
+          "newPhoneCode"
+        ]
       },
       "ResolvePhoneDto": {
         "type": "object",
@@ -10325,6 +10930,85 @@
           }
         }
       },
+      "CarBrandDto": {
+        "type": "object",
+        "properties": {
+          "brand_id": {
+            "type": "number",
+            "example": 1
+          },
+          "brand_name": {
+            "type": "string",
+            "example": "示例品牌"
+          },
+          "img": {
+            "type": "string",
+            "description": "品牌图片 URL"
+          }
+        },
+        "required": [
+          "brand_id",
+          "brand_name"
+        ]
+      },
+      "CarBrandGroupDto": {
+        "type": "object",
+        "properties": {
+          "main_brand_id": {
+            "type": "number",
+            "example": 1
+          },
+          "main_brand_name": {
+            "type": "string",
+            "example": "示例品牌集团"
+          },
+          "letter": {
+            "type": "string",
+            "example": "S"
+          },
+          "img": {
+            "type": "string",
+            "description": "品牌集团图片 URL"
+          },
+          "brand_list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CarBrandDto"
+            }
+          }
+        },
+        "required": [
+          "main_brand_id",
+          "main_brand_name",
+          "letter",
+          "brand_list"
+        ]
+      },
+      "CarSeriesDto": {
+        "type": "object",
+        "properties": {
+          "series_id": {
+            "type": "number",
+            "example": 1001
+          },
+          "series_name": {
+            "type": "string",
+            "example": "示例车系"
+          },
+          "scale": {
+            "type": "string",
+            "description": "车型级别，例如紧凑型车"
+          },
+          "img": {
+            "type": "string",
+            "description": "车系图片 URL"
+          }
+        },
+        "required": [
+          "series_id",
+          "series_name"
+        ]
+      },
       "CreateBannerDto": {
         "type": "object",
         "properties": {
@@ -10416,6 +11100,425 @@
             "example": true
           }
         }
+      },
+      "QueueTaskResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "orderIndex": {
+            "type": "number",
+            "example": 0
+          },
+          "name": {
+            "type": "string",
+            "example": "外表清洗"
+          },
+          "durationMin": {
+            "type": "number",
+            "example": 10
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "DOING",
+              "DONE"
+            ],
+            "example": "PENDING"
+          }
+        },
+        "required": [
+          "id",
+          "orderIndex",
+          "name",
+          "durationMin",
+          "status"
+        ]
+      },
+      "QueueTypeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "标准洗车"
+          },
+          "displayColor": {
+            "type": "object",
+            "nullable": true,
+            "example": "#2563eb"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "PublicQueueVehicleDto": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "object",
+            "nullable": true
+          },
+          "series": {
+            "type": "object",
+            "nullable": true
+          },
+          "brandImage": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "PublicQueueItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "队列展示 ID",
+            "example": 1
+          },
+          "displayPlate": {
+            "type": "string",
+            "description": "服务端已遮罩的车牌展示值",
+            "example": "川A***5"
+          },
+          "customerKind": {
+            "type": "string",
+            "enum": [
+              "GUEST",
+              "MEMBER",
+              "GROUP"
+            ],
+            "example": "MEMBER"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_QUEUE",
+              "SERVING"
+            ],
+            "example": "IN_QUEUE"
+          },
+          "currentTaskIndex": {
+            "type": "number",
+            "example": -1
+          },
+          "queueTypeId": {
+            "type": "object",
+            "nullable": true,
+            "example": 1
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueTaskResponseDto"
+            }
+          },
+          "queueType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QueueTypeResponseDto"
+              }
+            ]
+          },
+          "vehicle": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicQueueVehicleDto"
+              }
+            ]
+          },
+          "aheadCount": {
+            "type": "number",
+            "example": 0
+          },
+          "aheadMinutes": {
+            "type": "number",
+            "example": 0
+          },
+          "remainingMinutes": {
+            "type": "number",
+            "example": 20
+          },
+          "excludedFromEta": {
+            "type": "boolean",
+            "example": false
+          },
+          "etaConfigured": {
+            "type": "boolean",
+            "example": true
+          },
+          "aheadMinutesEta": {
+            "type": "number",
+            "example": 0
+          },
+          "remainingMinutesEta": {
+            "type": "number",
+            "example": 20
+          }
+        },
+        "required": [
+          "id",
+          "displayPlate",
+          "customerKind",
+          "status",
+          "currentTaskIndex",
+          "tasks",
+          "aheadCount",
+          "aheadMinutes",
+          "remainingMinutes",
+          "excludedFromEta",
+          "etaConfigured",
+          "aheadMinutesEta",
+          "remainingMinutesEta"
+        ]
+      },
+      "ManagedQueueMemberDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "会员"
+          },
+          "phone": {
+            "type": "string",
+            "example": "13800138000"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone"
+        ]
+      },
+      "ManagedQueueGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "示例集团"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "ManagedQueueVehicleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "brand": {
+            "type": "object",
+            "nullable": true
+          },
+          "series": {
+            "type": "object",
+            "nullable": true
+          },
+          "brandImage": {
+            "type": "object",
+            "nullable": true
+          },
+          "member": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ManagedQueueMemberDto"
+              }
+            ]
+          },
+          "group": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ManagedQueueGroupDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "ManagedQueueItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "plateNumber": {
+            "type": "string",
+            "example": "川A12345"
+          },
+          "guest": {
+            "type": "boolean",
+            "example": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_QUEUE",
+              "SERVING",
+              "COMPLETED"
+            ],
+            "example": "IN_QUEUE"
+          },
+          "orderId": {
+            "type": "object",
+            "nullable": true,
+            "example": 10
+          },
+          "currentTaskIndex": {
+            "type": "number",
+            "example": -1
+          },
+          "queueTypeId": {
+            "type": "object",
+            "nullable": true,
+            "example": 1
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueTaskResponseDto"
+            }
+          },
+          "queueType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QueueTypeResponseDto"
+              }
+            ]
+          },
+          "vehicle": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ManagedQueueVehicleDto"
+              }
+            ]
+          },
+          "aheadCount": {
+            "type": "number",
+            "example": 0
+          },
+          "aheadMinutes": {
+            "type": "number",
+            "example": 0
+          },
+          "remainingMinutes": {
+            "type": "number",
+            "example": 20
+          },
+          "excludedFromEta": {
+            "type": "boolean",
+            "example": false
+          },
+          "etaConfigured": {
+            "type": "boolean",
+            "example": true
+          },
+          "aheadMinutesEta": {
+            "type": "number",
+            "example": 0
+          },
+          "remainingMinutesEta": {
+            "type": "number",
+            "example": 20
+          }
+        },
+        "required": [
+          "id",
+          "plateNumber",
+          "guest",
+          "status",
+          "currentTaskIndex",
+          "tasks",
+          "aheadCount",
+          "aheadMinutes",
+          "remainingMinutes",
+          "excludedFromEta",
+          "etaConfigured",
+          "aheadMinutesEta",
+          "remainingMinutesEta"
+        ]
+      },
+      "QueueSummaryDto": {
+        "type": "object",
+        "properties": {
+          "servingCars": {
+            "type": "number",
+            "example": 1
+          },
+          "waitingCars": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "servingCars",
+          "waitingCars"
+        ]
+      },
+      "QueueEtaSummaryDto": {
+        "type": "object",
+        "properties": {
+          "typeId": {
+            "type": "number",
+            "example": 1
+          },
+          "typeName": {
+            "type": "string",
+            "example": "标准洗车"
+          },
+          "displayColor": {
+            "type": "object",
+            "nullable": true
+          },
+          "etaConfigured": {
+            "type": "boolean",
+            "example": true
+          },
+          "excludedFromEta": {
+            "type": "boolean",
+            "example": false
+          },
+          "etaForNewCar": {
+            "type": "object",
+            "nullable": true,
+            "example": 15
+          }
+        },
+        "required": [
+          "typeId",
+          "typeName",
+          "etaConfigured",
+          "excludedFromEta"
+        ]
       },
       "GroupCreateDto": {
         "type": "object",

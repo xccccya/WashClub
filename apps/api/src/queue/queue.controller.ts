@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards, Headers } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueueService } from './queue.service.js';
 import { PrismaService } from '../prisma.service.js';
 import { OrderService } from '../order/order.service.js';
@@ -9,6 +9,7 @@ import { GroupService } from '../group/group.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { isNoPlateNumber, resolveGuestMemberIdEnv } from '../env.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
+import { ManagedQueueItemDto, PublicQueueItemDto, QueueEtaSummaryDto, QueueSummaryDto } from './queue.dto.js';
 
 @ApiTags('queue')
 @Controller('queue')
@@ -16,21 +17,33 @@ export class QueueController {
     constructor(private service: QueueService, private prisma: PrismaService, private orders: OrderService, private vehicles: VehicleService, private groups: GroupService, private jwt: JwtService) {}
 
     @Get('list')
-    @ApiOperation({ summary: '服务队列列表（进行中/待处理）' })
-    list() { return this.service.listActive(); }
+    @ApiOperation({ summary: '服务队列公开列表（仅进行中，字段已脱敏）' })
+	@ApiOkResponse({ type: PublicQueueItemDto, isArray: true })
+    list() { return this.service.listPublic(); }
+
+	@Get('manage-list')
+	@UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
+	@ApiOperation({ summary: '服务队列管理列表（管理员）' })
+	@ApiOkResponse({ type: ManagedQueueItemDto, isArray: true })
+	manageList() { return this.service.listActive(); }
 
     @Get('summary')
     @ApiOperation({ summary: '队列摘要统计' })
+	@ApiOkResponse({ type: QueueSummaryDto })
     summary() { return this.service.summary(); }
 
     @Get('eta-summary')
     @ApiOperation({ summary: 'ETA 顶部汇总（按类型展示，按资源组计算）' })
+	@ApiOkResponse({ type: QueueEtaSummaryDto, isArray: true })
     etaSummary() { return this.service.etaSummaryByType(); }
 
     @Post('add')
     @ApiOperation({ summary: '添加到队列（支持多种模式）' })
     @UseGuards(AdminGuard)
-    @RequirePerm('service-queue' as any)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     add(@Body() body: any) {
         const mode = String(body?.mode || '').trim();
         if (!mode) throw new BadRequestException('缺少添加方式');
@@ -58,7 +71,8 @@ export class QueueController {
     @Post('create-service-order-and-enqueue')
     @ApiOperation({ summary: '创建服务订单并入队（先服务后付）' })
     @UseGuards(AdminGuard)
-    @RequirePerm('service-queue' as any)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     async createServiceOrderAndEnqueue(@Body() body: any, @Headers('authorization') authHeader?: string) {
         const queueTypeId = Number(body?.queueTypeId || 0);
         const incomingItemsRaw = Array.isArray(body?.items) ? body.items : null;
@@ -207,6 +221,9 @@ export class QueueController {
     }
 
     @Post(':id/set-current')
+	@UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     @ApiOperation({ summary: '设置当前执行任务索引' })
     setCurrent(@Param('id') id: string, @Body() body: { taskIndex: number }) {
         if (typeof body?.taskIndex !== 'number') throw new BadRequestException('taskIndex 必须为数字');
@@ -214,21 +231,30 @@ export class QueueController {
     }
 
     @Post(':id/finish-task')
+	@UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     @ApiOperation({ summary: '完成当前任务节点' })
     finishTask(@Param('id') id: string) { return this.service.finishCurrentTask(Number(id)); }
 
     @Post(':id/confirm-complete')
+	@UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     @ApiOperation({ summary: '确认整单已完成' })
     confirmComplete(@Param('id') id: string) { return this.service.confirmComplete(Number(id)); }
 
     @Post(':id/start-first')
+	@UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     @ApiOperation({ summary: '开始第一步任务' })
     startFirst(@Param('id') id: string) { return this.service.startFirstTask(Number(id)); }
 
     @Delete(':id')
     @ApiOperation({ summary: '移出队列/取消' })
     @UseGuards(AdminGuard)
+	@RequirePerm('service-queue')
+	@ApiBearerAuth()
     remove(@Param('id') id: string) { return this.service.remove(Number(id)); }
 }
-
-

@@ -88,9 +88,11 @@ import type { MemberControllerListParams } from '@wash/api-client/src/generated/
 
 当前 OpenAPI 对请求参数的描述较完整，但大多数成功响应没有明确 schema。以仓库现有生成结果为基线：
 
-- 共 307 个生成请求函数；
-- 其中 295 个返回类型被生成为 `Promise<void>`；
+- 共 314 个生成请求函数；
+- 其中 293 个返回类型仍被生成为 `Promise<void>`；
 - 实际后端通常会返回 JSON body，业务代码因此存在大量 `as any`。
+
+2026-08-15 的 P0 第一阶段已补齐以下契约：车型品牌/车系列表、改手机号发送/提交、公开与管理队列列表、队列摘要和 ETA。调用端应直接使用生成 DTO，不再为这些接口增加 `any`。`POST /auth/change-phone` 的请求体已破坏性变更为新手机号加新旧两个验证码；管理端/POS 队列列表改用受保护的 `queueControllerManageList()`。
 
 这意味着当前 SDK 可以作为统一的 endpoint、参数和请求运行时，但不能被描述为“完整响应类型安全”。不要因为生成类型是 `void` 就假设接口没有返回值，也不要在生成文件中直接把 `void` 改成某个本地类型。
 

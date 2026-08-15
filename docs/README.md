@@ -85,7 +85,7 @@
 - 根 `CHANGELOG.md` 已成为受版本控制的日志源，但小程序 Vite 配置仍会在加载时覆盖 `src/assets/changelog.html` 与 `changelog.ts`；运行小程序命令后必须检查生成 diff。
 - 根 package、mini package 与小程序 manifest 的版本号仍未统一，发布时不得假定三者自动同步。
 - 大量 OpenAPI operation 的响应 schema 仍不完整；发现 SDK 返回 `Promise<void>` 与运行时不符时，应修后端 Swagger DTO 后重新生成。
-- 仓库当前没有可靠的自动测试或 lint 门禁；文档不得把“构建成功”等同于业务已验证。
+- 仓库只有 API P0 安全回归的最小测试基线，仍没有完整自动测试或有效 lint 门禁；文档不得把“构建成功”等同于业务已验证。
 
 ## 文档维护规则
 

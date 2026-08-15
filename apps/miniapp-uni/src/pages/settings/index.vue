@@ -32,9 +32,9 @@
 			<view class="row">
 				<view class="label">手机号</view>
 				<view class="value phone-row">
-					<text class="phone-text">{{ pendingPhone || currentPhone || '未绑定' }}</text>
+					<text class="phone-text">{{ currentPhone || '未绑定' }}</text>
 					<!-- #ifdef MP-WEIXIN -->
-					<button class="phone-btn" open-type="getRealtimePhoneNumber" @getrealtimephonenumber="onGetRealtimePhoneNumber">选择手机号</button>
+					<button class="phone-btn" open-type="getRealtimePhoneNumber" @getrealtimephonenumber="onGetRealtimePhoneNumber">修改手机号</button>
 					<!-- #endif -->
 					<!-- #ifdef H5 -->
 					<view class="phone-btn h5" @tap="openH5PhoneDialog">修改手机号</view>
@@ -64,20 +64,24 @@
 		</view>
 		<!-- #endif -->
 
-		<!-- H5 更换手机号弹层 -->
-		<!-- #ifdef H5 -->
+		<!-- 更换手机号弹层：必须分别验证当前手机号和新手机号 -->
 		<view v-if="showH5PhoneDialog" class="h5-phone-dialog">
 			<view class="dialog-mask" @tap="closeH5PhoneDialog" />
 			<view class="dialog-panel">
 				<view class="dialog-title">更换手机号</view>
+				<view class="form-item code-row">
+					<view class="form-label">当前手机号</view>
+					<input class="form-input" type="number" maxlength="6" placeholder="当前手机号验证码" :value="oldPhoneCode" @input="onOldPhoneCodeInput" />
+					<view class="code-btn" :class="{ disabled: sendingOldCode || oldCd>0 }" @tap="sendOldPhoneCode">{{ oldCd>0 ? oldCd+'s' : '发送验证码' }}</view>
+				</view>
 				<view class="form-item">
 					<view class="form-label">新手机号</view>
 					<input class="form-input" type="number" maxlength="11" placeholder="请输入新的手机号" :value="h5NewPhone" @input="onH5NewPhoneInput" />
 				</view>
 				<view class="form-item code-row">
-					<view class="form-label">验证码</view>
+					<view class="form-label">新号验证码</view>
 					<input class="form-input" type="number" maxlength="6" placeholder="请输入验证码" :value="h5Code" @input="onH5CodeInput" />
-					<view class="code-btn" :class="{ disabled: sendingCode || cd>0 }" @tap="sendH5Code">{{ cd>0 ? cd+'s' : '发送验证码' }}</view>
+					<view class="code-btn" :class="{ disabled: sendingNewCode || newCd>0 }" @tap="sendNewPhoneCode">{{ newCd>0 ? newCd+'s' : '发送验证码' }}</view>
 				</view>
 				<view class="dialog-actions">
 					<view class="action-cancel" @tap="closeH5PhoneDialog">取消</view>
@@ -85,7 +89,6 @@
 				</view>
 			</view>
 		</view>
-		<!-- #endif -->
 	</view>
 </template>
 
@@ -96,8 +99,7 @@ import { useSafeArea } from '../../utils/safe-area';
 import {
 	authControllerChangePhone,
 	authControllerResolvePhone,
-	authControllerSendLoginCode,
-	memberControllerList,
+	authControllerSendChangePhoneCode,
 	memberControllerMe,
 	memberControllerUpdate,
 	systemSettingControllerGetPublicSetting,
@@ -118,16 +120,17 @@ const user = ref<any>({});
 const avatarPreview = ref<string>('');
 const nickname = ref<string>('');
 const currentPhone = ref<string>('');
-const pendingPhone = ref<string>('');
 const showAvatarSheet = ref(false);
-// #ifdef H5
 const showH5PhoneDialog = ref(false);
 const h5NewPhone = ref('');
 const h5Code = ref('');
-const cd = ref(0);
-let cdTimer: any = null;
-const sendingCode = ref(false);
-// #endif
+const oldPhoneCode = ref('');
+const oldCd = ref(0);
+const newCd = ref(0);
+let oldCdTimer: ReturnType<typeof setInterval> | undefined;
+let newCdTimer: ReturnType<typeof setInterval> | undefined;
+const sendingOldCode = ref(false);
+const sendingNewCode = ref(false);
 
 function toAbs(u?: string){ if (!u) return ''; if (/^https?:\/\//i.test(u)) return u; if (u.startsWith('/')) return API_BASE + u; return API_BASE + '/' + u; }
 
@@ -268,68 +271,82 @@ async function onGetRealtimePhoneNumber(e: any){
 		}
 	}
 	if (!phone) { uni.showToast({ title: '未获取到手机号', icon: 'none' }); return; }
-	// 一致性校验
 	if (String(phone) === String(currentPhone.value || '')) { uni.showToast({ title: '新旧手机号一致，请重新选择', icon: 'none' }); return; }
-	// 唯一性校验（后端）
-	try {
-		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
-		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
-		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
-		pendingPhone.value = phone;
-		uni.showToast({ title: `已选择：${phone}`, icon: 'none' });
-	} catch (err:any) {
-		uni.showToast({ title: err?.message?.slice(0,30) || '校验失败', icon: 'none' });
-	}
+	h5NewPhone.value = String(phone);
+	showH5PhoneDialog.value = true;
 }
 
-// #ifdef H5
 function openH5PhoneDialog(){ showH5PhoneDialog.value = true; }
-function closeH5PhoneDialog(){ showH5PhoneDialog.value = false; clearInterval(cdTimer); cd.value = 0; sendingCode.value = false; }
+function closeH5PhoneDialog(){
+	showH5PhoneDialog.value = false;
+	if (oldCdTimer) clearInterval(oldCdTimer);
+	if (newCdTimer) clearInterval(newCdTimer);
+	oldCdTimer = undefined;
+	newCdTimer = undefined;
+	oldCd.value = 0;
+	newCd.value = 0;
+	sendingOldCode.value = false;
+	sendingNewCode.value = false;
+}
 function validPhone(p?: string){ return /^1\d{10}$/.test(String(p||'')); }
-async function sendH5Code(){
-	if (cd.value > 0 || sendingCode.value) return;
+
+function startCodeCountdown(counter: typeof oldCd, target: 'old' | 'new') {
+	counter.value = 60;
+	const timer = setInterval(()=>{
+		counter.value = Math.max(0, counter.value - 1);
+		if (counter.value === 0) clearInterval(timer);
+	}, 1000);
+	if (target === 'old') oldCdTimer = timer;
+	else newCdTimer = timer;
+}
+
+async function sendOldPhoneCode(){
+	if (oldCd.value > 0 || sendingOldCode.value) return;
+	try {
+		sendingOldCode.value = true;
+		await authControllerSendChangePhoneCode({ stage: 'old' });
+		uni.showToast({ title: '验证码已发送到当前手机号', icon: 'none' });
+		startCodeCountdown(oldCd, 'old');
+	} catch (error) { uni.showToast({ title: requestErrorMessage(error, '发送失败'), icon: 'none' }); }
+	finally { sendingOldCode.value = false; }
+}
+
+async function sendNewPhoneCode(){
+	if (newCd.value > 0 || sendingNewCode.value) return;
 	const phone = String(h5NewPhone.value||'').trim();
 	if (!validPhone(phone)) { uni.showToast({ title: '请输入有效手机号', icon: 'none' }); return; }
-	// 一致性校验
 	if (String(phone) === String(currentPhone.value||'')) { uni.showToast({ title: '新旧手机号一致', icon: 'none' }); return; }
-	// 唯一性校验
 	try {
-		const exists = (await memberControllerList({ keyword: phone, page: 1, pageSize: 1 } as any) as unknown) as any;
-		const occupied = Array.isArray(exists?.items) && exists.items.some((m:any)=> String(m?.phone)===String(phone));
-		if (occupied) { uni.showToast({ title: '该手机号已被其他账号绑定', icon: 'none' }); return; }
-	} catch {}
-	try {
-		sendingCode.value = true;
-		await authControllerSendLoginCode({ phone, purpose: 'changePhone' } as any);
-		uni.showToast({ title: '验证码已发送', icon: 'none' });
-		cd.value = 60;
-		cdTimer = setInterval(()=>{ cd.value = Math.max(0, cd.value - 1); if (cd.value === 0) { clearInterval(cdTimer); } }, 1000);
-	} catch (e:any) { uni.showToast({ title: e?.message?.slice(0,30) || '发送失败', icon: 'none' }); }
-	finally { sendingCode.value = false; }
+		sendingNewCode.value = true;
+		await authControllerSendChangePhoneCode({ stage: 'new', newPhone: phone });
+		uni.showToast({ title: '验证码已发送到新手机号', icon: 'none' });
+		startCodeCountdown(newCd, 'new');
+	} catch (error) { uni.showToast({ title: requestErrorMessage(error, '发送失败'), icon: 'none' }); }
+	finally { sendingNewCode.value = false; }
 }
 async function confirmH5PhoneChange(){
 	const phone = String(h5NewPhone.value||'').trim();
 	if (!validPhone(phone)) { uni.showToast({ title: '请输入有效手机号', icon: 'none' }); return; }
-	if (!h5Code.value) { uni.showToast({ title: '请填写验证码', icon: 'none' }); return; }
-	// 与微信端一致：一致性/占用校验
+	if (!oldPhoneCode.value || !h5Code.value) { uni.showToast({ title: '请填写两个手机号的验证码', icon: 'none' }); return; }
 	if (String(phone) === String(currentPhone.value||'')) { uni.showToast({ title: '新旧手机号一致', icon: 'none' }); return; }
 	try {
-		// 使用后端 changePhone purpose 的验证码进行更换
-		await authControllerChangePhone({ oldPhone: currentPhone.value, newPhone: phone, code: h5Code.value } as any);
+		await authControllerChangePhone({ newPhone: phone, oldPhoneCode: oldPhoneCode.value, newPhoneCode: h5Code.value });
 		const updated = (await memberControllerMe() as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || phone;
+		user.value = updated || user.value;
+		oldPhoneCode.value = '';
+		h5Code.value = '';
+		h5NewPhone.value = '';
 		closeH5PhoneDialog();
 		uni.showToast({ title: '手机号已更新', icon: 'success' });
-	} catch (e:any) { uni.showToast({ title: e?.message?.slice(0,30) || '更新失败', icon: 'none' }); }
+	} catch (error) { uni.showToast({ title: requestErrorMessage(error, '更新失败'), icon: 'none' }); }
 }
-// #endif
 
 async function saveChanges(){
 	try {
 		const body: any = {};
 		if (nickname.value && nickname.value !== user.value?.name) body.name = nickname.value;
-		if (pendingPhone.value) body.phone = pendingPhone.value;
 		if (Object.keys(body).length === 0) { uni.showToast({ title: '没有修改项', icon: 'none' }); return; }
 		await memberControllerUpdate(String(user.value?.id || ''), body as any);
 		const updated = (await memberControllerMe() as unknown) as any;
@@ -343,11 +360,17 @@ async function saveChanges(){
 }
 
 // 输入事件：避免 $event.detail 类型报错
+type UniInputEvent = { detail?: { value?: string } };
+function requestErrorMessage(error: unknown, fallback: string): string {
+	const message = error instanceof Error
+		? error.message
+		: (error && typeof error === 'object' && 'message' in error ? String(error.message || '') : '');
+	return message.slice(0, 30) || fallback;
+}
 function onNickInput(e: any){ nickname.value = e?.detail?.value || ''; }
-// #ifdef H5
 function onH5NewPhoneInput(e: any){ h5NewPhone.value = e?.detail?.value || ''; }
 function onH5CodeInput(e: any){ h5Code.value = e?.detail?.value || ''; }
-// #endif
+function onOldPhoneCodeInput(e: UniInputEvent){ oldPhoneCode.value = e?.detail?.value || ''; }
 </script>
 
 <style>

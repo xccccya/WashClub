@@ -5,5 +5,11 @@
  * API for 一体化洗车门店管理平台
  * OpenAPI spec version: 1.0.0
  */
+import type { SendCodeDtoPurpose } from './sendCodeDtoPurpose';
 
-export interface SendCodeDto { [key: string]: unknown }
+export interface SendCodeDto {
+  /** 接收短信的手机号 */
+  phone: string;
+  /** 验证码用途 */
+  purpose?: SendCodeDtoPurpose;
+}

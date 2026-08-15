@@ -8,15 +8,33 @@
 
 ### 1. 已泄露或固定的凭据
 
+阶段状态（2026-08-15）：管理后台车型页面中的固定第三方 key 已删除；车型品牌/车系只通过后端代理读取服务端环境变量，OpenAPI/SDK 响应也已补齐类型。旧值已经进入版本历史，仍必须在探数服务商侧轮换并检查调用记录；本阶段没有改写 Git 历史。其他历史凭据与危险脚本尚未完成清理。
+
 - 本地隔离文件 `.local/quarantine/credentials/腾讯云短信相关信息资料.md` 含明文腾讯云凭据。
 - 本地隔离文件 `.local/quarantine/credentials/车型查询接口文档.md` 与已跟踪的 `apps/web-admin/src/pages/MemberVehicles.vue` 出现相同探数 API key。
 - `apps/api/scripts/init-db.mjs`、多个 seed 和旧部署脚本包含固定数据库或管理员凭据；部分 seed 的 `upsert.update` 会在重复运行时把密码重置为固定值。
 
 处理：先在服务商侧轮换所有出现过的值并查调用日志，再移除固定值、改为显式安全输入。敏感本地文档不得归档进 Git。若秘密已进入 Git 历史，需要单独评估历史清理。
 
-### 2. 多个管理写接口缺少鉴权
+### 2. 管理写接口鉴权（本轮范围已修复）
 
-以下 Controller 的写操作未统一使用管理员 Guard/权限：
+阶段状态（2026-08-15）：本节列出的 Controller 与队列状态写接口已完成第一阶段修复。所有写操作均要求管理员登录，并使用现有真实权限键：`content-banners`、`content-notices`、`coupon-groups`、`member-categories`、`member-levels`、`member-tags`、`service-queue`、`store-categories`、`store-products`。当前没有明确的员工写入调用链，因此本阶段没有通过 `@AllowEmployee()` 扩大员工权限。
+
+公开读取只保留现有业务需要：启用中的广告/公告、会员等级、商品分类/商品、队列摘要/ETA 和脱敏队列列表。`GET /queue/list` 只查询 `IN_QUEUE`/`SERVING`，从数据库层使用最小字段投影，响应由白名单 DTO 映射并由服务端遮罩车牌；管理端改用受 `service-queue` 保护的 `GET /queue/manage-list`。安全测试覆盖了无 token、缺权限和敏感字段哨兵。
+
+| 接口域 | 公开读取 | 管理员 | 员工 |
+| --- | --- | --- | --- |
+| 广告/公告 | 仅 active | 管理列表与写入分别要求 `content-banners` / `content-notices` | 不允许 |
+| 券组 | 无 | 列表允许任意已登录管理员；写入要求 `coupon-groups` | 不允许 |
+| 会员分类/标签 | 无 | 选项列表允许任意已登录管理员；写入（及标签会员列表）分别要求 `member-categories` / `member-tags` | 不允许 |
+| 会员等级 | 等级列表 | CRUD 与成长值配置要求 `member-levels` | 不允许 |
+| 队列类型 | 无 | 列表、CRUD、步骤/商品绑定要求 `service-queue` | 不允许 |
+| 商品分类/商品 | 列表；商品详情 | 写入分别要求 `store-categories` / `store-products` | 不允许 |
+| 服务队列 | 脱敏列表、summary、ETA | 管理列表及所有状态写入要求 `service-queue` | 不允许 |
+
+兼容性影响：分类、标签和券组的选项列表允许任意已登录管理员读取，以兼容 `members`/`coupons` 页面；对应写接口仍要求实体权限。会员列表的内联新建标签在缺少 `member-tags` 时会收到 403，后续应按权限隐藏该入口。无 `service-queue` 的 POS 管理员同样不能读取或修改队列。
+
+已修复范围包括：
 
 - `apps/api/src/content/ad-banner.controller.ts`
 - `apps/api/src/content/scroll-notice.controller.ts`
@@ -28,9 +46,7 @@
 - `apps/api/src/store/category.controller.ts`
 - `apps/api/src/store/product.controller.ts`
 
-`apps/api/src/queue/queue.controller.ts` 中多个状态操作也可在未鉴权情况下改变队列和关联订单履约。公开队列查询 include 的 Member 字段过多，可能泄露手机号、openId 或密码哈希等不应返回的数据。
-
-处理：建立默认拒绝策略，所有写接口显式声明身份和权限；公开读 DTO 只返回白名单字段。补齐鉴权集成测试后再开放公网。
+`apps/api/src/queue/queue.controller.ts` 中会改变队列或关联订单履约的操作也已纳入 `service-queue` 权限。该修复只覆盖本轮明确列出的接口，不代表全仓写接口审计已经完成。
 
 ### 3. 订单创建与读取信任边界错误
 
@@ -40,11 +56,13 @@
 
 处理：使用严格 DTO；服务端仅接受商品/SKU/数量/业务意图并重新计算金额、优惠和权益；从已验证身份推导会员；所有读写验证所有权或后台权限。
 
-### 4. 改手机号存在账号接管风险
+### 4. 改手机号账号接管风险（已修复）
 
-`apps/api/src/auth/auth.controller.ts` 的 `POST /auth/change-phone` 是公开接口，只验证发给新手机号的验证码，没有可靠验证当前会员身份和旧手机号控制权。
+阶段状态（2026-08-15）：已修复。`POST /auth/change-phone` 与新的 `POST /auth/change-phone/send-code` 均要求有效会员 token；Controller 显式拒绝 admin 身份，memberId 只从 Guard 注入身份获得。服务端分别向数据库中的当前手机号和请求的新手机号发送验证码，验证码同时绑定 member、手机号、阶段 purpose、五分钟有效期和最多五次尝试；存储值使用服务端秘密参与的 HMAC，正确验证会先通过 CAS 锁定，最终在同一事务中条件消费双码并更新手机号，并发重放只能成功一次。
 
-处理：要求已登录会员 token，服务端从 token 获取会员；同时验证旧手机号或额外强认证，再验证新手机号验证码。使验证码与 member、purpose、尝试次数和有效期绑定。
+兼容性影响：公开 `/auth/send-code` 不再接受 `changePhone` purpose；旧请求体 `{ oldPhone, newPhone, code }` 不再可用。H5 与微信小程序统一为新旧手机号双验证码流程。验证码采用 fail-closed 声明：旧码验证成功后若新码错误或最终事务失败，已声明的码需要重新发送。换号后既有 JWT 中的 phone claim 会保持旧值直到重新登录，但当前 Guard 仅以 `sub` 推导身份；后续仍应设计统一 token 撤销/刷新策略。
+
+自动化覆盖包括无登录、错误身份、跨会员验证码、错误尝试耗尽、并发重放和成功后不可重放。仍未用真实短信服务、真实 MySQL 隔离级别或多实例部署做运行时验证。
 
 ### 5. 微信支付/退款回调校验不完整
 
@@ -69,10 +87,10 @@
 
 建议引入 outbox/任务表、幂等键、可重试处理器和定期 reconciliation；关键补偿必须持久化失败状态，不得仅靠日志。
 
-### 2. 没有真实自动化质量门禁
+### 2. 自动化质量门禁仍不完整
 
 - 根 `lint` / `format` 没有 workspace 任务，实际执行 0 个检查。
-- 仓库没有 Jest、Vitest、Playwright/Cypress 测试或 `test` 脚本。
+- API 已新增一组基于 Node 内置测试运行器的 P0 安全回归测试和 `test:security` 脚本，但尚无覆盖订单、支付、退款和前端的完整测试套件或 CI 门禁。
 - Web/uni 的 Vite build 不等于 Vue SFC 类型检查。
 - 根 build 不包含 miniapp。
 
@@ -80,7 +98,7 @@
 
 ### 3. OpenAPI 有路径覆盖，但响应类型和安全元数据不足
 
-`apps/api/openapi.json` 已包含约 251 个 path、307 个 operation 和 90 个 schema，不再是旧文档所说的占位文件；但绝大多数生成函数返回 `Promise<void>`，大量写接口缺 request body schema，operation 也没有完整 security 声明。
+`apps/api/openapi.json` 已包含 257 个 path、314 个 operation 和 105 个 schema，不再是旧文档所说的占位文件；但绝大多数生成函数返回 `Promise<void>`，大量写接口缺 request body schema，operation 也没有完整 security 声明。
 
 处理点在后端 DTO 与 Swagger response/request 装饰器，不是继续在前端新增 `as any`。详见 [api-client.md](./api-client.md)。
 

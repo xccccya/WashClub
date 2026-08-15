@@ -4,6 +4,7 @@ import { VehicleService } from '../member/vehicle.service.js';
 import { NotificationService } from '../notification/notification.service.js';
 import { isNoPlateNumber } from '../env.js';
 import { CouponService } from '../coupon/coupon.service.js';
+import { toManagedQueueItem, toPublicQueueItem } from './queue.dto.js';
 
 type CreateQueueInput =
     | { mode: 'vehicleId'; vehicleId: number; queueTypeId?: number | undefined }
@@ -112,19 +113,92 @@ export class QueueService {
         return created;
     }
 
-    async listActive() {
+    private async listByStatuses(statuses: Array<'IN_QUEUE' | 'SERVING' | 'COMPLETED'>) {
         const items = await this.prisma.serviceQueueItem.findMany({
-            where: { status: { in: ['IN_QUEUE', 'SERVING', 'COMPLETED'] as any } },
+            where: { status: { in: statuses as any } },
             orderBy: { orderSort: 'asc' },
-            include: {
-                tasks: { orderBy: { orderIndex: 'asc' } },
-                vehicle: { include: { member: true, group: true } },
-                queueType: { include: { steps: { orderBy: { orderIndex: 'asc' } } } }
+            select: {
+				id: true,
+				plateNumber: true,
+				guest: true,
+				status: true,
+				orderId: true,
+				currentTaskIndex: true,
+				queueTypeId: true,
+				tasks: {
+					orderBy: { orderIndex: 'asc' },
+					select: { id: true, orderIndex: true, name: true, durationMin: true, status: true },
+				},
+				vehicle: {
+					select: {
+						id: true,
+						brand: true,
+						series: true,
+						brandImage: true,
+						member: { select: { id: true, name: true, phone: true } },
+						group: { select: { id: true, name: true } },
+					},
+				},
+				queueType: {
+					select: {
+						id: true,
+						name: true,
+						displayColor: true,
+						participateInEta: true,
+						etaParallelSlots: true,
+						etaGroupKey: true,
+						steps: { orderBy: { orderIndex: 'asc' }, select: { orderIndex: true, isEta: true } },
+					},
+				},
             },
         });
         const basicDecorated = items.map((it, idx) => this.decorateComputed(it, idx, items));
         return this.decorateEta(basicDecorated);
     }
+
+	async listActive() {
+		const items = await this.listByStatuses(['IN_QUEUE', 'SERVING', 'COMPLETED']);
+		return items.map(toManagedQueueItem);
+	}
+
+	async listPublic() {
+		const items = await this.prisma.serviceQueueItem.findMany({
+			where: { status: { in: ['IN_QUEUE', 'SERVING'] as any } },
+			orderBy: { orderSort: 'asc' },
+			select: {
+				id: true,
+				plateNumber: true,
+				guest: true,
+				status: true,
+				currentTaskIndex: true,
+				queueTypeId: true,
+				tasks: { select: { id: true, orderIndex: true, name: true, durationMin: true, status: true } },
+				vehicle: {
+					select: {
+						brand: true,
+						series: true,
+						brandImage: true,
+						member: { select: { id: true } },
+						group: { select: { id: true } },
+					},
+				},
+				queueType: {
+					select: {
+						id: true,
+						name: true,
+						displayColor: true,
+						participateInEta: true,
+						etaParallelSlots: true,
+						etaGroupKey: true,
+						steps: { select: { orderIndex: true, isEta: true } },
+					},
+				},
+			},
+		});
+		const basicDecorated = items.map((item, index) => this.decorateComputed(item, index, items));
+		const decorated = this.decorateEta(basicDecorated);
+		return decorated.map(toPublicQueueItem);
+	}
 
     async summary() {
         const [serving, waiting] = await Promise.all([
@@ -413,13 +487,14 @@ export class QueueService {
 
     async etaSummaryByType() {
         // 取所有启用类型
-        const types = await (this.prisma as any).serviceQueueType.findMany({
+		const types = await (this.prisma as any).serviceQueueType.findMany({
+			where: { enabled: true },
             orderBy: [{ sortWeight: 'desc' }, { id: 'asc' }],
             include: { steps: { orderBy: { orderIndex: 'asc' } } }
         });
         // 取活跃队列项
         const items = await this.prisma.serviceQueueItem.findMany({
-            where: { status: { in: ['IN_QUEUE', 'SERVING', 'COMPLETED'] as any } },
+			where: { status: { in: ['IN_QUEUE', 'SERVING'] as any } },
             include: { tasks: true, queueType: { include: { steps: { orderBy: { orderIndex: 'asc' } } } } }
         });
 
@@ -473,8 +548,7 @@ export class QueueService {
                 if ((g.doingCount || 0) < (parallel as number)) etaForNewCar = 0;
                 else etaForNewCar = Math.max(0, Math.ceil((g.totalRemaining || 0) / (parallel as number)));
             }
-            const tips = configured && !excluded ? `资源组=${gk}；并行=${parallel}; 步骤数(ETA)=${idxs.size}` : (excluded ? '不计入预计等待' : '未配置ETA');
-            return { typeId: t.id, typeName: t.name, displayColor: t.displayColor || null, etaConfigured: !!configured, excludedFromEta: !!excluded, etaForNewCar, tips };
+			return { typeId: t.id, typeName: t.name, displayColor: t.displayColor || null, etaConfigured: !!configured, excludedFromEta: !!excluded, etaForNewCar };
         });
         return result;
     }

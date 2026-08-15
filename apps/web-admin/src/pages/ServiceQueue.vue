@@ -515,7 +515,7 @@ import {
 	queueControllerCreateServiceOrderAndEnqueue,
 	queueControllerEtaSummary,
 	queueControllerFinishTask,
-	queueControllerList,
+	queueControllerManageList,
 	queueControllerRemove,
 	queueControllerSetCurrent,
 	queueControllerStartFirst,
@@ -587,7 +587,7 @@ function clearSelectedTypes(){ selectedTypeIds.value = []; }
 async function fetchList(){
 	loading.value = true;
 	try {
-		const data = (await queueControllerList()) as any;
+		const data = await queueControllerManageList();
 		list.value = (data || []) as QueueItem[];
 	} finally {
 		loading.value = false;

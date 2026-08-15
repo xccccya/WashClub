@@ -25,12 +25,16 @@ import type {
   AssetControllerListParams,
   AssetControllerUploadBody,
   AssetGenThumbsDto,
+  AuthOkResponseDto,
+  CarBrandGroupDto,
   CarDataControllerGetSeriesParams,
+  CarSeriesDto,
   CartControllerMyListParams,
   CartMyAddDto,
   CartMyUpdateDto,
   CartToggleAllDto,
-  ChangePhoneByCodeDto,
+  ChangePhoneDto,
+  ChangePhoneSendCodeDto,
   CouponControllerListLogsParams,
   CouponControllerListParams,
   CouponCreateDto,
@@ -72,6 +76,7 @@ import type {
   GroupVehicleCreateDto,
   LoginByCodeDto,
   LoginDto,
+  ManagedQueueItemDto,
   MemberControllerGetGrowthLogsByMemberParams,
   MemberControllerGetGrowthLogsParams,
   MemberControllerGetPointsLogsParams,
@@ -107,6 +112,9 @@ import type {
   OrderControllerListParams,
   OrderControllerListReviewsParams,
   OrderControllerQueryParams,
+  PublicQueueItemDto,
+  QueueEtaSummaryDto,
+  QueueSummaryDto,
   ResetPasswordDto,
   ResolvePhoneDto,
   ScrollNoticeControllerActiveParams,
@@ -144,6 +152,7 @@ import type {
   UpdateRoleDto,
   UpdateScrollNoticeDto,
   VehicleControllerAdminListParams,
+  VehicleControllerAdminOrdersParams,
   VehicleControllerAdminRebindLogsParams,
   VehicleControllerSearchParams,
   VehicleCreateForMemberByPhoneDto,
@@ -211,7 +220,7 @@ export const authControllerLogin = async (loginDto: LoginDto, options?: RequestI
 
 
 /**
- * @summary 发送短信验证码（登录/注册/重置/换号）
+ * @summary 发送短信验证码（登录/注册/重置密码）
  */
 export const getAuthControllerSendLoginCodeUrl = () => {
 
@@ -221,9 +230,9 @@ export const getAuthControllerSendLoginCodeUrl = () => {
   return `/auth/send-code`
 }
 
-export const authControllerSendLoginCode = async (sendCodeDto: SendCodeDto, options?: RequestInit): Promise<void> => {
+export const authControllerSendLoginCode = async (sendCodeDto: SendCodeDto, options?: RequestInit): Promise<AuthOkResponseDto> => {
   
-  return createHttpClient<void>(getAuthControllerSendLoginCodeUrl(),
+  return createHttpClient<AuthOkResponseDto>(getAuthControllerSendLoginCodeUrl(),
   {      
     ...options,
     method: 'POST',
@@ -286,7 +295,32 @@ export const authControllerResetPassword = async (resetPasswordDto: ResetPasswor
 
 
 /**
- * @summary 更换会员手机号（短信验证码）
+ * @summary 发送更换手机号验证码（当前手机号或新手机号）
+ */
+export const getAuthControllerSendChangePhoneCodeUrl = () => {
+
+
+  
+
+  return `/auth/change-phone/send-code`
+}
+
+export const authControllerSendChangePhoneCode = async (changePhoneSendCodeDto: ChangePhoneSendCodeDto, options?: RequestInit): Promise<AuthOkResponseDto> => {
+  
+  return createHttpClient<AuthOkResponseDto>(getAuthControllerSendChangePhoneCodeUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      changePhoneSendCodeDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 更换会员手机号（双短信验证码）
  */
 export const getAuthControllerChangePhoneUrl = () => {
 
@@ -296,15 +330,15 @@ export const getAuthControllerChangePhoneUrl = () => {
   return `/auth/change-phone`
 }
 
-export const authControllerChangePhone = async (changePhoneByCodeDto: ChangePhoneByCodeDto, options?: RequestInit): Promise<void> => {
+export const authControllerChangePhone = async (changePhoneDto: ChangePhoneDto, options?: RequestInit): Promise<AuthOkResponseDto> => {
   
-  return createHttpClient<void>(getAuthControllerChangePhoneUrl(),
+  return createHttpClient<AuthOkResponseDto>(getAuthControllerChangePhoneUrl(),
   {      
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      changePhoneByCodeDto,)
+      changePhoneDto,)
   }
 );}
 
@@ -2244,6 +2278,30 @@ export const vehicleControllerRemove = async (id: string, options?: RequestInit)
 
 
 /**
+ * @summary 车辆详情（管理员）
+ */
+export const getVehicleControllerGetVehicleUrl = (id: string,) => {
+
+
+  
+
+  return `/vehicle/${id}`
+}
+
+export const vehicleControllerGetVehicle = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getVehicleControllerGetVehicleUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
  * @summary 设置默认车辆
  */
 export const getVehicleControllerSetDefaultUrl = (id: string,) => {
@@ -2407,6 +2465,87 @@ export const vehicleControllerAdminRebindLogs = async (id: string,
 
 
 /**
+ * @summary 车辆相关订单列表（管理员，分页）
+ */
+export const getVehicleControllerAdminOrdersUrl = (id: string,
+    params?: VehicleControllerAdminOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/vehicle/${id}/orders?${stringifiedParams}` : `/vehicle/${id}/orders`
+}
+
+export const vehicleControllerAdminOrders = async (id: string,
+    params?: VehicleControllerAdminOrdersParams, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getVehicleControllerAdminOrdersUrl(id,params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 车辆最近一次到店时间（管理员）
+ */
+export const getVehicleControllerAdminLastVisitUrl = (id: string,) => {
+
+
+  
+
+  return `/vehicle/${id}/last-visit`
+}
+
+export const vehicleControllerAdminLastVisit = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getVehicleControllerAdminLastVisitUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 车辆统计（管理员）
+ */
+export const getVehicleControllerAdminMetricsUrl = (id: string,) => {
+
+
+  
+
+  return `/vehicle/${id}/metrics`
+}
+
+export const vehicleControllerAdminMetrics = async (id: string, options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getVehicleControllerAdminMetricsUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
  * @summary 我的车辆列表（会员端）
  */
 export const getVehicleControllerMyVehiclesUrl = () => {
@@ -2479,6 +2618,30 @@ export const washCardControllerAdminMemberStats = async (params: WashCardControl
   {      
     ...options,
     method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 批量按会员聚合洗车卡统计（管理员/员工，用于列表页批量展示）
+ */
+export const getWashCardControllerAdminMemberStatsBatchUrl = () => {
+
+
+  
+
+  return `/wash-card/member-stats/batch`
+}
+
+export const washCardControllerAdminMemberStatsBatch = async ( options?: RequestInit): Promise<void> => {
+  
+  return createHttpClient<void>(getWashCardControllerAdminMemberStatsBatchUrl(),
+  {      
+    ...options,
+    method: 'POST'
     
     
   }
@@ -4377,9 +4540,9 @@ export const getCarDataControllerGetBrandsUrl = () => {
   return `/content/car/brands`
 }
 
-export const carDataControllerGetBrands = async ( options?: RequestInit): Promise<void> => {
+export const carDataControllerGetBrands = async ( options?: RequestInit): Promise<CarBrandGroupDto[]> => {
   
-  return createHttpClient<void>(getCarDataControllerGetBrandsUrl(),
+  return createHttpClient<CarBrandGroupDto[]>(getCarDataControllerGetBrandsUrl(),
   {      
     ...options,
     method: 'GET'
@@ -4408,9 +4571,9 @@ export const getCarDataControllerGetSeriesUrl = (params: CarDataControllerGetSer
   return stringifiedParams.length > 0 ? `/content/car/series?${stringifiedParams}` : `/content/car/series`
 }
 
-export const carDataControllerGetSeries = async (params: CarDataControllerGetSeriesParams, options?: RequestInit): Promise<void> => {
+export const carDataControllerGetSeries = async (params: CarDataControllerGetSeriesParams, options?: RequestInit): Promise<CarSeriesDto[]> => {
   
-  return createHttpClient<void>(getCarDataControllerGetSeriesUrl(params),
+  return createHttpClient<CarSeriesDto[]>(getCarDataControllerGetSeriesUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -4640,7 +4803,7 @@ export const districtControllerGetDistrict = async (params: DistrictControllerGe
 
 
 /**
- * @summary 服务队列列表（进行中/待处理）
+ * @summary 服务队列公开列表（仅进行中，字段已脱敏）
  */
 export const getQueueControllerListUrl = () => {
 
@@ -4650,9 +4813,33 @@ export const getQueueControllerListUrl = () => {
   return `/queue/list`
 }
 
-export const queueControllerList = async ( options?: RequestInit): Promise<void> => {
+export const queueControllerList = async ( options?: RequestInit): Promise<PublicQueueItemDto[]> => {
   
-  return createHttpClient<void>(getQueueControllerListUrl(),
+  return createHttpClient<PublicQueueItemDto[]>(getQueueControllerListUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary 服务队列管理列表（管理员）
+ */
+export const getQueueControllerManageListUrl = () => {
+
+
+  
+
+  return `/queue/manage-list`
+}
+
+export const queueControllerManageList = async ( options?: RequestInit): Promise<ManagedQueueItemDto[]> => {
+  
+  return createHttpClient<ManagedQueueItemDto[]>(getQueueControllerManageListUrl(),
   {      
     ...options,
     method: 'GET'
@@ -4674,9 +4861,9 @@ export const getQueueControllerSummaryUrl = () => {
   return `/queue/summary`
 }
 
-export const queueControllerSummary = async ( options?: RequestInit): Promise<void> => {
+export const queueControllerSummary = async ( options?: RequestInit): Promise<QueueSummaryDto> => {
   
-  return createHttpClient<void>(getQueueControllerSummaryUrl(),
+  return createHttpClient<QueueSummaryDto>(getQueueControllerSummaryUrl(),
   {      
     ...options,
     method: 'GET'
@@ -4698,9 +4885,9 @@ export const getQueueControllerEtaSummaryUrl = () => {
   return `/queue/eta-summary`
 }
 
-export const queueControllerEtaSummary = async ( options?: RequestInit): Promise<void> => {
+export const queueControllerEtaSummary = async ( options?: RequestInit): Promise<QueueEtaSummaryDto[]> => {
   
-  return createHttpClient<void>(getQueueControllerEtaSummaryUrl(),
+  return createHttpClient<QueueEtaSummaryDto[]>(getQueueControllerEtaSummaryUrl(),
   {      
     ...options,
     method: 'GET'
