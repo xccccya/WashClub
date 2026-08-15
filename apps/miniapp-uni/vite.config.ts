@@ -23,15 +23,10 @@ export default defineConfig(({ mode }) => {
 		manifestVersion = String(m?.versionName || '');
 	} catch {}
 	try {
-		// 根 CHANGELOG.md 是受版本控制的权威来源；旧 unichlog.md 仅作本地兼容 fallback。
-		const candidates = [
-			resolve(__dirname, '../../CHANGELOG.md'),
-			resolve(__dirname, '../../unichlog.md')
-		];
-		for (const p of candidates) {
-			try {
-				if (fs.existsSync(p)) { changelogMd = String(fs.readFileSync(p, 'utf-8') || ''); break; }
-			} catch {}
+		// 根 CHANGELOG.md 是唯一受版本控制的更新日志来源。
+		const changelogPath = resolve(__dirname, '../../CHANGELOG.md');
+		if (fs.existsSync(changelogPath)) {
+			changelogMd = String(fs.readFileSync(changelogPath, 'utf-8') || '');
 		}
 	} catch {}
 

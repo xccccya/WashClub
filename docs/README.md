@@ -45,7 +45,7 @@
 - `.cursor/rules/` 目录为空且未被 Git 跟踪；干净 clone 不会包含它。
 - 不存在 `.cursorrules`、`.mdc`、`SKILL.md`、`.cursorignore` 或其他 Cursor 指令文件。
 - Git 历史中也没有 `.cursor` / `.cursorrules` 规则记录。
-- 本地 `提示模板-MySQL8.4.md` 和 `SDK-统一调用重构指南与提示词.md` 只是被忽略的历史提示文本，不是 Cursor skill，也不是现行规则。
+- `.local/archive/old-guides/` 中的旧提示文本只是被忽略的历史资料，不是 Cursor skill，也不是现行规则。
 
 后续 Codex 的仓库规则以根 [`AGENTS.md`](../AGENTS.md) 为准；其位置和作用遵循 [OpenAI 官方的 `AGENTS.md` 项目指令约定](https://developers.openai.com/codex/guides/agents-md)。
 
@@ -63,23 +63,22 @@
 - POS 路由：`apps/web-pos/src/main.ts`
 - 小程序页面注册：`apps/miniapp-uni/src/pages.json`
 
-## 本地历史文档说明
+## 本机资料区
 
-当前工作区根目录可能存在以下被 `.gitignore` 排除的旧文档。它们不会出现在干净 clone 中，也不属于可靠的团队文档：
+当前工作区的遗留资料统一收拢到被 `.gitignore` 排除的 `.local/`。该目录不会出现在干净 clone 中，也不属于可靠的团队文档：
 
-- 功能草案：集团客户、商店和订单系统设计。
-- 阶段快照：消息系统进展、2025 年项目现状评估。
-- 操作提示：旧 Prisma 流程、MySQL 8.4 AI 提示、SDK 迁移提示词。
-- 更新日志源：旧 `unichlog.md`。
-- 第三方接口或服务配置便笺。
+- `.local/archive/project-history/`：功能草案、阶段进展和旧项目评估。
+- `.local/archive/old-guides/`：旧 Prisma 流程、MySQL 提示和 SDK 重构提示词。
+- `.local/archive/changelog/`：不再参与构建的旧 `unichlog.md`。
+- `.local/quarantine/credentials/`：含明文凭据或 API key 的隔离资料。
 
-使用这些文件时遵循以下规则：
+使用本机资料区时遵循以下规则：
 
-- 先验证其日期和代码对应版本，并明确标注“历史、非当前规范”。
-- 已实现的草案不得再次当作待开发需求。
-- 旧命令不得直接执行，尤其是 Prisma、seed、部署、清理和删除命令。
-- 不把历史提示词原样复制进 `AGENTS.md`；只提炼经当前代码验证的规则。
-- 若文件包含云密钥、API key、密码、连接串或真实账号，不得引用、移动到 archive 或提交；应报告并轮换相关凭据。
+- `.local/` 不是事实源；先验证日期、代码版本和当前实现。
+- 已实现的草案不得再次当作待开发需求，旧命令不得直接执行。
+- 不把历史提示词原样复制进 `AGENTS.md`，只提炼经当前代码验证的规则。
+- `quarantine/` 不是长期凭据仓库。先在服务商侧轮换，再删除敏感文件；移动文件并不能修复泄露。
+- `.local/` 中的任何内容都不得提交、打包发布或复制到项目文档。
 
 ## 已知文档债务
 
@@ -94,4 +93,4 @@
 - 示例只使用明显的假值，不记录任何生产身份、手机号或密钥。
 - 一个事实只设一个主要维护位置，其余文档通过链接引用，避免复制漂移。
 - 行为、路由、环境变量、数据库流程或生成命令变化时，在同一变更中更新对应文档。
-- 新增历史资料时放入明确的 archive 目录并写明日期、来源和非权威状态；敏感便笺不归档。
+- 需要团队长期保留的脱敏历史资料放入 `docs/archive/` 并写明日期、来源和非权威状态；仅本机使用的背景资料放 `.local/archive/`；敏感便笺只隔离、轮换和清理，不归档进 Git。

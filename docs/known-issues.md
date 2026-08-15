@@ -8,8 +8,8 @@
 
 ### 1. 已泄露或固定的凭据
 
-- 本地忽略文件 `腾讯云短信相关信息资料.md` 含明文腾讯云凭据。
-- 本地忽略文件 `车型查询接口文档.md` 与已跟踪的 `apps/web-admin/src/pages/MemberVehicles.vue` 出现相同探数 API key。
+- 本地隔离文件 `.local/quarantine/credentials/腾讯云短信相关信息资料.md` 含明文腾讯云凭据。
+- 本地隔离文件 `.local/quarantine/credentials/车型查询接口文档.md` 与已跟踪的 `apps/web-admin/src/pages/MemberVehicles.vue` 出现相同探数 API key。
 - `apps/api/scripts/init-db.mjs`、多个 seed 和旧部署脚本包含固定数据库或管理员凭据；部分 seed 的 `upsert.update` 会在重复运行时把密码重置为固定值。
 
 处理：先在服务商侧轮换所有出现过的值并查调用日志，再移除固定值、改为显式安全输入。敏感本地文档不得归档进 Git。若秘密已进入 Git 历史，需要单独评估历史清理。
@@ -130,11 +130,11 @@ API 同一进程承载 HTTP、WebSocket、Redis Pub/Sub、BullMQ Worker 和 DB s
 
 小程序有两份 manifest、已跟踪 Vite timestamp 产物和复杂平台补丁。历史上 Vite 配置读取被忽略的 `unichlog.md`，并在配置加载时覆盖已跟踪 changelog 生成物。根版本、mini package 版本和 manifest 版本也不是同一体系。
 
-本轮文档整改新增根 `CHANGELOG.md` 作为受版本控制的日志源；后续仍需清理双 manifest、timestamp、生成物和版本发布流程。
+根 `CHANGELOG.md` 已成为唯一受版本控制的日志源，旧 `unichlog.md` 已移入本机历史区且不再参与构建；后续仍需清理双 manifest、timestamp、生成物和版本发布流程。
 
 ## 已过时的旧审计结论
 
-本地 `项目总结-现状评估-2025-12.md` 只能作为历史快照。它列出的以下问题在当前代码中已经发生变化：
+本地 `.local/archive/project-history/项目总结-现状评估-2025-12.md` 只能作为历史快照。它列出的以下问题在当前代码中已经发生变化：
 
 - OpenAPI 已从占位变为完整 Controller 导出。
 - JWT secret 已改为强制配置，不再回退 `dev_secret`。

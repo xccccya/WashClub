@@ -112,7 +112,7 @@ pnpm -F miniapp-uni build:mp-weixin
 
 ### 4.3 miniapp 构建副作用
 
-`apps/miniapp-uni/vite.config.ts` 在配置加载时会优先读取受版本控制的根 `CHANGELOG.md`（旧 `unichlog.md` 只作本地 fallback），并生成：
+`apps/miniapp-uni/vite.config.ts` 在配置加载时会读取受版本控制的根 `CHANGELOG.md`，并生成：
 
 - `apps/miniapp-uni/src/assets/changelog.html`
 - `apps/miniapp-uni/src/assets/changelog.ts`

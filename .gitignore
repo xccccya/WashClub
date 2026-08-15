@@ -54,16 +54,21 @@ vite.config.ts.timestamp-*.mjs
 *~
 *.tmp
 
-# Local legacy/private notes. These are not authoritative project docs and may contain secrets.
-车型查询接口文档.md
-腾讯云短信相关信息资料.md
-商店-订单系统设计草案.md
-PRISMA-命令与流程说明.md
-提示模板-MySQL8.4.md
-集团客户草案.md
-apps/api/cert/
-消息系统-阶段性进展.md
-unichlog.md
-SDK-统一调用重构指南与提示词.md
-项目总结-现状评估-2025-12.md
-scripts/optimize-memory-ubuntu.sh
+# Machine-local archive and sensitive quarantine. Never treat this as project source.
+/.local/
+
+# Private certificates and keys
+/apps/api/cert/
+
+# Legacy root filenames remain ignored in case old tooling recreates them.
+/车型查询接口文档.md
+/腾讯云短信相关信息资料.md
+/商店-订单系统设计草案.md
+/PRISMA-命令与流程说明.md
+/提示模板-MySQL8.4.md
+/集团客户草案.md
+/消息系统-阶段性进展.md
+/unichlog.md
+/SDK-统一调用重构指南与提示词.md
+/项目总结-现状评估-2025-12.md
+/scripts/optimize-memory-ubuntu.sh
