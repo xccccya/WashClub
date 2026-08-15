@@ -7,6 +7,8 @@ build
 # Env
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 # Logs & coverage
 *.log
@@ -52,7 +54,7 @@ vite.config.ts.timestamp-*.mjs
 *~
 *.tmp
 
-# Project docs (keep existing)
+# Local legacy/private notes. These are not authoritative project docs and may contain secrets.
 车型查询接口文档.md
 腾讯云短信相关信息资料.md
 商店-订单系统设计草案.md
@@ -64,6 +66,4 @@ apps/api/cert/
 unichlog.md
 SDK-统一调用重构指南与提示词.md
 项目总结-现状评估-2025-12.md
-apps/miniapp-uni/src/assets/changelog.html
-apps/miniapp-uni/src/assets/changelog.ts
 scripts/optimize-memory-ubuntu.sh

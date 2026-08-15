@@ -23,10 +23,10 @@ export default defineConfig(({ mode }) => {
 		manifestVersion = String(m?.versionName || '');
 	} catch {}
 	try {
+		// 根 CHANGELOG.md 是受版本控制的权威来源；旧 unichlog.md 仅作本地兼容 fallback。
 		const candidates = [
-			resolve(__dirname, '../../unichlog.md'),
-			resolve(__dirname, '../unichlog.md'),
-			resolve(__dirname, '../../../unichlog.md')
+			resolve(__dirname, '../../CHANGELOG.md'),
+			resolve(__dirname, '../../unichlog.md')
 		];
 		for (const p of candidates) {
 			try {

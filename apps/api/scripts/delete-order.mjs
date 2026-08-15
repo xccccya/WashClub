@@ -1,6 +1,30 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config as dotenvConfig } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const prisma = new PrismaClient();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envCandidates = [
+	path.resolve(__dirname, '../.env'),
+	path.resolve(process.cwd(), '.env'),
+	path.resolve(process.cwd(), 'apps/api/.env'),
+];
+for (const p of envCandidates) {
+	if (fs.existsSync(p)) {
+		dotenvConfig({ path: p });
+		break;
+	}
+}
+
+const url = process.env.DATABASE_URL;
+if (!url || !url.trim()) {
+	console.error('[env] 缺少 DATABASE_URL。请设置环境变量或在 apps/api/.env 中配置数据库连接串。');
+	process.exit(1);
+}
+
+const prisma = new PrismaClient({ adapter: new PrismaMariaDb(url) });
 
 function usageAndExit() {
 	console.log('用法: node ./scripts/delete-order.mjs <orderId>');

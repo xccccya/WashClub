@@ -1,55 +1,10 @@
-# SDK 使用规范（最小版）
+# API Client 使用规范（兼容入口）
 
-本项目后端接口调用统一通过 `@wash/api-client`（OpenAPI + orval 生成）。
+原“SDK 最小规范”已合并到 [API Client 维护指南](./api-client.md)。请以后者作为唯一详细规范；本文件只为保留旧链接。
 
-## 统一规则
+最重要的边界：
 
-- **业务接口必须使用 SDK**：`import { xxxControllerYyy } from '@wash/api-client'`
-- **禁止内部路径导入**：
-  - ✅ `@wash/api-client`
-  - ❌ `@wash/api-client/src/...`
-  - ✅ `@wash/shared-utils`
-  - ❌ `@wash/shared-utils/src/...`
-- **仅允许例外**（可以直连）：
-  - 文件上传：`/assets/upload`（`fetch` / `uni.uploadFile`）
-  - WebSocket：`/ws`
-  - 第三方接口：如 AMap
-
-## Web 端示例（web-admin / web-pos）
-
-```ts
-import { memberControllerList } from '@wash/api-client';
-
-export async function searchMembers(keyword: string) {
-  const res: any = await memberControllerList({ page: 1, pageSize: 20, keyword } as any);
-  return res?.items || [];
-}
-```
-
-## 小程序示例（miniapp-uni）
-
-SDK 底层会优先使用 `uni.request`，并默认从小程序 storage 读取 `token`；`baseUrl` 由运行环境注入（本项目由 `apps/miniapp-uni/src/utils/auth.ts` 负责设置）。
-
-```ts
-import { vehicleControllerMyVehicles } from '@wash/api-client';
-
-export async function loadMyVehicles() {
-  const list: any = await vehicleControllerMyVehicles({} as any);
-  return Array.isArray(list) ? list : [];
-}
-```
-
-## 上传示例（例外）
-
-```ts
-// 允许：上传属于例外，不走 SDK
-uni.uploadFile({
-  url: `${API_BASE}/assets/upload`,
-  filePath,
-  name: 'file',
-  header: { Authorization: `Bearer ${token}` },
-  formData: { dir: 'miniapp', source: 'xxx' },
-});
-```
-
-
+- 业务请求只从 `@wash/api-client` 包入口导入。
+- 严禁手改 `packages/api-client/src/generated/**`。
+- 文件上传、WebSocket 和第三方 API 是明确例外。
+- 契约缺失时修后端 DTO/Swagger 并重新生成，不在页面永久追加 `any` 或手写重复请求。
