@@ -12,6 +12,13 @@
 					<el-menu-item v-if="can('orders')" index="/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>订单列表</el-menu-item>
 					<el-menu-item v-if="can('after-sales')" index="/after-sales"><el-icon style="margin-right:6px;"><Service /></el-icon>售后</el-menu-item>
 				</el-sub-menu>
+				<el-sub-menu v-if="can('ride-orders') || can('ride-drivers') || can('ride-settings')" index="/rides">
+					<template #title><el-icon style="margin-right:6px;"><Van /></el-icon>内部用车</template>
+					<el-menu-item v-if="can('ride-drivers')" index="/rides"><el-icon style="margin-right:6px;"><Location /></el-icon>实时总览</el-menu-item>
+					<el-menu-item v-if="can('ride-orders')" index="/rides/orders"><el-icon style="margin-right:6px;"><Tickets /></el-icon>行程订单</el-menu-item>
+					<el-menu-item v-if="can('ride-drivers')" index="/rides/drivers"><el-icon style="margin-right:6px;"><Van /></el-icon>内部司机</el-menu-item>
+					<el-menu-item v-if="can('ride-settings')" index="/rides/settings"><el-icon style="margin-right:6px;"><Setting /></el-icon>用车配置</el-menu-item>
+				</el-sub-menu>
 				<el-sub-menu index="/members">
 					<template #title><el-icon style="margin-right:6px;"><User /></el-icon>会员管理</template>
 					<el-menu-item v-if="can('members')" index="/members"><el-icon style="margin-right:6px;"><User /></el-icon>会员列表</el-menu-item>
@@ -627,6 +634,7 @@ function connectWS(){
         ws.onmessage = async (ev)=>{
             try{
                 const msg = JSON.parse(ev.data||'{}');
+				try { window.dispatchEvent(new CustomEvent('admin:realtime', { detail: msg })); } catch {}
                 if (msg?.type === 'notification' && msg?.data){
                     unreadCount.value += 1;
                     const { ElNotification } = await import('element-plus');

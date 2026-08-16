@@ -2,3 +2,36 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# 依赖已由锁文件和 install 命令校验；避免 Windows 下子包 `pnpm run` 的状态检查误触发整仓重装。
+verifyDepsBeforeRun: warn
+enableGlobalVirtualStore: false
+
+allowBuilds:
+  '@nestjs/core': true
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  core-js: true
+  core-js-pure: true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  sharp: true
+  vue-demi: true
+
+overrides:
+  '@vue/server-renderer': 3.5.26
+  rollup: ^4.18.0
+
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@parcel/watcher'
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - core-js
+  - core-js-pure
+  - esbuild
+  - msgpackr-extract
+  - prisma
+  - sharp
+  - vue-demi

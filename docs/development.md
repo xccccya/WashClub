@@ -4,17 +4,17 @@
 
 ## 1. 运行环境
 
-仓库根目录声明了 `pnpm@9.6.0`，Web 应用使用的 Vite 7.3 要求 Node.js `^20.19.0 || >=22.12.0`。建议统一使用 Node.js 22 LTS，并让 Corepack 使用仓库指定的 pnpm 版本。
+仓库根目录声明了 `pnpm@11.19.0`，Web 应用使用的 Vite 7.3 要求 Node.js `^20.19.0 || >=22.12.0`。建议统一使用 Node.js 22 LTS，并让 Corepack 使用仓库指定的 pnpm 版本。
 
 ```bash
 corepack enable
-corepack prepare pnpm@9.6.0 --activate
+corepack prepare pnpm@11.19.0 --activate
 
 node --version
 pnpm --version
 ```
 
-`pnpm --version` 应输出 `9.6.0`。Turbo 和 API build 内部还会再次调用裸 `pnpm`，因此仅有 `corepack pnpm --version` 正确并不够；若 PATH 中的 `pnpm` 仍是其他版本，应先修正 Corepack shim。不要直接使用系统中较新的 pnpm 代替：pnpm 11 会忽略当前根 `package.json` 中的 `pnpm.overrides` 配置，并可能尝试重建现有 `node_modules`。
+`pnpm --version` 应输出 `11.19.0`。Turbo 和 API build 内部还会再次调用裸 `pnpm`，因此仅有 `corepack pnpm --version` 正确并不够；若 PATH 中的 `pnpm` 仍是其他版本，应先修正 Corepack shim。依赖覆盖项维护在 `pnpm-workspace.yaml` 的 `overrides` 中。
 
 安装依赖：
 
@@ -32,13 +32,15 @@ pnpm install --frozen-lockfile
 | `VITE_APP_API_BASE` | 三端 | 兼容项 | `VITE_API_BASE` 的旧兼容名称，新配置应优先使用 `VITE_API_BASE` |
 | `VITE_NO_PLATE_NUMBER` | Admin、POS | 可选 | 无牌车占位车牌，默认 `川K00000`；必须与后端 `NO_PLATE_NUMBER` 一致 |
 | `VITE_GUEST_MEMBER_ID` | POS | 可选 | 游客会员 ID；不配置或为 `0` 时由后端 `GUEST_MEMBER_ID` 兜底 |
-| `VITE_AMAP_KEY` | H5、小程序 | 使用地图功能时必需 | 高德客户端 Key，会进入客户端产物，不得填写服务端秘密 |
+| `VITE_AMAP_JSAPI_KEY` | Admin、H5 | JSAPI 地图必需 | 高德“Web端(JS API)”Key，会进入客户端产物；与 Web Service Key 不同 |
+| `VITE_AMAP_JSAPI_SERVICE_HOST` | Admin、H5 | 生产必需 | JSAPI v2.0 安全代理地址；生产用它隐藏 `securityJsCode` |
+| `VITE_AMAP_JSAPI_SECURITY_JSCODE` | Admin、H5 | 仅本地开发 | JSAPI 安全码；生产构建必须留空；Web Service 不使用安全码 |
 | `VITE_STORE_LOCATION` | H5、小程序 | 使用门店定位时必需 | 门店经纬度等位置配置 |
-| `VITE_AMAP_BASE` | H5、小程序 | 可选 | 高德 API 基址，默认 `https://restapi.amap.com` |
 
 注意：
 
 - `VITE_API_BASE` 应是包含协议的绝对地址，不要写成 `/api`。
+- 客户端不配置 `VITE_AMAP_WEBSERVICE_*`；门店距离和行程路线均通过 API 调用高德 Web Service。
 - 当前 Vite 配置没有开发代理。浏览器联调依赖后端 CORS 配置，小程序真机联调还要求 API 地址可从设备访问。
 - 开发模式可通过 URL 参数 `api` / `apibase` 或 storage 临时覆盖 API 地址；生产构建禁用这些运行时覆盖。
 - 所有 `VITE_*` 值都会暴露给客户端，只能存放可公开配置。

@@ -143,7 +143,10 @@ export default defineConfig(({ mode }) => {
 			'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
 			'import.meta.env.VITE_APP_API_BASE': JSON.stringify(env.VITE_APP_API_BASE || ''),
 			// 显式注入地图与门店位置配置即可，其余全局兜底移除
-			'import.meta.env.VITE_AMAP_KEY': JSON.stringify(env.VITE_AMAP_KEY || process.env.VITE_AMAP_KEY || ''),
+			// JSAPI（仅 H5 地图渲染）：Web 端 Key + 安全配置。
+			'import.meta.env.VITE_AMAP_JSAPI_KEY': JSON.stringify(env.VITE_AMAP_JSAPI_KEY || process.env.VITE_AMAP_JSAPI_KEY || ''),
+			'import.meta.env.VITE_AMAP_JSAPI_SERVICE_HOST': JSON.stringify(env.VITE_AMAP_JSAPI_SERVICE_HOST || process.env.VITE_AMAP_JSAPI_SERVICE_HOST || ''),
+			'import.meta.env.VITE_AMAP_JSAPI_SECURITY_JSCODE': JSON.stringify(env.VITE_AMAP_JSAPI_SECURITY_JSCODE || process.env.VITE_AMAP_JSAPI_SECURITY_JSCODE || ''),
 			'import.meta.env.VITE_STORE_LOCATION': JSON.stringify(env.VITE_STORE_LOCATION || process.env.VITE_STORE_LOCATION || ''),
 			'globalThis.__VITE_API_BASE__': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
 			__APP_VITE_API_BASE__: JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),

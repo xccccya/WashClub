@@ -13,6 +13,7 @@ import { CouponModule } from './coupon/coupon.module.js';
 import { SystemModule } from './system/system.module.js';
 import { GroupModule } from './group/group.module.js';
 import { NotificationModule } from './notification/notification.module.js';
+import { RideModule } from './ride/ride.module.js';
 
 
 @Module({
@@ -30,6 +31,7 @@ import { NotificationModule } from './notification/notification.module.js';
 		SystemModule,
 		GroupModule,
 		NotificationModule,
+		RideModule,
 	],
 	controllers: [AppController],
 })

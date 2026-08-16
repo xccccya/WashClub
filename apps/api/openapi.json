@@ -9382,6 +9382,1278 @@
           "MiniappEmployee"
         ]
       }
+    },
+    "/rides/availability": {
+      "get": {
+        "operationId": "RideController_availability",
+        "parameters": [
+          {
+            "name": "longitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "latitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "查询起点半径内的空闲和忙碌内部司机",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/places/tips": {
+      "get": {
+        "operationId": "RideController_places",
+        "parameters": [
+          {
+            "name": "keywords",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "高德地点输入提示（服务端代理）",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/routes/preview": {
+      "post": {
+        "operationId": "RideController_routePreview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideRoutePreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "预览行程路线和后端计价结果",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver/profile": {
+      "get": {
+        "operationId": "RideController_driverProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机档案",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver/status": {
+      "patch": {
+        "operationId": "RideController_driverStatus",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideDriverStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "切换内部司机空闲、忙碌或离线状态",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver/orders": {
+      "get": {
+        "operationId": "RideController_driverOrders",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机行程订单列表",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver/vehicles": {
+      "get": {
+        "operationId": "RideController_driverVehicles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机的出车车辆",
+        "tags": [
+          "rides"
+        ]
+      },
+      "post": {
+        "operationId": "RideController_createDriverVehicle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideDriverVehicleCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机新增自己的车辆",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver/vehicles/{id}": {
+      "put": {
+        "operationId": "RideController_updateDriverVehicle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideDriverVehicleUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机编辑或选择自己的车辆",
+        "tags": [
+          "rides"
+        ]
+      },
+      "delete": {
+        "operationId": "RideController_deleteDriverVehicle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机删除未产生行程的自有车辆",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/location": {
+      "post": {
+        "operationId": "RideController_reportLocation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机上报实时位置并刷新当前路线",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/driver-contact/{driverMemberId}": {
+      "get": {
+        "operationId": "RideController_busyDriverContact",
+        "parameters": [
+          {
+            "name": "driverMemberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "联系地图中在线忙碌司机",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides": {
+      "post": {
+        "operationId": "RideController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "创建待预付的行程订单",
+        "tags": [
+          "rides"
+        ]
+      },
+      "get": {
+        "operationId": "RideController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "乘客的行程订单列表",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/accept": {
+      "post": {
+        "operationId": "RideController_accept",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机原子抢单",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/reject": {
+      "post": {
+        "operationId": "RideController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机拒绝本次派单",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/arrive-pickup": {
+      "post": {
+        "operationId": "RideController_arrivePickup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "司机到达乘客上车点",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/start": {
+      "post": {
+        "operationId": "RideController_start",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideStartDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "验证乘客手机号后四位并开始行程",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/arrive-destination": {
+      "post": {
+        "operationId": "RideController_arriveDestination",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "司机到达目的地",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/finalize": {
+      "post": {
+        "operationId": "RideController_finalize",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideFinalizeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后端重算并确认最终车费",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/cancel": {
+      "post": {
+        "operationId": "RideController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideCancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "乘客取消未开始行程",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/contact": {
+      "get": {
+        "operationId": "RideController_contact",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前行程另一参与人的联系信息",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/messages": {
+      "get": {
+        "operationId": "RideController_messages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "读取当前行程聊天记录",
+        "tags": [
+          "rides"
+        ]
+      },
+      "post": {
+        "operationId": "RideController_sendMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideMessageCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送行程聊天消息",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}": {
+      "get": {
+        "operationId": "RideController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "乘客或当前司机读取行程详情",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/system/ride-settings": {
+      "get": {
+        "operationId": "RideAdminController_setting",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台读取行程派单和计价配置",
+        "tags": [
+          "system-rides"
+        ]
+      },
+      "put": {
+        "operationId": "RideAdminController_updateSetting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideSettingUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台更新行程派单和计价配置",
+        "tags": [
+          "system-rides"
+        ]
+      }
+    },
+    "/system/rides": {
+      "get": {
+        "operationId": "RideAdminController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "keyword",
+            "required": false,
+            "in": "query",
+            "description": "订单号关键字",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passenger",
+            "required": false,
+            "in": "query",
+            "description": "乘客姓名或手机号",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "driver",
+            "required": false,
+            "in": "query",
+            "description": "司机姓名或手机号",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startAt",
+            "required": false,
+            "in": "query",
+            "description": "创建时间起点（ISO 8601）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endAt",
+            "required": false,
+            "in": "query",
+            "description": "创建时间终点（ISO 8601）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台行程订单监控",
+        "tags": [
+          "system-rides"
+        ]
+      }
+    },
+    "/system/rides/{id}": {
+      "get": {
+        "operationId": "RideAdminController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台行程订单详情",
+        "tags": [
+          "system-rides"
+        ]
+      }
+    },
+    "/system/rides/{id}/track": {
+      "get": {
+        "operationId": "RideAdminController_track",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台读取行程起终点、规划路线和实际轨迹",
+        "tags": [
+          "system-rides"
+        ]
+      }
+    },
+    "/system/ride-drivers": {
+      "get": {
+        "operationId": "RideAdminController_drivers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台司机在线与可用状态监控",
+        "tags": [
+          "system-rides"
+        ]
+      }
     }
   },
   "info": {
@@ -9679,6 +10951,7 @@
           },
           "roleRef": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AdminRoleDto"
@@ -11224,6 +12497,7 @@
           },
           "queueType": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/QueueTypeResponseDto"
@@ -11232,6 +12506,7 @@
           },
           "vehicle": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/PublicQueueVehicleDto"
@@ -11343,6 +12618,7 @@
           },
           "member": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ManagedQueueMemberDto"
@@ -11351,6 +12627,7 @@
           },
           "group": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ManagedQueueGroupDto"
@@ -11408,6 +12685,7 @@
           },
           "queueType": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/QueueTypeResponseDto"
@@ -11416,6 +12694,7 @@
           },
           "vehicle": {
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ManagedQueueVehicleDto"
@@ -12630,6 +13909,7 @@
           "businessHoursJson": {
             "description": "营业时间配置",
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SystemBusinessHoursDto"
@@ -12654,6 +13934,7 @@
           "businessHoursJson": {
             "description": "营业时间配置",
             "nullable": true,
+            "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SystemBusinessHoursDto"
@@ -12728,6 +14009,306 @@
             "description": "是否启用"
           }
         }
+      },
+      "RidePointDto": {
+        "type": "object",
+        "properties": {
+          "longitude": {
+            "type": "number",
+            "example": 104.6688
+          },
+          "latitude": {
+            "type": "number",
+            "example": 29.5274
+          },
+          "address": {
+            "type": "string",
+            "example": "四川省内江市威远县中心街"
+          },
+          "poiId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude",
+          "address"
+        ]
+      },
+      "RideRoutePreviewDto": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/RidePointDto"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/RidePointDto"
+          }
+        },
+        "required": [
+          "origin",
+          "destination"
+        ]
+      },
+      "RideDriverStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "OFFLINE",
+              "AVAILABLE",
+              "BUSY"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "RideDriverVehicleCreateDto": {
+        "type": "object",
+        "properties": {
+          "plateNumber": {
+            "type": "string",
+            "example": "川K12345"
+          },
+          "typeMain": {
+            "type": "string",
+            "example": "轿车"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "series": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "brandImage": {
+            "type": "string"
+          },
+          "seriesImage": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plateNumber",
+          "typeMain"
+        ]
+      },
+      "RideDriverVehicleUpdateDto": {
+        "type": "object",
+        "properties": {
+          "plateNumber": {
+            "type": "string"
+          },
+          "typeMain": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "series": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "brandImage": {
+            "type": "string"
+          },
+          "seriesImage": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RideLocationDto": {
+        "type": "object",
+        "properties": {
+          "longitude": {
+            "type": "number"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "heading": {
+            "type": "number"
+          },
+          "speedMetersPerSecond": {
+            "type": "number"
+          },
+          "clientTimestamp": {
+            "type": "string",
+            "description": "客户端采样时间，ISO 8601"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude"
+        ]
+      },
+      "RideCreateDto": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/RidePointDto"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/RidePointDto"
+          },
+          "routeIndex": {
+            "type": "number",
+            "description": "服务端候选路线索引，从 0 开始",
+            "default": 0
+          }
+        },
+        "required": [
+          "origin",
+          "destination"
+        ]
+      },
+      "RideStartDto": {
+        "type": "object",
+        "properties": {
+          "phoneLastFour": {
+            "type": "string",
+            "example": "1234"
+          }
+        },
+        "required": [
+          "phoneLastFour"
+        ]
+      },
+      "RideExtraFeeInputDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PARKING",
+              "OTHER"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "remark": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "amount"
+        ]
+      },
+      "RideFinalizeDto": {
+        "type": "object",
+        "properties": {
+          "finalDistanceMeters": {
+            "type": "number"
+          },
+          "finalDurationSeconds": {
+            "type": "number"
+          },
+          "extraFees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RideExtraFeeInputDto"
+            }
+          }
+        },
+        "required": [
+          "finalDistanceMeters",
+          "finalDurationSeconds"
+        ]
+      },
+      "RideCancelDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "RideMessageCreateDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "RideSettingUpdateDto": {
+        "type": "object",
+        "properties": {
+          "dispatchRadiusMeters": {
+            "type": "number"
+          },
+          "dispatchTimeoutSeconds": {
+            "type": "number"
+          },
+          "baseFare": {
+            "type": "number"
+          },
+          "includedDistanceKm": {
+            "type": "number"
+          },
+          "includedDurationMinutes": {
+            "type": "number"
+          },
+          "pricePerKm": {
+            "type": "number"
+          },
+          "pricePerMinute": {
+            "type": "number"
+          },
+          "minimumFare": {
+            "type": "number"
+          },
+          "allowParkingFee": {
+            "type": "boolean"
+          },
+          "allowOtherFee": {
+            "type": "boolean"
+          },
+          "chatRetentionDays": {
+            "type": "number"
+          },
+          "locationIntervalSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "dispatchRadiusMeters",
+          "dispatchTimeoutSeconds",
+          "baseFare",
+          "includedDistanceKm",
+          "includedDurationMinutes",
+          "pricePerKm",
+          "pricePerMinute",
+          "minimumFare",
+          "allowParkingFee",
+          "allowOtherFee",
+          "chatRetentionDays",
+          "locationIntervalSeconds"
+        ]
       }
     }
   }

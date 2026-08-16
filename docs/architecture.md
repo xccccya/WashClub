@@ -14,7 +14,7 @@
 
 | 主题 | 权威来源 | 说明 |
 | --- | --- | --- |
-| 工作区、包名、可运行命令 | 根目录及各包的 `package.json`、`pnpm-workspace.yaml`、`turbo.json` | 根目录固定 `pnpm@9.6.0` |
+| 工作区、包名、可运行命令 | 根目录及各包的 `package.json`、`pnpm-workspace.yaml`、`turbo.json` | 根目录固定 `pnpm@11.19.0` |
 | 实际 HTTP 路由和鉴权 | `apps/api/src/**/*controller.ts`、Guard 和装饰器 | OpenAPI 目前不能准确表达所有鉴权和请求体 |
 | 业务行为 | `apps/api/src/**/*service.ts` 及事务代码 | Controller 中也存在跨域编排和直接 Prisma 调用 |
 | 数据结构 | `apps/api/prisma/schema.prisma` | Prisma 7 的连接 URL 位于 `apps/api/prisma.config.ts` |

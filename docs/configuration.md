@@ -89,11 +89,15 @@ API 启动会立即连接数据库；配置存在但数据库不可达时，服�
 
 | 变量 | 使用方 | 说明 |
 | --- | --- | --- |
-| `AMAP_KEY` | API | 高德天气、行政区等服务端请求；历史 fallback 为 `AMAP_WEB_KEY` |
+| `AMAP_WEBSERVICE_KEY` | API | 高德 Web Service API 服务端 Key，用于天气、行政区、POI 和驾车路线；只有 Key，没有 `securityJsCode` |
+| `AMAP_JSAPI_SECURITY_JSCODE` | API | 高德 Web 端 JSAPI v2.0 安全码，仅由 `/_AMapService` 代理追加；不是 Web Service Key |
 | `TANSHU_CAR_API_KEY` | API | 车型和物流相关探数请求；部分代码还兼容 `TANSHU_API_KEY`、`TS_API_KEY`、`CAR_API_KEY` |
-| `VITE_AMAP_KEY` | miniapp | 客户端高德 Web API key，会公开在构建产物中，只能使用具备域名/额度限制的客户端 key |
-| `VITE_AMAP_BASE` | miniapp | 可选，默认 `https://restapi.amap.com` |
+| `VITE_AMAP_JSAPI_KEY` | Admin、miniapp H5 | 高德“Web端(JS API)”Key，只用于 JSAPI 地图渲染 |
+| `VITE_AMAP_JSAPI_SERVICE_HOST` | Admin、miniapp H5 | JSAPI 安全代理；生产必需 |
+| `VITE_AMAP_JSAPI_SECURITY_JSCODE` | Admin、miniapp H5 | 仅本地开发；生产必须留空；Web Service API 不使用该值 |
 | `VITE_STORE_LOCATION` | miniapp | 门店坐标，格式 `经度,纬度` |
+
+客户端不配置任何 `VITE_AMAP_WEBSERVICE_*`。门店距离和行程路线都通过 API 调用高德 Web Service，只有 API 进程读取 `AMAP_WEBSERVICE_KEY`。
 
 审计发现历史探数 key 已进入已跟踪代码，必须在服务商侧轮换并检查调用记录。当前车型品牌/车系请求已统一通过后端 `/content/car/*` 代理，由 API 进程读取 `TANSHU_CAR_API_KEY`；Web、POS 和小程序不得持有该变量、第三方服务端 key 或对应 `VITE_*` 变量。删除客户端固定值不能撤销历史泄露。
 

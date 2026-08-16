@@ -47,7 +47,7 @@ import { resolveJwtSecretEnv } from '../env.js';
         WechatShippingService
     ],
     // QueueModule 等模块需要复用订单侧的券恢复能力
-    exports: [OrderService, CouponService]
+    exports: [OrderService, CouponService, OrderPaymentService, OrderRefundService, WxpayService]
 })
 export class OrderModule {}
 

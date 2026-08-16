@@ -13,10 +13,11 @@
             "urlCheck" : false,
             "minified" : true
         },
-        "requiredPrivateInfos" : [ "getLocation" ],
+        "requiredPrivateInfos" : [ "getLocation", "startLocationUpdateBackground", "onLocationChange" ],
+        "requiredBackgroundModes" : [ "location" ],
         "permission" : {
             "scope.userLocation" : {
-                "desc" : "获取距离您最近的店铺位置"
+                "desc" : "用于呼叫内部司机、展示附近司机，以及内部司机在行程中持续更新位置和路线"
             }
         }
     },

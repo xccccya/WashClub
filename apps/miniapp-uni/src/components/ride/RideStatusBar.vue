@@ -1,0 +1,3 @@
+<template><view class="bar"><view class="back" @tap="uni.navigateBack()">‹</view><view><text class="title">{{title}}</text><text v-if="subtitle" class="subtitle">{{subtitle}}</text></view><slot /></view></template>
+<script setup lang="ts">defineProps<{title:string;subtitle?:string}>()</script>
+<style scoped>.bar{position:absolute;z-index:20;left:24rpx;right:24rpx;top:calc(var(--status-bar-height, 20px) + 18rpx);display:flex;align-items:center;gap:18rpx;padding:18rpx 22rpx;border-radius:24rpx;background:rgba(255,255,255,.94);box-shadow:0 12rpx 30rpx rgba(15,23,42,.14)}.back{font-size:48rpx;line-height:40rpx}.title,.subtitle{display:block}.title{font-size:30rpx;font-weight:700}.subtitle{font-size:22rpx;color:#64748b;margin-top:3rpx}</style>

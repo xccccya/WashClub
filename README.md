@@ -22,7 +22,7 @@
 ## 开发环境
 
 - Node.js：推荐 22 LTS，至少 `20.19.0`；Node 22 需 `22.12.0` 或更高。
-- pnpm：仓库固定 `9.6.0`，通过 Corepack 使用，避免混用 pnpm 11。
+- pnpm：仓库固定 `11.19.0`，通过 Corepack 使用。
 - MySQL 8.x；通知的跨实例与队列能力还会使用 Redis。
 - 微信小程序开发需要微信开发者工具。
 
@@ -33,7 +33,7 @@ pnpm --version
 corepack pnpm install --frozen-lockfile
 ```
 
-两条版本命令都应解析为仓库 `packageManager` 声明的 `9.6.0`。Turbo 和部分 package script 会继续调用裸 `pnpm`；若它解析到 pnpm 11，应先修正 Corepack shim/PATH，不要让错误版本重装或清理现有 `node_modules`。
+两条版本命令都应解析为仓库 `packageManager` 声明的 `11.19.0`。Turbo 和部分 package script 会继续调用裸 `pnpm`，因此裸命令与 Corepack 结果应保持一致。
 
 ## 最短启动流程
 

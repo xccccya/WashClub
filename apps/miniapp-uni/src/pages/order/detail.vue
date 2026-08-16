@@ -187,6 +187,7 @@ import {
 	orderControllerReceive,
 	orderControllerWechatJsapi,
 } from '@wash/api-client';
+import { rideApi } from '../../services/ride';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number|string; quantity: number; specsText?: string|null; specsJson?: any };
@@ -195,7 +196,7 @@ type ShippingAddress = { province?: string; city?: string; district?: string; st
 type Order = {
 	id: number;
 	no: string;
-	type: 'SERVICE'|'SP'|'FK';
+	type: 'SERVICE'|'SP'|'FK'|'RIDE';
 	status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED';
 	payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED';
 	fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE';
@@ -588,6 +589,11 @@ onLoad(async (query:any)=>{
 		const data = no
 			? await (orderControllerGetByNo(encodeURIComponent(no)) as any)
 			: await (orderControllerGet(Number(id)) as any);
+		if (data?.type === 'RIDE') {
+			const rides = await rideApi.list({ page: 1, pageSize: 100 });
+			const trip = (rides?.items || []).find((item:any) => Number(item.orderId) === Number(data.id));
+			if (trip) { uni.redirectTo({ url: `/pages/ride/detail/index?id=${trip.id}` }); return; }
+		}
 		order.value = data || null;
 		startCountdown();
 		// 若来自下单页，则调整返回行为：返回到订单列表

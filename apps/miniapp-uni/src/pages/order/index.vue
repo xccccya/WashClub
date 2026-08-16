@@ -7,6 +7,7 @@
 			<view class="tab" :class="{ active: mainTab==='all' }" @tap="setMain('all')">全部订单</view>
 			<view class="tab" :class="{ active: mainTab==='product' }" @tap="setMain('product')">商品订单</view>
 			<view class="tab" :class="{ active: mainTab==='service' }" @tap="setMain('service')">服务订单</view>
+			<view class="tab" @tap="openRideOrders">行程订单</view>
 		</view>
 
 		<!-- 二级筛选：根据主分类动态变化，仅展示UI -->
@@ -31,6 +32,7 @@
 				<view class="tags-row">
 					<text class="tag" v-if="o.type==='SERVICE'">服务订单</text>
 					<text class="tag" v-else-if="o.type==='SP'">商品订单</text>
+					<text class="tag" v-else-if="o.type==='RIDE'">行程订单</text>
 					<text class="tag" v-else>付款订单</text>
 				</view>
 				<view class="status-wrap">
@@ -95,6 +97,7 @@ async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } 
 	} catch { return true; }
 }
 import { memberControllerMe, orderControllerCancelOrder, orderControllerList, orderControllerReceive, orderControllerWechatJsapi } from '@wash/api-client';
+import { rideApi } from '../../services/ride';
 
 const { topSpacerHeight } = useSafeArea();
 const authed = ref<boolean>(false);
@@ -123,7 +126,7 @@ function setFilter(name: string){
 }
 
 type OrderItem = { id: number; name: string; imageUrl?: string|null; price: number; quantity: number; specsText?: string|null; specsJson?: any };
-type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE'; createdAt: string; paymentExpireAt?: string|null; items: OrderItem[]; payAmount?: number|string };
+type Order = { id: number; no: string; type: 'SERVICE'|'SP'|'FK'|'RIDE'; status: 'CREATED'|'PAID'|'FULFILLED'|'CLOSED'|'CANCELLED'; payStatus: 'UNPAID'|'PAID'|'REFUNDED'|'CANCELLED'; fulfillmentStatus?: 'NONE'|'PENDING'|'SHIPPED'|'RECEIVED'|'IN_SERVICE'|'DONE'; createdAt: string; paymentExpireAt?: string|null; items: OrderItem[]; payAmount?: number|string };
 
 const orders = ref<Order[]>([]);
 const loading = ref(false);
@@ -159,6 +162,7 @@ function displayStatus(o: Order){
 	const as = (o as any)?.afterSalesRequests;
 	if (Array.isArray(as) && as.some((x:any)=> x?.status==='PENDING' || x?.status==='APPROVED')) return '售后中';
 	if (o.type==='FK') return o.payStatus==='PAID' ? '已支付' : '待支付';
+	if (o.type==='RIDE') return o.status==='FULFILLED' ? '已完成' : o.status==='CANCELLED' ? '已取消' : '行程处理中';
 	// 新履约维度优先
 	if (o.type==='SERVICE'){
 		if (o.fulfillmentStatus==='IN_SERVICE' || o.fulfillmentStatus==='PENDING') return '待服务';
@@ -226,7 +230,13 @@ async function fetchOrders(){
 	} finally { loading.value = false; }
 }
 
-function viewOrder(o: Order){ navigate(`/pages/order/detail?no=${encodeURIComponent(o.no)}`); }
+async function viewOrder(o: Order){
+	if (o.type === 'RIDE') {
+		try { const data = await rideApi.list({ page: 1, pageSize: 100 }); const trip = (data?.items || []).find((item:any) => Number(item.orderId) === Number(o.id)); if (trip) { navigate(`/pages/ride/detail/index?id=${trip.id}`); return; } } catch {}
+	}
+	navigate(`/pages/order/detail?no=${encodeURIComponent(o.no)}`);
+}
+function openRideOrders(){ navigate('/pages/ride/orders/index'); }
 
 function goLogin(){
 	try{
@@ -365,6 +375,15 @@ async function confirmCancel(o: Order){
         });
         if (!ok) return;
         const authed = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (!authed) return;
+		if (o.type === 'RIDE') {
+			const data = await rideApi.list({ page: 1, pageSize: 100 });
+			const trip = (data?.items || []).find((item:any) => Number(item.orderId) === Number(o.id));
+			if (!trip) throw new Error('行程不存在');
+			await rideApi.cancel(trip.id, '用户主动取消');
+			uni.showToast({ title:'已取消', icon:'success' });
+			await fetchOrders();
+			return;
+		}
         await orderControllerCancelOrder(Number(o.id||0), { body: { reason: '用户主动取消' } } as any);
         uni.showToast({ title:'已取消', icon:'success' });
         await fetchOrders();

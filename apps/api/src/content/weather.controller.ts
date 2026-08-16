@@ -49,8 +49,8 @@ export class WeatherController {
 	@ApiOperation({ summary: '天气：实时与预报（高德API）' })
 	async getWeather(@Query('city') city?: string) {
 		const adcode = (city || '511024').trim();
-		const key = process.env.AMAP_KEY || process.env.AMAP_WEB_KEY;
-		if (!key) throw new BadRequestException('Missing AMAP_KEY');
+		const key = process.env.AMAP_WEBSERVICE_KEY;
+		if (!key) throw new BadRequestException('Missing AMAP_WEBSERVICE_KEY');
 
 		const baseUrl = 'https://restapi.amap.com/v3/weather/weatherInfo';
 		const toQS = (params: Record<string, string>) =>

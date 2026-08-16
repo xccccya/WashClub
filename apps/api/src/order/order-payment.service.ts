@@ -7,6 +7,7 @@ import { OrderRewardsService } from './order-rewards.service.js';
 import { WashCardService } from '../member/washcard.service.js';
 import { GroupCardService } from '../group/card.service.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { NotificationGateway } from '../notification/notification.gateway.js';
 
 @Injectable()
 export class OrderPaymentService {
@@ -17,7 +18,8 @@ export class OrderPaymentService {
         private readonly rewards: OrderRewardsService,
         private readonly washcards: WashCardService,
         private readonly groupCards: GroupCardService,
-        private readonly notifier: NotificationService
+        private readonly notifier: NotificationService,
+        private readonly gateway: NotificationGateway
     ) {}
 
     private last4(v?: string | null): string {
@@ -895,6 +897,11 @@ export class OrderPaymentService {
         await this.writeTimeline({ orderId: order.id, event: 'PAY_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
         await this.writeTimeline({ orderId: order.id, event: 'ORDER_STATUS', value: 'PAID', operatorUserId: params.operatorUserId ?? null });
 
+		// 行程订单：主单支付后开始派单；补款单支付后完成行程。全部使用条件更新保证回调幂等。
+		if (updated?.type === 'RIDE') {
+			await this.handleRidePayment(updated.id);
+		}
+
         // 通知：订单支付成功（会员）
         try{
             const title = `订单已支付`; const content = `您的订单 ${updated?.no||''} 支付成功。`;
@@ -905,6 +912,7 @@ export class OrderPaymentService {
         
         // 集团充值场景：FK + 挂载 groupId -> 入账集团余额并跳过个人奖励/卡发放
         const isGroupRecharge = updated && updated.type === 'FK' && !!updated.groupId;
+		const isRide = updated && updated.type === 'RIDE';
         if (isGroupRecharge) {
             try {
                 await this.creditGroupRechargeBalance({
@@ -927,7 +935,7 @@ export class OrderPaymentService {
                     }
                 } catch { }
             } catch { }
-        } else {
+        } else if (!isRide) {
             // 游客订单：累计支付金额仍需入账；但不发成长/积分，也不发放虚拟卡
             const isGuest = !!(updated as any)?.isGuestOrder;
             try {
@@ -988,6 +996,70 @@ export class OrderPaymentService {
         } catch { }
         return updated;
     }
+
+	private async handleRidePayment(orderId: number) {
+		const supplementTrip = await this.prisma.rideTrip.findUnique({ where: { supplementOrderId: orderId }, include: { order: true } });
+		if (supplementTrip) {
+			const moved = await this.prisma.rideTrip.updateMany({
+				where: { id: supplementTrip.id, status: 'SUPPLEMENT_PENDING' },
+				data: { status: 'COMPLETED', completedAt: new Date(), version: { increment: 1 } },
+			});
+			if (!moved.count) return;
+			await this.prisma.order.update({ where: { id: supplementTrip.orderId }, data: { status: 'FULFILLED', fulfillmentStatus: 'DONE' } });
+			await this.prisma.orderTimeline.createMany({ data: [
+				{ orderId: supplementTrip.orderId, event: 'RIDE_STATUS', value: 'COMPLETED', remark: '补款支付成功' },
+				{ orderId: supplementTrip.orderId, event: 'FULFILLMENT', value: 'DONE' },
+			] });
+			if (supplementTrip.driverMemberId) {
+				const profile = await this.prisma.rideDriverProfile.findUnique({ where: { memberId: supplementTrip.driverMemberId } });
+				if (profile?.busyReason === 'ORDER') {
+					const next = profile.previousManualStatus === 'BUSY' ? 'BUSY' : 'AVAILABLE';
+					await this.prisma.rideDriverProfile.update({ where: { id: profile.id }, data: { availabilityStatus: next, busyReason: next === 'BUSY' ? 'MANUAL' : null } });
+				}
+			}
+			const event = { type: 'ride:status', data: { id: supplementTrip.id, status: 'COMPLETED' } };
+			this.gateway.broadcastToMember(supplementTrip.passengerMemberId, event);
+			if (supplementTrip.driverMemberId) this.gateway.broadcastToMember(supplementTrip.driverMemberId, event);
+			this.gateway.broadcastToAllAdmins(event);
+			return;
+		}
+
+		const trip = await this.prisma.rideTrip.findUnique({ where: { orderId } });
+		if (!trip) return;
+		const setting = await this.prisma.rideSetting.findUnique({ where: { id: 1 } });
+		const timeoutSeconds = Number(setting?.dispatchTimeoutSeconds || 90);
+		const moved = await this.prisma.rideTrip.updateMany({
+			where: { id: trip.id, status: 'PREPAY_PENDING' },
+			data: { status: 'DISPATCHING', dispatchExpireAt: new Date(Date.now() + timeoutSeconds * 1000), version: { increment: 1 } },
+		});
+		if (!moved.count) return;
+		await this.prisma.orderTimeline.create({ data: { orderId, event: 'RIDE_STATUS', value: 'DISPATCHING', remark: `派单超时${timeoutSeconds}秒` } });
+		const intervalSeconds = Math.max(5, Number(setting?.locationIntervalSeconds || 5));
+		const drivers = await this.prisma.rideDriverProfile.findMany({
+			where: {
+				availabilityStatus: 'AVAILABLE',
+				lastLocationAt: { gte: new Date(Date.now() - intervalSeconds * 1000) },
+				longitude: { not: null }, latitude: { not: null },
+				employee: { enabled: true }, currentVehicle: { is: { enabled: true } },
+			},
+		});
+		const radius = Number(setting?.dispatchRadiusMeters || 3000);
+		const targets = drivers.filter((driver) => this.rideDistance(
+			Number(trip.originLatitude), Number(trip.originLongitude), Number(driver.latitude), Number(driver.longitude),
+		) <= radius);
+		const event = { type: 'ride:dispatch:new', data: { id: trip.id, orderId, status: 'DISPATCHING' } };
+		for (const driver of targets) this.gateway.broadcastToMember(driver.memberId, event);
+		this.gateway.broadcastToMember(trip.passengerMemberId, { type: 'ride:status', data: event.data });
+		this.gateway.broadcastToAllAdmins({ type: 'ride:status', data: event.data });
+	}
+
+	private rideDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
+		const rad = (value: number) => (value * Math.PI) / 180;
+		const dLat = rad(lat2 - lat1);
+		const dLng = rad(lng2 - lng1);
+		const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+		return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	}
 
     // 容错：单独补写微信交易单号
     async saveWechatTransactionId(orderId: number, transactionId: string) {

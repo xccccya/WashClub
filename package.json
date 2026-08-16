@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@9.6.0",
+  "packageManager": "pnpm@11.19.0",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -13,7 +13,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "turbo run format",
-    "generate:client": "orval --config orval.config.ts"
+    "generate:client": "orval --config orval.config.ts && node scripts/normalize-generated-client.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
@@ -23,12 +23,6 @@
     "orval": "^7.17.2",
     "turbo": "^2.7.2",
     "typescript": "^5.9.3"
-  },
-  "pnpm": {
-    "overrides": {
-      "@vue/server-renderer": "3.5.26",
-      "rollup": "^4.18.0"
-    }
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

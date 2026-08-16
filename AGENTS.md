@@ -26,7 +26,7 @@
 - 管理后台位于 `apps/web-admin`，POS 位于 `apps/web-pos`，小程序位于 `apps/miniapp-uni`。
 - 共享包位于 `packages/`；API SDK 为 `@wash/api-client`，跨端 HTTP/API base 工具为 `@wash/shared-utils`。
 - Prisma 7.2 的 Node.js 要求是 `^20.19 || ^22.12 || >=24`；不要沿用旧文档中的 Node 18 结论。
-- 执行 workspace 命令前确认裸 `pnpm --version` 为 `9.6.0`。Turbo 和嵌套 package script 不一定继承 `corepack pnpm` 的版本；若 Codex fallback 解析到 pnpm 11，先修正 Corepack shim/PATH 或改做安全的直接构建，不要允许错误版本清理 `node_modules`。
+- 当前仓库使用 `pnpm 11.19.0`；执行 workspace 命令前确认裸 `pnpm --version` 与根 `packageManager` 一致。pnpm 11 的 `overrides` 配置位于 `pnpm-workspace.yaml`，不要再写入根 `package.json` 的 `pnpm.overrides`。
 
 ## ESM 与后端代码
 

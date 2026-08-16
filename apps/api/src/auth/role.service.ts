@@ -40,6 +40,9 @@ export type AdminMenuKey =
 	| 'coupon-logs'
 	| 'notification-templates'
 	| 'notification-overview'
+	| 'ride-settings'
+	| 'ride-orders'
+	| 'ride-drivers'
 	// 预留：运营统计概览
 	| 'dashboard-metrics'
 	// 内置保留：管理员自助类接口（更新昵称/头像/密码等），不对应菜单项
@@ -143,6 +146,9 @@ export class AdminRoleService {
 			{ key: 'store-products', name: '商品列表', path: '/store/products' },
 			{ key: 'store-inventory', name: '库存管理', path: '/store/inventory' },
 			{ key: 'orders', name: '订单列表', path: '/orders' },
+			{ key: 'ride-orders', name: '行程订单', path: '/rides' },
+			{ key: 'ride-drivers', name: '内部司机', path: '/rides/drivers' },
+			{ key: 'ride-settings', name: '行程配置', path: '/rides/settings' },
 			{ key: 'orders-writeoff', name: '订单作废/红冲', path: '' },
 			{ key: 'after-sales', name: '售后', path: '/after-sales' },
 			{ key: 'coupon-groups', name: '卡券分组', path: '/coupon/groups' },

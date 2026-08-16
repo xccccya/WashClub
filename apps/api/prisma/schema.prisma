@@ -46,6 +46,8 @@ model User {
 
   // 新增：作为代客下单的管理员，反向关联订单
   proxyOrders         Order[]          @relation("ProxyAdminToOrders")
+  rideExtraFeesCreated RideExtraFee[]  @relation("RideExtraFeeCreatedByUser")
+  rideSettingsUpdated  RideSetting[]   @relation("RideSettingUpdatedByUser")
 }
 
 model Member {
@@ -114,6 +116,12 @@ model Member {
 
   // 反向关联：微信小程序订阅消息偏好
   wxappSubscribePreferences WxappSubscribePreference[]
+
+  rideTripsAsPassenger RideTrip[]          @relation("RidePassenger")
+  rideTripsAsDriver    RideTrip[]          @relation("RideDriverMember")
+  rideDriverProfile    RideDriverProfile?
+  rideMessagesSent     RideMessage[]
+  rideExtraFeesCreated RideExtraFee[]      @relation("RideExtraFeeCreatedByMember")
 }
 
 model MemberLevel {
@@ -221,6 +229,8 @@ model Vehicle {
   orders       Order[]
   // 反向关联：车辆换绑审计日志
   rebindLogs   VehicleRebindLog[]
+  rideDriverBindings RideDriverVehicle[]
+  rideTrips          RideTrip[]
 
   @@index([groupId])
 }
@@ -686,6 +696,42 @@ enum OrderType {
   SERVICE
   SP
   FK
+  RIDE
+}
+
+enum RideDriverAvailability {
+  OFFLINE
+  AVAILABLE
+  BUSY
+}
+
+enum RideDriverBusyReason {
+  MANUAL
+  ORDER
+}
+
+enum RideTripStatus {
+  CREATED
+  PREPAY_PENDING
+  DISPATCHING
+  ACCEPTED
+  TO_PICKUP
+  ARRIVED_PICKUP
+  IN_TRIP
+  ARRIVED_DESTINATION
+  FARE_PENDING
+  SUPPLEMENT_PENDING
+  COMPLETED
+  CANCELLED
+  NO_DRIVER
+  REFUND_PENDING
+}
+
+enum RideExtraFeeType {
+  TOLL
+  PARKING
+  OTHER
+  REVERSAL
 }
 
 // 订单状态
@@ -1078,6 +1124,9 @@ model Order {
 
   // 反向关联：服务队列项（通常 0..1）
   serviceQueueItems ServiceQueueItem[]
+
+  rideTrip             RideTrip? @relation("RidePrimaryOrder")
+  supplementForRideTrip RideTrip? @relation("RideSupplementOrder")
 
   // 评价（一个订单一条评价）
   // 注意：未建立强制外键关系到 OrderReview 以保持解耦
@@ -1708,5 +1757,185 @@ model Employee {
   title     String?
   enabled   Boolean  @default(true)
 
+  rideDriverProfile RideDriverProfile?
+  rideTrips         RideTrip[]
+
   @@index([enabled])
+}
+
+// =====================
+// 内部呼叫司机 / 行程订单
+// =====================
+
+model RideSetting {
+  id                      Int      @id @default(1)
+  updatedAt               DateTime @updatedAt
+  dispatchRadiusMeters    Int      @default(3000)
+  dispatchTimeoutSeconds  Int      @default(90)
+  baseFare                Decimal  @default(0) @db.Decimal(12, 2)
+  includedDistanceKm      Decimal  @default(0) @db.Decimal(10, 2)
+  includedDurationMinutes Int      @default(0)
+  pricePerKm              Decimal  @default(0) @db.Decimal(12, 2)
+  pricePerMinute          Decimal  @default(0) @db.Decimal(12, 2)
+  minimumFare             Decimal  @default(0) @db.Decimal(12, 2)
+  allowParkingFee         Boolean  @default(false)
+  allowOtherFee           Boolean  @default(false)
+  chatRetentionDays       Int      @default(30)
+  locationIntervalSeconds Int      @default(5)
+  updatedByUserId         Int?
+  updatedByUser           User?    @relation("RideSettingUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+model RideDriverProfile {
+  id                   Int                    @id @default(autoincrement())
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  memberId             Int                    @unique
+  member               Member                 @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  employeeId           Int                    @unique
+  employee             Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  availabilityStatus   RideDriverAvailability @default(OFFLINE)
+  busyReason           RideDriverBusyReason?
+  previousManualStatus RideDriverAvailability @default(OFFLINE)
+  currentVehicleId     Int?
+  currentVehicle       RideDriverVehicle?     @relation("RideCurrentDriverVehicle", fields: [currentVehicleId], references: [id], onDelete: SetNull)
+  longitude            Decimal?               @db.Decimal(10, 7)
+  latitude             Decimal?               @db.Decimal(10, 7)
+  heading              Decimal?               @db.Decimal(6, 2)
+  speedMetersPerSecond Decimal?               @db.Decimal(8, 2)
+  lastLocationAt       DateTime?
+  lastHeartbeatAt      DateTime?
+  vehicles             RideDriverVehicle[]    @relation("RideDriverVehicles")
+
+  @@index([availabilityStatus, lastLocationAt])
+  @@index([lastHeartbeatAt])
+}
+
+model RideDriverVehicle {
+  id             Int               @id @default(autoincrement())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  driverMemberId Int
+  driver         RideDriverProfile @relation("RideDriverVehicles", fields: [driverMemberId], references: [memberId], onDelete: Cascade)
+  vehicleId      Int
+  vehicle        Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  enabled        Boolean           @default(true)
+  displayName    String?
+  selectedBy     RideDriverProfile[] @relation("RideCurrentDriverVehicle")
+
+  @@unique([driverMemberId, vehicleId])
+  @@index([vehicleId])
+}
+
+model RideTrip {
+  id                       Int            @id @default(autoincrement())
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  orderId                  Int            @unique
+  order                    Order          @relation("RidePrimaryOrder", fields: [orderId], references: [id], onDelete: Cascade)
+  supplementOrderId        Int?           @unique
+  supplementOrder          Order?         @relation("RideSupplementOrder", fields: [supplementOrderId], references: [id], onDelete: SetNull)
+  passengerMemberId        Int
+  passenger                Member         @relation("RidePassenger", fields: [passengerMemberId], references: [id])
+  driverMemberId           Int?
+  driverMember             Member?        @relation("RideDriverMember", fields: [driverMemberId], references: [id], onDelete: SetNull)
+  driverEmployeeId         Int?
+  driverEmployee           Employee?      @relation(fields: [driverEmployeeId], references: [id], onDelete: SetNull)
+  vehicleId                Int?
+  vehicle                  Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  status                   RideTripStatus @default(CREATED)
+  version                  Int            @default(0)
+  dispatchExpireAt         DateTime?
+  originLongitude          Decimal        @db.Decimal(10, 7)
+  originLatitude           Decimal        @db.Decimal(10, 7)
+  originAddress            String
+  originPoiId              String?
+  originCoordinateSystem   String         @default("GCJ-02")
+  destinationLongitude     Decimal        @db.Decimal(10, 7)
+  destinationLatitude      Decimal        @db.Decimal(10, 7)
+  destinationAddress       String
+  destinationPoiId         String?
+  destinationCoordinateSystem String      @default("GCJ-02")
+  selectedRouteSnapshot    Json?
+  estimatedDistanceMeters  Int            @default(0)
+  estimatedDurationSeconds Int            @default(0)
+  estimatedTollAmount      Decimal        @default(0) @db.Decimal(12, 2)
+  estimatedAmount          Decimal        @default(0) @db.Decimal(12, 2)
+  finalDistanceMeters      Int?
+  finalDurationSeconds     Int?
+  finalAmount              Decimal?       @db.Decimal(12, 2)
+  arrivedPickupAt          DateTime?
+  passengerPhoneVerifiedAt DateTime?
+  startedAt                DateTime?
+  arrivedDestinationAt     DateTime?
+  completedAt              DateTime?
+  cancelledAt              DateTime?
+  cancelReason             String?
+  cancelActor              String?
+  extraFees                RideExtraFee[]
+  messages                 RideMessage[]
+  locations                RideLocation[]
+  dispatchRejections       RideDispatchRejection[]
+
+  @@index([passengerMemberId, createdAt])
+  @@index([driverMemberId, status])
+  @@index([status, dispatchExpireAt])
+}
+
+model RideDispatchRejection {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+  rideTripId     Int
+  rideTrip       RideTrip @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
+  driverMemberId Int
+
+  @@unique([rideTripId, driverMemberId])
+  @@index([driverMemberId, createdAt])
+}
+
+model RideLocation {
+  id             BigInt   @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+  rideTripId     Int
+  rideTrip       RideTrip @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
+  driverMemberId Int
+  longitude      Decimal  @db.Decimal(10, 7)
+  latitude       Decimal  @db.Decimal(10, 7)
+  heading        Decimal? @db.Decimal(6, 2)
+  speedMetersPerSecond Decimal? @db.Decimal(8, 2)
+  clientTimestamp DateTime?
+
+  @@index([rideTripId, createdAt])
+}
+
+model RideExtraFee {
+  id                Int              @id @default(autoincrement())
+  createdAt         DateTime         @default(now())
+  rideTripId        Int
+  rideTrip          RideTrip         @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
+  type              RideExtraFeeType
+  amount            Decimal          @db.Decimal(12, 2)
+  remark            String?
+  reversesFeeId     Int?
+  createdByMemberId Int?
+  createdByMember   Member?          @relation("RideExtraFeeCreatedByMember", fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  createdByUserId   Int?
+  createdByUser     User?            @relation("RideExtraFeeCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([rideTripId, createdAt])
+  @@index([reversesFeeId])
+}
+
+model RideMessage {
+  id             BigInt   @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+  rideTripId     Int
+  rideTrip       RideTrip @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
+  senderMemberId Int
+  senderMember   Member   @relation(fields: [senderMemberId], references: [id], onDelete: Cascade)
+  content        String   @db.VarChar(1000)
+  readAt         DateTime?
+
+  @@index([rideTripId, createdAt])
+  @@index([createdAt])
 }

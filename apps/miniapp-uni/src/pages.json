@@ -200,6 +200,26 @@
 		{
 			"path": "pages/message/detail",
 			"style": { "navigationBarTitleText": "消息详情" }
+		},
+		{
+			"path": "pages/ride/call-driver/index",
+			"style": { "navigationBarTitleText": "呼叫司机", "navigationStyle": "custom" }
+		},
+		{
+			"path": "pages/ride/driver/index",
+			"style": { "navigationBarTitleText": "内部司机", "navigationStyle": "custom" }
+		},
+		{
+			"path": "pages/ride/orders/index",
+			"style": { "navigationBarTitleText": "行程订单", "enablePullDownRefresh": true }
+		},
+		{
+			"path": "pages/ride/detail/index",
+			"style": { "navigationBarTitleText": "行程详情", "navigationStyle": "custom" }
+		},
+		{
+			"path": "pages/ride/fare-confirm/index",
+			"style": { "navigationBarTitleText": "确认行程费用" }
 		}
 	],
 	"tabBar": {

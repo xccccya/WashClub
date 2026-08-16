@@ -124,6 +124,7 @@ export class OrderRefundService {
                 try { await this.rewards.deductGrowthForRefund(orderId, Number(amountYuan || 0), operatorUserId ?? null, { finalizeAll: true }); } catch { }
             }
             
+			await this.finishRideRefund(orderId);
             return updated;
         }
         
@@ -145,8 +146,31 @@ export class OrderRefundService {
             try { await this.rewards.deductPointsForRefund(orderId, operatorUserId ?? null); } catch { }
         }
         
+		await this.finishRideRefund(orderId);
         return order;
     }
+
+	private async finishRideRefund(orderId: number) {
+		const trip = await this.prisma.rideTrip.findUnique({ where: { orderId } });
+		if (!trip || trip.status !== 'REFUND_PENDING') return;
+		const nextStatus = trip.finalAmount != null ? 'COMPLETED' : (trip.cancelledAt ? 'CANCELLED' : 'NO_DRIVER');
+		const moved = await this.prisma.rideTrip.updateMany({
+			where: { id: trip.id, status: 'REFUND_PENDING', version: trip.version },
+			data: { status: nextStatus as any, completedAt: nextStatus === 'COMPLETED' ? new Date() : undefined, version: { increment: 1 } },
+		});
+		if (!moved.count) return;
+		if (nextStatus === 'COMPLETED') {
+			await this.prisma.order.update({ where: { id: orderId }, data: { status: 'FULFILLED', fulfillmentStatus: 'DONE' } });
+		}
+		await this.prisma.orderTimeline.create({ data: { orderId, event: 'RIDE_STATUS', value: nextStatus, remark: '退款成功' } });
+		if (trip.driverMemberId) {
+			const profile = await this.prisma.rideDriverProfile.findUnique({ where: { memberId: trip.driverMemberId } });
+			if (profile?.busyReason === 'ORDER') {
+				const next = profile.previousManualStatus === 'BUSY' ? 'BUSY' : 'AVAILABLE';
+				await this.prisma.rideDriverProfile.update({ where: { id: profile.id }, data: { availabilityStatus: next, busyReason: next === 'BUSY' ? 'MANUAL' : null } });
+			}
+		}
+	}
 
     // 内部退款（非渠道）统一收尾：执行退款、回收权益（洗车卡、积分）
     async finalizeInternalRefund(orderId: number, reason?: string, operatorUserId?: number | null) {

@@ -73,6 +73,9 @@ class RealtimeClient {
             // 未读计数增量事件（供角标快速响应）
             try{ uni.$emit?.('realtime:unread-delta', { delta: 1 }); }catch{}
           }
+		  if (String(data?.type || '').startsWith('ride:')) {
+			try { uni.$emit?.('ride:realtime', data); } catch {}
+		  }
         }catch{}
       });
       const onClose = ()=>{

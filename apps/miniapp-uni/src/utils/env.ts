@@ -3,8 +3,6 @@
 
 // 直接引入以触发 Vite 在构建期内联（重要：不要用动态属性访问）
 // @ts-ignore
-const INLINE_VITE_AMAP_KEY = import.meta.env?.VITE_AMAP_KEY as unknown as string;
-// @ts-ignore
 const INLINE_VITE_STORE_LOCATION = import.meta.env?.VITE_STORE_LOCATION as unknown as string;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,13 +22,6 @@ function readEnvRaw(key: string): string{
 		).trim();
 		return v;
 	}catch{ return ''; }
-}
-
-export function readAmapKey(): string{
-	// 读取顺序：构建期内联 -> import.meta.env
-	return (INLINE_VITE_AMAP_KEY || '')
-		|| readEnvRaw('VITE_AMAP_KEY')
-		|| '';
 }
 
 export function readStoreLocation(): string{

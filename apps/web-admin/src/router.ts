@@ -38,6 +38,11 @@ import GroupBalance from './pages/GroupBalance.vue';
 import SystemEmployees from './pages/SystemEmployees.vue';
 import NotificationTemplates from './pages/NotificationTemplates.vue';
 import NotificationOverview from './pages/NotificationOverview.vue';
+import RideOverview from './pages/RideOverview.vue';
+import RideOrders from './pages/RideOrders.vue';
+import RideOrderDetail from './pages/RideOrderDetail.vue';
+import RideDrivers from './pages/RideDrivers.vue';
+import RideSettings from './pages/RideSettings.vue';
 import { API_BASE } from './config';
 
 const router = createRouter({
@@ -84,6 +89,11 @@ const router = createRouter({
 				{ path: '/system/employees', component: SystemEmployees, meta: { perm: 'system-employees', title: '员工配置' } },
 				{ path: '/notification/templates', component: NotificationTemplates, meta: { perm: 'notification-templates', title: '通知配置' } },
 				{ path: '/notification/overview', component: NotificationOverview, meta: { perm: 'notification-overview', title: '消息总览' } },
+				{ path: '/rides', component: RideOverview, meta: { perm: 'ride-drivers', title: '内部用车实时总览' } },
+				{ path: '/rides/orders', component: RideOrders, meta: { perm: 'ride-orders', title: '全部行程订单' } },
+				{ path: '/rides/orders/:id', component: RideOrderDetail, meta: { perm: 'ride-orders', title: '行程订单详情' } },
+				{ path: '/rides/drivers', component: RideDrivers, meta: { perm: 'ride-drivers', title: '内部司机' } },
+				{ path: '/rides/settings', component: RideSettings, meta: { perm: 'ride-settings', title: '内部用车配置' } },
 				// ====== 新增：集团客户 ======
 				{ path: '/groups', component: GroupList, meta: { perm: 'group', title: '集团客户' } },
 				{ path: '/groups/vehicles', component: GroupVehicles, meta: { perm: 'group-vehicles', title: '集团车辆' } },

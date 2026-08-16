@@ -19,8 +19,8 @@ export class DistrictController {
         @Query('extensions') extensions?: string,
         @Query('level') level?: string,
     ) {
-        const key = process.env.AMAP_KEY || process.env.AMAP_WEB_KEY;
-        if (!key) throw new BadRequestException('Missing AMAP_KEY');
+        const key = process.env.AMAP_WEBSERVICE_KEY;
+        if (!key) throw new BadRequestException('Missing AMAP_WEBSERVICE_KEY');
         const baseUrl = 'https://restapi.amap.com/v3/config/district';
         const toQS = (params: Record<string, string>) =>
             Object.entries(params)

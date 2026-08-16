@@ -19,14 +19,14 @@
 根 `package.json` 固定：
 
 ```text
-pnpm@9.6.0
+pnpm@11.19.0
 ```
 
 使用 Corepack 激活该版本：
 
 ```powershell
 corepack enable
-corepack prepare pnpm@9.6.0 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm --version
 pnpm install --frozen-lockfile
 ```
@@ -99,7 +99,8 @@ Redis：
 
 地图/车型：
 
-- `AMAP_KEY` 或 `AMAP_WEB_KEY`
+- `AMAP_WEBSERVICE_KEY`（Web Service API，仅 Key）
+- `AMAP_JSAPI_SECURITY_JSCODE`（Web 端 JSAPI v2.0 安全代理专用，不属于 Web Service）
 - `TANSHU_CAR_API_KEY`、`TANSHU_API_KEY` 或 `TS_API_KEY`
 - 部分车型代码还读取 `CAR_API_KEY`
 
@@ -177,7 +178,7 @@ pnpm --filter miniapp-uni run build:h5
 ### 6.1 发布前
 
 - [ ] 确认 Git commit、发布版本、目标环境和负责人。
-- [ ] 使用 pnpm 9.6.0，`pnpm install --frozen-lockfile` 成功。
+- [ ] 使用 pnpm 11.19.0，`pnpm install --frozen-lockfile` 成功。
 - [ ] 核对必需环境变量，但不输出秘密值。
 - [ ] 确认 `PUBLIC_API_BASE` 是当前生产 HTTPS 地址。
 - [ ] 确认固定 cwd、uploads 绝对路径和可用磁盘空间。

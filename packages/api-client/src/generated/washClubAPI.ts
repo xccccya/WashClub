@@ -117,6 +117,53 @@ import type {
   QueueSummaryDto,
   ResetPasswordDto,
   ResolvePhoneDto,
+  RideAdminControllerDetail200,
+  RideAdminControllerDrivers200,
+  RideAdminControllerList200,
+  RideAdminControllerListParams,
+  RideAdminControllerSetting200,
+  RideAdminControllerTrack200,
+  RideAdminControllerUpdateSetting200,
+  RideCancelDto,
+  RideControllerAccept200,
+  RideControllerArriveDestination200,
+  RideControllerArrivePickup200,
+  RideControllerAvailability200,
+  RideControllerAvailabilityParams,
+  RideControllerBusyDriverContact200,
+  RideControllerCancel200,
+  RideControllerContact200,
+  RideControllerCreate200,
+  RideControllerCreateDriverVehicle200,
+  RideControllerDeleteDriverVehicle200,
+  RideControllerDetail200,
+  RideControllerDriverOrders200,
+  RideControllerDriverOrdersParams,
+  RideControllerDriverProfile200,
+  RideControllerDriverStatus200,
+  RideControllerDriverVehicles200,
+  RideControllerFinalize200,
+  RideControllerList200,
+  RideControllerListParams,
+  RideControllerMessages200,
+  RideControllerPlaces200,
+  RideControllerPlacesParams,
+  RideControllerReject200,
+  RideControllerReportLocation200,
+  RideControllerRoutePreview200,
+  RideControllerSendMessage200,
+  RideControllerStart200,
+  RideControllerUpdateDriverVehicle200,
+  RideCreateDto,
+  RideDriverStatusDto,
+  RideDriverVehicleCreateDto,
+  RideDriverVehicleUpdateDto,
+  RideFinalizeDto,
+  RideLocationDto,
+  RideMessageCreateDto,
+  RideRoutePreviewDto,
+  RideSettingUpdateDto,
+  RideStartDto,
   ScrollNoticeControllerActiveParams,
   ScrollNoticeControllerListParams,
   SendCodeDto,
@@ -8141,3 +8188,795 @@ export const systemMiniappEmployeeControllerDaily = async (params: SystemMiniapp
 
 
 
+/**
+ * @summary 查询起点半径内的空闲和忙碌内部司机
+ */
+export const getRideControllerAvailabilityUrl = (params: RideControllerAvailabilityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/rides/availability?${stringifiedParams}` : `/rides/availability`
+}
+
+export const rideControllerAvailability = async (params: RideControllerAvailabilityParams, options?: RequestInit): Promise<RideControllerAvailability200> => {
+
+  return createHttpClient<RideControllerAvailability200>(getRideControllerAvailabilityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 高德地点输入提示（服务端代理）
+ */
+export const getRideControllerPlacesUrl = (params: RideControllerPlacesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/rides/places/tips?${stringifiedParams}` : `/rides/places/tips`
+}
+
+export const rideControllerPlaces = async (params: RideControllerPlacesParams, options?: RequestInit): Promise<RideControllerPlaces200> => {
+
+  return createHttpClient<RideControllerPlaces200>(getRideControllerPlacesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 预览行程路线和后端计价结果
+ */
+export const getRideControllerRoutePreviewUrl = () => {
+
+
+
+
+  return `/rides/routes/preview`
+}
+
+export const rideControllerRoutePreview = async (rideRoutePreviewDto: RideRoutePreviewDto, options?: RequestInit): Promise<RideControllerRoutePreview200> => {
+
+  return createHttpClient<RideControllerRoutePreview200>(getRideControllerRoutePreviewUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideRoutePreviewDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机档案
+ */
+export const getRideControllerDriverProfileUrl = () => {
+
+
+
+
+  return `/rides/driver/profile`
+}
+
+export const rideControllerDriverProfile = async ( options?: RequestInit): Promise<RideControllerDriverProfile200> => {
+
+  return createHttpClient<RideControllerDriverProfile200>(getRideControllerDriverProfileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 切换内部司机空闲、忙碌或离线状态
+ */
+export const getRideControllerDriverStatusUrl = () => {
+
+
+
+
+  return `/rides/driver/status`
+}
+
+export const rideControllerDriverStatus = async (rideDriverStatusDto: RideDriverStatusDto, options?: RequestInit): Promise<RideControllerDriverStatus200> => {
+
+  return createHttpClient<RideControllerDriverStatus200>(getRideControllerDriverStatusUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideDriverStatusDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机行程订单列表
+ */
+export const getRideControllerDriverOrdersUrl = (params?: RideControllerDriverOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/rides/driver/orders?${stringifiedParams}` : `/rides/driver/orders`
+}
+
+export const rideControllerDriverOrders = async (params?: RideControllerDriverOrdersParams, options?: RequestInit): Promise<RideControllerDriverOrders200> => {
+
+  return createHttpClient<RideControllerDriverOrders200>(getRideControllerDriverOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机的出车车辆
+ */
+export const getRideControllerDriverVehiclesUrl = () => {
+
+
+
+
+  return `/rides/driver/vehicles`
+}
+
+export const rideControllerDriverVehicles = async ( options?: RequestInit): Promise<RideControllerDriverVehicles200> => {
+
+  return createHttpClient<RideControllerDriverVehicles200>(getRideControllerDriverVehiclesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机新增自己的车辆
+ */
+export const getRideControllerCreateDriverVehicleUrl = () => {
+
+
+
+
+  return `/rides/driver/vehicles`
+}
+
+export const rideControllerCreateDriverVehicle = async (rideDriverVehicleCreateDto: RideDriverVehicleCreateDto, options?: RequestInit): Promise<RideControllerCreateDriverVehicle200> => {
+
+  return createHttpClient<RideControllerCreateDriverVehicle200>(getRideControllerCreateDriverVehicleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideDriverVehicleCreateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机编辑或选择自己的车辆
+ */
+export const getRideControllerUpdateDriverVehicleUrl = (id: number,) => {
+
+
+
+
+  return `/rides/driver/vehicles/${id}`
+}
+
+export const rideControllerUpdateDriverVehicle = async (id: number,
+    rideDriverVehicleUpdateDto: RideDriverVehicleUpdateDto, options?: RequestInit): Promise<RideControllerUpdateDriverVehicle200> => {
+
+  return createHttpClient<RideControllerUpdateDriverVehicle200>(getRideControllerUpdateDriverVehicleUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideDriverVehicleUpdateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机删除未产生行程的自有车辆
+ */
+export const getRideControllerDeleteDriverVehicleUrl = (id: number,) => {
+
+
+
+
+  return `/rides/driver/vehicles/${id}`
+}
+
+export const rideControllerDeleteDriverVehicle = async (id: number, options?: RequestInit): Promise<RideControllerDeleteDriverVehicle200> => {
+
+  return createHttpClient<RideControllerDeleteDriverVehicle200>(getRideControllerDeleteDriverVehicleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机上报实时位置并刷新当前路线
+ */
+export const getRideControllerReportLocationUrl = () => {
+
+
+
+
+  return `/rides/location`
+}
+
+export const rideControllerReportLocation = async (rideLocationDto: RideLocationDto, options?: RequestInit): Promise<RideControllerReportLocation200> => {
+
+  return createHttpClient<RideControllerReportLocation200>(getRideControllerReportLocationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideLocationDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 联系地图中在线忙碌司机
+ */
+export const getRideControllerBusyDriverContactUrl = (driverMemberId: number,) => {
+
+
+
+
+  return `/rides/driver-contact/${driverMemberId}`
+}
+
+export const rideControllerBusyDriverContact = async (driverMemberId: number, options?: RequestInit): Promise<RideControllerBusyDriverContact200> => {
+
+  return createHttpClient<RideControllerBusyDriverContact200>(getRideControllerBusyDriverContactUrl(driverMemberId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 创建待预付的行程订单
+ */
+export const getRideControllerCreateUrl = () => {
+
+
+
+
+  return `/rides`
+}
+
+export const rideControllerCreate = async (rideCreateDto: RideCreateDto, options?: RequestInit): Promise<RideControllerCreate200> => {
+
+  return createHttpClient<RideControllerCreate200>(getRideControllerCreateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideCreateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 乘客的行程订单列表
+ */
+export const getRideControllerListUrl = (params?: RideControllerListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/rides?${stringifiedParams}` : `/rides`
+}
+
+export const rideControllerList = async (params?: RideControllerListParams, options?: RequestInit): Promise<RideControllerList200> => {
+
+  return createHttpClient<RideControllerList200>(getRideControllerListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机原子抢单
+ */
+export const getRideControllerAcceptUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/accept`
+}
+
+export const rideControllerAccept = async (id: number, options?: RequestInit): Promise<RideControllerAccept200> => {
+
+  return createHttpClient<RideControllerAccept200>(getRideControllerAcceptUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机拒绝本次派单
+ */
+export const getRideControllerRejectUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/reject`
+}
+
+export const rideControllerReject = async (id: number, options?: RequestInit): Promise<RideControllerReject200> => {
+
+  return createHttpClient<RideControllerReject200>(getRideControllerRejectUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 司机到达乘客上车点
+ */
+export const getRideControllerArrivePickupUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/arrive-pickup`
+}
+
+export const rideControllerArrivePickup = async (id: number, options?: RequestInit): Promise<RideControllerArrivePickup200> => {
+
+  return createHttpClient<RideControllerArrivePickup200>(getRideControllerArrivePickupUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 验证乘客手机号后四位并开始行程
+ */
+export const getRideControllerStartUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/start`
+}
+
+export const rideControllerStart = async (id: number,
+    rideStartDto: RideStartDto, options?: RequestInit): Promise<RideControllerStart200> => {
+
+  return createHttpClient<RideControllerStart200>(getRideControllerStartUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideStartDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 司机到达目的地
+ */
+export const getRideControllerArriveDestinationUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/arrive-destination`
+}
+
+export const rideControllerArriveDestination = async (id: number, options?: RequestInit): Promise<RideControllerArriveDestination200> => {
+
+  return createHttpClient<RideControllerArriveDestination200>(getRideControllerArriveDestinationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后端重算并确认最终车费
+ */
+export const getRideControllerFinalizeUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/finalize`
+}
+
+export const rideControllerFinalize = async (id: number,
+    rideFinalizeDto: RideFinalizeDto, options?: RequestInit): Promise<RideControllerFinalize200> => {
+
+  return createHttpClient<RideControllerFinalize200>(getRideControllerFinalizeUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideFinalizeDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 乘客取消未开始行程
+ */
+export const getRideControllerCancelUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/cancel`
+}
+
+export const rideControllerCancel = async (id: number,
+    rideCancelDto: RideCancelDto, options?: RequestInit): Promise<RideControllerCancel200> => {
+
+  return createHttpClient<RideControllerCancel200>(getRideControllerCancelUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideCancelDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 获取当前行程另一参与人的联系信息
+ */
+export const getRideControllerContactUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/contact`
+}
+
+export const rideControllerContact = async (id: number, options?: RequestInit): Promise<RideControllerContact200> => {
+
+  return createHttpClient<RideControllerContact200>(getRideControllerContactUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 读取当前行程聊天记录
+ */
+export const getRideControllerMessagesUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/messages`
+}
+
+export const rideControllerMessages = async (id: number, options?: RequestInit): Promise<RideControllerMessages200> => {
+
+  return createHttpClient<RideControllerMessages200>(getRideControllerMessagesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 发送行程聊天消息
+ */
+export const getRideControllerSendMessageUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/messages`
+}
+
+export const rideControllerSendMessage = async (id: number,
+    rideMessageCreateDto: RideMessageCreateDto, options?: RequestInit): Promise<RideControllerSendMessage200> => {
+
+  return createHttpClient<RideControllerSendMessage200>(getRideControllerSendMessageUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideMessageCreateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 乘客或当前司机读取行程详情
+ */
+export const getRideControllerDetailUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}`
+}
+
+export const rideControllerDetail = async (id: number, options?: RequestInit): Promise<RideControllerDetail200> => {
+
+  return createHttpClient<RideControllerDetail200>(getRideControllerDetailUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台读取行程派单和计价配置
+ */
+export const getRideAdminControllerSettingUrl = () => {
+
+
+
+
+  return `/system/ride-settings`
+}
+
+export const rideAdminControllerSetting = async ( options?: RequestInit): Promise<RideAdminControllerSetting200> => {
+
+  return createHttpClient<RideAdminControllerSetting200>(getRideAdminControllerSettingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台更新行程派单和计价配置
+ */
+export const getRideAdminControllerUpdateSettingUrl = () => {
+
+
+
+
+  return `/system/ride-settings`
+}
+
+export const rideAdminControllerUpdateSetting = async (rideSettingUpdateDto: RideSettingUpdateDto, options?: RequestInit): Promise<RideAdminControllerUpdateSetting200> => {
+
+  return createHttpClient<RideAdminControllerUpdateSetting200>(getRideAdminControllerUpdateSettingUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideSettingUpdateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 后台行程订单监控
+ */
+export const getRideAdminControllerListUrl = (params?: RideAdminControllerListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/system/rides?${stringifiedParams}` : `/system/rides`
+}
+
+export const rideAdminControllerList = async (params?: RideAdminControllerListParams, options?: RequestInit): Promise<RideAdminControllerList200> => {
+
+  return createHttpClient<RideAdminControllerList200>(getRideAdminControllerListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台行程订单详情
+ */
+export const getRideAdminControllerDetailUrl = (id: number,) => {
+
+
+
+
+  return `/system/rides/${id}`
+}
+
+export const rideAdminControllerDetail = async (id: number, options?: RequestInit): Promise<RideAdminControllerDetail200> => {
+
+  return createHttpClient<RideAdminControllerDetail200>(getRideAdminControllerDetailUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台读取行程起终点、规划路线和实际轨迹
+ */
+export const getRideAdminControllerTrackUrl = (id: number,) => {
+
+
+
+
+  return `/system/rides/${id}/track`
+}
+
+export const rideAdminControllerTrack = async (id: number, options?: RequestInit): Promise<RideAdminControllerTrack200> => {
+
+  return createHttpClient<RideAdminControllerTrack200>(getRideAdminControllerTrackUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台司机在线与可用状态监控
+ */
+export const getRideAdminControllerDriversUrl = () => {
+
+
+
+
+  return `/system/ride-drivers`
+}
+
+export const rideAdminControllerDrivers = async ( options?: RequestInit): Promise<RideAdminControllerDrivers200> => {
+
+  return createHttpClient<RideAdminControllerDrivers200>(getRideAdminControllerDriversUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
