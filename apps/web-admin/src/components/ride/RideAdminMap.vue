@@ -27,7 +27,8 @@ const props = withDefaults(defineProps<{
 	plannedPoints?: Point[];
 	actualPoints?: Point[];
 	height?: string;
-}>(), { drivers: () => [], origin: null, destination: null, plannedPoints: () => [], actualPoints: () => [], height: '620px' });
+	fitMode?: 'always' | 'initial' | 'never';
+}>(), { drivers: () => [], origin: null, destination: null, plannedPoints: () => [], actualPoints: () => [], height: '620px', fitMode: 'always' });
 
 const emit = defineEmits<{ driverClick: [driver: Driver] }>();
 const container = ref<HTMLElement | null>(null);
@@ -35,6 +36,7 @@ const error = ref('');
 let map: any = null;
 let AMap: any = null;
 let overlays: any[] = [];
+let hasFittedView = false;
 
 function securityConfig() {
 	const env: any = import.meta.env || {};
@@ -99,7 +101,10 @@ function render() {
 	if (props.actualPoints.length > 1) overlays.push(new AMap.Polyline({ path: props.actualPoints.map((p) => [p.longitude, p.latitude]), strokeColor: '#ef4444', strokeWeight: 5, strokeOpacity: 0.9, strokeStyle: 'dashed', lineJoin: 'round' }));
 	if (overlays.length) {
 		map.add(overlays);
-		map.setFitView(overlays, false, [60, 60, 60, 60], 17);
+		if (props.fitMode === 'always' || (props.fitMode === 'initial' && !hasFittedView)) {
+			map.setFitView(overlays, false, [60, 60, 60, 60], 17);
+			hasFittedView = true;
+		}
 	}
 }
 
@@ -109,6 +114,7 @@ onBeforeUnmount(() => {
 	try { if (map && overlays.length) map.remove(overlays); } catch {}
 	try { map?.destroy?.(); } catch {}
 	overlays = [];
+	hasFittedView = false;
 	map = null;
 	AMap = null;
 });

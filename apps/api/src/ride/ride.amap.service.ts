@@ -6,6 +6,7 @@ export type RideRoute = {
 	tollAmount: number;
 	tollDistanceMeters: number;
 	tollRoads: string[];
+	preference: 'RECOMMENDED' | 'AVOID_HIGHWAY';
 	points: Array<{ longitude: number; latitude: number }>;
 	raw: Record<string, unknown>;
 };
@@ -26,12 +27,19 @@ export class RideAmapService {
 		return routes[0];
 	}
 
-	async drivingRoutes(origin: { longitude: number; latitude: number }, destination: { longitude: number; latitude: number }, count = 3): Promise<RideRoute[]> {
+	async drivingRoutes(
+		origin: { longitude: number; latitude: number },
+		destination: { longitude: number; latitude: number },
+		count = 3,
+		options: { strategy?: string; preference?: RideRoute['preference'] } = {},
+	): Promise<RideRoute[]> {
 		this.assertCoordinate(origin.longitude, origin.latitude);
 		this.assertCoordinate(destination.longitude, destination.latitude);
 		if (!this.key) throw new ServiceUnavailableException('路线服务未配置，请联系管理员');
 		const alternativeRoute = Math.max(1, Math.min(3, Math.round(count)));
-		const cacheKey = `${origin.longitude.toFixed(6)},${origin.latitude.toFixed(6)}:${destination.longitude.toFixed(6)},${destination.latitude.toFixed(6)}:${alternativeRoute}`;
+		const strategy = String(options.strategy || '32');
+		const preference = options.preference || 'RECOMMENDED';
+		const cacheKey = `${origin.longitude.toFixed(6)},${origin.latitude.toFixed(6)}:${destination.longitude.toFixed(6)},${destination.latitude.toFixed(6)}:${strategy}:${alternativeRoute}`;
 		const cached = this.cache.get(cacheKey);
 		if (cached && cached.expiresAt > Date.now()) return cached.value;
 
@@ -39,7 +47,7 @@ export class RideAmapService {
 		url.searchParams.set('key', this.key);
 		url.searchParams.set('origin', `${origin.longitude},${origin.latitude}`);
 		url.searchParams.set('destination', `${destination.longitude},${destination.latitude}`);
-		url.searchParams.set('strategy', '32');
+		url.searchParams.set('strategy', strategy);
 		url.searchParams.set('alternative_route', String(alternativeRoute));
 		url.searchParams.set('show_fields', 'cost,polyline');
 		const data = await this.fetchJsonWithRetry(url);
@@ -48,7 +56,7 @@ export class RideAmapService {
 		}
 		const paths = Array.isArray(data?.route?.paths) ? data.route.paths.slice(0, alternativeRoute) : [];
 		if (!paths.length) throw new BadGatewayException('路线规划失败：未找到可用路线');
-		const results = paths.map((path: any) => this.parseRoute(path)).filter((route: RideRoute) => route.distanceMeters > 0 && route.durationSeconds > 0 && route.points.length >= 2);
+		const results = paths.map((path: any) => this.parseRoute(path, preference)).filter((route: RideRoute) => route.distanceMeters > 0 && route.durationSeconds > 0 && route.points.length >= 2);
 		if (!results.length) throw new BadGatewayException('路线规划失败：高德返回的路线不完整');
 		this.cache.set(cacheKey, { expiresAt: Date.now() + 4500, value: results });
 		if (this.cache.size > 500) {
@@ -57,7 +65,7 @@ export class RideAmapService {
 		return results;
 	}
 
-	private parseRoute(path: any): RideRoute {
+	private parseRoute(path: any, preference: RideRoute['preference']): RideRoute {
 		const points: Array<{ longitude: number; latitude: number }> = [];
 		const tollRoads = new Set<string>();
 		for (const step of Array.isArray(path.steps) ? path.steps : []) {
@@ -76,6 +84,7 @@ export class RideAmapService {
 			tollAmount: Math.max(0, Number(cost.tolls || path.tolls || 0)),
 			tollDistanceMeters: Math.max(0, Math.round(Number(cost.toll_distance || path.toll_distance || 0))),
 			tollRoads: [...tollRoads],
+			preference,
 			points,
 			raw: {
 				strategy: path.strategy || null,

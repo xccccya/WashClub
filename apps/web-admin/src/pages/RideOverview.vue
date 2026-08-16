@@ -7,7 +7,7 @@
 			<el-card><strong class="busy">{{ count('BUSY') }}</strong><span>忙碌</span></el-card>
 			<el-card><strong>{{ count('OFFLINE') }}</strong><span>离线</span></el-card>
 		</div>
-		<RideAdminMap :drivers="mapDrivers" height="calc(100vh - 330px)" @driver-click="openDriver" />
+		<RideAdminMap :drivers="mapDrivers" height="calc(100vh - 330px)" fit-mode="initial" @driver-click="openDriver" />
 		<el-drawer v-model="drawer" title="司机信息" size="420px">
 			<el-descriptions v-if="selected" :column="1" border>
 				<el-descriptions-item label="司机">{{ selected.driverName }}</el-descriptions-item>

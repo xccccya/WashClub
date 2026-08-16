@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<RideMap :markers="markers" :route-points="routePoints" />
+		<RideMap :markers="markers" :route-points="routePoints" locate-top="390rpx" />
 		<RideStatusBar title="内部司机" :subtitle="statusText"><view class="orders-link" @tap="goOrders">行程订单</view></RideStatusBar>
 		<view class="status-panel" :style="statusPanelStyle">
 			<view class="switches"><button :class="{ active: status === 'AVAILABLE' }" @tap="setStatus('AVAILABLE')">空闲</button><button :class="{ active: status === 'BUSY' }" @tap="setStatus('BUSY')">忙碌</button><button :class="{ active: status === 'OFFLINE' }" @tap="setStatus('OFFLINE')">离线</button></view>

@@ -1,35 +1,67 @@
 <template>
 	<view class="map-shell">
 		<!-- #ifdef MP-WEIXIN -->
-		<map class="map" :longitude="center.longitude" :latitude="center.latitude" :markers="nativeMarkers" :polyline="nativePolyline" :show-location="showLocation" @markertap="onMarkerTap" @tap="onMapTap" />
+		<map id="ride-map" class="map" :longitude="viewportCenter.longitude" :latitude="viewportCenter.latitude" :scale="nativeScale" :include-points="nativeIncludePoints" :markers="nativeMarkers" :polyline="nativePolyline" :show-location="showLocation" @markertap="onMarkerTap" @tap="onMapTap" @regionchange="onRegionChange" />
 		<!-- #endif -->
 		<!-- #ifdef H5 -->
 		<div ref="h5Container" class="map" />
 		<!-- #endif -->
+		<view v-if="showLocateControl" class="locate-control" :class="{ locating }" :style="{ top: locateTop }" @tap.stop="locateCurrent"><view class="locate-control__target"><i /></view></view>
 		<view v-if="error" class="map-error">{{ error }}</view>
 	</view>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { RideMapMarker, RideMapPoint } from '../../services/ride-map';
-import { toNativeMarkers, toNativePolyline } from '../../services/ride-map';
+import { spreadOverlappingMarkers, toNativeMarkers, toNativePolyline } from '../../services/ride-map';
+import { getCurrentRideLocation, locationErrorMessage } from '../../services/geolocation';
 import vehicleLocationIcon from '../../static/icons/ride-vehicle-location.svg';
 import originMarkerIcon from '../../static/icons/ride-origin-marker.svg';
 import destinationMarkerIcon from '../../static/icons/ride-destination-marker.svg';
 
-const props = withDefaults(defineProps<{ markers?: RideMapMarker[]; routePoints?: RideMapPoint[]; showLocation?: boolean; selectable?: boolean }>(), { markers: () => [], routePoints: () => [], showLocation: true, selectable: false });
+const props = withDefaults(defineProps<{
+	markers?: RideMapMarker[];
+	routePoints?: RideMapPoint[];
+	showLocation?: boolean;
+	selectable?: boolean;
+	showLocateControl?: boolean;
+	autoFit?: boolean;
+	autoFitPauseMs?: number;
+	fitPadding?: number[];
+	locateTop?: string;
+}>(), {
+	markers: () => [],
+	routePoints: () => [],
+	showLocation: true,
+	selectable: false,
+	showLocateControl: true,
+	autoFit: true,
+	autoFitPauseMs: 15000,
+	fitPadding: () => [96, 36, 240, 36],
+	locateTop: '220rpx',
+});
 const emit = defineEmits<{ markerTap: [id: number]; mapTap: [point: RideMapPoint] }>();
+const componentInstance = getCurrentInstance();
 const error = ref('');
+const locating = ref(false);
 const fallbackCenter = { longitude: 104.6688, latitude: 29.5274 };
+const viewportCenter = ref({ ...fallbackCenter });
+const nativeScale = ref(14);
+const nativeIncludePoints = ref<RideMapPoint[]>([]);
+const locateTop = computed(() => props.locateTop);
+let nativeMapContext: any = null;
+let lastUserInteractionAt = 0;
+let lastFitSignature = '';
 function isValidPoint(point: Partial<RideMapPoint> | null | undefined): point is RideMapPoint {
 	return Number.isFinite(Number(point?.longitude)) && Number.isFinite(Number(point?.latitude));
 }
-const center = computed(() => {
+const initialCenter = computed(() => {
 	const point = props.markers.find(isValidPoint) || props.routePoints.find(isValidPoint) || fallbackCenter;
 	return { longitude: Number(point.longitude), latitude: Number(point.latitude) };
 });
-const nativeMarkers = computed(() => toNativeMarkers(props.markers));
+const displayMarkers = computed(() => spreadOverlappingMarkers(props.markers.filter(isValidPoint)));
+const nativeMarkers = computed(() => toNativeMarkers(displayMarkers.value));
 const nativePolyline = computed(() => toNativePolyline(props.routePoints));
 function onMarkerTap(event: any) { emit('markerTap', Number(event?.detail?.markerId)); }
 function onMapTap(event: any) {
@@ -37,6 +69,63 @@ function onMapTap(event: any) {
 	const longitude = Number(event?.detail?.longitude);
 	const latitude = Number(event?.detail?.latitude);
 	if (Number.isFinite(longitude) && Number.isFinite(latitude)) emit('mapTap', { longitude, latitude });
+}
+function markUserInteraction() {
+	lastUserInteractionAt = Date.now();
+}
+function onRegionChange(event: any) {
+	const causedBy = String(event?.detail?.causedBy || '').toLowerCase();
+	if (event?.type === 'begin' && ['gesture', 'scale'].includes(causedBy)) markUserInteraction();
+}
+function fitPoints() {
+	const route = props.routePoints.filter(isValidPoint);
+	if (route.length > 1) return route.map((point) => ({ longitude: Number(point.longitude), latitude: Number(point.latitude) }));
+	return displayMarkers.value.map((point) => ({ longitude: Number(point.longitude), latitude: Number(point.latitude) }));
+}
+function pointsSignature(points: RideMapPoint[]) {
+	return points.map((point) => `${Number(point.longitude).toFixed(5)},${Number(point.latitude).toFixed(5)}`).join('|');
+}
+function canAutoFit(force: boolean) {
+	return force || Date.now() - lastUserInteractionAt >= props.autoFitPauseMs;
+}
+function fitViewport(force = false) {
+	if (!props.autoFit && !force) return;
+	const points = fitPoints();
+	if (!points.length || !canAutoFit(force)) return;
+	const signature = pointsSignature(points);
+	if (!force && signature === lastFitSignature) return;
+	lastFitSignature = signature;
+	if (points.length === 1) {
+		focusPoint(points[0], 15);
+		return;
+	}
+	viewportCenter.value = {
+		longitude: points.reduce((sum, point) => sum + point.longitude, 0) / points.length,
+		latitude: points.reduce((sum, point) => sum + point.latitude, 0) / points.length,
+	};
+	nativeIncludePoints.value = points.map((point) => ({ ...point }));
+	// #ifdef H5
+	if (map && overlays.length) map.setFitView(overlays, false, props.fitPadding, 18);
+	// #endif
+}
+function focusPoint(point: RideMapPoint, zoom = 16) {
+	viewportCenter.value = { longitude: Number(point.longitude), latitude: Number(point.latitude) };
+	nativeScale.value = zoom;
+	nativeIncludePoints.value = [];
+	try { nativeMapContext?.moveToLocation?.({ longitude: Number(point.longitude), latitude: Number(point.latitude) }); } catch {}
+	// #ifdef H5
+	map?.setZoomAndCenter?.(zoom, [Number(point.longitude), Number(point.latitude)], false);
+	// #endif
+}
+async function locateCurrent() {
+	if (locating.value) return;
+	locating.value = true;
+	try {
+		const point = await getCurrentRideLocation();
+		focusPoint(point, 16);
+	} catch (locationError) {
+		uni.showToast({ title: locationErrorMessage(locationError).slice(0, 30), icon: 'none' });
+	} finally { locating.value = false; }
 }
 
 // #ifdef H5
@@ -76,7 +165,9 @@ async function initH5() {
 			return loaded;
 		});
 		if (destroyed || !h5Container.value?.isConnected) return;
-		map = new AMap.Map(h5Container.value, { viewMode: '3D', zoom: 14, center: [center.value.longitude, center.value.latitude] });
+		map = new AMap.Map(h5Container.value, { viewMode: '3D', zoom: 14, center: [viewportCenter.value.longitude, viewportCenter.value.latitude] });
+		map.on('dragstart', markUserInteraction);
+		map.on('zoomstart', (event: any) => { if (event?.originEvent) markUserInteraction(); });
 		map.on('click', (event: any) => {
 			if (!props.selectable) return;
 			const longitude = Number(event?.lnglat?.getLng?.() ?? event?.lnglat?.lng);
@@ -84,12 +175,13 @@ async function initH5() {
 			if (Number.isFinite(longitude) && Number.isFinite(latitude)) emit('mapTap', { longitude, latitude });
 		});
 		renderH5();
+		fitViewport(true);
 	} catch { error.value = '地图加载失败，请稍后重试'; }
 }
 function renderH5() {
 	if (!map || !AMap) return;
 	if (overlays.length) map.remove(overlays);
-	overlays = props.markers.filter(isValidPoint).flatMap((marker) => {
+	overlays = displayMarkers.value.flatMap((marker) => {
 		const isDriver = String(marker.kind || '').startsWith('driver-');
 		const isPoint = marker.kind === 'origin' || marker.kind === 'destination';
 		const item = new AMap.Marker({
@@ -112,15 +204,25 @@ function renderH5() {
 	});
 	const validRoutePoints = props.routePoints.filter(isValidPoint);
 	if (validRoutePoints.length > 1) overlays.push(new AMap.Polyline({ path: validRoutePoints.map((point) => [Number(point.longitude), Number(point.latitude)]), strokeColor: '#2563eb', strokeWeight: 7, strokeOpacity: 0.85, showDir: true, lineJoin: 'round' }));
-	if (overlays.length) { map.add(overlays); map.setFitView(overlays, false, [50, 50, 50, 50], 18); }
+	if (overlays.length) map.add(overlays);
 }
-watch(() => [props.markers, props.routePoints], renderH5, { deep: true });
 // #endif
+watch(() => [props.markers, props.routePoints], () => {
+	// #ifdef H5
+	renderH5();
+	// #endif
+	fitViewport();
+}, { deep: true });
 
 onMounted(() => {
+	viewportCenter.value = initialCenter.value;
+	try { nativeMapContext = uni.createMapContext('ride-map', componentInstance?.proxy as any); } catch {}
 	// #ifdef H5
 	destroyed = false;
 	initH5();
+	// #endif
+	// #ifndef H5
+	setTimeout(() => fitViewport(true), 80);
 	// #endif
 });
 onBeforeUnmount(() => {
@@ -129,11 +231,14 @@ onBeforeUnmount(() => {
 	try { if (map && overlays.length) map.remove(overlays); map?.destroy?.(); } catch {}
 	overlays = []; map = null; AMap = null;
 	// #endif
+	nativeMapContext = null;
 });
 </script>
 
 <style scoped>
 .map-shell,.map{width:100%;height:100%;min-height:420rpx}.map-shell{position:relative;background:#e2e8f0}.map-error{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:32rpx;color:#64748b;background:#f8fafc}
+.locate-control{position:absolute;z-index:8;right:24rpx;display:grid;width:78rpx;height:78rpx;place-items:center;border:1rpx solid rgba(255,255,255,.9);border-radius:24rpx;background:rgba(255,255,255,.94);box-shadow:0 12rpx 32rpx rgba(15,23,42,.2);backdrop-filter:blur(10px)}
+.locate-control:active{transform:scale(.96)}.locate-control.locating{opacity:.65}.locate-control__target{position:relative;width:30rpx;height:30rpx;border:5rpx solid #2563eb;border-radius:50%;box-sizing:border-box}.locate-control__target::before,.locate-control__target::after{position:absolute;background:#2563eb;content:''}.locate-control__target::before{top:-12rpx;bottom:-12rpx;left:50%;width:4rpx;transform:translateX(-50%)}.locate-control__target::after{top:50%;right:-12rpx;left:-12rpx;height:4rpx;transform:translateY(-50%)}.locate-control__target i{position:absolute;z-index:1;inset:6rpx;border-radius:50%;background:#2563eb}
 :global(.ride-vehicle-location-marker){display:block;width:40px;height:40px;filter:drop-shadow(0 4px 7px rgba(15,23,42,.28))}
 :global(.ride-point-location-marker){display:block;width:36px;height:44px;filter:drop-shadow(0 4px 7px rgba(15,23,42,.2))}
 :global(.ride-driver-location-card){display:flex;align-items:center;gap:7px;max-width:160px;padding:7px 10px;border:1px solid color-mix(in srgb,var(--ride-status) 24%,#fff);border-radius:10px;background:rgba(255,255,255,.96);box-shadow:0 6px 20px rgba(15,23,42,.18);color:#0f172a;font-size:12px;font-weight:700;white-space:nowrap}

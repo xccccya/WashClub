@@ -71,10 +71,19 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async routePreview(dto: RideRoutePreviewDto) {
-		const [setting, routes] = await Promise.all([
+		const [setting, recommendedRoutes] = await Promise.all([
 			this.getSetting(),
 			this.amap.drivingRoutes(dto.origin, dto.destination, 3),
 		]);
+		let routes = recommendedRoutes;
+		if (recommendedRoutes.some((route) => route.tollAmount > 0 || route.tollDistanceMeters > 0)) {
+			try {
+				const [avoidHighway] = await this.amap.drivingRoutes(dto.origin, dto.destination, 1, { strategy: '35', preference: 'AVOID_HIGHWAY' });
+				if (avoidHighway) routes = recommendedRoutes.length >= 3 ? [...recommendedRoutes.slice(0, 2), avoidHighway] : [...recommendedRoutes, avoidHighway];
+			} catch {
+				// 不走高速是补充候选；高德策略路线暂不可用时仍保留基础路线预览。
+			}
+		}
 		const candidates = routes.map((route) => ({ route, fare: this.fare.calculate(setting, route.distanceMeters, route.durationSeconds, route.tollAmount) }));
 		return { coordinateSystem: 'GCJ-02', routes: candidates, ...candidates[0] };
 	}

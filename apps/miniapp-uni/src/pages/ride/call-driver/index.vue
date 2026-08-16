@@ -5,15 +5,27 @@
 			<view class="orders-link" @tap="goOrders">行程订单</view>
 		</RideStatusBar>
 		<view class="drawer">
+			<view class="drawer-grabber" />
+			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><text class="availability-pill">{{ availabilityText }}</text></view>
 			<view v-if="selecting" class="map-pick-tip"><text>请在地图上点击{{ selecting === 'origin' ? '起点' : '终点' }}</text><text @tap="selecting = null">取消</text></view>
 			<view v-if="locationNotice" class="location-notice"><text>{{ locationNotice }}</text><text class="retry" @tap="locate">重新定位</text></view>
-			<view class="field"><text class="badge start">起</text><input v-model="origin.address" placeholder="请输入或使用当前起点" @focus="showRecent('origin')" @input="searchOrigin" /><text class="map-pick" @tap="selecting = 'origin'">地图选点</text></view>
+			<view class="route-fields">
+				<view class="field"><text class="badge start">起</text><input v-model="origin.address" placeholder="请输入或使用当前起点" @focus="showRecent('origin')" @input="searchOrigin" /><text class="map-pick" @tap="selecting = 'origin'">地图选点</text></view>
+				<view class="field-connector" />
+				<view class="field"><text class="badge end">终</text><input v-model="destination.address" placeholder="请输入目的地" @focus="showRecent('destination')" @input="searchDestination" /><text class="map-pick" @tap="selecting = 'destination'">地图选点</text></view>
+			</view>
 			<view v-if="originTips.length" class="tips"><view v-for="tip in originTips" :key="placeKey(tip)" @tap="pickOrigin(tip)"><view><strong>{{ tip.name }}</strong><text>{{ tip.address }}</text></view><text v-if="tip.distanceMeters != null" class="distance">{{ formatDistance(tip.distanceMeters) }}</text></view></view>
-			<view class="field"><text class="badge end">终</text><input v-model="destination.address" placeholder="请输入目的地" @focus="showRecent('destination')" @input="searchDestination" /><text class="map-pick" @tap="selecting = 'destination'">地图选点</text></view>
 			<view v-if="destinationTips.length" class="tips"><view v-for="tip in destinationTips" :key="placeKey(tip)" @tap="pickDestination(tip)"><view><strong>{{ tip.name }}</strong><text>{{ tip.address }}</text></view><text v-if="tip.distanceMeters != null" class="distance">{{ formatDistance(tip.distanceMeters) }}</text></view></view>
+			<view v-if="showRecentPanel" class="recent-panel">
+				<view class="section-title"><view><strong>最近使用</strong><text>轻触即可设为目的地</text></view><text @tap="clearRecent">清空</text></view>
+				<scroll-view scroll-x class="recent-scroll" :show-scrollbar="false"><view class="recent-list"><view v-for="place in recentPlaces" :key="placeKey(place)" class="recent-place" @tap="pickDestination(place)"><text class="recent-icon">↻</text><view><strong>{{ place.name || place.address }}</strong><text>{{ place.address }}</text></view></view></view></scroll-view>
+			</view>
 			<view v-if="preview" class="routes">
+				<view class="section-title"><view><strong>选择路线</strong><text>地图将展示当前选中的路线</text></view><text>{{ preview.routes.length }} 条</text></view>
 				<view v-for="(candidate, index) in preview.routes" :key="index" class="route" :class="{ selected: selectedRouteIndex === index }" @tap="selectedRouteIndex = index">
-					<text>路线 {{ index + 1 }} · {{ (candidate.route.distanceMeters / 1000).toFixed(1) }}km · {{ Math.ceil(candidate.route.durationSeconds / 60) }}分钟</text><strong>¥{{ Number(candidate.fare.amount).toFixed(2) }}</strong><text v-if="candidate.route.tollAmount">含过路费 ¥{{ candidate.route.tollAmount }}</text>
+					<view class="route-radio"><i /></view>
+					<view class="route-copy"><view class="route-title"><strong>{{ routeTitle(candidate, index) }}</strong><text v-if="candidate.route.preference === 'AVOID_HIGHWAY'" class="route-tag safe">不走高速</text><text v-else-if="index === 0" class="route-tag">推荐</text></view><view class="route-meta"><text>{{ formatDistance(candidate.route.distanceMeters) }}</text><text>{{ Math.ceil(candidate.route.durationSeconds / 60) }}分钟</text><text v-if="candidate.route.tollAmount" class="toll">过路费 ¥{{ money(candidate.route.tollAmount) }}</text><text v-else>无过路费</text></view><text v-if="candidate.route.tollRoads?.length" class="toll-roads">收费路段：{{ candidate.route.tollRoads.join('、') }}</text></view>
+					<view class="route-price"><strong>¥{{ money(candidate.fare.amount) }}</strong><text>预估</text></view>
 				</view>
 			</view>
 			<view v-if="availability && !availability.availableCount" class="warning">3km 内暂无空闲司机，可点地图上的忙碌车辆联系司机。</view>
@@ -51,6 +63,7 @@ const availabilityText = computed(() => availability.value ? `${availability.val
 const canCall = computed(() => !!availability.value?.availableCount && !!destination.value.longitude);
 const selectedRoute = computed(() => preview.value?.routes?.[selectedRouteIndex.value] || preview.value);
 const routePoints = computed(() => selectedRoute.value?.route?.points || []);
+const showRecentPanel = computed(() => recentPlaces.value.length > 0 && !preview.value && !originTips.value.length && !destinationTips.value.length);
 const markers = computed(() => {
 	const list: any[] = [{ id: 1, ...origin.value, title: '起点', kind: 'origin' }];
 	if (destination.value.longitude) list.push({ id: 2, ...destination.value, title: '终点', kind: 'destination' });
@@ -107,6 +120,10 @@ function saveRecent(place: any) {
 	recentPlaces.value = [normalized, ...recentPlaces.value.filter((item) => placeKey(item) !== key)].slice(0, 10);
 	uni.setStorageSync(RECENT_PLACES_KEY, recentPlaces.value);
 }
+function clearRecent() {
+	recentPlaces.value = [];
+	uni.removeStorageSync(RECENT_PLACES_KEY);
+}
 function selectedAddress(place: any) {
 	const name = String(place?.name || '').trim();
 	const address = String(place?.address || '').trim();
@@ -135,6 +152,11 @@ async function pickFromMap(point: { longitude: number; latitude: number }) {
 	finally { uni.hideLoading(); }
 }
 function formatDistance(value: number) { return value < 1000 ? `${Math.round(value)}m` : `${(value / 1000).toFixed(1)}km`; }
+function money(value: unknown) { return Number(value || 0).toFixed(2); }
+function routeTitle(candidate: any, index: number) {
+	if (candidate?.route?.preference === 'AVOID_HIGHWAY') return '不走高速路线';
+	return index === 0 ? '推荐路线' : `备选路线 ${index + 1}`;
+}
 async function callDriver() {
 	if (!canCall.value) return;
 	loading.value = true;
@@ -166,10 +188,13 @@ onUnload(() => { stopAvailabilityRefresh(); if (searchTimer) clearTimeout(search
 </script>
 
 <style scoped>
-.page{height:100vh;position:relative;overflow:hidden}.drawer{position:absolute;z-index:20;left:20rpx;right:20rpx;bottom:calc(24rpx + env(safe-area-inset-bottom));padding:24rpx;background:#fff;border-radius:32rpx;box-shadow:0 16rpx 50rpx rgba(15,23,42,.18)}
+.page{height:100vh;position:relative;overflow:hidden;background:#e2e8f0}.drawer{position:absolute;z-index:20;right:20rpx;bottom:calc(24rpx + env(safe-area-inset-bottom));left:20rpx;max-height:72vh;overflow-y:auto;padding:18rpx 24rpx 24rpx;border:1rpx solid rgba(255,255,255,.88);border-radius:34rpx;background:rgba(255,255,255,.97);box-shadow:0 20rpx 60rpx rgba(15,23,42,.2);box-sizing:border-box;backdrop-filter:blur(14px)}
+.drawer-grabber{width:72rpx;height:7rpx;margin:0 auto 16rpx;border-radius:999rpx;background:#dbe3ee}.drawer-head,.section-title{display:flex;align-items:center;justify-content:space-between;gap:18rpx}.drawer-head{margin-bottom:16rpx}.drawer-head view,.section-title view{min-width:0}.drawer-head strong,.drawer-head text,.section-title strong,.section-title text{display:block}.drawer-head strong{color:#0f172a;font-size:31rpx}.drawer-head view text{margin-top:3rpx;color:#94a3b8;font-size:20rpx}.availability-pill{flex:none;padding:8rpx 13rpx;border-radius:999rpx;background:#ecfdf5;color:#047857;font-size:19rpx;font-weight:750}.section-title{margin-bottom:12rpx}.section-title strong{color:#1e293b;font-size:24rpx}.section-title view text{margin-top:2rpx;color:#94a3b8;font-size:18rpx}.section-title>text{flex:none;color:#2563eb;font-size:20rpx}
 .location-notice{display:flex;align-items:flex-start;justify-content:space-between;gap:16rpx;margin-bottom:12rpx;padding:14rpx 16rpx;border-radius:16rpx;background:#fff7ed;color:#9a3412;font-size:22rpx;line-height:1.5}.location-notice>text:first-child{flex:1}.retry{flex:none;color:#2563eb;font-weight:700}
-.field{display:flex;align-items:center;gap:14rpx;padding:14rpx 0;border-bottom:1px solid #e2e8f0}.field input{flex:1}.badge{width:42rpx;height:42rpx;border-radius:50%;display:grid;place-items:center;color:#fff}.start{background:#16a34a}.end{background:#ef4444}
-.map-pick-tip{display:flex;justify-content:space-between;margin-bottom:12rpx;padding:14rpx 18rpx;border-radius:18rpx;background:#eff6ff;color:#1d4ed8;font-size:23rpx;font-weight:700}.map-pick{flex:none;padding:8rpx 0 8rpx 14rpx;color:#2563eb;font-size:22rpx;font-weight:700}.tips,.routes{max-height:240rpx;overflow:auto;background:#f8fafc}.tips>view{display:flex;align-items:center;justify-content:space-between;gap:14rpx;padding:14rpx;border-bottom:1px solid #e2e8f0}.tips>view>view{min-width:0}.tips strong,.tips text,.route text{display:block;font-size:22rpx;color:#64748b}.tips strong{overflow:hidden;color:#1e293b;font-size:24rpx;text-overflow:ellipsis;white-space:nowrap}.tips .distance{flex:none;color:#2563eb}.route{display:grid;grid-template-columns:1fr auto;gap:4rpx 12rpx;padding:14rpx;border:2rpx solid transparent;border-radius:12rpx}.route.selected{border-color:#2563eb;background:#eff6ff}.route strong{grid-row:1/3;grid-column:2;font-size:28rpx;align-self:center}
+.route-fields{position:relative;padding:4rpx 16rpx;border:1rpx solid #e2e8f0;border-radius:24rpx;background:#f8fafc}.field{display:flex;align-items:center;gap:14rpx;min-height:76rpx}.field input{min-width:0;flex:1;color:#0f172a;font-size:23rpx}.field:last-child{border-top:1rpx solid #e2e8f0}.field-connector{position:absolute;top:65rpx;left:36rpx;width:2rpx;height:28rpx;background:#cbd5e1}.badge{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border:4rpx solid #fff;border-radius:50%;box-shadow:0 4rpx 12rpx rgba(15,23,42,.12);color:#fff;font-size:19rpx;font-weight:800;box-sizing:border-box}.start{background:#16a34a}.end{background:#f43f5e}
+.map-pick-tip{display:flex;justify-content:space-between;margin-bottom:12rpx;padding:14rpx 18rpx;border-radius:18rpx;background:#eff6ff;color:#1d4ed8;font-size:23rpx;font-weight:700}.map-pick{flex:none;padding:8rpx 0 8rpx 14rpx;color:#2563eb;font-size:20rpx;font-weight:700}.tips{max-height:250rpx;overflow:auto;margin-top:10rpx;border:1rpx solid #e2e8f0;border-radius:18rpx;background:#fff}.tips>view{display:flex;align-items:center;justify-content:space-between;gap:14rpx;padding:14rpx 16rpx;border-bottom:1rpx solid #eef2f7}.tips>view:last-child{border-bottom:0}.tips>view>view{min-width:0}.tips strong,.tips text{display:block;color:#64748b;font-size:20rpx}.tips strong{overflow:hidden;color:#1e293b;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.tips .distance{flex:none;color:#2563eb}
+.recent-panel,.routes{margin-top:16rpx}.recent-scroll{width:100%;white-space:nowrap}.recent-list{display:flex;gap:12rpx;padding:2rpx 2rpx 8rpx}.recent-place{display:flex;width:300rpx;flex:none;align-items:center;gap:12rpx;padding:15rpx;border:1rpx solid #e2e8f0;border-radius:20rpx;background:linear-gradient(145deg,#fff,#f8fafc);box-sizing:border-box}.recent-icon{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border-radius:14rpx;background:#eff6ff;color:#2563eb;font-size:25rpx}.recent-place view{min-width:0}.recent-place strong,.recent-place view text{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.recent-place strong{color:#1e293b;font-size:22rpx}.recent-place view text{margin-top:3rpx;color:#94a3b8;font-size:18rpx}
+.routes{padding-top:2rpx}.route{display:grid;grid-template-columns:36rpx minmax(0,1fr) auto;gap:12rpx;align-items:center;margin-top:10rpx;padding:16rpx;border:2rpx solid #e2e8f0;border-radius:22rpx;background:#fff;transition:.2s ease;box-sizing:border-box}.route.selected{border-color:#3b82f6;background:linear-gradient(145deg,#eff6ff,#fff);box-shadow:0 8rpx 22rpx rgba(37,99,235,.12)}.route-radio{display:grid;width:32rpx;height:32rpx;place-items:center;border:3rpx solid #cbd5e1;border-radius:50%;box-sizing:border-box}.route.selected .route-radio{border-color:#2563eb}.route-radio i{width:14rpx;height:14rpx;border-radius:50%;background:transparent}.route.selected .route-radio i{background:#2563eb}.route-copy{min-width:0}.route-title{display:flex;align-items:center;gap:8rpx}.route-title strong{overflow:hidden;color:#0f172a;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.route-tag{flex:none;padding:4rpx 8rpx;border-radius:999rpx;background:#dbeafe;color:#1d4ed8;font-size:16rpx}.route-tag.safe{background:#dcfce7;color:#15803d}.route-meta{display:flex;flex-wrap:wrap;gap:8rpx 12rpx;margin-top:5rpx}.route-meta text{color:#64748b;font-size:18rpx}.route-meta .toll{color:#c2410c}.toll-roads{display:block;margin-top:5rpx;overflow:hidden;color:#94a3b8;font-size:17rpx;text-overflow:ellipsis;white-space:nowrap}.route-price{flex:none;text-align:right}.route-price strong,.route-price text{display:block}.route-price strong{color:#0f172a;font-size:28rpx}.route-price text{margin-top:2rpx;color:#94a3b8;font-size:17rpx}
 .warning{padding:14rpx;background:#fff7ed;color:#c2410c;border-radius:14rpx;font-size:23rpx}.primary{margin-top:18rpx;background:#0f172a;color:#fff;border-radius:44rpx}.orders-link{margin-left:auto;color:#2563eb;font-size:24rpx}
 button::after{border:0}
 </style>
