@@ -50,7 +50,14 @@ function renderH5() {
 	if (!map || !AMap) return;
 	if (overlays.length) map.remove(overlays);
 	overlays = props.markers.map((marker) => {
-		const item = new AMap.Marker({ position: [marker.longitude, marker.latitude], title: marker.title || '', label: marker.title ? { content: marker.title, direction: 'top' } : undefined });
+		const isDriver = String(marker.kind || '').startsWith('driver-');
+		const item = new AMap.Marker({
+			position: [marker.longitude, marker.latitude],
+			title: marker.title || '',
+			content: isDriver ? '<img class="ride-vehicle-location-marker" src="/static/icons/ride-vehicle-location.svg" alt="车辆位置" />' : undefined,
+			offset: isDriver ? new AMap.Pixel(-18, -36) : undefined,
+			label: marker.title ? { content: marker.title, direction: 'top' } : undefined,
+		});
 		item.on('click', () => emit('markerTap', marker.id));
 		return item;
 	});
@@ -75,4 +82,5 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .map-shell,.map{width:100%;height:100%;min-height:420rpx}.map-shell{position:relative;background:#e2e8f0}.map-error{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:32rpx;color:#64748b;background:#f8fafc}
+:global(.ride-vehicle-location-marker){display:block;width:36px;height:36px}
 </style>

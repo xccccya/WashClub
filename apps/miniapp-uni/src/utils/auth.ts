@@ -1,6 +1,7 @@
 // 登录状态与 API 基址工具
 import { memberControllerMe } from '@wash/api-client';
 import { applyApiBaseToGlobals, requireApiBase } from '@wash/shared-utils';
+import { handleHttpUnauthorized, openLogin } from './auth-navigation';
 // 对于 TS 编译环境下的全局 uni 声明
 declare const uni: any;
 // API 基址（统一由 @wash/shared-utils 解析）：
@@ -46,12 +47,9 @@ export function isExpiredNow(token?: string | null): boolean {
 export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean } = { redirectIfExpired: true }): Promise<boolean> {
   const { redirectIfExpired = true } = options || {};
   const token = getToken();
-  const redirect = () => {
-    if (!redirectIfExpired) return;
-    uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
-    setTimeout(() => {
-      try { uni.navigateTo({ url: '/pages/login/index' }); } catch {}
-    }, 300);
+	const redirect = () => {
+		if (!redirectIfExpired) return;
+		openLogin('expired');
   };
 
   // 未登录：返回 false，不提示、不跳转；由页面自行引导登录
@@ -62,10 +60,14 @@ export async function checkAuthAndRefresh(options: { redirectIfExpired?: boolean
     // SDK 底层会自动从 uni storage 读取 token 并加 Authorization 头，这里无需再拼 query token
     const profile = await (memberControllerMe() as any);
     if (profile) { uni.setStorageSync('user', profile); return true; }
-  } catch {
-    try { uni.removeStorageSync('token'); uni.removeStorageSync('user'); } catch {}
-    redirect();
-    return false;
+	} catch (error: any) {
+		if (Number(error?.status || 0) === 401 || isExpiredNow(token)) {
+			handleHttpUnauthorized();
+			redirect();
+			return false;
+		}
+		// 网络波动不应销毁仍可能有效的登录态，由业务请求自行展示错误。
+		return true;
   }
   // 正常返回
   return true;

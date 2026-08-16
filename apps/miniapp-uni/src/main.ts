@@ -6,22 +6,12 @@ import './utils/urlsearchparams-polyfill';
 import App from './App.vue';
 import { API_BASE, getToken } from './utils/auth';
 import { realtime } from './utils/realtime';
+import { handleHttpUnauthorized } from './utils/auth-navigation';
 
 // 注册全局401处理器：SDK 请求返回 401 时自动清理登录态并跳转登录页
 // shared-utils 的 http client 会在 401 时调用 globalThis.__ON_HTTP_401__
 try {
-	(globalThis as any).__ON_HTTP_401__ = () => {
-		try {
-			// 统一清理登录态
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const u: any = (typeof uni !== 'undefined' ? uni : null);
-			u?.removeStorageSync?.('token');
-			u?.removeStorageSync?.('user');
-			try { u?.$emit?.('auth:changed'); } catch {}
-			// 强制回到登录页（reLaunch 避免堆栈过深）
-			u?.reLaunch?.({ url: '/pages/login/index' });
-		} catch {}
-	};
+	(globalThis as any).__ON_HTTP_401__ = handleHttpUnauthorized;
 } catch {}
 
 export function createApp() {

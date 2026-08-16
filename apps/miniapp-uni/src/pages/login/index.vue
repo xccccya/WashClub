@@ -270,6 +270,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { API_BASE, saveAuth } from '../../utils/auth';
 import { useSafeArea } from '../../utils/safe-area';
+import { leaveLogin } from '../../utils/auth-navigation';
 import {
 	authControllerLogin,
 	authControllerLoginByCode,
@@ -319,14 +320,12 @@ function onTapNavBack() {
 		goLoginScreen();
 		return;
 	}
-	// login -> back (fallback to /me tab)
-	try {
-		uni.navigateBack();
-		return;
-	} catch {}
-	try {
-		uni.switchTab({ url: '/pages/me/index' });
-	} catch {}
+	// 登录页由过期态自动打开时保留来源页面；无页面栈则明确回首页。
+	leaveLogin('/pages/index/index');
+}
+
+function finishLoginNavigation() {
+	setTimeout(() => leaveLogin('/pages/me/index'), 300);
 }
 
 onLoad((q: any) => {
@@ -551,13 +550,7 @@ async function loginByPwd() {
 			uni.$emit?.('auth:changed');
 		} catch {}
 		uni.showToast({ title: '登录成功', icon: 'success' });
-		setTimeout(() => {
-			try {
-				uni.switchTab({ url: '/pages/me/index' });
-			} catch {
-				navigate('/pages/me/index');
-			}
-		}, 300);
+		finishLoginNavigation();
 	} catch (e: any) {
 		uni.showToast({ title: e?.message?.slice(0, 30) || '登录失败', icon: 'none' });
 	}
@@ -587,13 +580,7 @@ async function loginByCode() {
 			uni.$emit?.('auth:changed');
 		} catch {}
 		uni.showToast({ title: '登录成功', icon: 'success' });
-		setTimeout(() => {
-			try {
-				uni.switchTab({ url: '/pages/me/index' });
-			} catch {
-				navigate('/pages/me/index');
-			}
-		}, 300);
+		finishLoginNavigation();
 	} catch (e: any) {
 		uni.showToast({ title: e?.message?.slice(0, 30) || '登录失败', icon: 'none' });
 	}
@@ -723,13 +710,7 @@ async function onGotPhoneNumber(e: any) {
 				uni.showToast({ title: '登录成功', icon: 'success' });
 			}
 
-			setTimeout(() => {
-				try {
-					uni.switchTab({ url: '/pages/me/index' });
-				} catch {
-					navigate('/pages/me/index');
-				}
-			}, 300);
+			finishLoginNavigation();
 			return;
 		}
 		throw new Error('登录失败');

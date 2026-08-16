@@ -5,7 +5,8 @@ export function toNativeMarkers(markers: RideMapMarker[]) {
 	return markers.map((marker) => ({
 		id: marker.id,
 		longitude: Number(marker.longitude), latitude: Number(marker.latitude),
-		title: marker.title || '', width: 30, height: 30,
+		title: marker.title || '', width: 36, height: 36,
+		...(String(marker.kind || '').startsWith('driver-') ? { iconPath: '/static/icons/ride-vehicle-location.svg', anchor: { x: 0.5, y: 1 } } : {}),
 		callout: { content: marker.title || '', display: marker.title ? 'BYCLICK' : 'NEVER', padding: 6, borderRadius: 6 },
 	}));
 }

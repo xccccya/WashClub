@@ -94,7 +94,7 @@ async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } 
 		return await checkAuthAndRefresh(options);
 	} catch { return true; }
 }
-import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyCreate, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
+import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyCreate, vehicleControllerMyUpdate, vehicleControllerMyVehicles } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const plate = ref('');
@@ -190,7 +190,7 @@ async function onSubmit(){
                 const list = await vehicleControllerMyVehicles({} as any) as any[];
                 const exists = (list||[]).find(it => String(it.plateNumber).toUpperCase() === plate.value.trim().toUpperCase());
                 if (exists && exists.id) {
-                    await vehicleControllerUpdateVehicle(String(exists.id), payload as any);
+                    await vehicleControllerMyUpdate(String(exists.id), payload as any);
                     uni.showToast({ title: '已更新车辆信息', icon: 'success' });
                     setTimeout(()=>{
                         try { uni.navigateBack(); return; } catch {}

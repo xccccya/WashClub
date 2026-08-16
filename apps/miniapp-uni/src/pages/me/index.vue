@@ -169,7 +169,7 @@ import {
 	memberControllerGetPointsStats,
 	memberControllerMe,
 	memberControllerSetActive,
-	memberControllerUpdate,
+	memberControllerUpdateMe,
 	notificationControllerUnreadCount,
 	orderControllerList,
 	systemMiniappEmployeeControllerMyEmployeeProfile,
@@ -374,7 +374,7 @@ function onChooseWeixinAvatar(e: any) {
                 const url = data?.url || '';
                 if (!url) { uni.showToast({ title: '上传失败', icon: 'none' }); return; }
                 const userObj:any = uni.getStorageSync('user') || {};
-                await memberControllerUpdate(String(userObj?.id || ''), { avatarUrl: url } as any);
+                await memberControllerUpdateMe({ avatarUrl: url } as any);
                 avatarUrl.value = toAbs(url);
                 try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
                 uni.showToast({ title: '已更新头像', icon: 'success' });
@@ -414,7 +414,7 @@ function onTapAvatar(){
 									const url = data?.url || '';
 									if (!url) { uni.showToast({ title:'上传失败', icon:'none' }); return; }
 									const userObj:any = uni.getStorageSync('user') || {};
-									await memberControllerUpdate(String(userObj?.id || ''), { avatarUrl: url } as any);
+									await memberControllerUpdateMe({ avatarUrl: url } as any);
 									avatarUrl.value = toAbs(url);
 									try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = toAbs(url); uni.setStorageSync('user', u); } catch {}
 									uni.showToast({ title: '已更新头像', icon: 'success' });
@@ -628,10 +628,10 @@ function onTapMessages(){
 .order-icon-text { font-size: 24rpx; color:#1f2937; }
 
 /* 其它功能 */
-.actions-card .grid { display:flex; gap: 24rpx; }
+.actions-card .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16rpx 8rpx; }
 .gradient-trans { background: linear-gradient(180deg, rgba(243,249,255,0.92) 0%, rgba(255,247,251,0.92) 100%); backdrop-filter: blur(2rpx); }
-.icon-grid { display:flex; gap: 24rpx; }
-.icon-btn { flex:1; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 28rpx 0; border-radius: 24rpx; background: transparent; border: none; box-shadow: none; }
+.icon-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16rpx 8rpx; }
+.icon-btn { min-width:0; display:flex; flex-direction: column; align-items:center; justify-content:center; padding: 24rpx 4rpx; border-radius: 24rpx; background: transparent; border: none; box-shadow: none; }
 .icon-img { width: 60rpx; height: 60rpx; margin-bottom: 12rpx; }
 .icon-text { font-size: 24rpx; color:#1f2937; }
 

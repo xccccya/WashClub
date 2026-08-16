@@ -18,6 +18,10 @@ export type HttpRequestOptions = Omit<RequestInit, 'body'> & {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const uni: any;
 
+class HttpError extends Error {
+	constructor(message: string, public readonly status: number) { super(message); this.name = 'HttpError'; }
+}
+
 function isAbsoluteUrl(u: string): boolean {
 	return /^https?:\/\//i.test(String(u || ''));
 }
@@ -93,12 +97,12 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 						if (resp.statusCode >= 200 && resp.statusCode < 300) {
 							resolve(resp.data as T);
 						} else {
-							if (resp.statusCode === 401) { try { onUnauthorized?.(); } catch {} callGlobalUnauthorizedHook(); }
+							if (resp.statusCode === 401) { try { onUnauthorized?.(); } catch {} }
 							// 友好提取 message 字段
 							const raw = resp.data;
 							const msg = (raw && typeof raw === 'object' && (raw as any).message) ? String((raw as any).message) :
 								(typeof raw === 'string' ? raw : undefined);
-							reject(new Error(msg || `HTTP ${resp.statusCode}`));
+							reject(new HttpError(msg || `HTTP ${resp.statusCode}`, resp.statusCode));
 						}
 					},
 					fail: (err: { errMsg?: string }) => {
@@ -116,7 +120,7 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 			body: rawBody !== undefined && rawBody !== null && typeof rawBody !== 'string' ? JSON.stringify(rawBody) : (rawBody as any),
 		});
 		if (!res.ok) {
-			if (res.status === 401) { try { onUnauthorized?.(); } catch {} callGlobalUnauthorizedHook(); }
+			if (res.status === 401) { try { onUnauthorized?.(); } catch {} }
 			const contentType = res.headers.get('content-type') || '';
 			if (contentType.includes('application/json')) {
 				let messageFromJson: string | undefined;
@@ -126,10 +130,10 @@ function createHttpClientFactory(config: HttpClientConfig = {}) {
 					if (Array.isArray(raw)) messageFromJson = raw.map((x: unknown) => String(x)).join('；');
 					else if (raw !== undefined && raw !== null) messageFromJson = String(raw);
 				} catch {}
-				throw new Error(messageFromJson || `HTTP ${res.status} ${res.statusText}`);
+				throw new HttpError(messageFromJson || `HTTP ${res.status} ${res.statusText}`, res.status);
 			}
 			const text = await res.text();
-			throw new Error(text || `HTTP ${res.status} ${res.statusText}`);
+			throw new HttpError(text || `HTTP ${res.status} ${res.statusText}`, res.status);
 		}
 		const contentType = res.headers.get('content-type') || '';
 		if (contentType.includes('application/json')) return (await res.json()) as T;

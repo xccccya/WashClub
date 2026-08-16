@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import vehicleLocationIcon from '../../assets/ride-vehicle-location.svg';
 
 type Point = { longitude: number; latitude: number };
 type Driver = Point & { memberId?: number; status?: string; driverName?: string; lastLocationAt?: string; vehicle?: any; currentVehicle?: any };
@@ -71,7 +72,7 @@ function markerContent(driver: Driver) {
 	const name = escapeHtml(driver.driverName || `司机${driver.memberId || ''}`);
 	const plate = escapeHtml(driver.vehicle?.plateNumber || driver.currentVehicle?.vehicle?.plateNumber || '未选车辆');
 	const lastLocation = driver.lastLocationAt ? new Date(driver.lastLocationAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '暂无定位';
-	return `<div class="ride-driver-marker" style="--ride-color:${color}"><span class="ride-driver-marker__dot"></span><strong>${name} · ${statusLabel}</strong><small>${plate} · ${escapeHtml(lastLocation)}</small></div>`;
+	return `<div class="ride-driver-marker" style="--ride-color:${color}"><img class="ride-driver-marker__icon" src="${vehicleLocationIcon}" alt="车辆位置"/><strong>${name} · ${statusLabel}</strong><small>${plate} · ${escapeHtml(lastLocation)}</small></div>`;
 }
 
 function render() {
@@ -80,7 +81,7 @@ function render() {
 	overlays = [];
 	for (const driver of props.drivers) {
 		if (!Number.isFinite(Number(driver.longitude)) || !Number.isFinite(Number(driver.latitude))) continue;
-		const marker = new AMap.Marker({ position: [Number(driver.longitude), Number(driver.latitude)], content: markerContent(driver), offset: new AMap.Pixel(-74, -48), zIndex: 120 });
+		const marker = new AMap.Marker({ position: [Number(driver.longitude), Number(driver.latitude)], content: markerContent(driver), offset: new AMap.Pixel(-87, -48), zIndex: 120 });
 		marker.on('click', () => emit('driverClick', driver));
 		overlays.push(marker);
 	}
@@ -113,7 +114,7 @@ onBeforeUnmount(() => {
 .ride-map-legend span { display:flex; align-items:center; gap:6px; }
 .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }.dot.available{background:#16a34a}.dot.busy{background:#f59e0b}.dot.offline{background:#64748b}
 .line { width:22px; border-top:4px solid; display:inline-block; }.line.planned{border-color:#2563eb}.line.actual{border-color:#ef4444;border-top-style:dashed}
-:global(.ride-driver-marker){min-width:148px;display:grid;grid-template-columns:12px 1fr;column-gap:6px;align-items:center;padding:7px 9px;border-radius:10px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.2);border:1px solid color-mix(in srgb,var(--ride-color) 35%,#fff)}
-:global(.ride-driver-marker__dot){grid-row:1/3;width:10px;height:10px;border-radius:50%;background:var(--ride-color);box-shadow:0 0 0 4px color-mix(in srgb,var(--ride-color) 16%,transparent)}
+:global(.ride-driver-marker){min-width:174px;display:grid;grid-template-columns:32px 1fr;column-gap:7px;align-items:center;padding:7px 9px;border-radius:10px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.2);border:1px solid color-mix(in srgb,var(--ride-color) 35%,#fff)}
+:global(.ride-driver-marker__icon){grid-row:1/3;width:30px;height:30px;filter:drop-shadow(0 2px 3px rgba(15,23,42,.18))}
 :global(.ride-driver-marker strong){font-size:12px;color:#0f172a;white-space:nowrap}:global(.ride-driver-marker small){font-size:10px;color:#64748b;white-space:nowrap}
 </style>

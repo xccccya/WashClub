@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, BadRequestException, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { MemberService } from './member.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { RequirePerm } from '../auth/perm.decorator.js';
 import { AdminOrEmployeeGuard } from '../auth/admin-or-employee.guard.js';
-import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto } from './member.dto.js';
+import { AdjustMemberGrowthDto, CreateMemberDto, SetMemberPasswordDto, UpdateMemberDto, UpdateMemberSelfDto } from './member.dto.js';
 import { extractBearerToken, extractBearerTokenFromHeaders } from '../auth/bearer.js';
 import { AllowEmployee } from '../auth/allow-employee.decorator.js';
 
@@ -76,6 +76,19 @@ export class MemberController {
 	me(@Headers() headers: Record<string, string>) {
 		const token = extractBearerTokenFromHeaders(headers as any) || '';
 		return this.service.getProfileByToken(token);
+	}
+
+	@Put('me/profile')
+	@ApiOperation({ summary: '当前会员修改自己的昵称或头像' })
+	@ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
+	updateMe(@Headers() headers: Record<string, string>, @Body() body: UpdateMemberSelfDto) {
+		if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+			const name = String(body.name ?? '').trim();
+			if (!name) throw new BadRequestException('昵称不能为空');
+			if (Array.from(name).length > 10) throw new BadRequestException('昵称长度不可超过10个字符');
+		}
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
+		return this.service.updateProfileByToken(token, body);
 	}
 
 	@Get('me/growth-logs')

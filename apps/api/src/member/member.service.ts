@@ -374,6 +374,23 @@ export class MemberService {
 		}
 	}
 
+	async updateProfileByToken(token: string | undefined, data: { name?: string; avatarUrl?: string | null }) {
+		if (!token) throw new UnauthorizedException('缺少Token');
+		let memberId = 0;
+		try {
+			const decoded: any = await this.jwt.verifyAsync(token, { ignoreExpiration: false });
+			if (decoded?.type !== 'member') throw new Error('not member');
+			memberId = Number(decoded?.sub || 0);
+		} catch {
+			throw new UnauthorizedException('Token无效');
+		}
+		if (!memberId) throw new UnauthorizedException('Token无效');
+		const updateData: { name?: string; avatarUrl?: string | null } = {};
+		if (data.name !== undefined) updateData.name = data.name;
+		if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
+		return this.update(memberId, updateData);
+	}
+
 	// 小程序：积分统计（当前积分/本月使用/本月获得）
 	async getPointsStatsByToken(token?: string){
 		if (!token) throw new UnauthorizedException('缺少Token');

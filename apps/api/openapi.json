@@ -1594,6 +1594,37 @@
         "tags": [
           "member"
         ]
+      },
+      "put": {
+        "operationId": "MemberController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberSelfDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "当前会员修改自己的昵称或头像",
+        "tags": [
+          "member"
+        ]
       }
     },
     "/member/me/growth-logs": {
@@ -2857,6 +2888,110 @@
           }
         },
         "summary": "新增我的车辆（会员端）",
+        "tags": [
+          "vehicle"
+        ]
+      }
+    },
+    "/vehicle/me/{id}": {
+      "put": {
+        "operationId": "VehicleController_myUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "修改我的车辆（会员端）",
+        "tags": [
+          "vehicle"
+        ]
+      },
+      "delete": {
+        "operationId": "VehicleController_myDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "删除我的车辆（会员端）",
+        "tags": [
+          "vehicle"
+        ]
+      }
+    },
+    "/vehicle/me/{id}/set-default": {
+      "post": {
+        "operationId": "VehicleController_mySetDefault",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "设置我的默认车辆（会员端）",
         "tags": [
           "vehicle"
         ]
@@ -11142,6 +11277,20 @@
           "rowId",
           "fieldName"
         ]
+      },
+      "UpdateMemberSelfDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "昵称（≤10字符）"
+          },
+          "avatarUrl": {
+            "type": "object",
+            "description": "头像URL（可为空）",
+            "nullable": true
+          }
+        }
       },
       "AdjustMemberGrowthDto": {
         "type": "object",

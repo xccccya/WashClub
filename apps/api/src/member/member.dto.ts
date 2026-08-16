@@ -102,6 +102,18 @@ export class UpdateMemberDto {
 	avatarUrl?: string | null;
 }
 
+export class UpdateMemberSelfDto {
+	@ApiPropertyOptional({ description: '昵称（≤10字符）' })
+	@IsOptional()
+	@IsString()
+	name?: string;
+
+	@ApiPropertyOptional({ description: '头像URL（可为空）', nullable: true })
+	@IsOptional()
+	@IsString()
+	avatarUrl?: string | null;
+}
+
 export class SetMemberPasswordDto {
 	@ApiProperty({ description: '新密码' })
 	@IsString()

@@ -101,7 +101,7 @@ import {
 	authControllerResolvePhone,
 	authControllerSendChangePhoneCode,
 	memberControllerMe,
-	memberControllerUpdate,
+	memberControllerUpdateMe,
 	systemSettingControllerGetPublicSetting,
 } from '@wash/api-client';
 
@@ -211,7 +211,7 @@ function onChooseWeixinAvatar(e: any) {
 				if (!url) { uni.showToast({ title: '上传失败', icon: 'none' }); return; }
 				avatarPreview.value = toAbs(url);
 				// 立即更新后端头像
-				await memberControllerUpdate(String(user.value?.id || ''), { avatarUrl: url } as any);
+				await memberControllerUpdateMe({ avatarUrl: url } as any);
 				try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
 				uni.showToast({ title: '头像已更新', icon: 'success' });
 				closeAvatarSheet();
@@ -243,7 +243,7 @@ function onChooseLocalImage(r: any){
 				const url = data?.url || '';
 				if (!url) { uni.showToast({ title:'上传失败', icon:'none' }); return; }
 				avatarPreview.value = toAbs(url);
-				await memberControllerUpdate(String(user.value?.id || ''), { avatarUrl: url } as any);
+				await memberControllerUpdateMe({ avatarUrl: url } as any);
 				try { const u = uni.getStorageSync('user') || {}; u.avatarUrl = url; uni.setStorageSync('user', u); } catch {}
 				uni.showToast({ title: '头像已更新', icon: 'success' });
 			} catch (e:any) { uni.showToast({ title: e?.message?.slice(0,30) || '保存失败', icon: 'none' }); }
@@ -348,7 +348,7 @@ async function saveChanges(){
 		const body: any = {};
 		if (nickname.value && nickname.value !== user.value?.name) body.name = nickname.value;
 		if (Object.keys(body).length === 0) { uni.showToast({ title: '没有修改项', icon: 'none' }); return; }
-		await memberControllerUpdate(String(user.value?.id || ''), body as any);
+		await memberControllerUpdateMe(body as any);
 		const updated = (await memberControllerMe() as unknown) as any;
 		uni.setStorageSync('user', updated);
 		currentPhone.value = (updated as any)?.phone || currentPhone.value;

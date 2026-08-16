@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VehicleService } from './vehicle.service.js';
 import { UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard.js';
@@ -229,6 +229,33 @@ export class VehicleController {
         if (!body?.typeMain) throw new BadRequestException('车辆主类型为必填项');
         return this.service.createForMember(memberId, body);
     }
+
+	@Put('me/:id')
+	@ApiOperation({ summary: '修改我的车辆（会员端）' })
+	@ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
+	async myUpdate(@Headers() headers: Record<string, string>, @Param('id') id: string, @Body() body: VehicleUpdateDto) {
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
+		const memberId = await this.service.getMemberIdFromToken(token);
+		return this.service.updateVehicle(Number(id), body, memberId);
+	}
+
+	@Delete('me/:id')
+	@ApiOperation({ summary: '删除我的车辆（会员端）' })
+	@ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
+	async myDelete(@Headers() headers: Record<string, string>, @Param('id') id: string) {
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
+		const memberId = await this.service.getMemberIdFromToken(token);
+		return this.service.deleteVehicle(Number(id), memberId);
+	}
+
+	@Post('me/:id/set-default')
+	@ApiOperation({ summary: '设置我的默认车辆（会员端）' })
+	@ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
+	async mySetDefault(@Headers() headers: Record<string, string>, @Param('id') id: string) {
+		const token = extractBearerTokenFromHeaders(headers as any) || '';
+		const memberId = await this.service.getMemberIdFromToken(token);
+		return this.service.setDefault(Number(id), memberId);
+	}
 
 	// 查询车辆详情（管理员）
 	// 注意：必须放在所有静态路由（如 /search /list /me/list）之后，避免把 /vehicle/search 误匹配为 :id=search

@@ -93,7 +93,7 @@ async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } 
 		return await checkAuthAndRefresh(options);
 	} catch { return true; }
 }
-import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyVehicles, vehicleControllerUpdateVehicle } from '@wash/api-client';
+import { carDataControllerGetBrands, carDataControllerGetSeries, vehicleControllerMyUpdate, vehicleControllerMyVehicles } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 const id = ref<number>(0);
@@ -246,7 +246,7 @@ async function onSubmit(){
 	try {
 		if (saving.value) return; saving.value = true; try { uni.showLoading({ title: '正在保存，请稍候…', mask: true }); } catch {}
 		const payload: any = { plateNumber: plate.value.trim(), typeMain: typeMain.value, typeSub: typeSub.value || undefined, color: color.value || undefined, vin: vin.value || undefined, brand: brandName.value || undefined, series: seriesName.value || undefined, brandId: brandId.value || undefined, seriesId: seriesId.value || undefined };
-		await vehicleControllerUpdateVehicle(String(id.value), payload as any);
+		await vehicleControllerMyUpdate(String(id.value), payload as any);
 		uni.showToast({ title:'已保存', icon:'success' });
 		setTimeout(()=>{
 			try { uni.navigateBack(); return; } catch {}

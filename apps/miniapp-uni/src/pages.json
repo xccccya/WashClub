@@ -211,7 +211,7 @@
 		},
 		{
 			"path": "pages/ride/orders/index",
-			"style": { "navigationBarTitleText": "行程订单", "enablePullDownRefresh": true }
+			"style": { "navigationBarTitleText": "行程订单", "navigationStyle": "custom", "enablePullDownRefresh": true }
 		},
 		{
 			"path": "pages/ride/detail/index",
@@ -219,7 +219,7 @@
 		},
 		{
 			"path": "pages/ride/fare-confirm/index",
-			"style": { "navigationBarTitleText": "确认行程费用" }
+			"style": { "navigationBarTitleText": "确认行程费用", "navigationStyle": "custom" }
 		}
 	],
 	"tabBar": {

@@ -81,6 +81,7 @@ import type {
   MemberControllerGetGrowthLogsParams,
   MemberControllerGetPointsLogsParams,
   MemberControllerListParams,
+  MemberControllerUpdateMe200,
   MemberCouponAdminControllerListParams,
   MemberPointsAdjustDto,
   MemberPointsControllerListLogsPagedParams,
@@ -193,6 +194,7 @@ import type {
   UpdateMemberCategoryDto,
   UpdateMemberCouponExpiryDto,
   UpdateMemberDto,
+  UpdateMemberSelfDto,
   UpdateMemberTagDto,
   UpdateNicknameDto,
   UpdatePasswordDto,
@@ -201,6 +203,9 @@ import type {
   VehicleControllerAdminListParams,
   VehicleControllerAdminOrdersParams,
   VehicleControllerAdminRebindLogsParams,
+  VehicleControllerMyDelete200,
+  VehicleControllerMySetDefault200,
+  VehicleControllerMyUpdate200,
   VehicleControllerSearchParams,
   VehicleCreateForMemberByPhoneDto,
   VehicleCreateForMemberDto,
@@ -1500,6 +1505,31 @@ export const memberControllerMe = async ( options?: RequestInit): Promise<void> 
 
 
 /**
+ * @summary 当前会员修改自己的昵称或头像
+ */
+export const getMemberControllerUpdateMeUrl = () => {
+
+
+
+
+  return `/member/me/profile`
+}
+
+export const memberControllerUpdateMe = async (updateMemberSelfDto: UpdateMemberSelfDto, options?: RequestInit): Promise<MemberControllerUpdateMe200> => {
+
+  return createHttpClient<MemberControllerUpdateMe200>(getMemberControllerUpdateMeUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateMemberSelfDto,)
+  }
+);}
+
+
+
+/**
  * @summary 查询当前会员成长值日志（持久化）
  */
 export const getMemberControllerGetGrowthLogsUrl = (params: MemberControllerGetGrowthLogsParams,) => {
@@ -2636,6 +2666,80 @@ export const vehicleControllerMyCreate = async (vehicleMyCreateDto: VehicleMyCre
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       vehicleMyCreateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 修改我的车辆（会员端）
+ */
+export const getVehicleControllerMyUpdateUrl = (id: string,) => {
+
+
+
+
+  return `/vehicle/me/${id}`
+}
+
+export const vehicleControllerMyUpdate = async (id: string,
+    vehicleUpdateDto: VehicleUpdateDto, options?: RequestInit): Promise<VehicleControllerMyUpdate200> => {
+
+  return createHttpClient<VehicleControllerMyUpdate200>(getVehicleControllerMyUpdateUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vehicleUpdateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 删除我的车辆（会员端）
+ */
+export const getVehicleControllerMyDeleteUrl = (id: string,) => {
+
+
+
+
+  return `/vehicle/me/${id}`
+}
+
+export const vehicleControllerMyDelete = async (id: string, options?: RequestInit): Promise<VehicleControllerMyDelete200> => {
+
+  return createHttpClient<VehicleControllerMyDelete200>(getVehicleControllerMyDeleteUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 设置我的默认车辆（会员端）
+ */
+export const getVehicleControllerMySetDefaultUrl = (id: string,) => {
+
+
+
+
+  return `/vehicle/me/${id}/set-default`
+}
+
+export const vehicleControllerMySetDefault = async (id: string, options?: RequestInit): Promise<VehicleControllerMySetDefault200> => {
+
+  return createHttpClient<VehicleControllerMySetDefault200>(getVehicleControllerMySetDefaultUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

@@ -19,7 +19,8 @@ export class RideDispatchService {
 	async nearby(origin: { longitude: number; latitude: number }) {
 		const setting = await this.setting();
 		const now = Date.now();
-		const onlineSince = new Date(now - Math.max(5, Number(setting.locationIntervalSeconds || 5)) * 1000);
+		const intervalSeconds = Math.max(5, Number(setting.locationIntervalSeconds || 5));
+		const onlineSince = new Date(now - Math.max(15, intervalSeconds * 3) * 1000);
 		const profiles = await this.prisma.rideDriverProfile.findMany({
 			where: {
 				employee: { enabled: true },

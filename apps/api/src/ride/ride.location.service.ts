@@ -97,7 +97,8 @@ export class RideLocationService implements OnModuleInit, OnModuleDestroy {
 	private async markStaleDriversOffline() {
 		try {
 			const setting = await this.dispatch.setting();
-			const cutoff = new Date(Date.now() - Math.max(5, Number(setting.locationIntervalSeconds || 5)) * 1000);
+			const intervalSeconds = Math.max(5, Number(setting.locationIntervalSeconds || 5));
+			const cutoff = new Date(Date.now() - Math.max(15, intervalSeconds * 3) * 1000);
 			const stale = await this.prisma.rideDriverProfile.findMany({
 				where: { availabilityStatus: { not: 'OFFLINE' }, OR: [{ lastLocationAt: null }, { lastLocationAt: { lt: cutoff } }] },
 				select: { id: true, memberId: true },

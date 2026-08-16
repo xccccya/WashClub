@@ -91,7 +91,7 @@ async function safeCheckAuthAndRefresh(options: { redirectIfExpired?: boolean } 
 		return await checkAuthAndRefresh(options);
 	} catch { return true; }
 }
-import { vehicleControllerMyVehicles, vehicleControllerRemove, vehicleControllerSetDefault } from '@wash/api-client';
+import { vehicleControllerMyDelete, vehicleControllerMySetDefault, vehicleControllerMyVehicles } from '@wash/api-client';
 const { topSpacerHeight, statusBarHeight } = useSafeArea();
 
 type Vehicle = { id: number; plateNumber: string; vin?: string|null; brand?: string|null; series?: string|null; typeMain: string; typeSub?: string|null; color?: string|null; isDefault: boolean };
@@ -140,12 +140,12 @@ async function fetchList(){
 async function onDelete(v: Vehicle){
 	uni.showModal({ title: '提示', content: '确认删除该车辆？', success: async (res:any)=>{
 		if (!res.confirm) return;
-		try { await vehicleControllerRemove(String(v.id)); await fetchList(); uni.showToast({ title: '已删除', icon: 'success' }); } catch {}
+		try { await vehicleControllerMyDelete(String(v.id)); await fetchList(); uni.showToast({ title: '已删除', icon: 'success' }); } catch (error:any) { uni.showToast({ title:error?.message || '删除失败', icon:'none' }); }
 	}});
 }
 
 async function onSetDefault(v: Vehicle){
-	try { await vehicleControllerSetDefault(String(v.id)); await fetchList(); uni.showToast({ title: '已设为默认', icon: 'success' }); } catch {}
+	try { await vehicleControllerMySetDefault(String(v.id)); await fetchList(); uni.showToast({ title: '已设为默认', icon: 'success' }); } catch (error:any) { uni.showToast({ title:error?.message || '设置失败', icon:'none' }); }
 }
 
 onShow(async ()=>{ const ok = await safeCheckAuthAndRefresh({ redirectIfExpired: true }); if (ok) fetchList(); });

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service.js';
@@ -277,9 +277,10 @@ export class VehicleService {
         return this.createForMember(memberId, input);
     }
 
-    async updateVehicle(vehicleId: number, input: Partial<{ plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null; isDefault?: boolean }>) {
+    async updateVehicle(vehicleId: number, input: Partial<{ plateNumber: string; vin?: string | null; brand?: string | null; series?: string | null; typeMain?: string; typeSub?: string | null; color?: string | null; isDefault?: boolean }>, ownerMemberId?: number) {
         const existing = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!existing) throw new BadRequestException('车辆不存在');
+        if (ownerMemberId && existing.memberId !== ownerMemberId) throw new ForbiddenException('只能修改自己的车辆');
         // 保护：禁止把任意车辆改成无牌车占位车牌；同时禁止修改无牌车占位车牌本身
         if (typeof (input as any)?.plateNumber === 'string') {
             const nextPlate = String((input as any).plateNumber || '').trim();
@@ -318,7 +319,12 @@ export class VehicleService {
         } catch {}
     }
 
-    async deleteVehicle(vehicleId: number) {
+    async deleteVehicle(vehicleId: number, ownerMemberId?: number) {
+        if (ownerMemberId) {
+			const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { memberId: true } });
+			if (!vehicle) throw new BadRequestException('车辆不存在');
+			if (vehicle.memberId !== ownerMemberId) throw new ForbiddenException('只能删除自己的车辆');
+		}
         return this.prisma.vehicle.delete({ where: { id: vehicleId } });
     }
 
@@ -330,9 +336,10 @@ export class VehicleService {
         return this.prisma.vehicle.findMany({ where: { memberId }, orderBy: [{ isDefault: 'desc' } as any, { id: 'desc' }] });
     }
 
-    async setDefault(vehicleId: number) {
+    async setDefault(vehicleId: number, ownerMemberId?: number) {
         const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
         if (!v) throw new BadRequestException('车辆不存在');
+        if (ownerMemberId && v.memberId !== ownerMemberId) throw new ForbiddenException('只能设置自己的车辆');
         return this.prisma.$transaction(async (tx) => {
             await tx.vehicle.updateMany({ where: { memberId: v.memberId, isDefault: true } as any, data: { isDefault: false } as any });
             return tx.vehicle.update({ where: { id: vehicleId }, data: { isDefault: true } as any });

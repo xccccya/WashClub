@@ -137,7 +137,7 @@ export default defineConfig(({ mode }) => {
 		// 重要：排除 workspace 包的依赖预构建，避免 .vite/deps 缓存导出列表导致
 		// 出现 “does not provide an export named ...” 的偶发问题（尤其在改动 env/热重载后）。
 		optimizeDeps: {
-			exclude: ['@wash/shared-utils'],
+			exclude: ['@wash/api-client', '@wash/shared-utils'],
 		},
 		define: {
 			'import.meta.env.VITE_API_BASE': JSON.stringify(env.VITE_API_BASE || process.env.VITE_API_BASE || ''),
