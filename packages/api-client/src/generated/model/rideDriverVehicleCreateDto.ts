@@ -7,12 +7,18 @@
  */
 
 export interface RideDriverVehicleCreateDto {
-  plateNumber: string;
-  typeMain: string;
+  /** 复用当前账号已有会员车辆时传入 */
+  vehicleId?: number;
+  /** 新增车辆时必填 */
+  plateNumber?: string;
+  /** 新增车辆时必填 */
+  typeMain?: string;
   brand?: string;
   series?: string;
   color?: string;
   brandImage?: string;
   seriesImage?: string;
   displayName?: string;
+  /** 绑定后立即设为当前出车车辆 */
+  selected?: boolean;
 }

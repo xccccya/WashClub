@@ -148,7 +148,6 @@ import type {
   RideControllerFinalize200,
   RideControllerList200,
   RideControllerListParams,
-  RideControllerMessages200,
   RideControllerPlaces200,
   RideControllerPlacesParams,
   RideControllerReject200,
@@ -156,7 +155,6 @@ import type {
   RideControllerReverseGeocode200,
   RideControllerReverseGeocodeParams,
   RideControllerRoutePreview200,
-  RideControllerSendMessage200,
   RideControllerStart200,
   RideControllerUpdateDriverVehicle200,
   RideCreateDto,
@@ -166,6 +164,9 @@ import type {
   RideFinalizeDto,
   RideLocationDto,
   RideMessageCreateDto,
+  RideMessageDto,
+  RideMessageReadResultDto,
+  RideMessageUnreadCountDto,
   RideRoutePreviewDto,
   RideSettingUpdateDto,
   RideStartDto,
@@ -215,6 +216,7 @@ import type {
   VehicleCreateForMemberDto,
   VehicleGuestCreateDto,
   VehicleMyCreateDto,
+  VehicleResponseDto,
   VehicleUpdateDto,
   WashCardControllerAdminListParams,
   WashCardControllerAdminLogsParams,
@@ -2637,9 +2639,9 @@ export const getVehicleControllerMyVehiclesUrl = () => {
   return `/vehicle/me/list`
 }
 
-export const vehicleControllerMyVehicles = async ( options?: RequestInit): Promise<void> => {
+export const vehicleControllerMyVehicles = async ( options?: RequestInit): Promise<VehicleResponseDto[]> => {
   
-  return createHttpClient<void>(getVehicleControllerMyVehiclesUrl(),
+  return createHttpClient<VehicleResponseDto[]>(getVehicleControllerMyVehiclesUrl(),
   {      
     ...options,
     method: 'GET'
@@ -8519,7 +8521,7 @@ export const rideControllerDriverVehicles = async ( options?: RequestInit): Prom
 
 
 /**
- * @summary 内部司机新增自己的车辆
+ * @summary 内部司机新增或绑定账号已有车辆
  */
 export const getRideControllerCreateDriverVehicleUrl = () => {
 
@@ -8570,7 +8572,7 @@ export const rideControllerUpdateDriverVehicle = async (id: number,
 
 
 /**
- * @summary 内部司机删除未产生行程的自有车辆
+ * @summary 内部司机解绑未产生行程的出车车辆
  */
 export const getRideControllerDeleteDriverVehicleUrl = (id: number,) => {
 
@@ -8911,9 +8913,9 @@ export const getRideControllerMessagesUrl = (id: number,) => {
   return `/rides/${id}/messages`
 }
 
-export const rideControllerMessages = async (id: number, options?: RequestInit): Promise<RideControllerMessages200> => {
+export const rideControllerMessages = async (id: number, options?: RequestInit): Promise<RideMessageDto[]> => {
 
-  return createHttpClient<RideControllerMessages200>(getRideControllerMessagesUrl(id),
+  return createHttpClient<RideMessageDto[]>(getRideControllerMessagesUrl(id),
   {
     ...options,
     method: 'GET'
@@ -8936,15 +8938,63 @@ export const getRideControllerSendMessageUrl = (id: number,) => {
 }
 
 export const rideControllerSendMessage = async (id: number,
-    rideMessageCreateDto: RideMessageCreateDto, options?: RequestInit): Promise<RideControllerSendMessage200> => {
+    rideMessageCreateDto: RideMessageCreateDto, options?: RequestInit): Promise<RideMessageDto> => {
 
-  return createHttpClient<RideControllerSendMessage200>(getRideControllerSendMessageUrl(id),
+  return createHttpClient<RideMessageDto>(getRideControllerSendMessageUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       rideMessageCreateDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 读取当前行程聊天未读数
+ */
+export const getRideControllerMessageUnreadCountUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/messages/unread-count`
+}
+
+export const rideControllerMessageUnreadCount = async (id: number, options?: RequestInit): Promise<RideMessageUnreadCountDto> => {
+
+  return createHttpClient<RideMessageUnreadCountDto>(getRideControllerMessageUnreadCountUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 将当前行程中对方发送的消息标记为已读
+ */
+export const getRideControllerMarkMessagesReadUrl = (id: number,) => {
+
+
+
+
+  return `/rides/${id}/messages/read`
+}
+
+export const rideControllerMarkMessagesRead = async (id: number, options?: RequestInit): Promise<RideMessageReadResultDto> => {
+
+  return createHttpClient<RideMessageReadResultDto>(getRideControllerMarkMessagesReadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

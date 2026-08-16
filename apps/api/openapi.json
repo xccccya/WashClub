@@ -2859,7 +2859,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VehicleResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "我的车辆列表（会员端）",
@@ -9888,7 +9898,7 @@
             "bearer": []
           }
         ],
-        "summary": "内部司机新增自己的车辆",
+        "summary": "内部司机新增或绑定账号已有车辆",
         "tags": [
           "rides"
         ]
@@ -9970,7 +9980,7 @@
             "bearer": []
           }
         ],
-        "summary": "内部司机删除未产生行程的自有车辆",
+        "summary": "内部司机解绑未产生行程的出车车辆",
         "tags": [
           "rides"
         ]
@@ -10507,8 +10517,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RideMessageDto"
+                  }
                 }
               }
             }
@@ -10552,8 +10564,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/RideMessageDto"
                 }
               }
             }
@@ -10565,6 +10576,78 @@
           }
         ],
         "summary": "发送行程聊天消息",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/messages/unread-count": {
+      "get": {
+        "operationId": "RideController_messageUnreadCount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RideMessageUnreadCountDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "读取当前行程聊天未读数",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/{id}/messages/read": {
+      "post": {
+        "operationId": "RideController_markMessagesRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RideMessageReadResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "将当前行程中对方发送的消息标记为已读",
         "tags": [
           "rides"
         ]
@@ -11845,6 +11928,77 @@
         },
         "required": [
           "plateNumber"
+        ]
+      },
+      "VehicleResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plateNumber": {
+            "type": "string",
+            "example": "川A12345"
+          },
+          "vin": {
+            "type": "object",
+            "nullable": true
+          },
+          "brand": {
+            "type": "object",
+            "nullable": true
+          },
+          "series": {
+            "type": "object",
+            "nullable": true
+          },
+          "typeMain": {
+            "type": "string"
+          },
+          "typeSub": {
+            "type": "object",
+            "nullable": true
+          },
+          "color": {
+            "type": "object",
+            "nullable": true
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "brandImage": {
+            "type": "object",
+            "nullable": true
+          },
+          "seriesImage": {
+            "type": "object",
+            "nullable": true
+          },
+          "memberId": {
+            "type": "object",
+            "nullable": true
+          },
+          "groupId": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "updatedAt",
+          "plateNumber",
+          "typeMain",
+          "isDefault"
         ]
       },
       "VehicleMyCreateDto": {
@@ -14338,13 +14492,19 @@
       "RideDriverVehicleCreateDto": {
         "type": "object",
         "properties": {
+          "vehicleId": {
+            "type": "number",
+            "description": "复用当前账号已有会员车辆时传入"
+          },
           "plateNumber": {
             "type": "string",
-            "example": "川K12345"
+            "example": "川K12345",
+            "description": "新增车辆时必填"
           },
           "typeMain": {
             "type": "string",
-            "example": "轿车"
+            "example": "轿车",
+            "description": "新增车辆时必填"
           },
           "brand": {
             "type": "string"
@@ -14363,12 +14523,13 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "selected": {
+            "type": "boolean",
+            "description": "绑定后立即设为当前出车车辆",
+            "default": false
           }
-        },
-        "required": [
-          "plateNumber",
-          "typeMain"
-        ]
+        }
       },
       "RideDriverVehicleUpdateDto": {
         "type": "object",
@@ -14522,6 +14683,40 @@
           }
         }
       },
+      "RideMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "rideTripId": {
+            "type": "number"
+          },
+          "senderMemberId": {
+            "type": "number"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readAt": {
+            "type": "object",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "rideTripId",
+          "senderMemberId",
+          "content",
+          "createdAt"
+        ]
+      },
       "RideMessageCreateDto": {
         "type": "object",
         "properties": {
@@ -14531,6 +14726,46 @@
         },
         "required": [
           "content"
+        ]
+      },
+      "RideMessageUnreadCountDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "RideMessageReadResultDto": {
+        "type": "object",
+        "properties": {
+          "rideTripId": {
+            "type": "number"
+          },
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "readAt": {
+            "type": "object",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unreadCount": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "rideTripId",
+          "messageIds",
+          "unreadCount"
         ]
       },
       "RideSettingUpdateDto": {

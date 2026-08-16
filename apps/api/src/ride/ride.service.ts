@@ -219,17 +219,31 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	async createDriverVehicle(memberId: number, employeeId: number, dto: RideDriverVehicleCreateDto) {
 		await this.prisma.rideDriverProfile.upsert({ where: { memberId }, create: { memberId, employeeId }, update: { employeeId } });
 		return this.prisma.$transaction(async (tx) => {
+			if (dto.vehicleId) {
+				const vehicle = await tx.vehicle.findFirst({ where: { id: dto.vehicleId, memberId } });
+				if (!vehicle) throw new ForbiddenException('只能使用当前账号已有的会员车辆');
+				const binding = await tx.rideDriverVehicle.upsert({
+					where: { driverMemberId_vehicleId: { driverMemberId: memberId, vehicleId: vehicle.id } },
+					create: { driverMemberId: memberId, vehicleId: vehicle.id, displayName: dto.displayName || null },
+					update: { enabled: true, displayName: dto.displayName },
+					include: { vehicle: true },
+				});
+				if (dto.selected) await tx.rideDriverProfile.update({ where: { memberId }, data: { currentVehicleId: binding.id } });
+				return binding;
+			}
 			const vehicle = await tx.vehicle.create({ data: {
 				memberId,
-				plateNumber: dto.plateNumber.trim().toUpperCase(),
-				typeMain: dto.typeMain,
+				plateNumber: dto.plateNumber!.trim().toUpperCase(),
+				typeMain: dto.typeMain!,
 				brand: dto.brand || '-',
 				series: dto.series || '-',
 				color: dto.color || '-',
 				brandImage: dto.brandImage || null,
 				seriesImage: dto.seriesImage || null,
 			} });
-			return tx.rideDriverVehicle.create({ data: { driverMemberId: memberId, vehicleId: vehicle.id, displayName: dto.displayName || null }, include: { vehicle: true } });
+			const binding = await tx.rideDriverVehicle.create({ data: { driverMemberId: memberId, vehicleId: vehicle.id, displayName: dto.displayName || null }, include: { vehicle: true } });
+			if (dto.selected) await tx.rideDriverProfile.update({ where: { memberId }, data: { currentVehicleId: binding.id } });
+			return binding;
 		});
 	}
 
@@ -263,7 +277,6 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		await this.prisma.$transaction(async (tx) => {
 			await tx.rideDriverProfile.updateMany({ where: { memberId, currentVehicleId: binding.id }, data: { currentVehicleId: null, availabilityStatus: 'OFFLINE', busyReason: null } });
 			await tx.rideDriverVehicle.delete({ where: { id: binding.id } });
-			await tx.vehicle.delete({ where: { id: binding.vehicleId } });
 		});
 		return { ok: true };
 	}
@@ -347,16 +360,39 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	async messages(id: number, memberId: number) {
 		await this.assertParticipant(id, memberId);
 		const rows = await this.prisma.rideMessage.findMany({ where: { rideTripId: id }, orderBy: { createdAt: 'asc' }, take: 200 });
-		await this.prisma.rideMessage.updateMany({ where: { rideTripId: id, senderMemberId: { not: memberId }, readAt: null }, data: { readAt: new Date() } });
 		return rows.map((row) => this.serialize(row));
+	}
+
+	async messageUnreadCount(id: number, memberId: number) {
+		await this.assertParticipant(id, memberId);
+		const count = await this.prisma.rideMessage.count({ where: { rideTripId: id, senderMemberId: { not: memberId }, readAt: null } });
+		return { count };
+	}
+
+	async markMessagesRead(id: number, memberId: number) {
+		const trip = await this.assertParticipant(id, memberId);
+		const unread = await this.prisma.rideMessage.findMany({
+			where: { rideTripId: id, senderMemberId: { not: memberId }, readAt: null },
+			select: { id: true },
+		});
+		if (!unread.length) return { rideTripId: id, messageIds: [], readAt: null, unreadCount: 0 };
+		const readAt = new Date();
+		await this.prisma.rideMessage.updateMany({ where: { id: { in: unread.map((item) => item.id) }, readAt: null }, data: { readAt } });
+		const result = this.serialize({ rideTripId: id, messageIds: unread.map((item) => item.id), readAt, unreadCount: 0 });
+		const senderMemberId = memberId === trip.passengerMemberId ? trip.driverMemberId : trip.passengerMemberId;
+		this.realtime.toMember(senderMemberId, 'ride:message-read', result);
+		return result;
 	}
 
 	async sendMessage(id: number, memberId: number, dto: RideMessageCreateDto) {
 		const trip = await this.assertParticipant(id, memberId);
-		const message = await this.prisma.rideMessage.create({ data: { rideTripId: id, senderMemberId: memberId, content: dto.content.trim() } });
 		const target = memberId === trip.passengerMemberId ? trip.driverMemberId : trip.passengerMemberId;
-		this.realtime.toMember(target, 'ride:message', this.serialize(message));
-		return this.serialize(message);
+		if (!target) throw new ConflictException('尚未匹配司机，无法发送消息');
+		const message = await this.prisma.rideMessage.create({ data: { rideTripId: id, senderMemberId: memberId, content: dto.content.trim() } });
+		const unreadCount = await this.prisma.rideMessage.count({ where: { rideTripId: id, senderMemberId: { not: target }, readAt: null } });
+		const serialized = this.serialize(message);
+		this.realtime.toMember(target, 'ride:message', { ...serialized, unreadCount });
+		return serialized;
 	}
 
 	async contact(id: number, memberId: number) {
@@ -587,7 +623,8 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	private serializeTrip(trip: any) {
 		const serialized = this.serialize(trip);
 		if (serialized?.passenger) {
-			serialized.passenger.phoneLastFour = String(serialized.passenger.phone || '').slice(-4);
+			// 行程响应只下发末两位用于遮罩展示；后四位核验始终在服务端完成。
+			serialized.passenger.phoneLastFour = String(serialized.passenger.phone || '').slice(-2);
 			delete serialized.passenger.phone;
 		}
 		return serialized;

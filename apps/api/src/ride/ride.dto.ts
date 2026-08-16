@@ -14,6 +14,7 @@ import {
 	Max,
 	MaxLength,
 	Min,
+	ValidateIf,
 	ValidateNested,
 } from 'class-validator';
 
@@ -121,15 +122,24 @@ export class RideDriverStatusDto {
 }
 
 export class RideDriverVehicleCreateDto {
-	@ApiProperty({ example: '川K12345' })
+	@ApiPropertyOptional({ description: '复用当前账号已有会员车辆时传入' })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	vehicleId?: number;
+
+	@ApiPropertyOptional({ example: '川K12345', description: '新增车辆时必填' })
+	@ValidateIf((dto: RideDriverVehicleCreateDto) => !dto.vehicleId)
 	@IsString()
 	@Length(2, 20)
-	plateNumber!: string;
+	plateNumber?: string;
 
-	@ApiProperty({ example: '轿车' })
+	@ApiPropertyOptional({ example: '轿车', description: '新增车辆时必填' })
+	@ValidateIf((dto: RideDriverVehicleCreateDto) => !dto.vehicleId)
 	@IsString()
 	@Length(1, 50)
-	typeMain!: string;
+	typeMain?: string;
 
 	@ApiPropertyOptional()
 	@IsOptional()
@@ -166,6 +176,11 @@ export class RideDriverVehicleCreateDto {
 	@IsString()
 	@MaxLength(80)
 	displayName?: string;
+
+	@ApiPropertyOptional({ description: '绑定后立即设为当前出车车辆', default: false })
+	@IsOptional()
+	@IsBoolean()
+	selected?: boolean;
 }
 
 export class RideDriverVehicleUpdateDto {
@@ -325,6 +340,45 @@ export class RideMessageCreateDto {
 	@IsString()
 	@Length(1, 1000)
 	content!: string;
+}
+
+export class RideMessageDto {
+	@ApiProperty({ example: '1' })
+	id!: string;
+
+	@ApiProperty()
+	rideTripId!: number;
+
+	@ApiProperty()
+	senderMemberId!: number;
+
+	@ApiProperty()
+	content!: string;
+
+	@ApiProperty({ format: 'date-time' })
+	createdAt!: string;
+
+	@ApiPropertyOptional({ format: 'date-time', nullable: true })
+	readAt!: string | null;
+}
+
+export class RideMessageUnreadCountDto {
+	@ApiProperty({ minimum: 0 })
+	count!: number;
+}
+
+export class RideMessageReadResultDto {
+	@ApiProperty()
+	rideTripId!: number;
+
+	@ApiProperty({ type: [String] })
+	messageIds!: string[];
+
+	@ApiPropertyOptional({ format: 'date-time', nullable: true })
+	readAt!: string | null;
+
+	@ApiProperty({ minimum: 0 })
+	unreadCount!: number;
 }
 
 export class RideSettingUpdateDto {

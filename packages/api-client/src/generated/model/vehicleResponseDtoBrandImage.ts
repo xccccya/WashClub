@@ -6,4 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type RideControllerMessages200 = { [key: string]: unknown };
+/**
+ * @nullable
+ */
+export type VehicleResponseDtoBrandImage = { [key: string]: unknown } | null;

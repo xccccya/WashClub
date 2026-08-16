@@ -15,6 +15,9 @@ import {
 	RideListQueryDto,
 	RideLocationDto,
 	RideMessageCreateDto,
+	RideMessageDto,
+	RideMessageReadResultDto,
+	RideMessageUnreadCountDto,
 	RidePlaceQueryDto,
 	RideReverseGeocodeQueryDto,
 	RideRoutePreviewDto,
@@ -106,7 +109,7 @@ export class RideController {
 	}
 
 	@Post('driver/vehicles')
-	@RideOperation({ summary: '内部司机新增自己的车辆' })
+	@RideOperation({ summary: '内部司机新增或绑定账号已有车辆' })
 	async createDriverVehicle(@Headers() headers: Record<string, unknown>, @Body() dto: RideDriverVehicleCreateDto) {
 		const memberId = this.identity.memberId(headers);
 		const employee = await this.identity.enabledEmployee(memberId);
@@ -122,7 +125,7 @@ export class RideController {
 	}
 
 	@Delete('driver/vehicles/:id')
-	@RideOperation({ summary: '内部司机删除未产生行程的自有车辆' })
+	@RideOperation({ summary: '内部司机解绑未产生行程的出车车辆' })
 	async deleteDriverVehicle(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
 		const memberId = this.identity.memberId(headers);
 		await this.identity.enabledEmployee(memberId);
@@ -217,15 +220,31 @@ export class RideController {
 	}
 
 	@Get(':id/messages')
-	@RideOperation({ summary: '读取当前行程聊天记录' })
+	@ApiOperation({ summary: '读取当前行程聊天记录' })
+	@ApiOkResponse({ type: RideMessageDto, isArray: true })
 	messages(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
 		return this.rides.messages(id, this.identity.memberId(headers));
 	}
 
 	@Post(':id/messages')
-	@RideOperation({ summary: '发送行程聊天消息' })
+	@ApiOperation({ summary: '发送行程聊天消息' })
+	@ApiOkResponse({ type: RideMessageDto })
 	sendMessage(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number, @Body() dto: RideMessageCreateDto) {
 		return this.rides.sendMessage(id, this.identity.memberId(headers), dto);
+	}
+
+	@Get(':id/messages/unread-count')
+	@ApiOperation({ summary: '读取当前行程聊天未读数' })
+	@ApiOkResponse({ type: RideMessageUnreadCountDto })
+	messageUnreadCount(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
+		return this.rides.messageUnreadCount(id, this.identity.memberId(headers));
+	}
+
+	@Post(':id/messages/read')
+	@ApiOperation({ summary: '将当前行程中对方发送的消息标记为已读' })
+	@ApiOkResponse({ type: RideMessageReadResultDto })
+	markMessagesRead(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
+		return this.rides.markMessagesRead(id, this.identity.memberId(headers));
 	}
 
 	@Get(':id')

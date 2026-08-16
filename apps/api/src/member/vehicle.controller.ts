@@ -16,6 +16,7 @@ import {
     VehicleRebindLogsQueryDto,
     VehicleSearchQueryDto,
     VehicleUpdateDto,
+    VehicleResponseDto,
 } from './vehicle.dto.js';
 
 @ApiTags('vehicle')
@@ -210,6 +211,7 @@ export class VehicleController {
     // 我的车辆（会员端）
     @Get('me/list')
     @ApiOperation({ summary: '我的车辆列表（会员端）' })
+    @ApiOkResponse({ type: VehicleResponseDto, isArray: true })
     async myVehicles(@Headers() headers: Record<string, string>) {
         const token = extractBearerTokenFromHeaders(headers as any) || '';
         const memberId = await this.service.getMemberIdFromToken(token);

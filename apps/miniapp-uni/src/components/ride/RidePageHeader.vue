@@ -1,6 +1,6 @@
 <template>
 	<view class="header" :style="headerStyle">
-		<view class="back" role="button" aria-label="返回" @tap="goBack">‹</view>
+		<view class="back" role="button" aria-label="返回" @tap="goBack"><image :src="backIcon" mode="aspectFit" /></view>
 		<view class="copy"><text class="title">{{ title }}</text><text v-if="subtitle" class="subtitle">{{ subtitle }}</text></view>
 		<slot />
 	</view>
@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import backIcon from '../../static/icons/ride-back.svg';
 import { useSafeArea } from '../../utils/safe-area';
 defineProps<{ title: string; subtitle?: string }>();
 const safeArea = useSafeArea();
@@ -19,5 +20,5 @@ function goBack(){
 </script>
 
 <style scoped>
-.header{display:flex;align-items:center;gap:16rpx;padding-right:24rpx;padding-bottom:20rpx;padding-left:24rpx;box-sizing:border-box}.back{display:grid;place-items:center;width:64rpx;height:64rpx;border-radius:20rpx;background:rgba(255,255,255,.82);box-shadow:0 8rpx 24rpx rgba(15,23,42,.1);font-size:50rpx;line-height:1}.copy{min-width:0;flex:1}.title,.subtitle{display:block}.title{font-size:36rpx;font-weight:850;color:#0f172a}.subtitle{margin-top:4rpx;color:#64748b;font-size:22rpx}
+.header{display:flex;align-items:center;gap:16rpx;padding-right:24rpx;padding-bottom:20rpx;padding-left:24rpx;box-sizing:border-box}.back{display:grid;place-items:center;width:64rpx;height:64rpx;border-radius:20rpx;background:rgba(255,255,255,.82);box-shadow:0 8rpx 24rpx rgba(15,23,42,.1)}.back image{width:34rpx;height:34rpx}.copy{min-width:0;flex:1}.title,.subtitle{display:block}.title{font-size:36rpx;font-weight:850;color:#0f172a}.subtitle{margin-top:4rpx;color:#64748b;font-size:22rpx}
 </style>

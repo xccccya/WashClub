@@ -6,4 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type RideControllerSendMessage200 = { [key: string]: unknown };
+export interface RideMessageUnreadCountDto {
+  /** @minimum 0 */
+  count: number;
+}

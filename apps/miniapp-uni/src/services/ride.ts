@@ -16,6 +16,8 @@ import {
 	rideControllerDriverVehicles,
 	rideControllerFinalize,
 	rideControllerList,
+	rideControllerMarkMessagesRead,
+	rideControllerMessageUnreadCount,
 	rideControllerMessages,
 	rideControllerPlaces,
 	rideControllerReverseGeocode,
@@ -26,7 +28,9 @@ import {
 	rideControllerStart,
 	rideControllerUpdateDriverVehicle,
 	rideControllerDeleteDriverVehicle,
+	vehicleControllerMyVehicles,
 } from '@wash/api-client';
+import type { RideMessageDto, RideMessageReadResultDto, RideMessageUnreadCountDto, VehicleResponseDto } from '@wash/api-client';
 
 const value = async <T>(promise: Promise<unknown>) => (await promise as unknown) as T;
 
@@ -41,12 +45,15 @@ export const rideApi = {
 	cancel: (id: number, reason?: string) => value<any>(rideControllerCancel(id, { reason })),
 	contact: (id: number) => value<any>(rideControllerContact(id)),
 	busyDriverContact: (memberId: number) => value<any>(rideControllerBusyDriverContact(memberId)),
-	messages: (id: number) => value<any[]>(rideControllerMessages(id)),
-	sendMessage: (id: number, content: string) => value<any>(rideControllerSendMessage(id, { content })),
+	messages: (id: number) => value<RideMessageDto[]>(rideControllerMessages(id)),
+	messageUnreadCount: (id: number) => value<RideMessageUnreadCountDto>(rideControllerMessageUnreadCount(id)),
+	markMessagesRead: (id: number) => value<RideMessageReadResultDto>(rideControllerMarkMessagesRead(id)),
+	sendMessage: (id: number, content: string) => value<RideMessageDto>(rideControllerSendMessage(id, { content })),
 	driverProfile: () => value<any>(rideControllerDriverProfile()),
 	driverStatus: (status: 'OFFLINE' | 'AVAILABLE' | 'BUSY') => value<any>(rideControllerDriverStatus({ status } as any)),
 	driverOrders: (params: any = {}) => value<any>(rideControllerDriverOrders(params)),
 	driverVehicles: () => value<any[]>(rideControllerDriverVehicles()),
+	memberVehicles: () => value<VehicleResponseDto[]>(vehicleControllerMyVehicles()),
 	createDriverVehicle: (payload: any) => value<any>(rideControllerCreateDriverVehicle(payload)),
 	updateDriverVehicle: (id: number, payload: any) => value<any>(rideControllerUpdateDriverVehicle(id, payload)),
 	deleteDriverVehicle: (id: number) => value<any>(rideControllerDeleteDriverVehicle(id)),

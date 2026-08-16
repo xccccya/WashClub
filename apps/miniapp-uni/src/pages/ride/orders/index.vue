@@ -40,6 +40,7 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import RidePageHeader from '../../../components/ride/RidePageHeader.vue';
 import { rideApi } from '../../../services/ride';
 import vehicleLocationIcon from '../../../static/icons/ride-vehicle-location.svg';
+import { formatRidePassengerLabel } from '../../../utils/ride-format';
 
 type FilterValue = 'all' | 'active' | 'completed' | 'cancelled';
 const filters: Array<{ label: string; value: FilterValue }> = [
@@ -72,7 +73,7 @@ function money(value:any){return Number(value||0).toFixed(2)}
 function refundCompleted(item:any){const paid=Number(item?.order?.payAmount||0);const target=item?.finalAmount==null?paid:Math.max(0,paid-Number(item.finalAmount||0));return target>0&&Number(item?.order?.refundedAmount||0)+0.000001>=target}
 function statusText(item:any){const value=item?.status;if(value==='REFUND_PENDING'&&refundCompleted(item))return item?.finalAmount==null?'已退款':'已完成（差额已退）';if(value==='CANCELLED'&&Number(item?.order?.refundedAmount||0)>0)return'已取消（已退款）';if(value==='NO_DRIVER'&&Number(item?.order?.refundedAmount||0)>0)return'无司机（已退款）';return({PREPAY_PENDING:'待预付',DISPATCHING:'等待司机接单',TO_PICKUP:'司机前往上车点',ARRIVED_PICKUP:'司机已到达',IN_TRIP:'行程中',ARRIVED_DESTINATION:'已到目的地',FARE_PENDING:'费用确认',SUPPLEMENT_PENDING:'待补款',REFUND_PENDING:'退款处理中',COMPLETED:'已完成',CANCELLED:'已取消',NO_DRIVER:'暂无司机'}as any)[value]||value}
 function statusTone(value:string){return activeStatuses.includes(value)?'active':value==='COMPLETED'?'done':'muted'}
-function counterpartText(item:any){if(driver.value)return`乘客${item.passenger?.phoneLastFour||''}`;return item.driverEmployee?.name||item.driverMember?.name||(item.status==='DISPATCHING'?'正在匹配司机':'未匹配司机')}
+function counterpartText(item:any){if(driver.value)return formatRidePassengerLabel(item.passenger?.phoneLastFour);return item.driverEmployee?.name||item.driverMember?.name||(item.status==='DISPATCHING'?'正在匹配司机':'未匹配司机')}
 onLoad((query:any)=>{driver.value=query?.driver==='1'});
 onShow(load);
 onPullDownRefresh(load);

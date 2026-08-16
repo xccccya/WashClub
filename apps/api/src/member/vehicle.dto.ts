@@ -135,6 +135,53 @@ export class VehicleBaseDto {
 	isDefault?: boolean;
 }
 
+export class VehicleResponseDto {
+	@ApiProperty({ example: 1 })
+	id!: number;
+
+	@ApiProperty({ format: 'date-time' })
+	createdAt!: string;
+
+	@ApiProperty({ format: 'date-time' })
+	updatedAt!: string;
+
+	@ApiProperty({ example: '川A12345' })
+	plateNumber!: string;
+
+	@ApiPropertyOptional({ nullable: true })
+	vin!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	brand!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	series!: string | null;
+
+	@ApiProperty()
+	typeMain!: string;
+
+	@ApiPropertyOptional({ nullable: true })
+	typeSub!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	color!: string | null;
+
+	@ApiProperty()
+	isDefault!: boolean;
+
+	@ApiPropertyOptional({ nullable: true })
+	brandImage!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	seriesImage!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	memberId!: number | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	groupId!: number | null;
+}
+
 export class VehicleCreateForMemberDto extends VehicleBaseDto {}
 
 export class VehicleCreateForMemberByPhoneDto extends VehicleBaseDto {
