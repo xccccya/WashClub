@@ -72,7 +72,12 @@ function markerContent(driver: Driver) {
 	const name = escapeHtml(driver.driverName || `司机${driver.memberId || ''}`);
 	const plate = escapeHtml(driver.vehicle?.plateNumber || driver.currentVehicle?.vehicle?.plateNumber || '未选车辆');
 	const lastLocation = driver.lastLocationAt ? new Date(driver.lastLocationAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '暂无定位';
-	return `<div class="ride-driver-marker" style="--ride-color:${color}"><img class="ride-driver-marker__icon" src="${vehicleLocationIcon}" alt="车辆位置"/><strong>${name} · ${statusLabel}</strong><small>${plate} · ${escapeHtml(lastLocation)}</small></div>`;
+	return `<div class="ride-driver-card" style="--ride-color:${color}"><span class="ride-driver-card__status${status === 'OFFLINE' ? '' : ' is-pulsing'}"></span><strong>${name} · ${statusLabel}</strong><small>${plate} · ${escapeHtml(lastLocation)}</small></div>`;
+}
+
+function pointContent(kind: 'origin' | 'destination') {
+	const label = kind === 'origin' ? '起' : '终';
+	return `<div class="ride-route-point ride-route-point--${kind}"><span>${label}</span></div>`;
 }
 
 function render() {
@@ -81,12 +86,15 @@ function render() {
 	overlays = [];
 	for (const driver of props.drivers) {
 		if (!Number.isFinite(Number(driver.longitude)) || !Number.isFinite(Number(driver.latitude))) continue;
-		const marker = new AMap.Marker({ position: [Number(driver.longitude), Number(driver.latitude)], content: markerContent(driver), offset: new AMap.Pixel(-87, -48), zIndex: 120 });
-		marker.on('click', () => emit('driverClick', driver));
-		overlays.push(marker);
+		const position = [Number(driver.longitude), Number(driver.latitude)];
+		const vehicleMarker = new AMap.Marker({ position, content: `<img class="ride-driver-location-icon" src="${vehicleLocationIcon}" alt="车辆位置"/>`, offset: new AMap.Pixel(-21, -42), zIndex: 140 });
+		const infoMarker = new AMap.Marker({ position, content: markerContent(driver), offset: new AMap.Pixel(-92, -93), zIndex: 130 });
+		vehicleMarker.on('click', () => emit('driverClick', driver));
+		infoMarker.on('click', () => emit('driverClick', driver));
+		overlays.push(vehicleMarker, infoMarker);
 	}
-	if (props.origin) overlays.push(new AMap.Marker({ position: [props.origin.longitude, props.origin.latitude], title: props.origin.address || '起点', label: { content: '起点', direction: 'top' } }));
-	if (props.destination) overlays.push(new AMap.Marker({ position: [props.destination.longitude, props.destination.latitude], title: props.destination.address || '终点', label: { content: '终点', direction: 'top' } }));
+	if (props.origin) overlays.push(new AMap.Marker({ position: [props.origin.longitude, props.origin.latitude], title: props.origin.address || '起点', content: pointContent('origin'), offset: new AMap.Pixel(-19, -46), zIndex: 125 }));
+	if (props.destination) overlays.push(new AMap.Marker({ position: [props.destination.longitude, props.destination.latitude], title: props.destination.address || '终点', content: pointContent('destination'), offset: new AMap.Pixel(-19, -46), zIndex: 125 }));
 	if (props.plannedPoints.length > 1) overlays.push(new AMap.Polyline({ path: props.plannedPoints.map((p) => [p.longitude, p.latitude]), strokeColor: '#2563eb', strokeWeight: 7, strokeOpacity: 0.8, showDir: true, lineJoin: 'round' }));
 	if (props.actualPoints.length > 1) overlays.push(new AMap.Polyline({ path: props.actualPoints.map((p) => [p.longitude, p.latitude]), strokeColor: '#ef4444', strokeWeight: 5, strokeOpacity: 0.9, strokeStyle: 'dashed', lineJoin: 'round' }));
 	if (overlays.length) {
@@ -114,7 +122,13 @@ onBeforeUnmount(() => {
 .ride-map-legend span { display:flex; align-items:center; gap:6px; }
 .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }.dot.available{background:#16a34a}.dot.busy{background:#f59e0b}.dot.offline{background:#64748b}
 .line { width:22px; border-top:4px solid; display:inline-block; }.line.planned{border-color:#2563eb}.line.actual{border-color:#ef4444;border-top-style:dashed}
-:global(.ride-driver-marker){min-width:174px;display:grid;grid-template-columns:32px 1fr;column-gap:7px;align-items:center;padding:7px 9px;border-radius:10px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.2);border:1px solid color-mix(in srgb,var(--ride-color) 35%,#fff)}
-:global(.ride-driver-marker__icon){grid-row:1/3;width:30px;height:30px;filter:drop-shadow(0 2px 3px rgba(15,23,42,.18))}
-:global(.ride-driver-marker strong){font-size:12px;color:#0f172a;white-space:nowrap}:global(.ride-driver-marker small){font-size:10px;color:#64748b;white-space:nowrap}
+:global(.ride-driver-location-icon){display:block;width:42px;height:42px;filter:drop-shadow(0 4px 7px rgba(15,23,42,.28))}
+:global(.ride-driver-card){min-width:184px;display:grid;grid-template-columns:12px 1fr;column-gap:8px;align-items:center;padding:8px 10px;border-radius:11px;background:rgba(255,255,255,.97);box-shadow:0 6px 20px rgba(15,23,42,.2);border:1px solid color-mix(in srgb,var(--ride-color) 30%,#fff)}
+:global(.ride-driver-card__status){grid-row:1/3;width:10px;height:10px;border-radius:50%;background:var(--ride-color);box-shadow:0 0 0 4px color-mix(in srgb,var(--ride-color) 15%,transparent)}
+:global(.ride-driver-card__status.is-pulsing){animation:ride-admin-pulse 1.8s ease-out infinite}
+:global(.ride-driver-card strong){font-size:12px;color:#0f172a;white-space:nowrap}:global(.ride-driver-card small){font-size:10px;color:#64748b;white-space:nowrap}
+:global(.ride-route-point){position:relative;display:grid;width:38px;height:38px;place-items:center;border:3px solid #fff;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);box-shadow:0 5px 12px rgba(15,23,42,.24);color:#fff;font-weight:800}
+:global(.ride-route-point span){transform:rotate(45deg)}
+:global(.ride-route-point--origin){background:#16a34a}:global(.ride-route-point--destination){background:#ef4444}
+@keyframes ride-admin-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ride-color) 40%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
 </style>

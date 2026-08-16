@@ -149,7 +149,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		const where: Prisma.RideTripWhereInput = {
 			OR: [
 				{ driverMemberId: memberId },
-				{ status: 'DISPATCHING', dispatchRejections: { none: { driverMemberId: memberId } } },
+				{ status: 'DISPATCHING' },
 			],
 		};
 		if (query.status) Object.assign(where, { status: query.status as any });
@@ -163,7 +163,12 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	async detail(rideTripId: number, actor: { memberId?: number; admin?: boolean }) {
 		const trip = await this.prisma.rideTrip.findUnique({ where: { id: rideTripId }, include: this.tripInclude() });
 		if (!trip) throw new BadRequestException('行程不存在');
-		if (!actor.admin && actor.memberId !== trip.passengerMemberId && actor.memberId !== trip.driverMemberId) throw new ForbiddenException('无权访问该行程');
+		if (!actor.admin && actor.memberId !== trip.passengerMemberId && actor.memberId !== trip.driverMemberId) {
+			const driverCandidate = trip.status === 'DISPATCHING' && actor.memberId
+				? await this.prisma.employee.findFirst({ where: { memberId: actor.memberId, enabled: true }, select: { id: true } })
+				: null;
+			if (!driverCandidate) throw new ForbiddenException('无权访问该行程');
+		}
 		return this.serialize(trip);
 	}
 
@@ -254,7 +259,8 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		return { ok: true };
 	}
 
-	async arrivePickup(id: number, driverMemberId: number) {
+	async arrivePickup(id: number, driverMemberId: number, confirmFarAway = false) {
+		await this.assertArrivalDistance(id, driverMemberId, 'origin', confirmFarAway);
 		return this.transition(id, driverMemberId, 'TO_PICKUP', 'ARRIVED_PICKUP', { arrivedPickupAt: new Date() });
 	}
 
@@ -266,7 +272,8 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		return this.transition(id, driverMemberId, 'ARRIVED_PICKUP', 'IN_TRIP', { passengerPhoneVerifiedAt: new Date(), startedAt: new Date() });
 	}
 
-	async arriveDestination(id: number, driverMemberId: number) {
+	async arriveDestination(id: number, driverMemberId: number, confirmFarAway = false) {
+		await this.assertArrivalDistance(id, driverMemberId, 'destination', confirmFarAway);
 		return this.transition(id, driverMemberId, 'IN_TRIP', 'ARRIVED_DESTINATION', { arrivedDestinationAt: new Date() });
 	}
 
@@ -410,6 +417,38 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		if (!trip) throw new BadRequestException('行程不存在');
 		const locations = await this.prisma.rideLocation.findMany({ where: { rideTripId: id }, orderBy: { createdAt: 'asc' }, take: 10000 });
 		return this.serialize({ ...trip, locations });
+	}
+
+	async adminMessages(id: number) {
+		const trip = await this.prisma.rideTrip.findUnique({ where: { id }, select: { id: true } });
+		if (!trip) throw new BadRequestException('行程不存在');
+		const rows = await this.prisma.rideMessage.findMany({
+			where: { rideTripId: id },
+			include: { senderMember: { select: { id: true, name: true, avatarUrl: true } } },
+			orderBy: { createdAt: 'asc' },
+			take: 500,
+		});
+		return rows.map((row) => this.serialize(row));
+	}
+
+	private async assertArrivalDistance(id: number, driverMemberId: number, target: 'origin' | 'destination', confirmed: boolean) {
+		const [trip, profile] = await Promise.all([
+			this.ownedDriverTrip(id, driverMemberId),
+			this.prisma.rideDriverProfile.findUnique({ where: { memberId: driverMemberId }, select: { longitude: true, latitude: true, lastLocationAt: true } }),
+		]);
+		if (!profile?.lastLocationAt || profile.longitude == null || profile.latitude == null) throw new ConflictException('请先开启定位并更新当前位置');
+		if (Date.now() - profile.lastLocationAt.getTime() > 30_000) throw new ConflictException('当前位置已过期，请重新定位后再确认到达');
+		const targetLatitude = Number(target === 'origin' ? trip.originLatitude : trip.destinationLatitude);
+		const targetLongitude = Number(target === 'origin' ? trip.originLongitude : trip.destinationLongitude);
+		const distanceMeters = Math.round(this.distance(Number(profile.latitude), Number(profile.longitude), targetLatitude, targetLongitude));
+		if (distanceMeters > 500 && !confirmed) {
+			throw new ConflictException({
+				message: `当前位置距离${target === 'origin' ? '上车点' : '目的地'}约 ${distanceMeters} 米，请确认是否仍要标记到达`,
+				code: 'RIDE_ARRIVAL_TOO_FAR',
+				distanceMeters,
+				target,
+			});
+		}
 	}
 
 	private async transition(id: number, driverMemberId: number, from: any, to: any, data: Record<string, unknown>) {

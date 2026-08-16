@@ -85,7 +85,7 @@ export class RideAmapService {
 		};
 	}
 
-	async inputTips(keywords: string, city?: string) {
+	async inputTips(keywords: string, city?: string, origin?: { longitude: number; latitude: number }) {
 		const value = String(keywords || '').trim();
 		if (!value) return [];
 		if (!this.key) throw new ServiceUnavailableException('地点搜索服务未配置，请联系管理员');
@@ -94,14 +94,51 @@ export class RideAmapService {
 		url.searchParams.set('keywords', value);
 		url.searchParams.set('datatype', 'poi');
 		if (city) url.searchParams.set('city', city);
+		if (origin) {
+			this.assertCoordinate(origin.longitude, origin.latitude);
+			url.searchParams.set('location', `${origin.longitude},${origin.latitude}`);
+		}
 		const data = await this.fetchJsonWithRetry(url);
 		if (String(data?.status) !== '1') throw new BadGatewayException('地点搜索失败，请稍后重试');
-		return (Array.isArray(data?.tips) ? data.tips : []).flatMap((tip: any) => {
+		const results = (Array.isArray(data?.tips) ? data.tips : []).flatMap((tip: any) => {
 			if (typeof tip?.location !== 'string') return [];
 			const [longitude, latitude] = tip.location.split(',').map(Number);
 			if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return [];
-			return [{ id: String(tip.id || ''), name: String(tip.name || ''), address: String(tip.address || ''), district: String(tip.district || ''), longitude, latitude }];
+			const distanceMeters = origin ? Math.round(this.distance(origin.latitude, origin.longitude, latitude, longitude)) : undefined;
+			return [{ id: String(tip.id || ''), name: String(tip.name || ''), address: String(tip.address || ''), district: String(tip.district || ''), longitude, latitude, distanceMeters }];
 		});
+		return origin ? results.sort((a: any, b: any) => Number(a.distanceMeters || 0) - Number(b.distanceMeters || 0)) : results;
+	}
+
+	async reverseGeocode(longitude: number, latitude: number) {
+		this.assertCoordinate(longitude, latitude);
+		if (!this.key) throw new ServiceUnavailableException('地点服务未配置，请联系管理员');
+		const url = new URL('https://restapi.amap.com/v3/geocode/regeo');
+		url.searchParams.set('key', this.key);
+		url.searchParams.set('location', `${longitude},${latitude}`);
+		url.searchParams.set('extensions', 'base');
+		url.searchParams.set('radius', '500');
+		const data = await this.fetchJsonWithRetry(url);
+		if (String(data?.status) !== '1') throw new BadGatewayException('地图选点解析失败，请稍后重试');
+		const regeocode = data?.regeocode || {};
+		const component = regeocode.addressComponent || {};
+		const formattedAddress = String(regeocode.formatted_address || '').trim();
+		return {
+			id: '',
+			name: String(component.neighborhood?.name || component.building?.name || formattedAddress || '地图选点'),
+			address: formattedAddress || '地图选点',
+			district: String(component.district || ''),
+			longitude,
+			latitude,
+		};
+	}
+
+	private distance(lat1: number, lng1: number, lat2: number, lng2: number) {
+		const rad = (value: number) => (value * Math.PI) / 180;
+		const dLat = rad(lat2 - lat1);
+		const dLng = rad(lng2 - lng1);
+		const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+		return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 	}
 
 	private assertCoordinate(longitude: number, latitude: number) {

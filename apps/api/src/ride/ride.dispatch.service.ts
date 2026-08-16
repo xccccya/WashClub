@@ -5,6 +5,15 @@ import { RideRealtimeService } from './ride.realtime.service.js';
 const DEFAULT_SETTING = {
 	dispatchRadiusMeters: 3000,
 	dispatchTimeoutSeconds: 90,
+	baseFare: 0,
+	includedDistanceKm: 0,
+	includedDurationMinutes: 0,
+	pricePerKm: 0,
+	pricePerMinute: 0,
+	minimumFare: 0,
+	allowParkingFee: false,
+	allowOtherFee: false,
+	chatRetentionDays: 30,
 	locationIntervalSeconds: 5,
 };
 

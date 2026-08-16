@@ -9577,10 +9577,28 @@
           },
           {
             "name": "city",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "longitude",
+            "required": false,
+            "in": "query",
+            "description": "当前位置经度，用于就近排序",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "latitude",
+            "required": false,
+            "in": "query",
+            "description": "当前位置纬度，用于就近排序",
+            "schema": {
+              "type": "number"
             }
           }
         ],
@@ -9603,6 +9621,51 @@
           }
         ],
         "summary": "高德地点输入提示（服务端代理）",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
+    "/rides/places/reverse": {
+      "get": {
+        "operationId": "RideController_reverseGeocode",
+        "parameters": [
+          {
+            "name": "longitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "latitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "地图选点逆地理编码（服务端代理）",
         "tags": [
           "rides"
         ]
@@ -10166,6 +10229,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideArrivalDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "",
@@ -10250,6 +10323,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideArrivalDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "",
@@ -10757,6 +10840,43 @@
           }
         ],
         "summary": "后台读取行程起终点、规划路线和实际轨迹",
+        "tags": [
+          "system-rides"
+        ]
+      }
+    },
+    "/system/rides/{id}/messages": {
+      "get": {
+        "operationId": "RideAdminController_messages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台读取行程聊天记录",
         "tags": [
           "system-rides"
         ]
@@ -14329,6 +14449,15 @@
           "origin",
           "destination"
         ]
+      },
+      "RideArrivalDto": {
+        "type": "object",
+        "properties": {
+          "confirmFarAway": {
+            "type": "boolean",
+            "description": "距离目标点超过 500 米时，司机二次确认后传 true"
+          }
+        }
       },
       "RideStartDto": {
         "type": "object",

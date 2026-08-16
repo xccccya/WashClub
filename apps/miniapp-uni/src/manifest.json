@@ -17,7 +17,7 @@
         "requiredBackgroundModes" : [ "location" ],
         "permission" : {
             "scope.userLocation" : {
-                "desc" : "用于呼叫内部司机、展示附近司机，以及内部司机在行程中持续更新位置和路线"
+                "desc" : "用于内部叫车出行使用"
             }
         }
     },

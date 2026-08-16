@@ -8,5 +8,13 @@
 
 export type RideControllerPlacesParams = {
 keywords: string;
-city: string;
+city?: string;
+/**
+ * 当前位置经度，用于就近排序
+ */
+longitude?: number;
+/**
+ * 当前位置纬度，用于就近排序
+ */
+latitude?: number;
 };

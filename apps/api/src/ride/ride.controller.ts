@@ -5,6 +5,7 @@ import { RequirePerm } from '../auth/perm.decorator.js';
 import {
 	RideAvailabilityQueryDto,
 	RideAdminListQueryDto,
+	RideArrivalDto,
 	RideCancelDto,
 	RideCreateDto,
 	RideDriverStatusDto,
@@ -14,6 +15,8 @@ import {
 	RideListQueryDto,
 	RideLocationDto,
 	RideMessageCreateDto,
+	RidePlaceQueryDto,
+	RideReverseGeocodeQueryDto,
 	RideRoutePreviewDto,
 	RideSettingUpdateDto,
 	RideStartDto,
@@ -50,9 +53,17 @@ export class RideController {
 
 	@Get('places/tips')
 	@RideOperation({ summary: '高德地点输入提示（服务端代理）' })
-	places(@Headers() headers: Record<string, unknown>, @Query('keywords') keywords: string, @Query('city') city?: string) {
+	places(@Headers() headers: Record<string, unknown>, @Query() query: RidePlaceQueryDto) {
 		this.identity.memberId(headers);
-		return this.amap.inputTips(keywords, city);
+		const origin = query.longitude != null && query.latitude != null ? { longitude: query.longitude, latitude: query.latitude } : undefined;
+		return this.amap.inputTips(query.keywords, query.city, origin);
+	}
+
+	@Get('places/reverse')
+	@RideOperation({ summary: '地图选点逆地理编码（服务端代理）' })
+	reverseGeocode(@Headers() headers: Record<string, unknown>, @Query() query: RideReverseGeocodeQueryDto) {
+		this.identity.memberId(headers);
+		return this.amap.reverseGeocode(query.longitude, query.latitude);
 	}
 
 	@Post('routes/preview')
@@ -163,10 +174,10 @@ export class RideController {
 
 	@Post(':id/arrive-pickup')
 	@RideOperation({ summary: '司机到达乘客上车点' })
-	async arrivePickup(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
+	async arrivePickup(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number, @Body() dto?: RideArrivalDto) {
 		const memberId = this.identity.memberId(headers);
 		await this.identity.enabledEmployee(memberId);
-		return this.rides.arrivePickup(id, memberId);
+		return this.rides.arrivePickup(id, memberId, dto?.confirmFarAway);
 	}
 
 	@Post(':id/start')
@@ -179,10 +190,10 @@ export class RideController {
 
 	@Post(':id/arrive-destination')
 	@RideOperation({ summary: '司机到达目的地' })
-	async arriveDestination(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number) {
+	async arriveDestination(@Headers() headers: Record<string, unknown>, @Param('id', ParseIntPipe) id: number, @Body() dto?: RideArrivalDto) {
 		const memberId = this.identity.memberId(headers);
 		await this.identity.enabledEmployee(memberId);
-		return this.rides.arriveDestination(id, memberId);
+		return this.rides.arriveDestination(id, memberId, dto?.confirmFarAway);
 	}
 
 	@Post(':id/finalize')
@@ -264,6 +275,13 @@ export class RideAdminController {
 	@RideOperation({ summary: '后台读取行程起终点、规划路线和实际轨迹' })
 	track(@Param('id', ParseIntPipe) id: number) {
 		return this.rides.adminTrack(id);
+	}
+
+	@Get('rides/:id/messages')
+	@RequirePerm('ride-orders')
+	@RideOperation({ summary: '后台读取行程聊天记录' })
+	messages(@Param('id', ParseIntPipe) id: number) {
+		return this.rides.adminMessages(id);
 	}
 
 	@Get('ride-drivers')

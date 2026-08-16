@@ -50,6 +50,43 @@ export class RideAvailabilityQueryDto {
 	latitude!: number;
 }
 
+export class RidePlaceQueryDto {
+	@ApiProperty()
+	@IsString()
+	@Length(1, 100)
+	keywords!: string;
+
+	@ApiPropertyOptional()
+	@IsOptional()
+	@IsString()
+	@MaxLength(50)
+	city?: string;
+
+	@ApiPropertyOptional({ description: '当前位置经度，用于就近排序' })
+	@IsOptional()
+	@Type(() => Number)
+	@IsLongitude()
+	longitude?: number;
+
+	@ApiPropertyOptional({ description: '当前位置纬度，用于就近排序' })
+	@IsOptional()
+	@Type(() => Number)
+	@IsLatitude()
+	latitude?: number;
+}
+
+export class RideReverseGeocodeQueryDto {
+	@ApiProperty()
+	@Type(() => Number)
+	@IsLongitude()
+	longitude!: number;
+
+	@ApiProperty()
+	@Type(() => Number)
+	@IsLatitude()
+	latitude!: number;
+}
+
 export class RideRoutePreviewDto {
 	@ApiProperty({ type: RidePointDto })
 	@ValidateNested()
@@ -225,6 +262,13 @@ export class RideStartDto {
 	@IsString()
 	@Length(4, 4)
 	phoneLastFour!: string;
+}
+
+export class RideArrivalDto {
+	@ApiPropertyOptional({ description: '距离目标点超过 500 米时，司机二次确认后传 true' })
+	@IsOptional()
+	@IsBoolean()
+	confirmFarAway?: boolean;
 }
 
 export enum RideExtraFeeDtoType {

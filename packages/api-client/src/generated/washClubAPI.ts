@@ -122,9 +122,11 @@ import type {
   RideAdminControllerDrivers200,
   RideAdminControllerList200,
   RideAdminControllerListParams,
+  RideAdminControllerMessages200,
   RideAdminControllerSetting200,
   RideAdminControllerTrack200,
   RideAdminControllerUpdateSetting200,
+  RideArrivalDto,
   RideCancelDto,
   RideControllerAccept200,
   RideControllerArriveDestination200,
@@ -151,6 +153,8 @@ import type {
   RideControllerPlacesParams,
   RideControllerReject200,
   RideControllerReportLocation200,
+  RideControllerReverseGeocode200,
+  RideControllerReverseGeocodeParams,
   RideControllerRoutePreview200,
   RideControllerSendMessage200,
   RideControllerStart200,
@@ -8355,6 +8359,37 @@ export const rideControllerPlaces = async (params: RideControllerPlacesParams, o
 
 
 /**
+ * @summary 地图选点逆地理编码（服务端代理）
+ */
+export const getRideControllerReverseGeocodeUrl = (params: RideControllerReverseGeocodeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/rides/places/reverse?${stringifiedParams}` : `/rides/places/reverse`
+}
+
+export const rideControllerReverseGeocode = async (params: RideControllerReverseGeocodeParams, options?: RequestInit): Promise<RideControllerReverseGeocode200> => {
+
+  return createHttpClient<RideControllerReverseGeocode200>(getRideControllerReverseGeocodeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
  * @summary 预览行程路线和后端计价结果
  */
 export const getRideControllerRoutePreviewUrl = () => {
@@ -8722,14 +8757,16 @@ export const getRideControllerArrivePickupUrl = (id: number,) => {
   return `/rides/${id}/arrive-pickup`
 }
 
-export const rideControllerArrivePickup = async (id: number, options?: RequestInit): Promise<RideControllerArrivePickup200> => {
+export const rideControllerArrivePickup = async (id: number,
+    rideArrivalDto: RideArrivalDto, options?: RequestInit): Promise<RideControllerArrivePickup200> => {
 
   return createHttpClient<RideControllerArrivePickup200>(getRideControllerArrivePickupUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideArrivalDto,)
   }
 );}
 
@@ -8772,14 +8809,16 @@ export const getRideControllerArriveDestinationUrl = (id: number,) => {
   return `/rides/${id}/arrive-destination`
 }
 
-export const rideControllerArriveDestination = async (id: number, options?: RequestInit): Promise<RideControllerArriveDestination200> => {
+export const rideControllerArriveDestination = async (id: number,
+    rideArrivalDto: RideArrivalDto, options?: RequestInit): Promise<RideControllerArriveDestination200> => {
 
   return createHttpClient<RideControllerArriveDestination200>(getRideControllerArriveDestinationUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideArrivalDto,)
   }
 );}
 
@@ -9053,6 +9092,30 @@ export const getRideAdminControllerTrackUrl = (id: number,) => {
 export const rideAdminControllerTrack = async (id: number, options?: RequestInit): Promise<RideAdminControllerTrack200> => {
 
   return createHttpClient<RideAdminControllerTrack200>(getRideAdminControllerTrackUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台读取行程聊天记录
+ */
+export const getRideAdminControllerMessagesUrl = (id: number,) => {
+
+
+
+
+  return `/system/rides/${id}/messages`
+}
+
+export const rideAdminControllerMessages = async (id: number, options?: RequestInit): Promise<RideAdminControllerMessages200> => {
+
+  return createHttpClient<RideAdminControllerMessages200>(getRideAdminControllerMessagesUrl(id),
   {
     ...options,
     method: 'GET'

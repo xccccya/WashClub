@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, OnModuleDestroy, On
 import { PrismaService } from '../prisma.service.js';
 import { RideAmapService, type RideRoute } from './ride.amap.service.js';
 import { RideDispatchService } from './ride.dispatch.service.js';
+import { RideFareService } from './ride.fare.service.js';
 import { RideLocationDto } from './ride.dto.js';
 import { RideRealtimeService } from './ride.realtime.service.js';
 
@@ -13,6 +14,7 @@ export class RideLocationService implements OnModuleInit, OnModuleDestroy {
 		private readonly prisma: PrismaService,
 		private readonly amap: RideAmapService,
 		private readonly dispatch: RideDispatchService,
+		private readonly fare: RideFareService,
 		private readonly realtime: RideRealtimeService,
 	) {}
 
@@ -75,7 +77,7 @@ export class RideLocationService implements OnModuleInit, OnModuleDestroy {
 		const location = { rideTripId: activeTrip?.id || null, driverMemberId, longitude: dto.longitude, latitude: dto.latitude, heading: dto.heading ?? null, speedMetersPerSecond: dto.speedMetersPerSecond ?? null, at: new Date().toISOString() };
 		if (!activeTrip) {
 			this.realtime.toAdmins('ride:driver:availability', location);
-			return { location, route: null };
+			return { location, route: null, meter: null };
 		}
 		this.realtime.toMember(activeTrip.passengerMemberId, 'ride:location', location);
 		let route: RideRoute | null = null;
@@ -91,7 +93,31 @@ export class RideLocationService implements OnModuleInit, OnModuleDestroy {
 		} catch {
 			// 路线失败不能阻塞位置上报；客户端保留上一条路线并展示降级提示。
 		}
-		return { location, route };
+		let meter: Record<string, unknown> | null = null;
+		if (activeTrip.status === 'IN_TRIP' && activeTrip.startedAt) {
+			const locations = await this.prisma.rideLocation.findMany({
+				where: { rideTripId: activeTrip.id, createdAt: { gte: activeTrip.startedAt } },
+				orderBy: { createdAt: 'asc' },
+				select: { longitude: true, latitude: true },
+			});
+			let distanceMeters = 0;
+			for (let index = 1; index < locations.length; index += 1) {
+				distanceMeters += this.distance(Number(locations[index - 1].latitude), Number(locations[index - 1].longitude), Number(locations[index].latitude), Number(locations[index].longitude));
+			}
+			const durationSeconds = Math.max(0, Math.round((Date.now() - activeTrip.startedAt.getTime()) / 1000));
+			const calculated = this.fare.calculate(setting, Math.round(distanceMeters), durationSeconds, Number(activeTrip.estimatedTollAmount || 0));
+			meter = { distanceMeters: Math.round(distanceMeters), durationSeconds, ...calculated };
+			this.realtime.toMembers([activeTrip.passengerMemberId, driverMemberId], 'ride:meter', { rideTripId: activeTrip.id, meter });
+		}
+		return { location, route, meter };
+	}
+
+	private distance(lat1: number, lng1: number, lat2: number, lng2: number) {
+		const rad = (value: number) => (value * Math.PI) / 180;
+		const dLat = rad(lat2 - lat1);
+		const dLng = rad(lng2 - lng1);
+		const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+		return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 	}
 
 	private async markStaleDriversOffline() {

@@ -18,6 +18,7 @@ import {
 	rideControllerList,
 	rideControllerMessages,
 	rideControllerPlaces,
+	rideControllerReverseGeocode,
 	rideControllerReject,
 	rideControllerReportLocation,
 	rideControllerRoutePreview,
@@ -31,7 +32,8 @@ const value = async <T>(promise: Promise<unknown>) => (await promise as unknown)
 
 export const rideApi = {
 	availability: (longitude: number, latitude: number) => value<any>(rideControllerAvailability({ longitude, latitude })),
-	places: (keywords: string, city?: string) => value<any[]>(rideControllerPlaces({ keywords, city })),
+	places: (keywords: string, city?: string, location?: { longitude: number; latitude: number }) => value<any[]>(rideControllerPlaces({ keywords, city, ...location })),
+	reverseGeocode: (longitude: number, latitude: number) => value<any>(rideControllerReverseGeocode({ longitude, latitude })),
 	preview: (payload: any) => value<any>(rideControllerRoutePreview(payload)),
 	create: (payload: any) => value<any>(rideControllerCreate(payload)),
 	list: (params: any = {}) => value<any>(rideControllerList(params)),
@@ -50,9 +52,9 @@ export const rideApi = {
 	deleteDriverVehicle: (id: number) => value<any>(rideControllerDeleteDriverVehicle(id)),
 	accept: (id: number) => value<any>(rideControllerAccept(id)),
 	reject: (id: number) => value<any>(rideControllerReject(id)),
-	arrivePickup: (id: number) => value<any>(rideControllerArrivePickup(id)),
+	arrivePickup: (id: number, confirmFarAway = false) => value<any>(rideControllerArrivePickup(id, { confirmFarAway })),
 	start: (id: number, phoneLastFour: string) => value<any>(rideControllerStart(id, { phoneLastFour })),
-	arriveDestination: (id: number) => value<any>(rideControllerArriveDestination(id)),
+	arriveDestination: (id: number, confirmFarAway = false) => value<any>(rideControllerArriveDestination(id, { confirmFarAway })),
 	finalize: (id: number, payload: any) => value<any>(rideControllerFinalize(id, payload)),
 	reportLocation: (payload: any) => value<any>(rideControllerReportLocation(payload)),
 	async payOrder(orderId: number) {
