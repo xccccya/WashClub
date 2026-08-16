@@ -150,9 +150,16 @@ export class OrderRefundService {
         return order;
     }
 
-	private async finishRideRefund(orderId: number) {
-		const trip = await this.prisma.rideTrip.findUnique({ where: { orderId } });
+	async reconcileRideRefund(orderId: number) {
+		const trip = await this.prisma.rideTrip.findUnique({ where: { orderId }, include: { order: true } });
 		if (!trip || trip.status !== 'REFUND_PENDING') return;
+		const payAmount = Math.max(0, Number(trip.order.payAmount || 0));
+		const targetRefundAmount = trip.finalAmount == null
+			? payAmount
+			: Math.max(0, payAmount - Number(trip.finalAmount || 0));
+		const targetRefundFen = Math.max(0, Math.round(targetRefundAmount * 100));
+		const refundedFen = Math.max(0, Math.round(Number(trip.order.refundedAmount || 0) * 100));
+		if (refundedFen < targetRefundFen) return false;
 		const nextStatus = trip.finalAmount != null ? 'COMPLETED' : (trip.cancelledAt ? 'CANCELLED' : 'NO_DRIVER');
 		const moved = await this.prisma.rideTrip.updateMany({
 			where: { id: trip.id, status: 'REFUND_PENDING', version: trip.version },
@@ -170,6 +177,11 @@ export class OrderRefundService {
 				await this.prisma.rideDriverProfile.update({ where: { id: profile.id }, data: { availabilityStatus: next, busyReason: next === 'BUSY' ? 'MANUAL' : null } });
 			}
 		}
+		return true;
+	}
+
+	private async finishRideRefund(orderId: number) {
+		return this.reconcileRideRefund(orderId);
 	}
 
     // 内部退款（非渠道）统一收尾：执行退款、回收权益（洗车卡、积分）
@@ -459,9 +471,18 @@ export class OrderRefundService {
     }) {
         const { orderId, reason, amount, operatorUserId } = params;
         const order: any = await this.prisma.order.findUnique({ where: { id: orderId } });
+		if (!order) throw new BadRequestException('订单不存在');
+		const payAmount = Math.max(0, Number(order.payAmount || 0));
+		const refundedAmount = Math.max(0, Number(order.refundedAmount || 0));
+		const remainingAmount = Math.max(0, payAmount - refundedAmount);
+		const requestedAmount = amount == null ? remainingAmount : Number(amount);
+		if (!Number.isFinite(requestedAmount) || requestedAmount < 0.01) throw new BadRequestException('退款金额必须≥0.01元');
+		if (requestedAmount > remainingAmount + 0.000001) throw new BadRequestException('退款金额超过剩余可退金额');
+		const isFullOrderRefund = refundedAmount < 0.000001 && Math.abs(requestedAmount - payAmount) < 0.000001;
         
         // 集团余额支付：仅支持全额内部退款（不走渠道）。按支付时扣减的集团余额金额一次性退回，并写入集团余额流水，关联订单。
         if (order && order.payMethod === 'GROUP_BALANCE') {
+			if (!isFullOrderRefund) throw new BadRequestException('集团余额支付暂不支持部分退款');
             // 先作订单退款收尾（状态与时间线），该方法会创建一条金额为0的 RefundRecord（符合“净额不受影响”的要求）
             const updated = await this.refundOrder(orderId, reason || '集团余额支付全额退款', operatorUserId ?? null);
             // 退还集团余额（幂等：以本单已扣减的 DEDUCT 流水绝对值与已退还 REFUND 流水求差额）
@@ -552,7 +573,35 @@ export class OrderRefundService {
             }
         }
         
-        // 线下/其他渠道：内部退款并回收权益
+        // 线下/其他渠道：部分退款必须按本次金额累计，不能静默升级为整单退款。
+		if (!isFullOrderRefund) {
+			const allowed = await this.verifyRefundAllowed(order.id, requestedAmount);
+			if (!allowed) throw new BadRequestException('退款校验未通过：关联权益已使用，无法退款');
+			const record = await this.createRefundRecord({
+				orderId: order.id,
+				memberId: order.memberId,
+				amount: requestedAmount,
+				method: order.payMethod ?? null,
+				reasonCode: 'INTERNAL_PARTIAL',
+				reasonText: reason || null,
+				status: 'PENDING' as any,
+			});
+			try {
+				await this.applyRefundSuccess({
+					orderId: order.id,
+					amountYuan: requestedAmount,
+					method: order.payMethod ?? null,
+					operatorUserId: operatorUserId ?? null,
+				});
+				await this.prisma.refundRecord.update({ where: { id: record.id }, data: { status: 'SUCCESS' } });
+			} catch (error) {
+				await this.prisma.refundRecord.update({ where: { id: record.id }, data: { status: 'FAILED', failedReason: error instanceof Error ? error.message : String(error) } });
+				throw error;
+			}
+			return { ok: true, refundRecordId: record.id, amount: requestedAmount };
+		}
+
+        // 线下/其他渠道全额退款：沿用完整的库存、权益与订单状态收尾。
         const updated = await this.finalizeInternalRefund(orderId, reason, operatorUserId);
         try {
             await this.writeTimeline({

@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { onHide, onShow, onUnload } from '@dcloudio/uni-app';
 import RideMap from '../../../components/ride/RideMap.vue';
 import RideStatusBar from '../../../components/ride/RideStatusBar.vue';
 import { rideApi } from '../../../services/ride';
@@ -42,6 +43,8 @@ const recentPlaces = ref<any[]>([]);
 const origin = ref<any>({ longitude: 104.6688, latitude: 29.5274, address: '请定位或手动选择起点' });
 const destination = ref<any>({ longitude: 0, latitude: 0, address: '' });
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let availabilityTimer: ReturnType<typeof setInterval> | undefined;
+let checkingAvailability = false;
 const RECENT_PLACES_KEY = 'rideRecentPlacesV1';
 
 const availabilityText = computed(() => availability.value ? `${availability.value.availableCount} 位空闲司机` : '正在检查附近司机');
@@ -69,7 +72,19 @@ async function locate() {
 		uni.showToast({ title: locationNotice.value.slice(0, 30), icon: 'none' });
 	}
 }
-async function check() { availability.value = await rideApi.availability(origin.value.longitude, origin.value.latitude); }
+async function check(silent = false) {
+	if (checkingAvailability || !Number(origin.value.longitude) || !Number(origin.value.latitude)) return;
+	checkingAvailability = true;
+	try { availability.value = await rideApi.availability(origin.value.longitude, origin.value.latitude); }
+	catch (error: any) { if (!silent) uni.showToast({ title: error?.message || '司机状态刷新失败', icon: 'none' }); }
+	finally { checkingAvailability = false; }
+}
+function stopAvailabilityRefresh() { if (availabilityTimer) clearInterval(availabilityTimer); availabilityTimer = undefined; }
+function startAvailabilityRefresh() {
+	stopAvailabilityRefresh();
+	void check(true);
+	availabilityTimer = setInterval(() => void check(true), 5000);
+}
 function searchOrigin(event: any) { search('origin', event.detail.value); }
 function searchDestination(event: any) { search('destination', event.detail.value); }
 function search(kind: 'origin' | 'destination', value: string) {
@@ -145,6 +160,9 @@ onMounted(() => {
 	recentPlaces.value = Array.isArray(stored) ? stored.slice(0, 10) : [];
 	locate();
 });
+onShow(startAvailabilityRefresh);
+onHide(stopAvailabilityRefresh);
+onUnload(() => { stopAvailabilityRefresh(); if (searchTimer) clearTimeout(searchTimer); });
 </script>
 
 <style scoped>
@@ -153,4 +171,5 @@ onMounted(() => {
 .field{display:flex;align-items:center;gap:14rpx;padding:14rpx 0;border-bottom:1px solid #e2e8f0}.field input{flex:1}.badge{width:42rpx;height:42rpx;border-radius:50%;display:grid;place-items:center;color:#fff}.start{background:#16a34a}.end{background:#ef4444}
 .map-pick-tip{display:flex;justify-content:space-between;margin-bottom:12rpx;padding:14rpx 18rpx;border-radius:18rpx;background:#eff6ff;color:#1d4ed8;font-size:23rpx;font-weight:700}.map-pick{flex:none;padding:8rpx 0 8rpx 14rpx;color:#2563eb;font-size:22rpx;font-weight:700}.tips,.routes{max-height:240rpx;overflow:auto;background:#f8fafc}.tips>view{display:flex;align-items:center;justify-content:space-between;gap:14rpx;padding:14rpx;border-bottom:1px solid #e2e8f0}.tips>view>view{min-width:0}.tips strong,.tips text,.route text{display:block;font-size:22rpx;color:#64748b}.tips strong{overflow:hidden;color:#1e293b;font-size:24rpx;text-overflow:ellipsis;white-space:nowrap}.tips .distance{flex:none;color:#2563eb}.route{display:grid;grid-template-columns:1fr auto;gap:4rpx 12rpx;padding:14rpx;border:2rpx solid transparent;border-radius:12rpx}.route.selected{border-color:#2563eb;background:#eff6ff}.route strong{grid-row:1/3;grid-column:2;font-size:28rpx;align-self:center}
 .warning{padding:14rpx;background:#fff7ed;color:#c2410c;border-radius:14rpx;font-size:23rpx}.primary{margin-top:18rpx;background:#0f172a;color:#fff;border-radius:44rpx}.orders-link{margin-left:auto;color:#2563eb;font-size:24rpx}
+button::after{border:0}
 </style>

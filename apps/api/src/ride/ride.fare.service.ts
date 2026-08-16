@@ -23,14 +23,28 @@ export class RideFareService {
 		const distanceFare = chargeableKm * Number(setting.pricePerKm || 0);
 		const durationFare = chargeableMinutes * Number(setting.pricePerMinute || 0);
 		const subtotal = baseFare + distanceFare + durationFare + Math.max(0, Number(extraAmount || 0));
-		const amount = Math.max(Number(setting.minimumFare || 0), subtotal);
+		const minimumFare = Number(setting.minimumFare || 0);
+		const amount = Math.max(minimumFare, subtotal);
 		return {
 			baseFare: this.money(baseFare),
+			includedDistanceKm: this.distance(Number(setting.includedDistanceKm || 0)),
+			includedDurationMinutes: this.distance(Number(setting.includedDurationMinutes || 0)),
+			chargeableDistanceKm: this.distance(chargeableKm),
+			chargeableDurationMinutes: this.distance(chargeableMinutes),
+			pricePerKm: this.money(Number(setting.pricePerKm || 0)),
+			pricePerMinute: this.money(Number(setting.pricePerMinute || 0)),
 			distanceFare: this.money(distanceFare),
 			durationFare: this.money(durationFare),
 			extraAmount: this.money(extraAmount),
+			subtotal: this.money(subtotal),
+			minimumFare: this.money(minimumFare),
+			minimumApplied: minimumFare > subtotal,
 			amount: this.money(amount),
 		};
+	}
+
+	private distance(value: number) {
+		return Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
 	}
 
 	private money(value: number) {

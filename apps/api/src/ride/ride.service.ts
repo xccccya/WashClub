@@ -140,7 +140,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			this.prisma.rideTrip.findMany({ where, include: this.tripInclude(), orderBy: { id: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
 			this.prisma.rideTrip.count({ where }),
 		]);
-		return { items: items.map((item) => this.serialize(item)), total, page, pageSize };
+		return { items: items.map((item) => this.serializeTrip(item)), total, page, pageSize };
 	}
 
 	async driverList(memberId: number, query: RideListQueryDto) {
@@ -157,7 +157,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			this.prisma.rideTrip.findMany({ where, include: this.tripInclude(), orderBy: { id: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
 			this.prisma.rideTrip.count({ where }),
 		]);
-		return { items: items.map((item) => this.serialize(item)), total, page, pageSize };
+		return { items: items.map((item) => this.serializeTrip(item)), total, page, pageSize };
 	}
 
 	async detail(rideTripId: number, actor: { memberId?: number; admin?: boolean }) {
@@ -169,7 +169,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 				: null;
 			if (!driverCandidate) throw new ForbiddenException('无权访问该行程');
 		}
-		return this.serialize(trip);
+		return this.serializeTripWithFare(trip);
 	}
 
 	async driverProfile(memberId: number, employee: { id: number }) {
@@ -316,7 +316,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		await this.settleFinalFare(updated);
 		const fresh = await this.prisma.rideTrip.findUniqueOrThrow({ where: { id }, include: this.tripInclude() });
 		this.realtime.toMembers([fresh.passengerMemberId, driverMemberId], 'ride:status', { id, status: fresh.status, finalAmount: fresh.finalAmount, supplementOrderId: fresh.supplementOrderId });
-		return this.serialize(fresh);
+		return this.serializeTripWithFare(fresh);
 	}
 
 	async cancel(id: number, passengerMemberId: number, reason?: string) {
@@ -389,7 +389,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			this.prisma.rideTrip.findMany({ where, include: this.tripInclude(), orderBy: { id: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
 			this.prisma.rideTrip.count({ where }),
 		]);
-		return { items: items.map((item) => this.serialize(item)), total, page, pageSize };
+		return { items: items.map((item) => this.serializeTrip(item)), total, page, pageSize };
 	}
 
 	adminDrivers() {
@@ -510,7 +510,20 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			}
 		}
 		if (trip.status === 'REFUND_PENDING') {
-			const amount = trip.finalAmount == null ? undefined : Math.max(0, Number(trip.order.payAmount || 0) - Number(trip.finalAmount));
+			if (await this.refund.reconcileRideRefund(trip.orderId)) return;
+			const payAmount = Math.max(0, Number(trip.order.payAmount || 0));
+			const targetRefundAmount = trip.finalAmount == null ? payAmount : Math.max(0, payAmount - Number(trip.finalAmount || 0));
+			const order = await this.prisma.order.findUnique({ where: { id: trip.orderId }, select: { refundedAmount: true } });
+			const pending = await this.prisma.refundRecord.aggregate({
+				where: { orderId: trip.orderId, status: { in: ['PENDING', 'PROCESSING'] } },
+				_sum: { amount: true },
+			});
+			const targetRefundFen = Math.max(0, Math.round(targetRefundAmount * 100));
+			const refundedFen = Math.max(0, Math.round(Number(order?.refundedAmount || 0) * 100));
+			const pendingFen = Math.max(0, Math.round(Number(pending._sum.amount || 0) * 100));
+			const remainingRefundFen = Math.max(0, targetRefundFen - refundedFen - pendingFen);
+			if (remainingRefundFen < 1) return;
+			const amount = remainingRefundFen / 100;
 			const result = await this.refund.createWechatRefund({ orderId: trip.orderId, amount, reason: trip.finalAmount == null ? '行程取消退款' : '行程最终费用低于预付金额' });
 			if ((result as any)?.ok === false) throw new ConflictException('退款提交失败，系统将自动重试');
 		}
@@ -547,7 +560,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		return {
 			order: true,
 			supplementOrder: true,
-			passenger: { select: { id: true, name: true, avatarUrl: true } },
+			passenger: { select: { id: true, name: true, phone: true, avatarUrl: true } },
 			driverMember: { select: { id: true, name: true, avatarUrl: true } },
 			driverEmployee: { select: { id: true, name: true, title: true } },
 			vehicle: true,
@@ -556,8 +569,78 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		};
 	}
 
+	private async serializeTripWithFare(trip: any) {
+		const serialized = this.serializeTrip(trip);
+		serialized.fareDetails = await this.buildFareDetails(trip);
+		return serialized;
+	}
+
+	private serializeTrip(trip: any) {
+		const serialized = this.serialize(trip);
+		if (serialized?.passenger) {
+			serialized.passenger.phoneLastFour = String(serialized.passenger.phone || '').slice(-4);
+			delete serialized.passenger.phone;
+		}
+		return serialized;
+	}
+
+	private async buildFareDetails(trip: any) {
+		const setting = await this.getSetting();
+		let mode: 'ESTIMATED' | 'LIVE' | 'FINAL' = 'ESTIMATED';
+		let distanceMeters = Number(trip.estimatedDistanceMeters || 0);
+		let durationSeconds = Number(trip.estimatedDurationSeconds || 0);
+		let feeRows: Array<{ type: string; amount: unknown }> = [];
+
+		if (trip.finalAmount != null) {
+			mode = 'FINAL';
+			distanceMeters = Number(trip.finalDistanceMeters || 0);
+			durationSeconds = Number(trip.finalDurationSeconds || 0);
+			feeRows = Array.isArray(trip.extraFees) ? trip.extraFees : [];
+		} else if (trip.startedAt) {
+			mode = 'LIVE';
+			const endAt = trip.arrivedDestinationAt || new Date();
+			const locations = await this.prisma.rideLocation.findMany({
+				where: { rideTripId: trip.id, createdAt: { gte: trip.startedAt, lte: endAt } },
+				orderBy: { createdAt: 'asc' },
+				select: { longitude: true, latitude: true },
+			});
+			distanceMeters = 0;
+			for (let index = 1; index < locations.length; index += 1) {
+				distanceMeters += this.distance(Number(locations[index - 1].latitude), Number(locations[index - 1].longitude), Number(locations[index].latitude), Number(locations[index].longitude));
+			}
+			distanceMeters = Math.round(distanceMeters);
+			durationSeconds = Math.max(0, Math.round((endAt.getTime() - trip.startedAt.getTime()) / 1000));
+		}
+
+		const sumType = (type: string) => feeRows.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+		const tollAmount = mode === 'FINAL' ? sumType('TOLL') : Number(trip.estimatedTollAmount || 0);
+		const parkingAmount = mode === 'FINAL' ? sumType('PARKING') : 0;
+		const otherAmount = mode === 'FINAL' ? sumType('OTHER') + sumType('REVERSAL') : 0;
+		const calculated = this.fare.calculate(setting, distanceMeters, durationSeconds, tollAmount + parkingAmount + otherAmount);
+		const amount = mode === 'FINAL' ? Number(trip.finalAmount || 0) : mode === 'ESTIMATED' ? Number(trip.estimatedAmount || calculated.amount) : calculated.amount;
+		const payAmount = Number(trip.order?.payAmount || 0);
+		return {
+			mode,
+			distanceMeters,
+			durationSeconds,
+			...calculated,
+			tollAmount: this.money(tollAmount),
+			parkingAmount: this.money(parkingAmount),
+			otherAmount: this.money(otherAmount),
+			amount: this.money(amount),
+			prepaidAmount: this.money(payAmount),
+			supplementAmount: this.money(Math.max(0, amount - payAmount)),
+			refundableAmount: this.money(Math.max(0, payAmount - amount)),
+			refundedAmount: this.money(Number(trip.order?.refundedAmount || 0)),
+		};
+	}
+
 	private serialize<T>(value: T): any {
 		return JSON.parse(JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item));
+	}
+
+	private money(value: number) {
+		return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 	}
 
 	private orderNo(prefix: string) {
