@@ -112,15 +112,15 @@
 		<view class="card actions-card gradient-trans">
 			<view class="grid icon-grid">
 				<view v-if="isLoggedIn" class="icon-btn" @tap="onTapCallDriver">
-					<image class="icon-img" src="/static/icons/service_wait.png" mode="aspectFit" />
+					<image class="icon-img" src="/static/icons/calld.png" mode="aspectFit" />
 					<text class="icon-text">呼叫司机</text>
 				</view>
 				<view v-if="isLoggedIn" class="icon-btn" @tap="onTapRideOrders">
-					<image class="icon-img" src="/static/icons/ontheway.png" mode="aspectFit" />
+					<image class="icon-img" src="/static/icons/xc.png" mode="aspectFit" />
 					<text class="icon-text">行程订单</text>
 				</view>
 				<view v-if="isEmployee" class="icon-btn" @tap="onTapRideDriver">
-					<image class="icon-img" src="/static/icons/admin.png" mode="aspectFit" />
+					<image class="icon-img" src="/static/icons/driver.png" mode="aspectFit" />
 					<text class="icon-text">内部司机</text>
 				</view>
 				<view class="icon-btn" @tap="onTapAddress">
