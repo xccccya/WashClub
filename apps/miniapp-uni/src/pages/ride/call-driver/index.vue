@@ -1,12 +1,13 @@
 <template>
 	<view class="page">
-		<RideMap :markers="markers" :route-points="routePoints" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
+		<RideMap :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
 		<RideStatusBar title="呼叫司机" :subtitle="availabilityText">
 			<view class="orders-link" @tap="goOrders">行程订单</view>
 		</RideStatusBar>
 		<view class="drawer">
 			<view class="drawer-grabber" />
-			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><text class="availability-pill">{{ availabilityText }}</text></view>
+			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><view class="drawer-head-actions"><text class="availability-pill">{{ availabilityText }}</text><text class="collapse-toggle" @tap="drawerCollapsed = !drawerCollapsed">{{ drawerCollapsed ? '展开' : '收起' }}</text></view></view>
+			<view v-if="!drawerCollapsed">
 			<view v-if="selecting" class="map-pick-tip"><text>请在地图上点击{{ selecting === 'origin' ? '起点' : '终点' }}</text><text @tap="selecting = null">取消</text></view>
 			<view v-if="locationNotice" class="location-notice"><text>{{ locationNotice }}</text><text class="retry" @tap="locate">重新定位</text></view>
 			<view class="route-fields">
@@ -30,6 +31,7 @@
 			</view>
 			<view v-if="availability && !availability.availableCount" class="warning">3km 内暂无空闲司机，可点地图上的忙碌车辆联系司机。</view>
 			<button class="primary" :disabled="loading || !canCall" @tap="callDriver">{{ preview ? '支付并呼叫司机' : '预览路线与价格' }}</button>
+			</view>
 		</view>
 	</view>
 </template>
@@ -52,6 +54,7 @@ const locationNotice = ref('');
 const selecting = ref<'origin' | 'destination' | null>(null);
 const currentLocation = ref<{ longitude: number; latitude: number } | null>(null);
 const recentPlaces = ref<any[]>([]);
+const drawerCollapsed = ref(false);
 const origin = ref<any>({ longitude: 104.6688, latitude: 29.5274, address: '请定位或手动选择起点' });
 const destination = ref<any>({ longitude: 0, latitude: 0, address: '' });
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,6 +66,7 @@ const availabilityText = computed(() => availability.value ? `${availability.val
 const canCall = computed(() => !!availability.value?.availableCount && !!destination.value.longitude);
 const selectedRoute = computed(() => preview.value?.routes?.[selectedRouteIndex.value] || preview.value);
 const routePoints = computed(() => selectedRoute.value?.route?.points || []);
+const mapFitPadding = computed(() => drawerCollapsed.value ? [150, 28, 180, 28] : [150, 28, 560, 28]);
 const showRecentPanel = computed(() => recentPlaces.value.length > 0 && !preview.value && !originTips.value.length && !destinationTips.value.length);
 const markers = computed(() => {
 	const list: any[] = [{ id: 1, ...origin.value, title: '起点', kind: 'origin' }];
@@ -189,11 +193,11 @@ onUnload(() => { stopAvailabilityRefresh(); if (searchTimer) clearTimeout(search
 
 <style scoped>
 .page{height:100vh;position:relative;overflow:hidden;background:#e2e8f0}.drawer{position:absolute;z-index:20;right:20rpx;bottom:calc(24rpx + env(safe-area-inset-bottom));left:20rpx;max-height:72vh;overflow-y:auto;padding:18rpx 24rpx 24rpx;border:1rpx solid rgba(255,255,255,.88);border-radius:34rpx;background:rgba(255,255,255,.97);box-shadow:0 20rpx 60rpx rgba(15,23,42,.2);box-sizing:border-box;backdrop-filter:blur(14px)}
-.drawer-grabber{width:72rpx;height:7rpx;margin:0 auto 16rpx;border-radius:999rpx;background:#dbe3ee}.drawer-head,.section-title{display:flex;align-items:center;justify-content:space-between;gap:18rpx}.drawer-head{margin-bottom:16rpx}.drawer-head view,.section-title view{min-width:0}.drawer-head strong,.drawer-head text,.section-title strong,.section-title text{display:block}.drawer-head strong{color:#0f172a;font-size:31rpx}.drawer-head view text{margin-top:3rpx;color:#94a3b8;font-size:20rpx}.availability-pill{flex:none;padding:8rpx 13rpx;border-radius:999rpx;background:#ecfdf5;color:#047857;font-size:19rpx;font-weight:750}.section-title{margin-bottom:12rpx}.section-title strong{color:#1e293b;font-size:24rpx}.section-title view text{margin-top:2rpx;color:#94a3b8;font-size:18rpx}.section-title>text{flex:none;color:#2563eb;font-size:20rpx}
+.drawer-grabber{width:72rpx;height:7rpx;margin:0 auto 16rpx;border-radius:999rpx;background:#dbe3ee}.drawer-head,.section-title{display:flex;align-items:center;justify-content:space-between;gap:18rpx}.drawer-head{margin-bottom:16rpx}.drawer-head view,.section-title view{min-width:0}.drawer-head strong,.drawer-head text,.section-title strong,.section-title text{display:block}.drawer-head strong{color:#0f172a;font-size:31rpx}.drawer-head view text{margin-top:3rpx;color:#94a3b8;font-size:20rpx}.drawer-head-actions{display:flex;flex:none;align-items:center;gap:10rpx}.availability-pill{padding:8rpx 13rpx;border-radius:999rpx;background:#ecfdf5;color:#047857;font-size:19rpx;font-weight:750}.collapse-toggle{padding:7rpx 4rpx;color:#2563eb;font-size:20rpx;font-weight:700}.section-title{margin-bottom:12rpx}.section-title strong{color:#1e293b;font-size:24rpx}.section-title view text{margin-top:2rpx;color:#94a3b8;font-size:18rpx}.section-title>text{flex:none;color:#2563eb;font-size:20rpx}
 .location-notice{display:flex;align-items:flex-start;justify-content:space-between;gap:16rpx;margin-bottom:12rpx;padding:14rpx 16rpx;border-radius:16rpx;background:#fff7ed;color:#9a3412;font-size:22rpx;line-height:1.5}.location-notice>text:first-child{flex:1}.retry{flex:none;color:#2563eb;font-weight:700}
 .route-fields{position:relative;padding:4rpx 16rpx;border:1rpx solid #e2e8f0;border-radius:24rpx;background:#f8fafc}.field{display:flex;align-items:center;gap:14rpx;min-height:76rpx}.field input{min-width:0;flex:1;color:#0f172a;font-size:23rpx}.field:last-child{border-top:1rpx solid #e2e8f0}.field-connector{position:absolute;top:65rpx;left:36rpx;width:2rpx;height:28rpx;background:#cbd5e1}.badge{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border:4rpx solid #fff;border-radius:50%;box-shadow:0 4rpx 12rpx rgba(15,23,42,.12);color:#fff;font-size:19rpx;font-weight:800;box-sizing:border-box}.start{background:#16a34a}.end{background:#f43f5e}
 .map-pick-tip{display:flex;justify-content:space-between;margin-bottom:12rpx;padding:14rpx 18rpx;border-radius:18rpx;background:#eff6ff;color:#1d4ed8;font-size:23rpx;font-weight:700}.map-pick{flex:none;padding:8rpx 0 8rpx 14rpx;color:#2563eb;font-size:20rpx;font-weight:700}.tips{max-height:250rpx;overflow:auto;margin-top:10rpx;border:1rpx solid #e2e8f0;border-radius:18rpx;background:#fff}.tips>view{display:flex;align-items:center;justify-content:space-between;gap:14rpx;padding:14rpx 16rpx;border-bottom:1rpx solid #eef2f7}.tips>view:last-child{border-bottom:0}.tips>view>view{min-width:0}.tips strong,.tips text{display:block;color:#64748b;font-size:20rpx}.tips strong{overflow:hidden;color:#1e293b;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.tips .distance{flex:none;color:#2563eb}
-.recent-panel,.routes{margin-top:16rpx}.recent-scroll{width:100%;white-space:nowrap}.recent-list{display:flex;gap:12rpx;padding:2rpx 2rpx 8rpx}.recent-place{display:flex;width:300rpx;flex:none;align-items:center;gap:12rpx;padding:15rpx;border:1rpx solid #e2e8f0;border-radius:20rpx;background:linear-gradient(145deg,#fff,#f8fafc);box-sizing:border-box}.recent-icon{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border-radius:14rpx;background:#eff6ff;color:#2563eb;font-size:25rpx}.recent-place view{min-width:0}.recent-place strong,.recent-place view text{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.recent-place strong{color:#1e293b;font-size:22rpx}.recent-place view text{margin-top:3rpx;color:#94a3b8;font-size:18rpx}
+.recent-panel,.routes{margin-top:16rpx}.recent-scroll{display:block;width:100%;max-width:100%;white-space:nowrap;box-sizing:border-box}.recent-list{display:flex;gap:12rpx;padding:2rpx 2rpx 8rpx}.recent-place{display:flex;width:300rpx;max-width:calc(100vw - 112rpx);min-width:0;flex:none;align-items:flex-start;gap:12rpx;padding:15rpx;border:1rpx solid #e2e8f0;border-radius:20rpx;background:linear-gradient(145deg,#fff,#f8fafc);box-sizing:border-box}.recent-icon{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border-radius:14rpx;background:#eff6ff;color:#2563eb;font-size:25rpx}.recent-place view{min-width:0;flex:1;overflow:hidden}.recent-place strong,.recent-place view text{display:-webkit-box;overflow:hidden;text-overflow:ellipsis;-webkit-box-orient:vertical;white-space:normal}.recent-place strong{-webkit-line-clamp:1;color:#1e293b;font-size:22rpx;line-height:1.35}.recent-place view text{margin-top:3rpx;-webkit-line-clamp:2;color:#94a3b8;font-size:18rpx;line-height:1.4}
 .routes{padding-top:2rpx}.route{display:grid;grid-template-columns:36rpx minmax(0,1fr) auto;gap:12rpx;align-items:center;margin-top:10rpx;padding:16rpx;border:2rpx solid #e2e8f0;border-radius:22rpx;background:#fff;transition:.2s ease;box-sizing:border-box}.route.selected{border-color:#3b82f6;background:linear-gradient(145deg,#eff6ff,#fff);box-shadow:0 8rpx 22rpx rgba(37,99,235,.12)}.route-radio{display:grid;width:32rpx;height:32rpx;place-items:center;border:3rpx solid #cbd5e1;border-radius:50%;box-sizing:border-box}.route.selected .route-radio{border-color:#2563eb}.route-radio i{width:14rpx;height:14rpx;border-radius:50%;background:transparent}.route.selected .route-radio i{background:#2563eb}.route-copy{min-width:0}.route-title{display:flex;align-items:center;gap:8rpx}.route-title strong{overflow:hidden;color:#0f172a;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.route-tag{flex:none;padding:4rpx 8rpx;border-radius:999rpx;background:#dbeafe;color:#1d4ed8;font-size:16rpx}.route-tag.safe{background:#dcfce7;color:#15803d}.route-meta{display:flex;flex-wrap:wrap;gap:8rpx 12rpx;margin-top:5rpx}.route-meta text{color:#64748b;font-size:18rpx}.route-meta .toll{color:#c2410c}.toll-roads{display:block;margin-top:5rpx;overflow:hidden;color:#94a3b8;font-size:17rpx;text-overflow:ellipsis;white-space:nowrap}.route-price{flex:none;text-align:right}.route-price strong,.route-price text{display:block}.route-price strong{color:#0f172a;font-size:28rpx}.route-price text{margin-top:2rpx;color:#94a3b8;font-size:17rpx}
 .warning{padding:14rpx;background:#fff7ed;color:#c2410c;border-radius:14rpx;font-size:23rpx}.primary{margin-top:18rpx;background:#0f172a;color:#fff;border-radius:44rpx}.orders-link{margin-left:auto;color:#2563eb;font-size:24rpx}
 button::after{border:0}

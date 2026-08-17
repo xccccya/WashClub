@@ -67,7 +67,7 @@ export function toNativeMarkers(markers: RideMapMarker[]) {
 		return {
 			id: marker.id,
 			longitude: Number(marker.longitude), latitude: Number(marker.latitude),
-			title: marker.title || '', width: isDriver ? 40 : 36, height: isDriver ? 40 : 44,
+			title: marker.title || '', width: isDriver ? 30 : 28, height: isDriver ? 30 : 34,
 			...(iconPath ? { iconPath, anchor: { x: 0.5, y: 1 } } : {}),
 			callout: { content: marker.title || '', display: marker.title ? 'BYCLICK' : 'NEVER', padding: 8, borderRadius: 10, bgColor: '#ffffff', color: '#0f172a' },
 		};
