@@ -85,6 +85,7 @@ class RealtimeClient {
 
     const onOpen = () => {
       if (generation !== this.generation || !this.socketTask) return;
+      console.info(`[realtime] WebSocket 握手成功，正在鉴权：${url}`);
       try { this.send(JSON.stringify({ type: 'auth', token })); }
       catch (error) {
         console.warn('[realtime] WebSocket 鉴权消息发送失败', error);
@@ -123,7 +124,14 @@ class RealtimeClient {
       console.warn(`[realtime] WebSocket 连接异常：${url}`, error || 'unknown error');
       this.handleDisconnect(generation);
     };
-    const onClose = () => this.handleDisconnect(generation);
+    const onClose = (event?: any) => {
+      if (generation !== this.generation) return;
+      console.warn(`[realtime] WebSocket 已关闭：${url}`, {
+        code: Number(event?.code || 0),
+        reason: String(event?.reason || ''),
+      });
+      this.handleDisconnect(generation);
+    };
 
     try {
       console.info(`[realtime] 正在连接 WebSocket：${url}`);
@@ -135,8 +143,16 @@ class RealtimeClient {
         socket.onerror = onError;
         socket.onclose = onClose;
       } else {
-        const task = uni.connectSocket({ url });
-        if (!task) throw new Error('uni.connectSocket 未返回 SocketTask');
+        // 当前 uni-app 会将未传回调的异步 API Promise 化。connectSocket 必须显式传入
+        // 回调，才能获得原生 SocketTask；否则 onOpen 不会注册，首包鉴权也不会发送。
+        const task = uni.connectSocket({
+          url,
+          success: () => console.info(`[realtime] WebSocket 连接请求已受理：${url}`),
+          fail: onError,
+        });
+        if (!task || typeof task.onOpen !== 'function') {
+          throw new Error('uni.connectSocket 未返回有效的 SocketTask');
+        }
         this.socketTask = task;
         task.onOpen?.(onOpen);
         task.onMessage?.(onMessage);
@@ -145,7 +161,7 @@ class RealtimeClient {
       }
       this.connectTimer = setTimeout(() => {
         if (generation !== this.generation || this.state !== 'connecting') return;
-        console.warn(`[realtime] WebSocket 连接超时：${url}`);
+        console.warn(`[realtime] WebSocket 连接或鉴权超时：${url}`);
         this.handleDisconnect(generation);
       }, 10_000);
     } catch (error) {
