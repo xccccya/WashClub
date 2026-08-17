@@ -1,10 +1,12 @@
 <template>
 	<view class="page">
-		<RideMap :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :locate-bottom="locateBottom" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
+		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :show-locate-control="false" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
 		<RideStatusBar title="呼叫司机" :subtitle="availabilityText">
 			<view class="orders-link" @tap="goOrders">行程订单</view>
 		</RideStatusBar>
-		<view class="drawer">
+		<view class="drawer-shell">
+			<RideLocateControl class="drawer-locate" :action="locateOnMap" />
+			<view class="drawer">
 			<view class="drawer-grabber" />
 			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><view class="drawer-head-actions"><text class="availability-pill">{{ availabilityText }}</text><text class="collapse-toggle" @tap="drawerCollapsed = !drawerCollapsed">{{ drawerCollapsed ? '展开' : '收起' }}</text></view></view>
 			<transition name="ride-collapse">
@@ -35,6 +37,7 @@
 			<button class="primary" :disabled="loading || !canCall" @tap="callDriver">{{ preview ? '支付并呼叫司机' : '预览路线与价格' }}</button>
 			</view>
 			</transition>
+			</view>
 		</view>
 	</view>
 </template>
@@ -43,11 +46,13 @@
 import { computed, onMounted, ref } from 'vue';
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app';
 import RideMap from '../../../components/ride/RideMap.vue';
+import RideLocateControl from '../../../components/ride/RideLocateControl.vue';
 import RideStatusBar from '../../../components/ride/RideStatusBar.vue';
 import { rideApi } from '../../../services/ride';
 import { getCurrentRideLocation, locationErrorMessage } from '../../../services/geolocation';
 
 const loading = ref(false);
+const rideMap = ref<InstanceType<typeof RideMap> | null>(null);
 const availability = ref<any>(null);
 const preview = ref<any>(null);
 const selectedRouteIndex = ref(0);
@@ -70,7 +75,6 @@ const canCall = computed(() => !!availability.value?.availableCount && !!destina
 const selectedRoute = computed(() => preview.value?.routes?.[selectedRouteIndex.value] || preview.value);
 const routePoints = computed(() => selectedRoute.value?.route?.points || []);
 const mapFitPadding = computed(() => drawerCollapsed.value ? [150, 28, 180, 28] : [150, 28, 560, 28]);
-const locateBottom = computed(() => drawerCollapsed.value ? '190rpx' : 'calc(72vh + 28rpx)');
 const showRecentPanel = computed(() => recentPlaces.value.length > 0 && !preview.value && !originTips.value.length && !destinationTips.value.length);
 const markers = computed(() => {
 	const list: any[] = [{ id: 1, ...origin.value, title: '起点', kind: 'origin' }];
@@ -93,6 +97,7 @@ async function locate() {
 		uni.showToast({ title: locationNotice.value.slice(0, 30), icon: 'none' });
 	}
 }
+function locateOnMap() { return rideMap.value?.locateCurrent(); }
 async function check(silent = false) {
 	if (checkingAvailability || !Number(origin.value.longitude) || !Number(origin.value.latitude)) return;
 	checkingAvailability = true;
@@ -209,4 +214,7 @@ button::after{border:0}
 .collapse-content{min-width:0}.ride-collapse-enter-active,.ride-collapse-leave-active{overflow:hidden;transition:max-height .32s ease,opacity .22s ease,transform .32s ease}.ride-collapse-enter-from,.ride-collapse-leave-to{max-height:0;opacity:0;transform:translateY(-8rpx)}.ride-collapse-enter-to,.ride-collapse-leave-from{max-height:2400rpx;opacity:1;transform:translateY(0)}
 .drawer{right:20rpx;width:auto;max-width:none;overflow-x:hidden}
 .collapse-content{width:auto;max-width:none;box-sizing:border-box}
+.drawer-shell{position:absolute;z-index:20;right:20rpx;bottom:calc(24rpx + env(safe-area-inset-bottom));left:20rpx}
+.drawer-shell>.drawer{position:relative;right:auto;bottom:auto;left:auto}
+.drawer-locate{position:absolute;z-index:2;top:-106rpx;right:4rpx}
 </style>

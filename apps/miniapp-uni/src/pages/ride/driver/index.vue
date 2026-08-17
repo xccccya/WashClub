@@ -1,12 +1,14 @@
 <template>
 	<view class="page">
-		<RideMap :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :locate-bottom="locateBottom" />
+		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :show-locate-control="false" />
 		<RideStatusBar title="内部司机" :subtitle="statusText"><view class="orders-link" @tap="goOrders">行程订单</view></RideStatusBar>
 		<view class="status-panel" :style="statusPanelStyle">
 			<view class="switches"><button :class="{ active: status === 'AVAILABLE' }" @tap="setStatus('AVAILABLE')">空闲</button><button :class="{ active: status === 'BUSY' }" @tap="setStatus('BUSY')">忙碌</button><button :class="{ active: status === 'OFFLINE' }" @tap="setStatus('OFFLINE')">离线</button></view>
 			<view class="vehicle" @tap="manageVehicles"><view><text>当前出车车辆</text><strong>{{ currentVehicle?.vehicle?.plateNumber || '未选择车辆' }}</strong></view><text>管理 ›</text></view>
 		</view>
 
+		<view class="bottom-shell">
+			<RideLocateControl class="bottom-locate" :action="locateOnMap" />
 		<view v-if="activeTrip" class="order-card">
 			<view class="order-head"><view><text class="eyebrow">当前行程 · #{{ activeTrip.id }}</text><strong>{{ tripTitle }}</strong></view><view class="order-head-actions"><view class="trip-status">{{ statusLabel(activeTrip.status) }}</view><text class="collapse-toggle" @tap="orderCollapsed = !orderCollapsed">{{ orderCollapsed ? '展开' : '收起' }}</text></view></view>
 			<transition name="ride-collapse">
@@ -33,6 +35,7 @@
 			</scroll-view>
 		</view>
 		<view v-else class="empty"><strong>{{ status === 'AVAILABLE' ? '正在等待新订单' : '当前不参与派单' }}</strong><text>{{ status === 'AVAILABLE' ? '保持定位开启，新订单会弹窗提醒' : '切换为空闲并选择车辆后即可接单' }}</text></view>
+		</view>
 
 		<view v-if="pendingDispatch" class="modal-mask">
 			<view class="new-order-modal">
@@ -66,6 +69,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import RideChatSheet from '../../../components/ride/RideChatSheet.vue';
 import RideMap from '../../../components/ride/RideMap.vue';
+import RideLocateControl from '../../../components/ride/RideLocateControl.vue';
 import RideSlideAction from '../../../components/ride/RideSlideAction.vue';
 import RideStatusBar from '../../../components/ride/RideStatusBar.vue';
 import passengerFallback from '../../../static/icons/jtuser.png';
@@ -79,6 +83,7 @@ import { formatRidePassengerLabel } from '../../../utils/ride-format';
 import { resolveImageUrl } from '../../../utils/url';
 
 const profile = ref<any>(null);
+const rideMap = ref<InstanceType<typeof RideMap> | null>(null);
 const vehicles = ref<any[]>([]);
 const memberVehicles = ref<any[]>([]);
 const orders = ref<any[]>([]);
@@ -104,7 +109,6 @@ let poll: ReturnType<typeof setInterval> | undefined;
 const safeArea = useSafeArea();
 const statusPanelStyle = computed(() => ({ top: (safeArea.topSpacerHeight + 88) + 'px' }));
 const mapFitPadding = computed(() => orderCollapsed.value ? [280, 24, 190, 24] : [420, 24, 560, 24]);
-const locateBottom = computed(() => orderCollapsed.value ? '190rpx' : 'calc(68vh + 28rpx)');
 const memberId = computed(() => Number(uni.getStorageSync('user')?.id || 0));
 const status = computed(() => profile.value?.availabilityStatus || 'OFFLINE');
 const statusText = computed(() => ({ AVAILABLE: '空闲接单中', BUSY: '忙碌，不参与新派单', OFFLINE: '当前离线' } as any)[status.value]);
@@ -132,6 +136,7 @@ const markers = computed(() => {
 	if (location) list.push({ id: 3, longitude: Number(location.longitude), latitude: Number(location.latitude), title: '我的位置', kind: 'driver-current' });
 	return list;
 });
+function locateOnMap() { return rideMap.value?.locateCurrent(); }
 
 async function load() {
 	const [nextProfile, nextVehicles, nextMemberVehicles, data] = await Promise.all([rideApi.driverProfile(), rideApi.driverVehicles(), rideApi.memberVehicles(), rideApi.driverOrders({ page: 1, pageSize: 50 })]);
@@ -312,4 +317,7 @@ onBeforeUnmount(() => { stopTracking?.(); stopRealtime?.(); if (poll) clearInter
 .status-panel,.order-card,.dispatch-panel,.empty{right:20rpx;width:auto;max-width:none;overflow-x:hidden;box-sizing:border-box}
 .collapse-content{width:auto;max-width:none;box-sizing:border-box}
 .meter{width:auto;max-width:none;overflow:hidden}
+.bottom-shell{position:absolute;z-index:20;right:20rpx;bottom:calc(22rpx + env(safe-area-inset-bottom));left:20rpx}
+.bottom-shell>.order-card,.bottom-shell>.dispatch-panel,.bottom-shell>.empty{position:relative;right:auto;bottom:auto;left:auto}
+.bottom-locate{position:absolute;z-index:2;top:-106rpx;right:4rpx}
 </style>

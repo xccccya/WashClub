@@ -6,20 +6,20 @@
 		<!-- #ifdef H5 -->
 		<div ref="h5Container" class="map" />
 		<!-- #endif -->
-		<view v-if="showLocateControl" class="locate-control" :class="{ locating }" :style="locateControlStyle" @tap.stop="locateCurrent"><image class="locate-control__icon" :src="locateControlIcon" mode="aspectFit" /></view>
+		<RideLocateControl v-if="showLocateControl" class="locate-control" :style="locateControlStyle" :action="locateCurrent" />
 		<view v-if="error" class="map-error">{{ error }}</view>
 	</view>
 </template>
 
 <script setup lang="ts">
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import RideLocateControl from './RideLocateControl.vue';
 import type { RideMapMarker, RideMapPoint } from '../../services/ride-map';
 import { spreadOverlappingMarkers, toNativeMarkers, toNativePolyline } from '../../services/ride-map';
 import { getCurrentRideLocation, locationErrorMessage } from '../../services/geolocation';
 import vehicleLocationIcon from '../../static/icons/ride-vehicle-location.svg';
 import originMarkerIcon from '../../static/icons/ride-origin-marker.svg';
 import destinationMarkerIcon from '../../static/icons/ride-destination-marker.svg';
-import locateControlIcon from '../../static/icons/ride-locate-control.svg';
 
 const props = withDefaults(defineProps<{
 	markers?: RideMapMarker[];
@@ -31,7 +31,6 @@ const props = withDefaults(defineProps<{
 	autoFitPauseMs?: number;
 	fitPadding?: number[];
 	locateTop?: string;
-	locateBottom?: string;
 }>(), {
 	markers: () => [],
 	routePoints: () => [],
@@ -42,7 +41,6 @@ const props = withDefaults(defineProps<{
 	autoFitPauseMs: 15000,
 	fitPadding: () => [96, 36, 240, 36],
 	locateTop: '220rpx',
-	locateBottom: '',
 });
 const emit = defineEmits<{ markerTap: [id: number]; mapTap: [point: RideMapPoint] }>();
 const componentInstance = getCurrentInstance();
@@ -54,7 +52,7 @@ const nativeScale = ref(14);
 const nativeIncludePoints = ref<RideMapPoint[]>([]);
 const nativeFitPadding = computed(() => props.fitPadding.map((value) => Math.max(0, Math.round(uni.upx2px(Number(value))))));
 const locateTop = computed(() => props.locateTop);
-const locateControlStyle = computed(() => props.locateBottom ? { top: 'auto', bottom: props.locateBottom } : { top: locateTop.value, bottom: 'auto' });
+const locateControlStyle = computed(() => ({ top: locateTop.value, bottom: 'auto' }));
 let nativeMapContext: any = null;
 let lastUserInteractionAt = 0;
 let lastFitSignature = '';
@@ -137,6 +135,7 @@ async function locateCurrent() {
 		uni.showToast({ title: locationErrorMessage(locationError).slice(0, 30), icon: 'none' });
 	} finally { locating.value = false; }
 }
+defineExpose({ locateCurrent });
 
 // #ifdef H5
 import AMapLoader from '@amap/amap-jsapi-loader';
@@ -250,8 +249,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .map-shell,.map{width:100%;height:100%;min-height:420rpx}.map-shell{position:relative;background:#e2e8f0}.map-error{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:32rpx;color:#64748b;background:#f8fafc}
-.locate-control{position:absolute;z-index:8;right:24rpx;display:grid;width:78rpx;height:78rpx;place-items:center;border:1rpx solid rgba(255,255,255,.9);border-radius:24rpx;background:rgba(255,255,255,.94);box-shadow:0 12rpx 32rpx rgba(15,23,42,.2);backdrop-filter:blur(10px);transition:bottom .3s ease,top .3s ease,transform .2s ease}
-.locate-control:active{transform:scale(.96)}.locate-control.locating{opacity:.65}.locate-control__icon{width:42rpx;height:42rpx;transition:transform .3s ease}.locate-control.locating .locate-control__icon{transform:rotate(45deg)}
+.locate-control{position:absolute;z-index:8;right:24rpx}
 :global(.ride-vehicle-location-marker){display:block;width:30px;height:30px;filter:drop-shadow(0 3px 5px rgba(15,23,42,.24))}
 :global(.ride-point-location-marker){display:block;width:28px;height:34px;filter:drop-shadow(0 3px 5px rgba(15,23,42,.18))}
 :global(.ride-driver-location-card){display:flex;align-items:center;gap:7px;max-width:160px;padding:7px 10px;border:1px solid color-mix(in srgb,var(--ride-status) 24%,#fff);border-radius:10px;background:rgba(255,255,255,.96);box-shadow:0 6px 20px rgba(15,23,42,.18);color:#0f172a;font-size:12px;font-weight:700;white-space:nowrap}
