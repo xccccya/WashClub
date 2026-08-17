@@ -207,4 +207,6 @@ onUnload(() => { stopAvailabilityRefresh(); if (searchTimer) clearTimeout(search
 button::after{border:0}
 
 .collapse-content{min-width:0}.ride-collapse-enter-active,.ride-collapse-leave-active{overflow:hidden;transition:max-height .32s ease,opacity .22s ease,transform .32s ease}.ride-collapse-enter-from,.ride-collapse-leave-to{max-height:0;opacity:0;transform:translateY(-8rpx)}.ride-collapse-enter-to,.ride-collapse-leave-from{max-height:2400rpx;opacity:1;transform:translateY(0)}
+.drawer{right:20rpx;width:auto;max-width:none;overflow-x:hidden}
+.collapse-content{width:auto;max-width:none;box-sizing:border-box}
 </style>
