@@ -23,6 +23,7 @@ import {
 	rideControllerReverseGeocode,
 	rideControllerReject,
 	rideControllerReportLocation,
+	rideControllerReportLocationBatch,
 	rideControllerRoutePreview,
 	rideControllerSendMessage,
 	rideControllerStart,
@@ -64,6 +65,7 @@ export const rideApi = {
 	arriveDestination: (id: number, confirmFarAway = false) => value<any>(rideControllerArriveDestination(id, { confirmFarAway })),
 	finalize: (id: number, payload: any) => value<any>(rideControllerFinalize(id, payload)),
 	reportLocation: (payload: any) => value<any>(rideControllerReportLocation(payload)),
+	reportLocationBatch: (payload: any) => value<any>(rideControllerReportLocationBatch(payload)),
 	async payOrder(orderId: number) {
 		const params: any = await orderControllerWechatJsapi(orderId) as any;
 		await new Promise<void>((resolve, reject) => (uni as any).requestPayment({

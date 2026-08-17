@@ -10024,6 +10024,44 @@
         ]
       }
     },
+    "/rides/locations/batch": {
+      "post": {
+        "operationId": "RideController_reportLocationBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RideLocationBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "内部司机批量补传定位点并刷新当前路线",
+        "tags": [
+          "rides"
+        ]
+      }
+    },
     "/rides/driver-contact/{driverMemberId}": {
       "get": {
         "operationId": "RideController_busyDriverContact",
@@ -14581,14 +14619,43 @@
           "speedMetersPerSecond": {
             "type": "number"
           },
+          "accuracyMeters": {
+            "type": "number",
+            "description": "定位水平精度，单位米"
+          },
           "clientTimestamp": {
             "type": "string",
             "description": "客户端采样时间，ISO 8601"
+          },
+          "clientPointId": {
+            "type": "string",
+            "description": "客户端生成的幂等定位点 ID，断网补传时保持不变"
+          },
+          "rideTripId": {
+            "type": "number",
+            "description": "采样时所属行程；null 表示当时没有行程",
+            "nullable": true
           }
         },
         "required": [
           "longitude",
           "latitude"
+        ]
+      },
+      "RideLocationBatchDto": {
+        "type": "object",
+        "properties": {
+          "locations": {
+            "minItems": 1,
+            "maxItems": 120,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RideLocationDto"
+            }
+          }
+        },
+        "required": [
+          "locations"
         ]
       },
       "RideCreateDto": {

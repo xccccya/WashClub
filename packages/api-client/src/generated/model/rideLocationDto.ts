@@ -11,6 +11,15 @@ export interface RideLocationDto {
   latitude: number;
   heading?: number;
   speedMetersPerSecond?: number;
+  /** 定位水平精度，单位米 */
+  accuracyMeters?: number;
   /** 客户端采样时间，ISO 8601 */
   clientTimestamp?: string;
+  /** 客户端生成的幂等定位点 ID，断网补传时保持不变 */
+  clientPointId?: string;
+  /**
+   * 采样时所属行程；null 表示当时没有行程
+   * @nullable
+   */
+  rideTripId?: number | null;
 }

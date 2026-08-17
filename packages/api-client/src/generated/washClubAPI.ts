@@ -152,6 +152,7 @@ import type {
   RideControllerPlacesParams,
   RideControllerReject200,
   RideControllerReportLocation200,
+  RideControllerReportLocationBatch200,
   RideControllerReverseGeocode200,
   RideControllerReverseGeocodeParams,
   RideControllerRoutePreview200,
@@ -162,6 +163,7 @@ import type {
   RideDriverVehicleCreateDto,
   RideDriverVehicleUpdateDto,
   RideFinalizeDto,
+  RideLocationBatchDto,
   RideLocationDto,
   RideMessageCreateDto,
   RideMessageDto,
@@ -8615,6 +8617,31 @@ export const rideControllerReportLocation = async (rideLocationDto: RideLocation
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       rideLocationDto,)
+  }
+);}
+
+
+
+/**
+ * @summary 内部司机批量补传定位点并刷新当前路线
+ */
+export const getRideControllerReportLocationBatchUrl = () => {
+
+
+
+
+  return `/rides/locations/batch`
+}
+
+export const rideControllerReportLocationBatch = async (rideLocationBatchDto: RideLocationBatchDto, options?: RequestInit): Promise<RideControllerReportLocationBatch200> => {
+
+  return createHttpClient<RideControllerReportLocationBatch200>(getRideControllerReportLocationBatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      rideLocationBatchDto,)
   }
 );}
 

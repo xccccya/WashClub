@@ -1,4 +1,4 @@
-export type RideLocationPoint = { longitude: number; latitude: number; heading?: number; speed?: number };
+export type RideLocationPoint = { longitude: number; latitude: number; heading?: number; speed?: number; accuracy?: number; timestamp?: number };
 export type RideLocationErrorCode = 'INSECURE_CONTEXT' | 'PERMISSION_DENIED' | 'TIMEOUT' | 'UNAVAILABLE' | 'UNSUPPORTED';
 
 export class RideLocationError extends Error {
@@ -24,7 +24,12 @@ export async function getCurrentRideLocation(): Promise<RideLocationPoint> {
 		try {
 			uni.getLocation({
 				type: 'gcj02', isHighAccuracy: true, highAccuracyExpireTime: 8000,
-				success: (result:any) => resolve({ longitude:Number(result.longitude), latitude:Number(result.latitude), heading:Number(result.direction), speed:Number(result.speed) }),
+				success: (result:any) => resolve({
+					longitude: Number(result.longitude), latitude: Number(result.latitude),
+					heading: Number(result.direction ?? result.heading), speed: Number(result.speed),
+					accuracy: Number(result.accuracy ?? result.horizontalAccuracy),
+					timestamp: Number(result.timestamp) || Date.now(),
+				}),
 				fail: (error:any) => {
 					const text = String(error?.errMsg || error?.message || '').toLowerCase();
 					if (/deny|denied|auth|permission/.test(text)) reject(new RideLocationError('PERMISSION_DENIED', '定位权限被拒绝，请在系统或浏览器设置中允许定位，也可手动选择起点'));

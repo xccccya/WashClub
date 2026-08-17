@@ -4,7 +4,16 @@
 			<div><el-button link @click="$router.back()">← 返回</el-button><h2>行程订单 {{ trip?.order?.no || '' }}</h2></div>
 			<el-tag v-if="trip">{{ trip.status }}</el-tag>
 		</div>
-		<RideAdminMap v-if="track" :origin="origin" :destination="destination" :planned-points="plannedPoints" :actual-points="actualPoints" height="520px" />
+		<RideAdminMap
+			v-if="track"
+			:origin="origin"
+			:destination="destination"
+			:planned-points="plannedPoints"
+			:pickup-points="pickupPoints"
+			:passenger-points="passengerPoints"
+			:settlement-points="settlementPoints"
+			height="520px"
+		/>
 		<div v-if="trip" class="grid">
 			<el-card header="行程信息">
 				<el-descriptions :column="1" border>
@@ -87,7 +96,13 @@ const fareModeLabel = computed(() => ({ ESTIMATED: '预估计价', LIVE: '实时
 const origin = computed(() => track.value ? { longitude: Number(track.value.originLongitude), latitude: Number(track.value.originLatitude), address: track.value.originAddress } : null);
 const destination = computed(() => track.value ? { longitude: Number(track.value.destinationLongitude), latitude: Number(track.value.destinationLatitude), address: track.value.destinationAddress } : null);
 const plannedPoints = computed(() => Array.isArray(track.value?.selectedRouteSnapshot?.points) ? track.value.selectedRouteSnapshot.points : []);
-const actualPoints = computed(() => Array.isArray(track.value?.locations) ? track.value.locations.map((point: any) => ({ longitude: Number(point.longitude), latitude: Number(point.latitude) })) : []);
+function segmentPoints(name: 'pickup' | 'passenger' | 'settlement') {
+	const points = track.value?.segments?.[name];
+	return Array.isArray(points) ? points.map((point: any) => ({ longitude: Number(point.longitude), latitude: Number(point.latitude) })) : [];
+}
+const pickupPoints = computed(() => segmentPoints('pickup'));
+const passengerPoints = computed(() => segmentPoints('passenger'));
+const settlementPoints = computed(() => segmentPoints('settlement'));
 const vehicleText = computed(() => {
 	const vehicle = trip.value?.vehicle;
 	if (!vehicle) return '-';

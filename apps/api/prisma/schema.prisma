@@ -1803,6 +1803,7 @@ model RideDriverProfile {
   latitude             Decimal?               @db.Decimal(10, 7)
   heading              Decimal?               @db.Decimal(6, 2)
   speedMetersPerSecond Decimal?               @db.Decimal(8, 2)
+  accuracyMeters       Decimal?               @db.Decimal(8, 2)
   lastLocationAt       DateTime?
   lastHeartbeatAt      DateTime?
   vehicles             RideDriverVehicle[]    @relation("RideDriverVehicles")
@@ -1894,18 +1895,22 @@ model RideDispatchRejection {
 }
 
 model RideLocation {
-  id             BigInt   @id @default(autoincrement())
-  createdAt      DateTime @default(now())
-  rideTripId     Int
-  rideTrip       RideTrip @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
-  driverMemberId Int
-  longitude      Decimal  @db.Decimal(10, 7)
-  latitude       Decimal  @db.Decimal(10, 7)
-  heading        Decimal? @db.Decimal(6, 2)
+  id                   BigInt   @id @default(autoincrement())
+  createdAt            DateTime @default(now())
+  rideTripId           Int
+  rideTrip             RideTrip @relation(fields: [rideTripId], references: [id], onDelete: Cascade)
+  driverMemberId       Int
+  longitude            Decimal  @db.Decimal(10, 7)
+  latitude             Decimal  @db.Decimal(10, 7)
+  heading              Decimal? @db.Decimal(6, 2)
   speedMetersPerSecond Decimal? @db.Decimal(8, 2)
-  clientTimestamp DateTime?
+  accuracyMeters       Decimal? @db.Decimal(8, 2)
+  clientTimestamp      DateTime?
+  clientPointId        String?  @db.VarChar(80)
+  source               String   @default("GPS") @db.VarChar(24)
 
   @@index([rideTripId, createdAt])
+  @@unique([driverMemberId, clientPointId])
 }
 
 model RideExtraFee {

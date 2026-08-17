@@ -67,7 +67,7 @@ import RideStatusBar from '../../../components/ride/RideStatusBar.vue';
 import passengerFallback from '../../../static/icons/jtuser.png';
 import { getCurrentRideLocation, locationErrorMessage } from '../../../services/geolocation';
 import { rideApi } from '../../../services/ride';
-import { onRideRealtime, startDriverLocationTracking } from '../../../services/ride-realtime';
+import { onRideRealtime, reportDriverLocation, startDriverLocationTracking } from '../../../services/ride-realtime';
 import { getToken } from '../../../utils/auth';
 import { openLogin } from '../../../utils/auth-navigation';
 import { useSafeArea } from '../../../utils/safe-area';
@@ -157,6 +157,9 @@ function handleLocationUpdate(result: any) {
 	if (result?.route?.points) routePoints.value = result.route.points;
 	if (result?.meter) meter.value = result.meter;
 }
+function currentRideTripId() {
+	return activeTrip.value?.id ? Number(activeTrip.value.id) : null;
+}
 function handleRealtime(event: any) {
 	if (String(event?.type || '').startsWith('ride:message')) return;
 	if (event?.type === 'ride:meter' && Number(event?.data?.rideTripId) === Number(activeTrip.value?.id)) {
@@ -170,11 +173,10 @@ async function setStatus(next: 'OFFLINE' | 'AVAILABLE' | 'BUSY') {
 		if (next !== 'OFFLINE') {
 			const location = await getCurrentRideLocation();
 			currentLocation.value = location;
-			try { await rideApi.reportLocation({ longitude: location.longitude, latitude: location.latitude, heading: Number.isFinite(location.heading) ? location.heading : undefined, speedMetersPerSecond: Number.isFinite(location.speed) ? Math.max(0, Number(location.speed)) : undefined, clientTimestamp: new Date().toISOString() }); }
-			catch (error: any) { if (!/过于频繁/.test(String(error?.message || ''))) throw error; }
+			await reportDriverLocation(location, currentRideTripId(), handleLocationUpdate);
 		}
 		profile.value = await rideApi.driverStatus(next);
-		if (next !== 'OFFLINE' && !stopTracking) stopTracking = startDriverLocationTracking(handleLocationUpdate);
+		if (next !== 'OFFLINE' && !stopTracking) stopTracking = startDriverLocationTracking(currentRideTripId, handleLocationUpdate);
 		if (next === 'OFFLINE' && stopTracking) { stopTracking(); stopTracking = null; }
 	} catch (error: any) { uni.showToast({ title: locationErrorMessage(error) || error?.message || '状态切换失败', icon: 'none' }); }
 }
@@ -202,12 +204,7 @@ async function arrive(kind: 'pickup' | 'destination') {
 	try {
 		const location = await getCurrentRideLocation();
 		currentLocation.value = location;
-		try {
-			const report = await rideApi.reportLocation({ longitude: location.longitude, latitude: location.latitude, heading: Number.isFinite(location.heading) ? location.heading : undefined, speedMetersPerSecond: Number.isFinite(location.speed) ? Math.max(0, Number(location.speed)) : undefined, clientTimestamp: new Date().toISOString() });
-			handleLocationUpdate(report);
-		} catch (error: any) {
-			if (!/过于频繁/.test(String(error?.message || ''))) throw error;
-		}
+		await reportDriverLocation(location, currentRideTripId(), handleLocationUpdate);
 		const target = kind === 'pickup' ? { longitude: activeTrip.value.originLongitude, latitude: activeTrip.value.originLatitude } : { longitude: activeTrip.value.destinationLongitude, latitude: activeTrip.value.destinationLatitude };
 		const distance = Math.round(distanceBetween(location, target));
 		let confirmed = false;
@@ -229,7 +226,14 @@ function onPhoneInput(event: any) { phoneLastFour.value = String(event?.detail?.
 async function submitPhone() {
 	if (!activeTrip.value || phoneLastFour.value.length !== 4 || verifying.value) return;
 	verifying.value = true;
-	try { await rideApi.start(activeTrip.value.id, phoneLastFour.value); closePhoneVerification(); await load(); }
+	try {
+		const location = await getCurrentRideLocation();
+		currentLocation.value = location;
+		await reportDriverLocation(location, currentRideTripId(), handleLocationUpdate);
+		await rideApi.start(activeTrip.value.id, phoneLastFour.value);
+		closePhoneVerification();
+		await load();
+	}
 	catch (error: any) { uni.showToast({ title: error?.message || '验证失败', icon: 'none' }); phoneLastFour.value = ''; phoneFocus.value = false; nextTick(() => { phoneFocus.value = true; }); }
 	finally { verifying.value = false; }
 }
@@ -283,7 +287,7 @@ onMounted(async () => {
 		if (!/未登录|登录已过期/.test(String(error?.message || ''))) uni.showToast({ title: error?.message || '司机工作台加载失败', icon: 'none' });
 		return;
 	}
-	if (status.value !== 'OFFLINE') stopTracking = startDriverLocationTracking(handleLocationUpdate);
+	if (status.value !== 'OFFLINE') stopTracking = startDriverLocationTracking(currentRideTripId, handleLocationUpdate);
 	stopRealtime = onRideRealtime(handleRealtime);
 	poll = setInterval(refreshSilently, 8000);
 });

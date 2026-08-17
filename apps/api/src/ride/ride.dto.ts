@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+	ArrayMaxSize,
+	ArrayMinSize,
+	IsArray,
 	IsBoolean,
 	IsDateString,
 	IsEnum,
@@ -266,10 +269,40 @@ export class RideLocationDto {
 	@Max(100)
 	speedMetersPerSecond?: number;
 
+	@ApiPropertyOptional({ description: '定位水平精度，单位米' })
+	@IsOptional()
+	@IsNumber()
+	@Min(0)
+	@Max(5000)
+	accuracyMeters?: number;
+
 	@ApiPropertyOptional({ description: '客户端采样时间，ISO 8601' })
 	@IsOptional()
-	@IsString()
+	@IsDateString()
 	clientTimestamp?: string;
+
+	@ApiPropertyOptional({ description: '客户端生成的幂等定位点 ID，断网补传时保持不变' })
+	@IsOptional()
+	@IsString()
+	@MaxLength(80)
+	clientPointId?: string;
+
+	@ApiPropertyOptional({ type: Number, description: '采样时所属行程；null 表示当时没有行程', nullable: true })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	rideTripId?: number | null;
+}
+
+export class RideLocationBatchDto {
+	@ApiProperty({ type: [RideLocationDto], minItems: 1, maxItems: 120 })
+	@IsArray()
+	@ArrayMinSize(1)
+	@ArrayMaxSize(120)
+	@ValidateNested({ each: true })
+	@Type(() => RideLocationDto)
+	locations!: RideLocationDto[];
 }
 
 export class RideStartDto {

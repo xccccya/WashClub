@@ -18,6 +18,7 @@ import { RideAmapService } from './ride.amap.service.js';
 import { RideDispatchService } from './ride.dispatch.service.js';
 import { RideFareService } from './ride.fare.service.js';
 import { RideRealtimeService } from './ride.realtime.service.js';
+import { RideTrajectoryService } from './ride.trajectory.service.js';
 
 const ACTIVE_DRIVER_STATUSES = ['ACCEPTED', 'TO_PICKUP', 'ARRIVED_PICKUP', 'IN_TRIP', 'ARRIVED_DESTINATION', 'FARE_PENDING', 'SUPPLEMENT_PENDING'] as const;
 const PASSENGER_CANCELLABLE = ['CREATED', 'PREPAY_PENDING', 'DISPATCHING'] as const;
@@ -33,6 +34,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		private readonly dispatch: RideDispatchService,
 		private readonly realtime: RideRealtimeService,
 		private readonly refund: OrderRefundService,
+		private readonly trajectory: RideTrajectoryService,
 	) {}
 
 	onModuleInit() {
@@ -291,12 +293,37 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		if (trip.status !== 'ARRIVED_PICKUP') throw new ConflictException('司机到达上车点后才能开始订单');
 		const passenger = await this.prisma.member.findUnique({ where: { id: trip.passengerMemberId }, select: { phone: true } });
 		if (!passenger || passenger.phone.slice(-4) !== phoneLastFour) throw new BadRequestException('乘客手机号后四位错误');
-		return this.transition(id, driverMemberId, 'ARRIVED_PICKUP', 'IN_TRIP', { passengerPhoneVerifiedAt: new Date(), startedAt: new Date() });
+		const profile = await this.freshDriverLocation(driverMemberId);
+		const startedAt = new Date();
+		await this.prisma.$transaction(async (tx) => {
+			const moved = await tx.rideTrip.updateMany({
+				where: { id, driverMemberId, status: 'ARRIVED_PICKUP', version: trip.version },
+				data: { status: 'IN_TRIP', passengerPhoneVerifiedAt: startedAt, startedAt, version: { increment: 1 } },
+			});
+			if (!moved.count) throw new ConflictException('行程状态已变化，请刷新后重试');
+			await tx.rideLocation.create({ data: this.anchorLocationData(id, driverMemberId, profile, startedAt, 'START_ANCHOR', `ride:${id}:start`) });
+			await tx.orderTimeline.create({ data: { orderId: trip.orderId, event: 'RIDE_STATUS', value: 'IN_TRIP' } });
+		});
+		this.realtime.toMembers([trip.passengerMemberId, driverMemberId], 'ride:status', { id, status: 'IN_TRIP' });
+		return this.detail(id, { memberId: driverMemberId });
 	}
 
 	async arriveDestination(id: number, driverMemberId: number, confirmFarAway = false) {
-		await this.assertArrivalDistance(id, driverMemberId, 'destination', confirmFarAway);
-		return this.transition(id, driverMemberId, 'IN_TRIP', 'ARRIVED_DESTINATION', { arrivedDestinationAt: new Date() });
+		const profile = await this.assertArrivalDistance(id, driverMemberId, 'destination', confirmFarAway);
+		const trip = await this.ownedDriverTrip(id, driverMemberId);
+		if (trip.status !== 'IN_TRIP') throw new ConflictException(`当前状态不能执行此操作（${trip.status}）`);
+		const arrivedDestinationAt = new Date();
+		await this.prisma.$transaction(async (tx) => {
+			const moved = await tx.rideTrip.updateMany({
+				where: { id, driverMemberId, status: 'IN_TRIP', version: trip.version },
+				data: { status: 'ARRIVED_DESTINATION', arrivedDestinationAt, version: { increment: 1 } },
+			});
+			if (!moved.count) throw new ConflictException('行程状态已变化，请刷新后重试');
+			await tx.rideLocation.create({ data: this.anchorLocationData(id, driverMemberId, profile, arrivedDestinationAt, 'END_ANCHOR', `ride:${id}:destination`) });
+			await tx.orderTimeline.create({ data: { orderId: trip.orderId, event: 'RIDE_STATUS', value: 'ARRIVED_DESTINATION' } });
+		});
+		this.realtime.toMembers([trip.passengerMemberId, driverMemberId], 'ride:status', { id, status: 'ARRIVED_DESTINATION' });
+		return this.detail(id, { memberId: driverMemberId });
 	}
 
 	async finalize(id: number, driverMemberId: number, dto: RideFinalizeDto) {
@@ -311,13 +338,11 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		if (!trip.startedAt || !trip.arrivedDestinationAt) throw new ConflictException('行程时间记录不完整');
 		const [setting, locations] = await Promise.all([
 			this.getSetting(),
-			this.prisma.rideLocation.findMany({ where: { rideTripId: id, createdAt: { gte: trip.startedAt, lte: trip.arrivedDestinationAt } }, orderBy: { createdAt: 'asc' } }),
+			this.prisma.rideLocation.findMany({ where: { rideTripId: id }, orderBy: { createdAt: 'desc' }, take: 10000 }),
 		]);
-		let measuredDistance = 0;
-		for (let index = 1; index < locations.length; index += 1) {
-			measuredDistance += this.distance(Number(locations[index - 1].latitude), Number(locations[index - 1].longitude), Number(locations[index].latitude), Number(locations[index].longitude));
-		}
-		const finalDistanceMeters = locations.length >= 2 ? Math.round(measuredDistance) : trip.estimatedDistanceMeters;
+		const processed = this.trajectory.process(locations);
+		const measured = this.trajectory.segment(processed.points, trip.startedAt, trip.arrivedDestinationAt);
+		const finalDistanceMeters = measured.points.length >= 2 ? measured.distanceMeters : trip.estimatedDistanceMeters;
 		const finalDurationSeconds = Math.max(0, Math.round((trip.arrivedDestinationAt.getTime() - trip.startedAt.getTime()) / 1000));
 		const extraFees = dto.extraFees || [];
 		if (!setting.allowParkingFee && extraFees.some((item) => item.type === 'PARKING' && item.amount > 0)) throw new BadRequestException('当前配置不允许添加停车费');
@@ -331,7 +356,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			if (!moved.count) throw new ConflictException('行程状态已变化，请刷新后重试');
 			if (Number(trip.estimatedTollAmount || 0) > 0) await tx.rideExtraFee.create({ data: { rideTripId: id, type: 'TOLL', amount: trip.estimatedTollAmount, remark: '高德路线预估过路费', createdByMemberId: driverMemberId } });
 			for (const fee of extraFees) if (fee.amount > 0) await tx.rideExtraFee.create({ data: { rideTripId: id, type: fee.type, amount: fee.amount, remark: fee.remark || null, createdByMemberId: driverMemberId } });
-			await tx.orderTimeline.create({ data: { orderId: trip.orderId, event: 'RIDE_FARE', value: calculated.amount.toFixed(2), remark: `距离${finalDistanceMeters}米，时长${finalDurationSeconds}秒` } });
+			await tx.orderTimeline.create({ data: { orderId: trip.orderId, event: 'RIDE_FARE', value: calculated.amount.toFixed(2), remark: `距离${finalDistanceMeters}米，时长${finalDurationSeconds}秒；轨迹原始${processed.rawPointCount}点，有效${processed.acceptedPointCount}点，过滤${processed.rejectedPointCount}点` } });
 			return tx.rideTrip.findUniqueOrThrow({ where: { id }, include: { order: true } });
 		});
 
@@ -455,13 +480,30 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 
 	async adminTrack(id: number) {
 		const trip = await this.prisma.rideTrip.findUnique({ where: { id }, select: {
-			id: true, originLongitude: true, originLatitude: true, originAddress: true,
+			id: true, orderId: true, originLongitude: true, originLatitude: true, originAddress: true,
 			destinationLongitude: true, destinationLatitude: true, destinationAddress: true,
-			selectedRouteSnapshot: true,
+			selectedRouteSnapshot: true, startedAt: true, arrivedDestinationAt: true, completedAt: true,
 		} });
 		if (!trip) throw new BadRequestException('行程不存在');
-		const locations = await this.prisma.rideLocation.findMany({ where: { rideTripId: id }, orderBy: { createdAt: 'asc' }, take: 10000 });
-		return this.serialize({ ...trip, locations });
+		const [locations, fareTimeline] = await Promise.all([
+			this.prisma.rideLocation.findMany({ where: { rideTripId: id }, orderBy: { createdAt: 'desc' }, take: 10000 }),
+			this.prisma.orderTimeline.findFirst({ where: { orderId: trip.orderId, event: 'RIDE_FARE' }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+		]);
+		const processed = this.trajectory.process(locations);
+		const settlementAt = fareTimeline?.createdAt || trip.completedAt || null;
+		const segments = this.trajectory.split(processed.points, trip.startedAt, trip.arrivedDestinationAt, settlementAt);
+		return this.serialize({
+			...trip,
+			settlementAt,
+			locations: processed.points,
+			segments,
+			trajectoryQuality: {
+				rawPointCount: processed.rawPointCount,
+				acceptedPointCount: processed.acceptedPointCount,
+				rejectedPointCount: processed.rejectedPointCount,
+				rejectedByReason: processed.rejectedByReason,
+			},
+		});
 	}
 
 	async adminMessages(id: number) {
@@ -477,15 +519,13 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private async assertArrivalDistance(id: number, driverMemberId: number, target: 'origin' | 'destination', confirmed: boolean) {
-		const [trip, profile] = await Promise.all([
-			this.ownedDriverTrip(id, driverMemberId),
-			this.prisma.rideDriverProfile.findUnique({ where: { memberId: driverMemberId }, select: { longitude: true, latitude: true, lastLocationAt: true } }),
-		]);
-		if (!profile?.lastLocationAt || profile.longitude == null || profile.latitude == null) throw new ConflictException('请先开启定位并更新当前位置');
-		if (Date.now() - profile.lastLocationAt.getTime() > 30_000) throw new ConflictException('当前位置已过期，请重新定位后再确认到达');
+		const [trip, profile] = await Promise.all([this.ownedDriverTrip(id, driverMemberId), this.freshDriverLocation(driverMemberId)]);
 		const targetLatitude = Number(target === 'origin' ? trip.originLatitude : trip.destinationLatitude);
 		const targetLongitude = Number(target === 'origin' ? trip.originLongitude : trip.destinationLongitude);
-		const distanceMeters = Math.round(this.distance(Number(profile.latitude), Number(profile.longitude), targetLatitude, targetLongitude));
+		const distanceMeters = Math.round(this.trajectory.distanceBetween(
+			{ latitude: Number(profile.latitude), longitude: Number(profile.longitude) },
+			{ latitude: targetLatitude, longitude: targetLongitude },
+		));
 		if (distanceMeters > 500 && !confirmed) {
 			throw new ConflictException({
 				message: `当前位置距离${target === 'origin' ? '上车点' : '目的地'}约 ${distanceMeters} 米，请确认是否仍要标记到达`,
@@ -494,6 +534,30 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 				target,
 			});
 		}
+		return profile;
+	}
+
+	private async freshDriverLocation(driverMemberId: number) {
+		const profile = await this.prisma.rideDriverProfile.findUnique({
+			where: { memberId: driverMemberId },
+			select: { longitude: true, latitude: true, heading: true, speedMetersPerSecond: true, accuracyMeters: true, lastLocationAt: true },
+		});
+		if (!profile?.lastLocationAt || profile.longitude == null || profile.latitude == null) throw new ConflictException('请先开启定位并更新当前位置');
+		if (Date.now() - profile.lastLocationAt.getTime() > 30_000) throw new ConflictException('当前位置已过期，请重新定位后再操作');
+		if (!this.trajectory.isUsableSample({
+			accuracyMeters: profile.accuracyMeters == null ? null : Number(profile.accuracyMeters),
+			speedMetersPerSecond: profile.speedMetersPerSecond == null ? null : Number(profile.speedMetersPerSecond),
+		})) throw new ConflictException('当前定位精度不足或速度异常，请重新定位后再操作');
+		return profile;
+	}
+
+	private anchorLocationData(rideTripId: number, driverMemberId: number, profile: any, at: Date, source: 'START_ANCHOR' | 'END_ANCHOR', clientPointId: string) {
+		return {
+			rideTripId, driverMemberId,
+			longitude: profile.longitude, latitude: profile.latitude, heading: profile.heading,
+			speedMetersPerSecond: profile.speedMetersPerSecond, accuracyMeters: profile.accuracyMeters,
+			clientTimestamp: at, clientPointId, source, createdAt: at,
+		};
 	}
 
 	private async transition(id: number, driverMemberId: number, from: any, to: any, data: Record<string, unknown>) {
@@ -646,15 +710,13 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			mode = 'LIVE';
 			const endAt = trip.arrivedDestinationAt || new Date();
 			const locations = await this.prisma.rideLocation.findMany({
-				where: { rideTripId: trip.id, createdAt: { gte: trip.startedAt, lte: endAt } },
-				orderBy: { createdAt: 'asc' },
-				select: { longitude: true, latitude: true },
+				where: { rideTripId: trip.id },
+				orderBy: { createdAt: 'desc' },
+				take: 10000,
 			});
-			distanceMeters = 0;
-			for (let index = 1; index < locations.length; index += 1) {
-				distanceMeters += this.distance(Number(locations[index - 1].latitude), Number(locations[index - 1].longitude), Number(locations[index].latitude), Number(locations[index].longitude));
-			}
-			distanceMeters = Math.round(distanceMeters);
+			const processed = this.trajectory.process(locations);
+			const measured = this.trajectory.segment(processed.points, trip.startedAt, endAt);
+			distanceMeters = measured.points.length >= 2 ? measured.distanceMeters : 0;
 			durationSeconds = Math.max(0, Math.round((endAt.getTime() - trip.startedAt.getTime()) / 1000));
 		}
 
@@ -695,11 +757,4 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		return `${prefix}${stamp}${Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0')}`;
 	}
 
-	private distance(lat1: number, lng1: number, lat2: number, lng2: number) {
-		const rad = (value: number) => (value * Math.PI) / 180;
-		const dLat = rad(lat2 - lat1);
-		const dLng = rad(lng2 - lng1);
-		const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
-		return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	}
 }

@@ -13,6 +13,7 @@ import {
 	RideDriverVehicleUpdateDto,
 	RideFinalizeDto,
 	RideListQueryDto,
+	RideLocationBatchDto,
 	RideLocationDto,
 	RideMessageCreateDto,
 	RideMessageDto,
@@ -138,6 +139,14 @@ export class RideController {
 		const memberId = this.identity.memberId(headers);
 		await this.identity.enabledEmployee(memberId);
 		return this.location.report(memberId, dto);
+	}
+
+	@Post('locations/batch')
+	@RideOperation({ summary: '内部司机批量补传定位点并刷新当前路线' })
+	async reportLocationBatch(@Headers() headers: Record<string, unknown>, @Body() dto: RideLocationBatchDto) {
+		const memberId = this.identity.memberId(headers);
+		await this.identity.enabledEmployee(memberId);
+		return this.location.reportBatch(memberId, dto);
 	}
 
 	@Get('driver-contact/:driverMemberId')

@@ -11,11 +11,12 @@ import { RideIdentityService } from './ride.identity.service.js';
 import { RideLocationService } from './ride.location.service.js';
 import { RideRealtimeService } from './ride.realtime.service.js';
 import { RideService } from './ride.service.js';
+import { RideTrajectoryService } from './ride.trajectory.service.js';
 
 @Module({
 	imports: [AuthModule, NotificationModule, OrderModule],
 	controllers: [RideController, RideAdminController, RideAmapProxyController],
-	providers: [RideService, RideIdentityService, RideFareService, RideAmapService, RideDispatchService, RideLocationService, RideRealtimeService],
+	providers: [RideService, RideIdentityService, RideFareService, RideAmapService, RideDispatchService, RideLocationService, RideRealtimeService, RideTrajectoryService],
 	exports: [RideService, RideDispatchService],
 })
 export class RideModule {}
