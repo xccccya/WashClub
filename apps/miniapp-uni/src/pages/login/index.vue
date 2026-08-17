@@ -120,6 +120,11 @@
 				</view>
 
 				<view class="bottom-actions" :class="{ enter: loginEnter }">
+					<view class="quick-login-divider" aria-hidden="true">
+						<view class="quick-login-divider__line" />
+						<text>快捷登录</text>
+						<view class="quick-login-divider__line" />
+					</view>
 					<!-- #ifdef MP-WEIXIN -->
 					<button
 						v-if="agree"
@@ -127,18 +132,18 @@
 						open-type="getPhoneNumber"
 						@getphonenumber="onGotPhoneNumber"
 					>
-						<view class="dot" />
-						微信一键登录
+						<image class="wechat-icon" src="/static/icons/wechat-login.png" mode="aspectFit" />
+						<text>微信一键登录</text>
 					</button>
 					<button v-else class="wechat" @tap="onTapWechatPrecheck">
-						<view class="dot" />
-						微信一键登录
+						<image class="wechat-icon" src="/static/icons/wechat-login.png" mode="aspectFit" />
+						<text>微信一键登录</text>
 					</button>
 					<!-- #endif -->
 					<!-- #ifndef MP-WEIXIN -->
 					<view class="wechat" @tap="wechatLogin">
-						<view class="dot" />
-						微信一键登录
+						<image class="wechat-icon" src="/static/icons/wechat-login.png" mode="aspectFit" />
+						<text>微信一键登录</text>
 					</view>
 					<!-- #endif -->
 				</view>
@@ -908,37 +913,52 @@ onUnmounted(() => {
 	min-height: 100vh;
 	display: flex;
 	flex-direction: column;
-	padding: 24rpx;
-	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-	background: linear-gradient(180deg, #e9f5ff, #fff0f6);
+	padding: 24rpx 28rpx;
+	padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+	background:
+		radial-gradient(circle at 8% 4%, rgba(110, 190, 255, 0.28), transparent 34%),
+		radial-gradient(circle at 96% 92%, rgba(255, 149, 196, 0.25), transparent 38%),
+		linear-gradient(165deg, #f4f9ff 0%, #fff 48%, #fff5fa 100%);
 	/* H5：避免因 100vw/滚动条等导致的横向溢出，让卡片真正居中 */
 	overflow-x: hidden;
 }
 
 .nav-back {
 	position: fixed;
-	left: 16rpx;
+	left: 20rpx;
 	z-index: 1000;
-	padding: 8rpx;
+	width: 72rpx;
+	height: 72rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 2rpx solid rgba(255, 255, 255, 0.86);
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.76);
+	box-shadow: 0 10rpx 28rpx rgba(31, 41, 55, 0.1);
+	backdrop-filter: blur(12px);
 }
 .nav-back-icon {
-	width: 56rpx;
-	height: 56rpx;
+	width: 44rpx;
+	height: 44rpx;
 }
 
 /* 合并页屏幕切换（对齐原型） */
 .screens {
 	position: relative;
 	flex: 1;
-	margin-top: 12rpx;
+	margin-top: 18rpx;
 }
 .screen {
 	position: absolute;
 	inset: 0;
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
-	gap: 18rpx;
+	justify-content: flex-start;
+	gap: 24rpx;
+	padding: 140rpx 0 36rpx;
+	box-sizing: border-box;
 	transform: translateX(0);
 	opacity: 1;
 	pointer-events: auto;
@@ -956,10 +976,10 @@ onUnmounted(() => {
 }
 
 .card {
-	border-radius: 24rpx;
-	background: rgba(255, 255, 255, 0.88);
-	border: 2rpx solid rgba(255, 255, 255, 0.8);
-	box-shadow: 0 18rpx 46rpx rgba(15, 23, 42, 0.12);
+	border-radius: 32rpx;
+	background: rgba(255, 255, 255, 0.9);
+	border: 2rpx solid rgba(255, 255, 255, 0.94);
+	box-shadow: 0 24rpx 64rpx rgba(32, 51, 79, 0.12);
 	overflow: hidden;
 	width: 100%;
 	max-width: 680rpx;
@@ -980,45 +1000,48 @@ onUnmounted(() => {
 	}
 }
 .card-inner {
-	padding: 28rpx;
+	padding: 36rpx 32rpx 32rpx;
 }
 
 .headline {
 	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 16rpx;
-	margin-bottom: 18rpx;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8rpx;
+	margin-bottom: 26rpx;
 }
 .h2 {
-	font-size: 40rpx;
-	font-weight: 800;
-	color: #0b1220;
+	font-size: 44rpx;
+	font-weight: 900;
+	letter-spacing: 1rpx;
+	color: #152238;
+	line-height: 1.2;
 }
 .headline-sub {
-	font-size: 24rpx;
-	color: #6b7280;
+	font-size: 25rpx;
+	color: #748096;
+	line-height: 1.45;
 }
 
 .mode-tabs {
 	display: flex;
-	gap: 12rpx;
-	padding: 10rpx;
+	gap: 8rpx;
+	padding: 8rpx;
 	border-radius: 999rpx;
 	/* 参考原型：更轻的半透明底 + 更克制的描边 + 毛玻璃 */
-	background: rgba(255, 255, 255, 0.55);
-	border: 2rpx solid rgba(255, 255, 255, 0.7);
+	background: rgba(237, 243, 250, 0.84);
+	border: 2rpx solid rgba(220, 230, 241, 0.72);
 	backdrop-filter: blur(12px);
-	box-shadow: 0 10rpx 18rpx rgba(15, 23, 42, 0.08);
+	box-shadow: inset 0 2rpx 6rpx rgba(91, 108, 132, 0.06);
 }
 .tab {
 	flex: 1;
-	height: 72rpx;
+	height: 76rpx;
 	border-radius: 999rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 24rpx;
+	font-size: 26rpx;
 	font-weight: 800;
 	color: #374151;
 	transition: background 0.16s ease, transform 0.12s ease, color 0.16s ease;
@@ -1026,9 +1049,9 @@ onUnmounted(() => {
 	background: transparent;
 }
 .tab.active {
-	color: #0b1220;
-	background: linear-gradient(135deg, rgba(99, 179, 255, 0.75), rgba(255, 119, 179, 0.65));
-	box-shadow: 0 10rpx 18rpx rgba(15, 23, 42, 0.12);
+	color: #17243a;
+	background: rgba(255, 255, 255, 0.98);
+	box-shadow: 0 8rpx 20rpx rgba(44, 68, 103, 0.12);
 }
 .tab:active {
 	transform: scale(0.99);
@@ -1038,7 +1061,7 @@ onUnmounted(() => {
 	display: flex;
 	flex-direction: column;
 	gap: 12rpx;
-	margin-top: 18rpx;
+	margin-top: 22rpx;
 }
 .label-row {
 	display: flex;
@@ -1047,22 +1070,22 @@ onUnmounted(() => {
 	gap: 12rpx;
 }
 .label {
-	font-size: 24rpx;
-	color: #374151;
-	font-weight: 650;
+	font-size: 25rpx;
+	color: #314056;
+	font-weight: 700;
 }
 .hint {
-	font-size: 24rpx;
-	color: #6b7280;
+	font-size: 23rpx;
+	color: #8a95a6;
 }
 
 .input {
 	height: 96rpx;
 	width: 100%;
 	border-radius: 20rpx;
-	border: 2rpx solid rgba(17, 24, 39, 0.1);
-	background: rgba(255, 255, 255, 0.92);
-	box-shadow: inset 0 2rpx 10rpx rgba(0, 0, 0, 0.04);
+	border: 2rpx solid rgba(82, 101, 128, 0.14);
+	background: rgba(250, 252, 255, 0.94);
+	box-shadow: inset 0 2rpx 8rpx rgba(53, 72, 98, 0.035);
 	padding: 0 24rpx;
 	font-size: 28rpx;
 	box-sizing: border-box;
@@ -1075,11 +1098,14 @@ onUnmounted(() => {
 	align-items: stretch;
 	border-radius: 24rpx;
 	overflow: hidden;
-	border: 2rpx solid rgba(17, 24, 39, 0.1);
-	background: rgba(255, 255, 255, 0.92);
+	border: 2rpx solid rgba(82, 101, 128, 0.14);
+	background: rgba(250, 252, 255, 0.94);
+	transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 .input-group.focused {
-	border-color: rgba(37, 99, 235, 0.25);
+	border-color: rgba(53, 132, 245, 0.5);
+	background: #fff;
+	box-shadow: 0 0 0 6rpx rgba(65, 145, 255, 0.1);
 }
 .input-group .input {
 	border: 0;
@@ -1149,15 +1175,15 @@ onUnmounted(() => {
 
 /* 模式切换动画（对齐原型的 panel-wrap） */
 .mode-area {
-	margin-top: 12rpx;
+	margin-top: 16rpx;
 	/* 让切换区域更像一个“独立模块”（参考原型整体质感） */
 	padding: 14rpx;
 	/* 关键：抵消左右 padding 造成的“内容变窄”，让内部输入框宽度与手机号输入框一致 */
 	margin-left: -14rpx;
 	margin-right: -14rpx;
 	border-radius: 24rpx;
-	background: rgba(255, 255, 255, 0.55);
-	border: 2rpx solid rgba(255, 255, 255, 0.7);
+	background: rgba(246, 249, 253, 0.72);
+	border: 2rpx solid rgba(224, 232, 242, 0.72);
 	backdrop-filter: blur(12px);
 }
 .panel-wrap {
@@ -1237,15 +1263,15 @@ onUnmounted(() => {
 }
 
 .agree-row {
-	margin-top: 18rpx;
+	margin-top: 22rpx;
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 16rpx;
-	padding: 18rpx;
-	border-radius: 24rpx;
-	background: rgba(255, 255, 255, 0.72);
-	border: 2rpx solid rgba(17, 24, 39, 0.06);
+	padding: 20rpx;
+	border-radius: 22rpx;
+	background: rgba(247, 250, 254, 0.9);
+	border: 2rpx solid rgba(90, 107, 131, 0.08);
 }
 .agree-left {
 	flex: 1;
@@ -1260,7 +1286,7 @@ onUnmounted(() => {
 .agree-desc {
 	font-size: 24rpx;
 	color: #6b7280;
-	line-height: 1.3;
+	line-height: 1.48;
 }
 .agree-link {
 	color: #2563eb;
@@ -1298,15 +1324,15 @@ onUnmounted(() => {
 
 .divider {
 	height: 2rpx;
-	background: rgba(17, 24, 39, 0.1);
-	margin: 22rpx 0;
+	background: rgba(74, 93, 120, 0.08);
+	margin: 26rpx 0 8rpx;
 }
 .actions {
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
 	width: 100%;
-	margin-top: 14rpx;
+	margin-top: 16rpx;
 }
 .primary {
 	height: 104rpx;
@@ -1314,8 +1340,8 @@ onUnmounted(() => {
 	/* 原型：更克制的描边 */
 	border: 2rpx solid rgba(255, 255, 255, 0.55);
 	font-weight: 900;
-	color: #0b1220;
-	background: linear-gradient(135deg, rgba(99, 179, 255, 0.96), rgba(255, 119, 179, 0.94));
+	color: #fff;
+	background: linear-gradient(135deg, #4f9df7 0%, #7f8cf7 48%, #ed7fb0 100%);
 	box-shadow:
 		0 22rpx 50rpx rgba(99, 179, 255, 0.18),
 		0 22rpx 50rpx rgba(255, 119, 179, 0.14),
@@ -1326,12 +1352,12 @@ onUnmounted(() => {
 	transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.16s ease;
 	position: relative;
 	overflow: hidden;
-	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+	text-shadow: 0 1px 2px rgba(40, 57, 94, 0.18);
 	padding: 0 34rpx;
-	/* 对齐原型：按钮更克制，不要看起来像居中大块 */
-	min-width: 320rpx;
-	width: auto;
-	margin-left: auto;
+	/* 手机端主操作保持整行热区，减少误触并强化操作层级 */
+	min-width: 0;
+	width: 100%;
+	margin-left: 0;
 	box-sizing: border-box;
 }
 .primary::before {
@@ -1382,13 +1408,30 @@ onUnmounted(() => {
 .bottom-actions {
 	display: flex;
 	flex-direction: column;
-	gap: 16rpx;
+	gap: 18rpx;
 	padding: 0;
 	width: 100%;
 	max-width: 680rpx;
 	margin-left: auto;
 	margin-right: auto;
 	box-sizing: border-box;
+}
+.quick-login-divider {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 18rpx;
+	padding: 0 28rpx;
+	font-size: 22rpx;
+	color: #98a2b2;
+}
+.quick-login-divider__line {
+	flex: 1;
+	height: 2rpx;
+	background: linear-gradient(90deg, transparent, rgba(93, 111, 136, 0.18));
+}
+.quick-login-divider__line:last-child {
+	background: linear-gradient(90deg, rgba(93, 111, 136, 0.18), transparent);
 }
 .bottom-actions.enter {
 	animation: bottom-enter 0.4s ease both;
@@ -1406,11 +1449,12 @@ onUnmounted(() => {
 .wechat {
 	height: 104rpx;
 	border-radius: 999rpx;
-	border: 2rpx solid rgba(255, 255, 255, 0.55);
+	border: 2rpx solid rgba(40, 196, 69, 0.22);
 	font-weight: 900;
-	color: #fff;
-	background: #07c160;
-	box-shadow: 0 18rpx 34rpx rgba(7, 193, 96, 0.18), 0 8rpx 18rpx rgba(15, 23, 42, 0.08);
+	font-size: 28rpx;
+	color: #183326;
+	background: rgba(255, 255, 255, 0.94);
+	box-shadow: 0 16rpx 36rpx rgba(38, 96, 61, 0.1), inset 0 2rpx 0 rgba(255, 255, 255, 0.9);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1424,23 +1468,27 @@ onUnmounted(() => {
 }
 .wechat:active {
 	transform: scale(0.99);
-	filter: brightness(0.98);
+	background: rgba(246, 255, 248, 0.98);
 }
 .wechat::before {
 	content: '';
 	position: absolute;
 	inset: -60% -40%;
-	background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 55%);
+	background: radial-gradient(circle at 30% 30%, rgba(40, 196, 69, 0.1), transparent 55%);
 	transform: rotate(18deg);
 	opacity: 0.45;
 	pointer-events: none;
 }
-.wechat .dot {
-	width: 18rpx;
-	height: 18rpx;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.85);
-	box-shadow: 0 0 0 10rpx rgba(255, 255, 255, 0.1);
+.wechat-icon {
+	width: 54rpx;
+	height: 54rpx;
+	flex: 0 0 54rpx;
+	position: relative;
+	z-index: 1;
+}
+.wechat text {
+	position: relative;
+	z-index: 1;
 }
 
 /* 重置页骨架（沿用原页面） */
