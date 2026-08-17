@@ -25,9 +25,12 @@
 					<el-descriptions-item label="创建时间">{{ formatTime(trip.createdAt) }}</el-descriptions-item>
 					<el-descriptions-item label="派单截止">{{ formatTime(trip.dispatchExpireAt) }}</el-descriptions-item>
 					<el-descriptions-item label="到达上车点">{{ formatTime(trip.arrivedPickupAt) }}</el-descriptions-item>
-					<el-descriptions-item label="开始行程">{{ formatTime(trip.startedAt) }}</el-descriptions-item>
-					<el-descriptions-item label="到达目的地">{{ formatTime(trip.arrivedDestinationAt) }}</el-descriptions-item>
-					<el-descriptions-item label="完成/取消">{{ formatTime(trip.completedAt || trip.cancelledAt) }}</el-descriptions-item>
+						<el-descriptions-item label="开始行程">{{ formatTime(trip.startedAt) }}</el-descriptions-item>
+						<el-descriptions-item label="到达目的地">{{ formatTime(trip.arrivedDestinationAt) }}</el-descriptions-item>
+						<el-descriptions-item label="固定预付模式">{{ trip.customPrepayEnabled ? '已启用' : '未启用' }}</el-descriptions-item>
+						<el-descriptions-item v-if="Number(trip.offlinePaidAmount || 0)" label="线下确认金额">¥{{ money(trip.offlinePaidAmount) }}</el-descriptions-item>
+						<el-descriptions-item v-if="trip.offlinePaidAt" label="线下确认时间">{{ formatTime(trip.offlinePaidAt) }}</el-descriptions-item>
+						<el-descriptions-item label="完成/取消">{{ formatTime(trip.completedAt || trip.cancelledAt) }}</el-descriptions-item>
 					<el-descriptions-item v-if="trip.cancelReason" label="异常/取消原因">{{ trip.cancelReason }}</el-descriptions-item>
 				</el-descriptions>
 			</el-card>
@@ -50,7 +53,8 @@
 						<div v-if="fare.minimumApplied" class="minimum-note">计价小计低于最低消费，本单按最低消费 ¥{{ money(fare.minimumFare) }} 结算</div>
 					</div>
 					<div class="settlement-grid">
-						<div><span>预付金额</span><strong>¥{{ money(fare.prepaidAmount) }}</strong></div>
+						<div><span>{{ fare.customPrepayEnabled ? '线上预付金额' : '预付金额' }}</span><strong>¥{{ money(fare.prepaidAmount) }}</strong></div>
+						<div v-if="Number(fare.offlinePaidAmount || 0)"><span>已确认线下支付</span><strong class="success">¥{{ money(fare.offlinePaidAmount) }}</strong></div>
 						<div><span>需补款</span><strong :class="{ warning: Number(fare.supplementAmount) > 0 }">¥{{ money(fare.supplementAmount) }}</strong></div>
 						<div><span>应退金额</span><strong :class="{ success: Number(fare.refundableAmount) > 0 }">¥{{ money(fare.refundableAmount) }}</strong></div>
 						<div><span>已退金额</span><strong>¥{{ money(fare.refundedAmount) }}</strong></div>

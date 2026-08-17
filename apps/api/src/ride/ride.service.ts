@@ -57,6 +57,8 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			pricePerKm: 0,
 			pricePerMinute: 0,
 			minimumFare: 0,
+			customPrepayEnabled: false,
+			customPrepayAmount: 0.01,
 			allowParkingFee: false,
 			allowOtherFee: false,
 			chatRetentionDays: 30,
@@ -86,8 +88,14 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 				// 不走高速是补充候选；高德策略路线暂不可用时仍保留基础路线预览。
 			}
 		}
-		const candidates = routes.map((route) => ({ route, fare: this.fare.calculate(setting, route.distanceMeters, route.durationSeconds, route.tollAmount) }));
-		return { coordinateSystem: 'GCJ-02', routes: candidates, ...candidates[0] };
+		const customPrepayEnabled = Boolean(setting.customPrepayEnabled);
+		const customPrepayAmount = this.money(Number(setting.customPrepayAmount ?? 0.01));
+		if (customPrepayEnabled && customPrepayAmount < 0.01) throw new BadRequestException('自定义预付金额配置无效，请联系管理员');
+		const candidates = routes.map((route) => {
+			const fare = this.fare.calculate(setting, route.distanceMeters, route.durationSeconds, route.tollAmount);
+			return { route, fare, prepayAmount: customPrepayEnabled ? customPrepayAmount : fare.amount };
+		});
+		return { coordinateSystem: 'GCJ-02', customPrepayEnabled, customPrepayAmount, routes: candidates, ...candidates[0] };
 	}
 
 	async create(memberId: number, dto: RideCreateDto) {
@@ -98,6 +106,8 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		if (!selected) throw new BadRequestException('所选路线已失效，请重新预览');
 		const amount = selected.fare.amount;
 		if (amount <= 0) throw new BadRequestException('预估车费必须大于0，请联系管理员配置计价规则');
+		const prepayAmount = this.money(Number(selected.prepayAmount || amount));
+		if (prepayAmount < 0.01) throw new BadRequestException('预付金额必须大于等于0.01元');
 		const no = this.orderNo('RIDE');
 		const result = await this.prisma.$transaction(async (tx) => {
 			const order = await tx.order.create({
@@ -108,7 +118,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 					fulfillmentStatus: 'PENDING',
 					payStatus: 'UNPAID',
 					totalAmount: amount,
-					payAmount: amount,
+					payAmount: prepayAmount,
 					memberId,
 					paymentExpireAt: new Date(Date.now() + 15 * 60_000),
 				},
@@ -131,15 +141,16 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 					estimatedDurationSeconds: selected.route.durationSeconds,
 					estimatedTollAmount: selected.route.tollAmount,
 					estimatedAmount: amount,
+					customPrepayEnabled: preview.customPrepayEnabled,
 				},
 			});
 			await tx.orderTimeline.createMany({ data: [
-				{ orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED', remark: '行程订单已创建' },
+				{ orderId: order.id, event: 'ORDER_STATUS', value: 'CREATED', remark: '行程订单已创建；预估车费¥' + amount.toFixed(2) + '；线上预付¥' + prepayAmount.toFixed(2) },
 				{ orderId: order.id, event: 'RIDE_STATUS', value: 'PREPAY_PENDING' },
 			] });
 			return { order, trip };
 		});
-		return { ...result, route: selected.route, fare: selected.fare };
+		return { ...result, route: selected.route, fare: selected.fare, prepayAmount };
 	}
 
 	async passengerList(memberId: number, query: RideListQueryDto) {
@@ -349,20 +360,33 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		if (!setting.allowOtherFee && extraFees.some((item) => item.type === 'OTHER' && item.amount > 0)) throw new BadRequestException('当前配置不允许添加其他费用');
 		const extraAmount = Number(trip.estimatedTollAmount || 0) + extraFees.reduce((sum, item) => sum + item.amount, 0);
 		const calculated = this.fare.calculate(setting, finalDistanceMeters, finalDurationSeconds, extraAmount);
+		if (dto.passengerPaidOffline && !trip.customPrepayEnabled) throw new BadRequestException('当前行程未启用自定义预付，不能确认线下支付');
+		const prepaidAmount = this.money(Number(trip.order.payAmount || 0));
+		const offlinePaidAmount = dto.passengerPaidOffline
+			? this.money(Math.max(0, calculated.amount - prepaidAmount))
+			: 0;
+		const offlinePaidAt = offlinePaidAmount > 0 ? new Date() : null;
 		const updated = await this.prisma.$transaction(async (tx) => {
 			const moved = await tx.rideTrip.updateMany({ where: { id, driverMemberId, status: 'ARRIVED_DESTINATION', version: trip.version }, data: {
-				status: 'FARE_PENDING', finalDistanceMeters, finalDurationSeconds, finalAmount: calculated.amount, version: { increment: 1 },
+				status: 'FARE_PENDING', finalDistanceMeters, finalDurationSeconds, finalAmount: calculated.amount,
+				offlinePaidAmount, offlinePaidAt, version: { increment: 1 },
 			} });
 			if (!moved.count) throw new ConflictException('行程状态已变化，请刷新后重试');
 			if (Number(trip.estimatedTollAmount || 0) > 0) await tx.rideExtraFee.create({ data: { rideTripId: id, type: 'TOLL', amount: trip.estimatedTollAmount, remark: '高德路线预估过路费', createdByMemberId: driverMemberId } });
 			for (const fee of extraFees) if (fee.amount > 0) await tx.rideExtraFee.create({ data: { rideTripId: id, type: fee.type, amount: fee.amount, remark: fee.remark || null, createdByMemberId: driverMemberId } });
 			await tx.orderTimeline.create({ data: { orderId: trip.orderId, event: 'RIDE_FARE', value: calculated.amount.toFixed(2), remark: `距离${finalDistanceMeters}米，时长${finalDurationSeconds}秒；轨迹原始${processed.rawPointCount}点，有效${processed.acceptedPointCount}点，过滤${processed.rejectedPointCount}点` } });
+			if (offlinePaidAmount > 0) await tx.orderTimeline.create({ data: {
+				orderId: trip.orderId,
+				event: 'RIDE_OFFLINE_PAYMENT',
+				value: offlinePaidAmount.toFixed(2),
+				remark: '司机确认乘客已线下付清差额；线上预付¥' + prepaidAmount.toFixed(2) + '；最终车费¥' + calculated.amount.toFixed(2),
+			} });
 			return tx.rideTrip.findUniqueOrThrow({ where: { id }, include: { order: true } });
 		});
 
 		await this.settleFinalFare(updated);
 		const fresh = await this.prisma.rideTrip.findUniqueOrThrow({ where: { id }, include: this.tripInclude() });
-		this.realtime.toMembers([fresh.passengerMemberId, driverMemberId], 'ride:status', { id, status: fresh.status, finalAmount: fresh.finalAmount, supplementOrderId: fresh.supplementOrderId });
+		this.realtime.toMembers([fresh.passengerMemberId, driverMemberId], 'ride:status', { id, status: fresh.status, finalAmount: fresh.finalAmount, supplementOrderId: fresh.supplementOrderId, offlinePaidAmount: fresh.offlinePaidAmount });
 		return this.serializeTripWithFare(fresh);
 	}
 
@@ -612,7 +636,10 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 	private async completeTrip(id: number) {
 		const trip = await this.prisma.$transaction(async (tx) => {
 			const current = await tx.rideTrip.findUniqueOrThrow({ where: { id } });
-			await tx.rideTrip.update({ where: { id }, data: { status: 'COMPLETED', completedAt: new Date(), version: { increment: 1 } } });
+			if (current.status === 'COMPLETED') return current;
+			if (current.status !== 'FARE_PENDING') throw new ConflictException('当前费用状态不能完成行程（' + current.status + '）');
+			const moved = await tx.rideTrip.updateMany({ where: { id, status: 'FARE_PENDING', version: current.version }, data: { status: 'COMPLETED', completedAt: new Date(), version: { increment: 1 } } });
+			if (!moved.count) throw new ConflictException('费用状态已变化，请刷新后重试');
 			await tx.order.update({ where: { id: current.orderId }, data: { status: 'FULFILLED', fulfillmentStatus: 'DONE' } });
 			await tx.orderTimeline.createMany({ data: [
 				{ orderId: current.orderId, event: 'RIDE_STATUS', value: 'COMPLETED' },
@@ -623,10 +650,10 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		await this.dispatch.restoreDriver(trip.driverMemberId);
 	}
 
-	private async settleFinalFare(input: { id: number; status: string; version: number; finalAmount: unknown; orderId: number; passengerMemberId: number; driverMemberId: number | null; order: { payAmount: unknown; no: string } }) {
+	private async settleFinalFare(input: { id: number; status: string; version: number; finalAmount: unknown; offlinePaidAmount: unknown; orderId: number; passengerMemberId: number; driverMemberId: number | null; order: { payAmount: unknown; no: string } }) {
 		let trip = input;
 		if (trip.status === 'FARE_PENDING') {
-			const diffFen = Math.round((Number(trip.finalAmount || 0) - Number(trip.order.payAmount || 0)) * 100);
+			const diffFen = Math.round((Number(trip.finalAmount || 0) - Number(trip.order.payAmount || 0) - Number(trip.offlinePaidAmount || 0)) * 100);
 			if (diffFen < 0) {
 				const moved = await this.prisma.rideTrip.updateMany({ where: { id: trip.id, status: 'FARE_PENDING', version: trip.version }, data: { status: 'REFUND_PENDING', version: { increment: 1 } } });
 				if (moved.count) trip = await this.prisma.rideTrip.findUniqueOrThrow({ where: { id: trip.id }, include: { order: true } });
@@ -755,6 +782,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		const calculated = this.fare.calculate(setting, distanceMeters, durationSeconds, tollAmount + parkingAmount + otherAmount);
 		const amount = mode === 'FINAL' ? Number(trip.finalAmount || 0) : mode === 'ESTIMATED' ? Number(trip.estimatedAmount || calculated.amount) : calculated.amount;
 		const payAmount = Number(trip.order?.payAmount || 0);
+		const offlinePaidAmount = Number(trip.offlinePaidAmount || 0);
 		return {
 			mode,
 			distanceMeters,
@@ -765,7 +793,9 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 			otherAmount: this.money(otherAmount),
 			amount: this.money(amount),
 			prepaidAmount: this.money(payAmount),
-			supplementAmount: this.money(Math.max(0, amount - payAmount)),
+			customPrepayEnabled: Boolean(trip.customPrepayEnabled),
+			offlinePaidAmount: this.money(offlinePaidAmount),
+			supplementAmount: this.money(Math.max(0, amount - payAmount - offlinePaidAmount)),
 			refundableAmount: this.money(Math.max(0, payAmount - amount)),
 			refundedAmount: this.money(Number(trip.order?.refundedAmount || 0)),
 		};

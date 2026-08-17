@@ -15,6 +15,14 @@ export interface RideSettingUpdateDto {
   pricePerKm: number;
   pricePerMinute: number;
   minimumFare: number;
+  /** 是否启用固定自定义预付金额 */
+  customPrepayEnabled: boolean;
+  /**
+   * 启用自定义预付时乘客线上支付的固定金额，单位元
+   * @minimum 0.01
+   * @maximum 9999999999.99
+   */
+  customPrepayAmount: number;
   allowParkingFee: boolean;
   allowOtherFee: boolean;
   chatRetentionDays: number;

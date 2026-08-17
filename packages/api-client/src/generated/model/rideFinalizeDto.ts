@@ -11,4 +11,6 @@ export interface RideFinalizeDto {
   finalDistanceMeters: number;
   finalDurationSeconds: number;
   extraFees?: RideExtraFeeInputDto[];
+  /** 自定义预付行程中，司机确认乘客已线下付清剩余车费 */
+  passengerPaidOffline?: boolean;
 }

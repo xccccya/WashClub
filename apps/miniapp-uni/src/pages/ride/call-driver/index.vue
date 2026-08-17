@@ -32,9 +32,13 @@
 					<view class="route-copy"><view class="route-title"><strong>{{ routeTitle(candidate, index) }}</strong><text v-if="candidate.route.preference === 'AVOID_HIGHWAY'" class="route-tag safe">不走高速</text><text v-else-if="index === 0" class="route-tag">推荐</text></view><view class="route-meta"><text>{{ formatDistance(candidate.route.distanceMeters) }}</text><text>{{ Math.ceil(candidate.route.durationSeconds / 60) }}分钟</text><text v-if="candidate.route.tollAmount" class="toll">过路费 ¥{{ money(candidate.route.tollAmount) }}</text><text v-else>无过路费</text></view><text v-if="candidate.route.tollRoads?.length" class="toll-roads">收费路段：{{ candidate.route.tollRoads.join('、') }}</text></view>
 					<view class="route-price"><strong>¥{{ money(candidate.fare.amount) }}</strong><text>预估</text></view>
 				</view>
+				<view v-if="preview.customPrepayEnabled" class="prepay-notice">
+					<view><text>本次线上预付</text><strong>¥{{ money(selectedPrepayAmount) }}</strong></view>
+					<text>行程仍按最终车费结算；剩余差额可由司机确认线下付清。</text>
+				</view>
 			</view>
 			<view v-if="availability && !availability.availableCount" class="warning">3km 内暂无空闲司机，可点地图上的忙碌车辆联系司机。</view>
-			<button class="primary" :disabled="loading || !canCall" @tap="callDriver">{{ preview ? '支付并呼叫司机' : '预览路线与价格' }}</button>
+			<button class="primary" :disabled="loading || !canCall" @tap="callDriver">{{ callButtonText }}</button>
 			</view>
 			</transition>
 			</view>
@@ -74,6 +78,13 @@ const RECENT_PLACES_KEY = 'rideRecentPlacesV1';
 const availabilityText = computed(() => availability.value ? `${availability.value.availableCount} 位空闲司机` : '正在检查附近司机');
 const canCall = computed(() => !!availability.value?.availableCount && !!destination.value.longitude);
 const selectedRoute = computed(() => preview.value?.routes?.[selectedRouteIndex.value] || preview.value);
+const selectedPrepayAmount = computed(() => Number(selectedRoute.value?.prepayAmount ?? selectedRoute.value?.fare?.amount ?? 0));
+const callButtonText = computed(() => {
+	if (!preview.value) return '预览路线与价格';
+	return preview.value.customPrepayEnabled
+		? '预付 ¥' + money(selectedPrepayAmount.value) + ' 并呼叫司机'
+		: '支付 ¥' + money(selectedPrepayAmount.value) + ' 并呼叫司机';
+});
 const routePoints = computed(() => selectedRoute.value?.route?.points || []);
 const showRecentPanel = computed(() => recentPlaces.value.length > 0 && !preview.value && !originTips.value.length && !destinationTips.value.length);
 const { paddingPx: mapFitPaddingPx, refresh: refreshMapFit } = useRideMapFitPadding({
@@ -223,6 +234,7 @@ onUnload(() => { stopAvailabilityRefresh(); if (searchTimer) clearTimeout(search
 .map-pick-tip{display:flex;justify-content:space-between;margin-bottom:12rpx;padding:14rpx 18rpx;border-radius:18rpx;background:#eff6ff;color:#1d4ed8;font-size:23rpx;font-weight:700}.map-pick{flex:none;padding:8rpx 0 8rpx 14rpx;color:#2563eb;font-size:20rpx;font-weight:700}.tips{max-height:250rpx;overflow:auto;margin-top:10rpx;border:1rpx solid #e2e8f0;border-radius:18rpx;background:#fff}.tips>view{display:flex;align-items:center;justify-content:space-between;gap:14rpx;padding:14rpx 16rpx;border-bottom:1rpx solid #eef2f7}.tips>view:last-child{border-bottom:0}.tips>view>view{min-width:0}.tips strong,.tips text{display:block;color:#64748b;font-size:20rpx}.tips strong{overflow:hidden;color:#1e293b;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.tips .distance{flex:none;color:#2563eb}
 .recent-panel,.routes{margin-top:16rpx}.recent-scroll{display:block;width:100%;max-width:100%;white-space:nowrap;box-sizing:border-box}.recent-list{display:flex;gap:12rpx;padding:2rpx 2rpx 8rpx}.recent-place{display:flex;width:300rpx;max-width:calc(100vw - 112rpx);min-width:0;flex:none;align-items:flex-start;gap:12rpx;padding:15rpx;border:1rpx solid #e2e8f0;border-radius:20rpx;background:linear-gradient(145deg,#fff,#f8fafc);box-sizing:border-box}.recent-icon{display:grid;width:42rpx;height:42rpx;flex:none;place-items:center;border-radius:14rpx;background:#eff6ff;color:#2563eb;font-size:25rpx}.recent-place view{min-width:0;flex:1;overflow:hidden}.recent-place strong,.recent-place view text{display:-webkit-box;overflow:hidden;text-overflow:ellipsis;-webkit-box-orient:vertical;white-space:normal}.recent-place strong{-webkit-line-clamp:1;color:#1e293b;font-size:22rpx;line-height:1.35}.recent-place view text{margin-top:3rpx;-webkit-line-clamp:2;color:#94a3b8;font-size:18rpx;line-height:1.4}
 .routes{padding-top:2rpx}.route{display:grid;grid-template-columns:36rpx minmax(0,1fr) auto;gap:12rpx;align-items:center;margin-top:10rpx;padding:16rpx;border:2rpx solid #e2e8f0;border-radius:22rpx;background:#fff;transition:.2s ease;box-sizing:border-box}.route.selected{border-color:#3b82f6;background:linear-gradient(145deg,#eff6ff,#fff);box-shadow:0 8rpx 22rpx rgba(37,99,235,.12)}.route-radio{display:grid;width:32rpx;height:32rpx;place-items:center;border:3rpx solid #cbd5e1;border-radius:50%;box-sizing:border-box}.route.selected .route-radio{border-color:#2563eb}.route-radio i{width:14rpx;height:14rpx;border-radius:50%;background:transparent}.route.selected .route-radio i{background:#2563eb}.route-copy{min-width:0}.route-title{display:flex;align-items:center;gap:8rpx}.route-title strong{overflow:hidden;color:#0f172a;font-size:23rpx;text-overflow:ellipsis;white-space:nowrap}.route-tag{flex:none;padding:4rpx 8rpx;border-radius:999rpx;background:#dbeafe;color:#1d4ed8;font-size:16rpx}.route-tag.safe{background:#dcfce7;color:#15803d}.route-meta{display:flex;flex-wrap:wrap;gap:8rpx 12rpx;margin-top:5rpx}.route-meta text{color:#64748b;font-size:18rpx}.route-meta .toll{color:#c2410c}.toll-roads{display:block;margin-top:5rpx;overflow:hidden;color:#94a3b8;font-size:17rpx;text-overflow:ellipsis;white-space:nowrap}.route-price{flex:none;text-align:right}.route-price strong,.route-price text{display:block}.route-price strong{color:#0f172a;font-size:28rpx}.route-price text{margin-top:2rpx;color:#94a3b8;font-size:17rpx}
+.prepay-notice{margin-top:14rpx;padding:16rpx 18rpx;border:1rpx solid #bfdbfe;border-radius:18rpx;background:#eff6ff}.prepay-notice view{display:flex;align-items:center;justify-content:space-between;color:#1e3a8a}.prepay-notice view text{font-size:21rpx;font-weight:700}.prepay-notice view strong{font-size:29rpx}.prepay-notice>text{display:block;margin-top:6rpx;color:#475569;font-size:19rpx;line-height:1.5}
 .warning{padding:14rpx;background:#fff7ed;color:#c2410c;border-radius:14rpx;font-size:23rpx}.primary{margin-top:18rpx;background:#0f172a;color:#fff;border-radius:44rpx}.orders-link{margin-left:auto;color:#2563eb;font-size:24rpx}
 button::after{border:0}
 

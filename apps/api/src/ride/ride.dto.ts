@@ -358,6 +358,11 @@ export class RideFinalizeDto {
 	@ValidateNested({ each: true })
 	@Type(() => RideExtraFeeInputDto)
 	extraFees?: RideExtraFeeInputDto[];
+
+	@ApiPropertyOptional({ description: '自定义预付行程中，司机确认乘客已线下付清剩余车费' })
+	@IsOptional()
+	@IsBoolean()
+	passengerPaidOffline?: boolean;
 }
 
 export class RideCancelDto {
@@ -456,6 +461,16 @@ export class RideSettingUpdateDto {
 	@IsNumber()
 	@Min(0)
 	minimumFare!: number;
+
+	@ApiProperty({ description: '是否启用固定自定义预付金额' })
+	@IsBoolean()
+	customPrepayEnabled!: boolean;
+
+	@ApiProperty({ minimum: 0.01, maximum: 9999999999.99, description: '启用自定义预付时乘客线上支付的固定金额，单位元' })
+	@IsNumber({ maxDecimalPlaces: 2 })
+	@Min(0.01)
+	@Max(9999999999.99)
+	customPrepayAmount!: number;
 
 	@ApiProperty()
 	@IsBoolean()

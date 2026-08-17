@@ -1778,6 +1778,8 @@ model RideSetting {
   pricePerKm              Decimal  @default(0) @db.Decimal(12, 2)
   pricePerMinute          Decimal  @default(0) @db.Decimal(12, 2)
   minimumFare             Decimal  @default(0) @db.Decimal(12, 2)
+  customPrepayEnabled     Boolean  @default(false)
+  customPrepayAmount      Decimal  @default(0.01) @db.Decimal(12, 2)
   allowParkingFee         Boolean  @default(false)
   allowOtherFee           Boolean  @default(false)
   chatRetentionDays       Int      @default(30)
@@ -1862,9 +1864,12 @@ model RideTrip {
   estimatedDurationSeconds Int            @default(0)
   estimatedTollAmount      Decimal        @default(0) @db.Decimal(12, 2)
   estimatedAmount          Decimal        @default(0) @db.Decimal(12, 2)
+  customPrepayEnabled      Boolean        @default(false)
   finalDistanceMeters      Int?
   finalDurationSeconds     Int?
   finalAmount              Decimal?       @db.Decimal(12, 2)
+  offlinePaidAmount        Decimal        @default(0) @db.Decimal(12, 2)
+  offlinePaidAt            DateTime?
   arrivedPickupAt          DateTime?
   passengerPhoneVerifiedAt DateTime?
   startedAt                DateTime?

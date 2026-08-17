@@ -14772,6 +14772,10 @@
             "items": {
               "$ref": "#/components/schemas/RideExtraFeeInputDto"
             }
+          },
+          "passengerPaidOffline": {
+            "type": "boolean",
+            "description": "自定义预付行程中，司机确认乘客已线下付清剩余车费"
           }
         },
         "required": [
@@ -14899,6 +14903,16 @@
           "minimumFare": {
             "type": "number"
           },
+          "customPrepayEnabled": {
+            "type": "boolean",
+            "description": "是否启用固定自定义预付金额"
+          },
+          "customPrepayAmount": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 9999999999.99,
+            "description": "启用自定义预付时乘客线上支付的固定金额，单位元"
+          },
           "allowParkingFee": {
             "type": "boolean"
           },
@@ -14921,6 +14935,8 @@
           "pricePerKm",
           "pricePerMinute",
           "minimumFare",
+          "customPrepayEnabled",
+          "customPrepayAmount",
           "allowParkingFee",
           "allowOtherFee",
           "chatRetentionDays",
