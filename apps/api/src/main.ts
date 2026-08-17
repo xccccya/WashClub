@@ -85,7 +85,11 @@ async function bootstrap() {
 
 	const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 	const server = await app.listen(port);
-	try { (app.get(NotificationGateway) as any)?.attachServer?.(server); } catch {}
+	try { (app.get(NotificationGateway) as any)?.attachServer?.(server); }
+	catch (error) {
+		// eslint-disable-next-line no-console
+		console.error('[ws] 实时服务挂载失败', error);
+	}
 	// 确保通知服务实例化：初始化 BullMQ Worker 与 Redis Pub/Sub 订阅
 	try { app.get(NotificationService); } catch {}
 

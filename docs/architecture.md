@@ -177,7 +177,8 @@ flowchart TD
 通知数据存储在数据库，实时通知和异步任务使用 Redis：
 
 - WebSocket 路径为 `/ws`，连接后 5 秒内必须发送首条 `{ "type": "auth", "token": "..." }` 消息。
-- Redis Pub/Sub 频道用于广播；BullMQ 队列名为 `notify`。
+- 鉴权成功后服务端返回 `auth:ok`，并使用 ping/pong 清理失活连接。
+- Redis Pub/Sub 频道用于通知和行程实时事件的跨 API 实例广播；BullMQ 队列名为 `notify`。
 - `NotificationJob` 是数据库兜底任务，进程内调度器会持续扫描。
 - 未提供 Redis 配置时仍会尝试本机 `127.0.0.1:6379`。
 - 当前没有独立 worker 进程或完整优雅停机清理。

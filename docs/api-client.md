@@ -117,7 +117,7 @@ import type { MemberControllerListParams } from '@wash/api-client/src/generated/
 
 ### 6.2 WebSocket
 
-`/ws` 使用浏览器 `WebSocket` 或 `uni.connectSocket`。WebSocket 生命周期、首包鉴权、重连和退出登录清理属于实时连接模块，不走 HTTP SDK。
+`/ws` 在 H5 使用浏览器原生 `WebSocket`，在小程序使用 `uni.connectSocket`。连接建立后发送首包鉴权，收到 `auth:ok` 才视为可用；应用启动、回到前台、token 变化和异常断线时由实时连接模块负责连接或重连，退出登录时必须清理旧 token 与连接。该链路不走 HTTP SDK。
 
 ### 6.3 第三方服务
 

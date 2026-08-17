@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationGateway } from '../notification/notification.gateway.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class RideRealtimeService {
-	constructor(private readonly gateway: NotificationGateway) {}
+	constructor(private readonly notifications: NotificationService) {}
 
 	toMember(memberId: number | null | undefined, type: string, data: unknown) {
 		if (!memberId) return;
-		this.gateway.broadcastToMember(memberId, { type, data });
+		this.notifications.broadcastRealtimeToMember(memberId, { type, data });
 	}
 
 	toMembers(memberIds: number[], type: string, data: unknown) {
@@ -15,6 +15,6 @@ export class RideRealtimeService {
 	}
 
 	toAdmins(type: string, data: unknown) {
-		this.gateway.broadcastToAllAdmins({ type, data });
+		this.notifications.broadcastRealtimeToAllAdmins({ type, data });
 	}
 }

@@ -23,11 +23,6 @@ export function createApp() {
 		// 监听登录态变化：更新 Token 与连接
 		// @ts-ignore
 		uni?.$on?.('auth:changed', ()=>{ try{ const tk = getToken(); if (tk) { realtime.start({ apiBase: API_BASE, token: tk }); } else { realtime.stop(); } }catch{} });
-		// 页面展示时尝试重连（防止被系统挂起后断开）
-		// #ifdef MP-WEIXIN || H5
-		// @ts-ignore
-		import('@dcloudio/uni-app').then((m)=>{ try{ m.onShow(()=>{ try{ const tk = getToken(); if (tk) realtime.start({ apiBase: API_BASE, token: tk }); }catch{} }); }catch{} });
-		// #endif
 	}catch{}
 	return { app };
 }

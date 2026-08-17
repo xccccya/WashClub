@@ -2,19 +2,19 @@
 	<!-- 仅在 H5 使用：与小程序 tabBar 保持一致的兜底实现 -->
 	<view class="tabbar-h5">
 		<view class="tab-item" :class="{ active: activePath==='pages/index/index' }" @tap="go('/pages/index/index')" @click="go('/pages/index/index')">
-			<image class="icon" :src="activePath==='pages/index/index' ? homeActive : home" mode="aspectFit" />
+			<image class="icon" :src="activePath==='pages/index/index' ? homeFill : home" mode="aspectFit" />
 			<text class="label">首页</text>
 		</view>
 		<view class="tab-item" :class="{ active: activePath==='pages/store/index' }" @tap="go('/pages/store/index')" @click="go('/pages/store/index')">
-			<image class="icon" :src="activePath==='pages/store/index' ? storeActive : store" mode="aspectFit" />
+			<image class="icon" :src="activePath==='pages/store/index' ? shopFill : shop" mode="aspectFit" />
 			<text class="label">商店</text>
 		</view>
 		<view class="tab-item" :class="{ active: activePath==='pages/order/index' }" @tap="go('/pages/order/index')" @click="go('/pages/order/index')">
-			<image class="icon" :src="activePath==='pages/order/index' ? orderActive : order" mode="aspectFit" />
+			<image class="icon" :src="activePath==='pages/order/index' ? formFill : form" mode="aspectFit" />
 			<text class="label">订单</text>
 		</view>
 		<view class="tab-item" :class="{ active: activePath==='pages/me/index' }" @tap="go('/pages/me/index')" @click="go('/pages/me/index')">
-			<image class="icon" :src="activePath==='pages/me/index' ? userActive : user" mode="aspectFit" />
+			<image class="icon" :src="activePath==='pages/me/index' ? myFill : my" mode="aspectFit" />
 			<text class="label">我的</text>
 		</view>
 	</view>
@@ -24,13 +24,13 @@
 import { ref, onMounted } from 'vue';
 
 const home = '/static/tabbar/home.png';
-const homeActive = '/static/tabbar/home-active.png';
-const store = '/static/tabbar/store.png';
-const storeActive = '/static/tabbar/store-active.png';
-const order = '/static/tabbar/order.png';
-const orderActive = '/static/tabbar/order-active.png';
-const user = '/static/tabbar/user.png';
-const userActive = '/static/tabbar/user-active.png';
+const homeFill = '/static/tabbar/home_fill.png';
+const shop = '/static/tabbar/shop.png';
+const shopFill = '/static/tabbar/shop_fill.png';
+const form = '/static/tabbar/form.png';
+const formFill = '/static/tabbar/form_fill.png';
+const my = '/static/tabbar/my.png';
+const myFill = '/static/tabbar/my_fill.png';
 
 const activePath = ref<string>('');
 
@@ -70,7 +70,7 @@ onMounted(()=>{ resolveCurrentPath(); });
 	padding: 8rpx 0 6rpx 0;
 	color: #666666;
 }
-.tab-item.active { color: #111827; }
+.tab-item.active { color: #49b7f0; }
 .icon { width: 44rpx; height: 44rpx; display: block; margin: 0 auto 6rpx auto; }
 .label { font-size: 22rpx; line-height: 1; }
 </style>

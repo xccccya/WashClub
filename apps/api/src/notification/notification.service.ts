@@ -21,6 +21,7 @@ export class NotificationService {
     private redisPub?: any;
     private redisSub?: any;
     private redisWorker?: any;
+    private readonly realtimeInstanceId = `${process.pid}:${Math.random().toString(36).slice(2)}`;
 
     private notifyDbSchedulerTimer?: any;
 
@@ -55,9 +56,17 @@ export class NotificationService {
             try{
                 (this.redisSub as any).subscribe('notify:broadcast');
                 (this.redisSub as any).subscribe('notify:broadcast-all-admins');
+                (this.redisSub as any).subscribe('realtime:broadcast');
                 (this.redisSub as any).on('message', (channel: string, message: string)=>{
                     try{
                         const d:any = JSON.parse(message||'{}');
+                        if (channel === 'realtime:broadcast') {
+                            if (d?.source === this.realtimeInstanceId) return;
+                            if (d?.target?.kind === 'ADMIN' && Number(d.target.userId || 0) === 0) this.gateway.broadcastToAllAdmins(d.payload);
+                            else if (d?.target?.kind === 'ADMIN') this.gateway.broadcastToAdmin(Number(d.target.userId || 0), d.payload);
+                            else if (d?.target?.kind === 'MEMBER') this.gateway.broadcastToMember(Number(d.target.memberId || 0), d.payload);
+                            return;
+                        }
                         if (channel === 'notify:broadcast-all-admins') {
                             this.gateway.broadcastToAllAdmins(d?.payload);
                             return;
@@ -366,6 +375,36 @@ export class NotificationService {
             targetMemberId: input.target.kind === 'MEMBER' ? (input.target as any).memberId : null,
         };
         return this.prisma.notification.create({ data });
+    }
+
+    broadcastRealtimeToMember(memberId: number, payload: unknown) {
+        const targetMemberId = Number(memberId || 0);
+        if (!Number.isFinite(targetMemberId) || targetMemberId <= 0) return;
+
+        // 本实例立即投递，避免 Redis 短暂不可用时拖住行程状态与聊天消息。
+        this.gateway.broadcastToMember(targetMemberId, payload);
+        if (!this.redisPub) return;
+        const message = {
+            source: this.realtimeInstanceId,
+            target: { kind: 'MEMBER', memberId: targetMemberId },
+            payload,
+        };
+        try {
+            void Promise.resolve((this.redisPub as any).publish('realtime:broadcast', JSON.stringify(message))).catch(() => {});
+        } catch {}
+    }
+
+    broadcastRealtimeToAllAdmins(payload: unknown) {
+        this.gateway.broadcastToAllAdmins(payload);
+        if (!this.redisPub) return;
+        const message = {
+            source: this.realtimeInstanceId,
+            target: { kind: 'ADMIN', userId: 0 },
+            payload,
+        };
+        try {
+            void Promise.resolve((this.redisPub as any).publish('realtime:broadcast', JSON.stringify(message))).catch(() => {});
+        } catch {}
     }
 
     async notifyAndBroadcast(input: CreateNotificationInput) {

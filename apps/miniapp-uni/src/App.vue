@@ -1,5 +1,17 @@
 <script setup lang="ts">
 // 应用入口
+import { onLaunch, onShow } from '@dcloudio/uni-app';
+import { API_BASE, getToken } from './utils/auth';
+import { realtime } from './utils/realtime';
+
+function ensureRealtimeConnection() {
+	const token = getToken();
+	if (token) realtime.start({ apiBase: API_BASE, token });
+	else realtime.stop();
+}
+
+onLaunch(ensureRealtimeConnection);
+onShow(ensureRealtimeConnection);
 </script>
 
 <template>

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { WebSocketServer } from 'ws';
 import * as http from 'node:http';
 import { JwtService } from '@nestjs/jwt';
@@ -11,9 +11,10 @@ const WS_AUTH_TIMEOUT_MS = 5000;
 const WS_MAX_AUTH_MESSAGE_BYTES = 10_000;
 
 @Injectable()
-export class NotificationGateway {
+export class NotificationGateway implements OnModuleDestroy {
     private wss: WebSocketServer | null = null;
     private clients: Map<any, ClientInfo> = new Map();
+    private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor(private jwt: JwtService, private prisma: PrismaService) {}
 
@@ -41,6 +42,8 @@ export class NotificationGateway {
         if (this.wss) return;
         this.wss = new WebSocketServer({ server, path: '/ws' });
         this.wss.on('connection', (ws, req) => {
+            (ws as any).isAlive = true;
+            ws.on('pong', () => { (ws as any).isAlive = true; });
             // 安全策略：禁止通过 query token 鉴权（避免 URL 日志泄漏）
             try {
                 const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
@@ -84,11 +87,37 @@ export class NotificationGateway {
                     this.clients.set(ws, info);
                     authed = true;
                     try { clearTimeout(authTimeout); } catch {}
+                    try { ws.send(JSON.stringify({ type: 'auth:ok' })); } catch {}
                 } catch {
                     try { ws.close(1008, 'auth failed'); } catch { try { ws.close(); } catch {} }
                 }
             });
         });
+        this.heartbeatTimer = setInterval(() => {
+            for (const ws of this.clients.keys()) {
+                if ((ws as any).isAlive === false) {
+                    this.clients.delete(ws);
+                    try { ws.terminate(); } catch {}
+                    continue;
+                }
+                (ws as any).isAlive = false;
+                try { ws.ping(); } catch { this.clients.delete(ws); }
+            }
+        }, 30_000);
+        this.heartbeatTimer.unref?.();
+        // eslint-disable-next-line no-console
+        console.log('[ws] 实时服务已挂载：/ws');
+    }
+
+    onModuleDestroy() {
+        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+        for (const ws of this.clients.keys()) {
+            try { ws.close(1001, 'server shutdown'); } catch {}
+        }
+        this.clients.clear();
+        try { this.wss?.close(); } catch {}
+        this.wss = null;
     }
 
     broadcastToAdmin(userId: number, payload: any) {
