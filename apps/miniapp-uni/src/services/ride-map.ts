@@ -59,11 +59,12 @@ export function spreadOverlappingMarkers(markers: RideMapMarker[]) {
 export function toNativeMarkers(markers: RideMapMarker[]) {
 	return markers.map((marker) => {
 		const isDriver = String(marker.kind || '').startsWith('driver-');
+		// 微信原生地图在 iOS 上无法稳定渲染复杂 SVG marker，车辆图标使用预栅格化 PNG。
 		const iconPath = marker.kind === 'origin'
 			? '/static/icons/ride-origin-marker.svg'
 			: marker.kind === 'destination'
 				? '/static/icons/ride-destination-marker.svg'
-				: isDriver ? '/static/icons/ride-vehicle-location.svg' : undefined;
+				: isDriver ? '/static/icons/ride-vehicle-location.png' : undefined;
 		return {
 			id: marker.id,
 			longitude: Number(marker.longitude), latitude: Number(marker.latitude),
