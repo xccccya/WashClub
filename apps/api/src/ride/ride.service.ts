@@ -478,6 +478,33 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 		});
 	}
 
+	async adminDeleteDriver(memberId: number) {
+		await this.prisma.$transaction(async (tx) => {
+			const profile = await tx.rideDriverProfile.findUnique({ where: { memberId }, select: { id: true } });
+			if (!profile) throw new BadRequestException('内部司机不存在或已解除');
+
+			const takenOffline = await tx.rideDriverProfile.updateMany({
+				where: {
+					id: profile.id,
+					OR: [
+						{ availabilityStatus: { in: ['OFFLINE', 'AVAILABLE'] } },
+						{ availabilityStatus: 'BUSY', busyReason: 'MANUAL' },
+					],
+				},
+				data: { availabilityStatus: 'OFFLINE', previousManualStatus: 'OFFLINE', busyReason: null },
+			});
+			if (!takenOffline.count) throw new ConflictException('司机正在执行行程，暂不能解除');
+
+			const activeTrips = await tx.rideTrip.count({
+				where: { driverMemberId: memberId, status: { in: [...ACTIVE_DRIVER_STATUSES] } },
+			});
+			if (activeTrips) throw new ConflictException('司机存在未完成行程，暂不能解除');
+			await tx.rideDriverProfile.delete({ where: { id: profile.id } });
+		});
+		this.realtime.toAdmins('ride:driver:removed', { driverMemberId: memberId });
+		return { ok: true };
+	}
+
 	async adminTrack(id: number) {
 		const trip = await this.prisma.rideTrip.findUnique({ where: { id }, select: {
 			id: true, orderId: true, originLongitude: true, originLatitude: true, originAddress: true,
@@ -686,6 +713,7 @@ export class RideService implements OnModuleInit, OnModuleDestroy {
 
 	private serializeTrip(trip: any) {
 		const serialized = this.serialize(trip);
+		if (serialized && !ACTIVE_DRIVER_STATUSES.includes(serialized.status)) serialized.locations = [];
 		if (serialized?.passenger) {
 			// 行程响应只下发末两位用于遮罩展示；后四位核验始终在服务端完成。
 			serialized.passenger.phoneLastFour = String(serialized.passenger.phone || '').slice(-2);

@@ -11030,6 +11030,43 @@
           "system-rides"
         ]
       }
+    },
+    "/system/ride-drivers/{memberId}": {
+      "delete": {
+        "operationId": "RideAdminController_deleteDriver",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "后台解除内部司机配置，保留历史行程数据",
+        "tags": [
+          "system-rides"
+        ]
+      }
     }
   },
   "info": {

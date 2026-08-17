@@ -89,7 +89,13 @@ async function locate() {
 		locationNotice.value = '';
 		const point = await getCurrentRideLocation();
 		currentLocation.value = { longitude: point.longitude, latitude: point.latitude };
-		origin.value = { longitude: point.longitude, latitude: point.latitude, address: '当前位置' };
+		const place = await rideApi.reverseGeocode(point.longitude, point.latitude);
+		origin.value = {
+			longitude: point.longitude,
+			latitude: point.latitude,
+			address: selectedAddress(place),
+			poiId: place.poiId || place.id,
+		};
 		await check();
 	} catch (error) {
 		availability.value = null;

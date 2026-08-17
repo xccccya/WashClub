@@ -255,6 +255,7 @@ export * from './queueTypeResponseDto';
 export * from './queueTypeResponseDtoDisplayColor';
 export * from './resetPasswordDto';
 export * from './resolvePhoneDto';
+export * from './rideAdminControllerDeleteDriver200';
 export * from './rideAdminControllerDetail200';
 export * from './rideAdminControllerDrivers200';
 export * from './rideAdminControllerList200';

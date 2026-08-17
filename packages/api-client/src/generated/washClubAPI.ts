@@ -118,6 +118,7 @@ import type {
   QueueSummaryDto,
   ResetPasswordDto,
   ResolvePhoneDto,
+  RideAdminControllerDeleteDriver200,
   RideAdminControllerDetail200,
   RideAdminControllerDrivers200,
   RideAdminControllerList200,
@@ -9220,6 +9221,30 @@ export const rideAdminControllerDrivers = async ( options?: RequestInit): Promis
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary 后台解除内部司机配置，保留历史行程数据
+ */
+export const getRideAdminControllerDeleteDriverUrl = (memberId: number,) => {
+
+
+
+
+  return `/system/ride-drivers/${memberId}`
+}
+
+export const rideAdminControllerDeleteDriver = async (memberId: number, options?: RequestInit): Promise<RideAdminControllerDeleteDriver200> => {
+
+  return createHttpClient<RideAdminControllerDeleteDriver200>(getRideAdminControllerDeleteDriverUrl(memberId),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

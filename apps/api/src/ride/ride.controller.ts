@@ -318,4 +318,11 @@ export class RideAdminController {
 	drivers() {
 		return this.rides.adminDrivers();
 	}
+
+	@Delete('ride-drivers/:memberId')
+	@RequirePerm('ride-drivers')
+	@RideOperation({ summary: '后台解除内部司机配置，保留历史行程数据' })
+	deleteDriver(@Param('memberId', ParseIntPipe) memberId: number) {
+		return this.rides.adminDeleteDriver(memberId);
+	}
 }

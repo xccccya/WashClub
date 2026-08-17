@@ -125,17 +125,20 @@ export class RideAmapService {
 		const url = new URL('https://restapi.amap.com/v3/geocode/regeo');
 		url.searchParams.set('key', this.key);
 		url.searchParams.set('location', `${longitude},${latitude}`);
-		url.searchParams.set('extensions', 'base');
+		url.searchParams.set('extensions', 'all');
 		url.searchParams.set('radius', '500');
 		const data = await this.fetchJsonWithRetry(url);
 		if (String(data?.status) !== '1') throw new BadGatewayException('地图选点解析失败，请稍后重试');
 		const regeocode = data?.regeocode || {};
 		const component = regeocode.addressComponent || {};
 		const formattedAddress = String(regeocode.formatted_address || '').trim();
+		if (!formattedAddress) throw new BadGatewayException('当前位置未解析到有效地址，请稍后重试或手动选点');
+		const nearestPoi = Array.isArray(regeocode.pois) ? regeocode.pois.find((poi: any) => String(poi?.name || '').trim()) : null;
 		return {
-			id: '',
-			name: String(component.neighborhood?.name || component.building?.name || formattedAddress || '地图选点'),
-			address: formattedAddress || '地图选点',
+			id: String(nearestPoi?.id || ''),
+			poiId: String(nearestPoi?.id || ''),
+			name: String(nearestPoi?.name || component.neighborhood?.name || component.building?.name || formattedAddress),
+			address: formattedAddress,
 			district: String(component.district || ''),
 			longitude,
 			latitude,
