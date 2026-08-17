@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :show-locate-control="false" />
+		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding-px="mapFitPaddingPx" :show-locate-control="false" />
 		<RideStatusBar title="内部司机" :subtitle="statusText"><view class="orders-link" @tap="goOrders">行程订单</view></RideStatusBar>
 		<view class="status-panel" :style="statusPanelStyle">
 			<view class="switches"><button :class="{ active: status === 'AVAILABLE' }" @tap="setStatus('AVAILABLE')">空闲</button><button :class="{ active: status === 'BUSY' }" @tap="setStatus('BUSY')">忙碌</button><button :class="{ active: status === 'OFFLINE' }" @tap="setStatus('OFFLINE')">离线</button></view>
@@ -10,7 +10,7 @@
 		<view class="bottom-shell">
 			<RideLocateControl class="bottom-locate" :action="locateOnMap" />
 		<view v-if="activeTrip" class="order-card">
-			<view class="order-head"><view><text class="eyebrow">当前行程 · #{{ activeTrip.id }}</text><strong>{{ tripTitle }}</strong></view><view class="order-head-actions"><view class="trip-status">{{ statusLabel(activeTrip.status) }}</view><text class="collapse-toggle" @tap="orderCollapsed = !orderCollapsed">{{ orderCollapsed ? '展开' : '收起' }}</text></view></view>
+			<view class="order-head"><view><text class="eyebrow">当前行程 · #{{ activeTrip.id }}</text><strong>{{ tripTitle }}</strong></view><view class="order-head-actions"><view class="trip-status">{{ statusLabel(activeTrip.status) }}</view><text class="collapse-toggle" @tap="toggleOrder">{{ orderCollapsed ? '展开' : '收起' }}</text></view></view>
 			<transition name="ride-collapse">
 			<view v-if="!orderCollapsed" class="collapse-content">
 			<view class="passenger-row"><image class="avatar" :src="passengerAvatar" mode="aspectFill" /><view><strong>{{ passengerLabel }}</strong><text>仅用于本次行程联系</text></view><RideContactActions :unread="chatUnreadCount" @call="callPassenger" @message="chat = true" /></view>
@@ -18,10 +18,7 @@
 			<view class="trip-metrics"><view><text>预计里程</text><strong>{{ distanceText(activeTrip.estimatedDistanceMeters) }}</strong></view><view><text>预计时长</text><strong>{{ durationText(activeTrip.estimatedDurationSeconds) }}</strong></view><view><text>预估费用</text><strong>¥{{ money(activeTrip.estimatedAmount) }}</strong></view></view>
 			<view v-if="activeTrip.status === 'TO_PICKUP'" class="action-row"><RideSlideAction class="slide-action" label="滑动确认到达上车点" @confirm="arrivePickup" /></view>
 			<view v-else-if="activeTrip.status === 'ARRIVED_PICKUP'" class="action-row"><RideSlideAction class="slide-action" label="滑动验证并开始行程" @confirm="openPhoneVerification" /></view>
-			<template v-else-if="activeTrip.status === 'IN_TRIP'">
-				<view class="meter"><view class="meter-head"><view><text>实时计价</text><strong>¥{{ money(meter?.amount) }}</strong></view><view><text>{{ distanceText(meter?.distanceMeters) }}</text><text>{{ durationText(meter?.durationSeconds) }}</text></view></view><view class="meter-breakdown"><view><text>起步价</text><strong>¥{{ money(meter?.baseFare) }}</strong></view><view><text>里程费</text><strong>¥{{ money(meter?.distanceFare) }}</strong></view><view><text>时长费</text><strong>¥{{ money(meter?.durationFare) }}</strong></view><view><text>附加费</text><strong>¥{{ money(meter?.extraAmount) }}</strong></view></view><transition name="ride-collapse"><view v-if="meterExpanded" class="meter-details"><view><text>里程计价</text><strong>超出 {{ numberText(meter?.chargeableDistanceKm) }}km × ¥{{ money(meter?.pricePerKm) }}/km</strong></view><view><text>时长计价</text><strong>超出 {{ numberText(meter?.chargeableDurationMinutes) }}分钟 × ¥{{ money(meter?.pricePerMinute) }}/分钟</strong></view><view><text>计价规则</text><strong>含 {{ numberText(meter?.includedDistanceKm) }}km / {{ numberText(meter?.includedDurationMinutes) }}分钟{{ meter?.minimumApplied ? ` · 最低消费 ¥${money(meter?.minimumFare)}` : '' }}</strong></view></view></transition><view class="meter-rule"><text>计价明细</text><text class="meter-toggle" @tap="meterExpanded = !meterExpanded">{{ meterExpanded ? '收起⌃' : '展开⌄' }}</text></view></view>
-				<view class="action-row"><RideSlideAction class="slide-action" label="滑动确认到达目的地" @confirm="arriveDestination" /></view>
-			</template>
+			<view v-else-if="activeTrip.status === 'IN_TRIP'" class="action-row in-trip-action"><RideSlideAction class="slide-action" label="滑动确认到达目的地" @confirm="arriveDestination" /><view class="live-meter"><text>实时金额</text><strong>¥{{ money(meter?.amount) }}</strong></view></view>
 			<button v-else-if="activeTrip.status === 'ARRIVED_DESTINATION'" class="primary" @tap="goFare">确认到达费用</button>
 			<view v-else class="settlement">{{ tripTitle }}</view>
 			</view>
@@ -66,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import RideChatSheet from '../../../components/ride/RideChatSheet.vue';
 import RideContactActions from '../../../components/ride/RideContactActions.vue';
 import RideMap from '../../../components/ride/RideMap.vue';
@@ -82,6 +79,7 @@ import { openLogin } from '../../../utils/auth-navigation';
 import { useSafeArea } from '../../../utils/safe-area';
 import { formatRidePassengerLabel } from '../../../utils/ride-format';
 import { resolveImageUrl } from '../../../utils/url';
+import { useRideMapFitPadding } from '../../../utils/ride-map-fit';
 
 const profile = ref<any>(null);
 const rideMap = ref<InstanceType<typeof RideMap> | null>(null);
@@ -99,17 +97,23 @@ const vehicleModal = ref(false);
 const vehicleSelecting = ref(false);
 const phoneLastFour = ref('');
 const phoneFocus = ref(false);
-const orderCollapsed = ref(false);
-const meterExpanded = ref(false);
+const orderCollapsed = ref(true);
 const verifying = ref(false);
 const seenDispatchIds = new Set<number>();
 let stopTracking: (() => void) | null = null;
 let stopRealtime: (() => void) | null = null;
 let poll: ReturnType<typeof setInterval> | undefined;
+let activeTripState = '';
+let routeTripId = 0;
 
 const safeArea = useSafeArea();
 const statusPanelStyle = computed(() => ({ top: (safeArea.topSpacerHeight + 88) + 'px' }));
-const mapFitPadding = computed(() => orderCollapsed.value ? [280, 24, 190, 24] : [420, 24, 560, 24]);
+const { paddingPx: mapFitPaddingPx, refresh: refreshMapFit } = useRideMapFitPadding({
+	topSelector: '.status-panel',
+	bottomSelector: '.bottom-shell',
+	topFallbackRpx: 420,
+	bottomFallbackRpx: 560,
+});
 const memberId = computed(() => Number(uni.getStorageSync('user')?.id || 0));
 const status = computed(() => profile.value?.availabilityStatus || 'OFFLINE');
 const statusText = computed(() => ({ AVAILABLE: '空闲接单中', BUSY: '忙碌，不参与新派单', OFFLINE: '当前离线' } as any)[status.value]);
@@ -138,6 +142,7 @@ const markers = computed(() => {
 	return list;
 });
 function locateOnMap() { return rideMap.value?.locateCurrent(); }
+function toggleOrder() { orderCollapsed.value = !orderCollapsed.value; refreshMapFit(); }
 
 async function load() {
 	const [nextProfile, nextVehicles, nextMemberVehicles, data] = await Promise.all([rideApi.driverProfile(), rideApi.driverVehicles(), rideApi.memberVehicles(), rideApi.driverOrders({ page: 1, pageSize: 50 })]);
@@ -151,7 +156,15 @@ async function load() {
 		orders.value = orders.value.map((item) => Number(item.id) === Number(detail.id) ? detail : item);
 		current = activeTrip.value;
 	}
-	if (current && !routePoints.value.length) routePoints.value = current.selectedRouteSnapshot?.points || [];
+	const nextActiveTripState = current ? `${Number(current.id)}:${current.status}` : '';
+	if (nextActiveTripState !== activeTripState) {
+		orderCollapsed.value = current?.status !== 'IN_TRIP';
+		activeTripState = nextActiveTripState;
+	}
+	if (current && routeTripId !== Number(current.id)) {
+		routeTripId = Number(current.id);
+		routePoints.value = current.selectedRouteSnapshot?.points || [];
+	} else if (!current) { routeTripId = 0; routePoints.value = []; }
 	if (current?.status === 'IN_TRIP') meter.value = current.fareDetails || meter.value;
 	else meter.value = null;
 	const freshDispatch = dispatching.value.find((trip) => !seenDispatchIds.has(Number(trip.id)));
@@ -262,7 +275,6 @@ function statusLabel(value: string) { return ({ TO_PICKUP: '接驾中', ARRIVED_
 function distanceText(value: any) { const meters = Number(value || 0); return meters < 1000 ? Math.round(meters) + 'm' : (meters / 1000).toFixed(1) + 'km'; }
 function durationText(value: any) { const seconds = Number(value || 0); return Math.max(0, Math.ceil(seconds / 60)) + '分钟'; }
 function money(value: any) { return Number(value || 0).toFixed(2); }
-function numberText(value: any) { const number = Number(value || 0); return number.toFixed(number % 1 ? 1 : 0); }
 function manageVehicles() { vehicleModal.value = true; }
 function vehicleOptionHint(option: any) {
 	const description = [option.vehicle?.brand, option.vehicle?.series, option.vehicle?.typeMain].map((value) => String(value || '').trim()).filter((value) => value && value !== '-').join(' · ');
@@ -295,6 +307,7 @@ function addDriverVehicle() {
 		},
 	});
 }
+watch(() => [orderCollapsed.value, activeTrip.value?.status, dispatching.value.length, meter.value?.amount], refreshMapFit, { flush: 'post' });
 onMounted(async () => {
 	if (!getToken()) { openLogin('required'); return; }
 	try { await load(); }
@@ -321,4 +334,5 @@ onBeforeUnmount(() => { stopTracking?.(); stopRealtime?.(); if (poll) clearInter
 .bottom-shell{position:absolute;z-index:20;right:20rpx;bottom:calc(22rpx + env(safe-area-inset-bottom));left:20rpx}
 .bottom-shell>.order-card,.bottom-shell>.dispatch-panel,.bottom-shell>.empty{position:relative;right:auto;bottom:auto;left:auto}
 .bottom-locate{position:absolute;z-index:2;top:-106rpx;right:4rpx}
+.in-trip-action{gap:12rpx}.live-meter{display:flex;width:156rpx;flex:none;flex-direction:column;align-items:center;justify-content:center;border:1rpx solid #dbe7f4;border-radius:24rpx;background:linear-gradient(145deg,#fff,#f5f9ff);box-shadow:0 8rpx 20rpx rgba(37,99,235,.08);box-sizing:border-box}.live-meter text{color:#64748b;font-size:18rpx}.live-meter strong{margin-top:4rpx;color:#0f172a;font-size:28rpx;line-height:1.1;white-space:nowrap}
 </style>

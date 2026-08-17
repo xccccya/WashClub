@@ -1,13 +1,13 @@
 <template>
 	<view class="page">
-		<view class="map"><RideMap v-if="trip" ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :show-locate-control="false" /></view>
-		<RideStatusBar :title="statusText" :subtitle="`${isDriverView ? '司机视角' : '乘客视角'} · ${trip?.order?.no || ''}`" />
+		<view class="map"><RideMap v-if="trip" ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding-px="mapFitPaddingPx" :show-location="canUseLocation" :show-locate-control="false" /></view>
+		<RideStatusBar class="top-fit-card" :title="statusText" :subtitle="`${isDriverView ? '司机视角' : '乘客视角'} · ${trip?.order?.no || ''}`" />
 		<view v-if="trip" class="drawer-shell">
-			<RideLocateControl class="drawer-locate" :action="locateOnMap" />
+			<RideLocateControl v-if="canUseLocation" class="drawer-locate" :action="locateOnMap" />
 			<view class="drawer">
 			<scroll-view scroll-y class="drawer-scroll">
 			<view class="drawer-content">
-				<view class="status-line"><view class="status-dot" /><view class="status-copy"><strong>{{ statusText }}</strong><text>{{ statusHint }}</text></view><text class="collapse-toggle" @tap="detailCollapsed = !detailCollapsed">{{ detailCollapsed ? '展开' : '收起' }}</text></view>
+				<view class="status-line"><view class="status-dot" /><view class="status-copy"><strong>{{ statusText }}</strong><text>{{ statusHint }}</text></view><text class="collapse-toggle" @tap="toggleDetail">{{ detailCollapsed ? '展开' : '收起' }}</text></view>
 				<transition name="ride-collapse">
 				<view v-if="!detailCollapsed" class="collapse-content">
 				<view class="route-card"><view class="route-row"><text class="point origin">起</text><text>{{ trip.originAddress }}</text></view><view class="route-link" /><view class="route-row"><text class="point destination">终</text><text>{{ trip.destinationAddress }}</text></view></view>
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import RideMap from '../../../components/ride/RideMap.vue';
 import RideLocateControl from '../../../components/ride/RideLocateControl.vue';
@@ -60,16 +60,24 @@ import { rideApi } from '../../../services/ride';
 import { onRideRealtime } from '../../../services/ride-realtime';
 import { formatRidePassengerLabel } from '../../../utils/ride-format';
 import { resolveImageUrl } from '../../../utils/url';
+import { useRideMapFitPadding } from '../../../utils/ride-map-fit';
 import passengerFallback from '../../../static/icons/jtuser.png';
 import vehicleLocationIcon from '../../../static/icons/ride-vehicle-location.svg';
 
 const rideMap = ref<InstanceType<typeof RideMap> | null>(null);
-const trip = ref<any>(null); const chat = ref(false); const chatUnreadCount = ref(0); const vehicleLogoFailed = ref(false); const fareExpanded = ref(false); const detailCollapsed = ref(false); let id = 0; const isDriverView = ref(false); let stopRealtime: (() => void) | null = null; let poll: ReturnType<typeof setInterval> | undefined;
+const trip = ref<any>(null); const chat = ref(false); const chatUnreadCount = ref(0); const vehicleLogoFailed = ref(false); const fareExpanded = ref(false); const detailCollapsed = ref(true); let id = 0; const isDriverView = ref(false); let stopRealtime: (() => void) | null = null; let poll: ReturnType<typeof setInterval> | undefined;
 const memberId = computed(() => Number(uni.getStorageSync('user')?.id || 0));
 const fareDetails = computed(() => trip.value?.fareDetails || null);
 const routePoints = computed(() => trip.value?.selectedRouteSnapshot?.points || []);
-const mapFitPadding = computed(() => detailCollapsed.value ? [150, 24, 190, 24] : [150, 24, 520, 24]);
 const driverLocationStatuses = new Set(['ACCEPTED', 'TO_PICKUP', 'ARRIVED_PICKUP', 'IN_TRIP', 'ARRIVED_DESTINATION', 'FARE_PENDING', 'SUPPLEMENT_PENDING']);
+const endedStatuses = new Set(['REFUND_PENDING', 'COMPLETED', 'CANCELLED', 'NO_DRIVER']);
+const canUseLocation = computed(() => !!trip.value && !endedStatuses.has(String(trip.value.status)));
+const { paddingPx: mapFitPaddingPx, refresh: refreshMapFit } = useRideMapFitPadding({
+	topSelector: '.top-fit-card',
+	bottomSelector: '.drawer',
+	topFallbackRpx: 150,
+	bottomFallbackRpx: 520,
+});
 const markers = computed(() => { if (!trip.value) return []; const current = trip.value; const list: any[] = [{ id: 1, longitude: Number(current.originLongitude), latitude: Number(current.originLatitude), title: '起点', kind: 'origin' }, { id: 2, longitude: Number(current.destinationLongitude), latitude: Number(current.destinationLatitude), title: '终点', kind: 'destination' }]; const location = driverLocationStatuses.has(current.status) ? current.locations?.[0] : null; if (location) list.push({ id: 3, longitude: Number(location.longitude), latitude: Number(location.latitude), title: '司机位置', kind: 'driver-current' }); return list; });
 const refundCompleted = computed(() => { const paid = Number(trip.value?.order?.payAmount || 0); const target = trip.value?.finalAmount == null ? paid : Math.max(0, paid - Number(trip.value.finalAmount || 0)); return target > 0 && Number(trip.value?.order?.refundedAmount || 0) + 0.000001 >= target; });
 const statusText = computed(() => { if (trip.value?.status === 'REFUND_PENDING' && refundCompleted.value) return trip.value?.finalAmount == null ? '退款已完成' : '行程已完成'; return ({ PREPAY_PENDING: '等待预付', DISPATCHING: isDriverView.value ? '待接取行程' : '等待司机接单', TO_PICKUP: isDriverView.value ? '前往乘客上车点' : '司机正在赶来', ARRIVED_PICKUP: isDriverView.value ? '等待乘客验证' : '司机已到达', IN_TRIP: '行程进行中', ARRIVED_DESTINATION: '已到目的地', FARE_PENDING: '正在结算', SUPPLEMENT_PENDING: '等待补款', REFUND_PENDING: '退款处理中', COMPLETED: '行程已完成', CANCELLED: '行程已取消', NO_DRIVER: '暂无司机' } as Record<string, string>)[trip.value?.status] || '行程详情'; });
@@ -84,7 +92,15 @@ const canContact = computed(() => isDriverView.value ? Number(trip.value?.driver
 const refundText = computed(() => trip.value?.status === 'REFUND_PENDING' ? (refundCompleted.value ? '退款已完成' : '退款处理中') : Number(trip.value?.order?.refundedAmount || 0) > 0 ? '退款已完成' : '');
 const fareModeText = computed(() => ({ ESTIMATED: '预估费用', LIVE: '实时费用', FINAL: '最终费用' } as any)[fareDetails.value?.mode] || '计价费用');
 
-async function load() { try { trip.value = await rideApi.detail(id); vehicleLogoFailed.value = false; } catch (error: any) { uni.showToast({ title: error?.message || '行程加载失败', icon: 'none' }); } }
+async function load() {
+	try {
+		const previousStatus = trip.value?.status;
+		const nextTrip = await rideApi.detail(id);
+		if (!previousStatus || previousStatus !== nextTrip?.status) detailCollapsed.value = !(isDriverView.value && nextTrip?.status === 'IN_TRIP');
+		trip.value = nextTrip;
+		vehicleLogoFailed.value = false;
+	} catch (error: any) { uni.showToast({ title: error?.message || '行程加载失败', icon: 'none' }); }
+}
 async function pay(orderId: number) { if (!orderId) return; try { await rideApi.payOrder(orderId); uni.showToast({ title: '支付成功', icon: 'success' }); setTimeout(load, 800); } catch { uni.showToast({ title: '支付未完成', icon: 'none' }); } }
 async function callOtherParty() { try { const contact = await rideApi.contact(id); uni.makePhoneCall({ phoneNumber: contact.phone }); } catch (error: any) { uni.showToast({ title: error?.message || '暂时无法联系对方', icon: 'none' }); } }
 async function acceptTrip() { try { await rideApi.accept(id); uni.showToast({ title: '接单成功', icon: 'success' }); await load(); } catch (error: any) { uni.showToast({ title: error?.message || '订单已被接取', icon: 'none' }); } }
@@ -94,7 +110,9 @@ function money(value: unknown) { return Number(value || 0).toFixed(2); }
 function numberText(value: unknown) { return Number(value || 0).toFixed(Number(value || 0) % 1 ? 1 : 0); }
 function distanceText(value: unknown) { const meters = Number(value || 0); return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`; }
 function durationText(value: unknown) { return `${Math.max(0, Math.ceil(Number(value || 0) / 60))}分钟`; }
-function locateOnMap() { return rideMap.value?.locateCurrent(); }
+function locateOnMap() { if (canUseLocation.value) return rideMap.value?.locateCurrent(); }
+function toggleDetail() { detailCollapsed.value = !detailCollapsed.value; refreshMapFit(); }
+watch(() => [detailCollapsed.value, fareExpanded.value, trip.value?.status, fareDetails.value?.amount], refreshMapFit, { flush: 'post' });
 onLoad((query: any) => { id = Number(query?.id || 0); isDriverView.value = query?.driver === '1'; void load(); stopRealtime = onRideRealtime(handleRealtime); poll = setInterval(load, 8000); });
 onBeforeUnmount(() => { stopRealtime?.(); if (poll) clearInterval(poll); });
 </script>

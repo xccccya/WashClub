@@ -1,14 +1,14 @@
 <template>
 	<view class="page">
-		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding="mapFitPadding" :show-locate-control="false" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
-		<RideStatusBar title="呼叫司机" :subtitle="availabilityText">
+		<RideMap ref="rideMap" :markers="markers" :route-points="routePoints" :fit-padding-px="mapFitPaddingPx" :show-locate-control="false" :selectable="!!selecting" @marker-tap="onMarkerTap" @map-tap="pickFromMap" />
+		<RideStatusBar class="top-fit-card" title="呼叫司机" :subtitle="availabilityText">
 			<view class="orders-link" @tap="goOrders">行程订单</view>
 		</RideStatusBar>
 		<view class="drawer-shell">
 			<RideLocateControl class="drawer-locate" :action="locateOnMap" />
 			<view class="drawer">
 			<view class="drawer-grabber" />
-			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><view class="drawer-head-actions"><text class="availability-pill">{{ availabilityText }}</text><text class="collapse-toggle" @tap="drawerCollapsed = !drawerCollapsed">{{ drawerCollapsed ? '展开' : '收起' }}</text></view></view>
+			<view class="drawer-head"><view><strong>规划本次行程</strong><text>选择地点后预览路线与费用</text></view><view class="drawer-head-actions"><text class="availability-pill">{{ availabilityText }}</text><text class="collapse-toggle" @tap="toggleDrawer">{{ drawerCollapsed ? '展开' : '收起' }}</text></view></view>
 			<transition name="ride-collapse">
 			<view v-if="!drawerCollapsed" class="collapse-content">
 			<view v-if="selecting" class="map-pick-tip"><text>请在地图上点击{{ selecting === 'origin' ? '起点' : '终点' }}</text><text @tap="selecting = null">取消</text></view>
@@ -43,13 +43,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app';
 import RideMap from '../../../components/ride/RideMap.vue';
 import RideLocateControl from '../../../components/ride/RideLocateControl.vue';
 import RideStatusBar from '../../../components/ride/RideStatusBar.vue';
 import { rideApi } from '../../../services/ride';
 import { getCurrentRideLocation, locationErrorMessage } from '../../../services/geolocation';
+import { useRideMapFitPadding } from '../../../utils/ride-map-fit';
 
 const loading = ref(false);
 const rideMap = ref<InstanceType<typeof RideMap> | null>(null);
@@ -74,8 +75,14 @@ const availabilityText = computed(() => availability.value ? `${availability.val
 const canCall = computed(() => !!availability.value?.availableCount && !!destination.value.longitude);
 const selectedRoute = computed(() => preview.value?.routes?.[selectedRouteIndex.value] || preview.value);
 const routePoints = computed(() => selectedRoute.value?.route?.points || []);
-const mapFitPadding = computed(() => drawerCollapsed.value ? [150, 28, 180, 28] : [150, 28, 560, 28]);
 const showRecentPanel = computed(() => recentPlaces.value.length > 0 && !preview.value && !originTips.value.length && !destinationTips.value.length);
+const { paddingPx: mapFitPaddingPx, refresh: refreshMapFit } = useRideMapFitPadding({
+	topSelector: '.top-fit-card',
+	bottomSelector: '.drawer',
+	topFallbackRpx: 150,
+	bottomFallbackRpx: 560,
+	sideRpx: 28,
+});
 const markers = computed(() => {
 	const list: any[] = [{ id: 1, ...origin.value, title: '起点', kind: 'origin' }];
 	if (destination.value.longitude) list.push({ id: 2, ...destination.value, title: '终点', kind: 'destination' });
@@ -104,6 +111,7 @@ async function locate() {
 	}
 }
 function locateOnMap() { return rideMap.value?.locateCurrent(); }
+function toggleDrawer() { drawerCollapsed.value = !drawerCollapsed.value; refreshMapFit(); }
 async function check(silent = false) {
 	if (checkingAvailability || !Number(origin.value.longitude) || !Number(origin.value.latitude)) return;
 	checkingAvailability = true;
@@ -196,6 +204,7 @@ async function onMarkerTap(id: number) {
 	} catch { uni.showToast({ title: '司机当前不可联系', icon: 'none' }); }
 }
 function goOrders() { uni.navigateTo({ url: '/pages/ride/orders/index' }); }
+watch(() => [drawerCollapsed.value, !!preview.value, selecting.value, !!locationNotice.value, originTips.value.length, destinationTips.value.length, recentPlaces.value.length], refreshMapFit, { flush: 'post' });
 onMounted(() => {
 	const stored = uni.getStorageSync(RECENT_PLACES_KEY);
 	recentPlaces.value = Array.isArray(stored) ? stored.slice(0, 10) : [];

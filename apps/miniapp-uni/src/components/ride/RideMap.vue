@@ -30,6 +30,7 @@ const props = withDefaults(defineProps<{
 	autoFit?: boolean;
 	autoFitPauseMs?: number;
 	fitPadding?: number[];
+	fitPaddingPx?: number[];
 	locateTop?: string;
 }>(), {
 	markers: () => [],
@@ -50,12 +51,14 @@ const fallbackCenter = { longitude: 104.6688, latitude: 29.5274 };
 const viewportCenter = ref({ ...fallbackCenter });
 const nativeScale = ref(14);
 const nativeIncludePoints = ref<RideMapPoint[]>([]);
-const nativeFitPadding = computed(() => props.fitPadding.map((value) => Math.max(0, Math.round(uni.upx2px(Number(value))))));
+const nativeFitPadding = computed(() => fitPaddingPixels());
 const locateTop = computed(() => props.locateTop);
 const locateControlStyle = computed(() => ({ top: locateTop.value, bottom: 'auto' }));
 let nativeMapContext: any = null;
 let lastUserInteractionAt = 0;
 let lastFitSignature = '';
+let nativeFitTimer: ReturnType<typeof setTimeout> | undefined;
+let settleFitTimer: ReturnType<typeof setTimeout> | undefined;
 function isValidPoint(point: Partial<RideMapPoint> | null | undefined): point is RideMapPoint {
 	return Number.isFinite(Number(point?.longitude)) && Number.isFinite(Number(point?.latitude));
 }
@@ -97,24 +100,42 @@ function fitViewport(force = false) {
 	if (!props.autoFit && !force) return;
 	const points = fitPoints();
 	if (!points.length || !canAutoFit(force)) return;
-	const signature = pointsSignature(points);
+	const padding = fitPaddingPixels();
+	const signature = `${pointsSignature(points)}@${padding.join(',')}`;
 	if (!force && signature === lastFitSignature) return;
 	lastFitSignature = signature;
-	if (points.length === 1) {
-		focusPoint(points[0], 15);
-		return;
-	}
 	viewportCenter.value = {
 		longitude: points.reduce((sum, point) => sum + point.longitude, 0) / points.length,
 		latitude: points.reduce((sum, point) => sum + point.latitude, 0) / points.length,
 	};
-	nativeIncludePoints.value = points.map((point) => ({ ...point }));
+	if (points.length === 1) nativeScale.value = 16;
+	const nextNativePoints = points.map((point) => ({ ...point }));
+	if (force) {
+		nativeIncludePoints.value = [];
+		if (nativeFitTimer) clearTimeout(nativeFitTimer);
+		nativeFitTimer = setTimeout(() => { nativeIncludePoints.value = nextNativePoints; }, 20);
+	} else nativeIncludePoints.value = nextNativePoints;
 	// #ifdef H5
-	if (map && h5FitOverlays.length) map.setFitView(h5FitOverlays, false, fitPaddingPixels(), 18);
+	if (map && h5FitOverlays.length) map.setFitView(h5FitOverlays, false, h5FitPaddingPixels(), points.length === 1 ? 16 : 18);
 	// #endif
 }
 function fitPaddingPixels() {
-	return props.fitPadding.map((value) => Math.max(0, Math.round(uni.upx2px(Number(value)))));
+	const direct = props.fitPaddingPx?.length === 4 ? props.fitPaddingPx : null;
+	return (direct || props.fitPadding).map((value) => Math.max(0, Math.round(direct ? Number(value) : uni.upx2px(Number(value))))) as [number, number, number, number];
+}
+function h5FitPaddingPixels() {
+	const [top, right, bottom, left] = fitPaddingPixels();
+	return [top, bottom, left, right];
+}
+function scheduleFit(force = false) {
+	fitViewport(force);
+	if (settleFitTimer) clearTimeout(settleFitTimer);
+	settleFitTimer = setTimeout(() => {
+		// #ifdef H5
+		map?.resize?.();
+		// #endif
+		fitViewport(force);
+	}, 420);
 }
 function focusPoint(point: RideMapPoint, zoom = 16) {
 	viewportCenter.value = { longitude: Number(point.longitude), latitude: Number(point.latitude) };
@@ -135,7 +156,7 @@ async function locateCurrent() {
 		uni.showToast({ title: locationErrorMessage(locationError).slice(0, 30), icon: 'none' });
 	} finally { locating.value = false; }
 }
-defineExpose({ locateCurrent });
+defineExpose({ locateCurrent, refit: () => scheduleFit(true) });
 
 // #ifdef H5
 import AMapLoader from '@amap/amap-jsapi-loader';
@@ -215,16 +236,21 @@ function renderH5() {
 		return [item, bubble];
 	});
 	const validRoutePoints = props.routePoints.filter(isValidPoint);
-	if (validRoutePoints.length > 1) overlays.push(new AMap.Polyline({ path: validRoutePoints.map((point) => [Number(point.longitude), Number(point.latitude)]), strokeColor: '#2563eb', strokeWeight: 7, strokeOpacity: 0.85, showDir: true, lineJoin: 'round' }));
+	if (validRoutePoints.length > 1) {
+		const routeLine = new AMap.Polyline({ path: validRoutePoints.map((point) => [Number(point.longitude), Number(point.latitude)]), strokeColor: '#2563eb', strokeWeight: 7, strokeOpacity: 0.85, showDir: true, lineJoin: 'round' });
+		overlays.push(routeLine);
+		h5FitOverlays.push(routeLine);
+	}
 	if (overlays.length) map.add(overlays);
 }
 // #endif
-watch(() => [props.markers, props.routePoints, props.fitPadding], () => {
+watch(() => [props.markers, props.routePoints], () => {
 	// #ifdef H5
 	renderH5();
 	// #endif
-	fitViewport();
+	scheduleFit();
 }, { deep: true });
+watch(() => [props.fitPadding, props.fitPaddingPx], () => scheduleFit(true), { deep: true });
 
 onMounted(() => {
 	viewportCenter.value = initialCenter.value;
@@ -234,10 +260,12 @@ onMounted(() => {
 	initH5();
 	// #endif
 	// #ifndef H5
-	setTimeout(() => fitViewport(true), 80);
+	setTimeout(() => scheduleFit(true), 80);
 	// #endif
 });
 onBeforeUnmount(() => {
+	if (nativeFitTimer) clearTimeout(nativeFitTimer);
+	if (settleFitTimer) clearTimeout(settleFitTimer);
 	// #ifdef H5
 	destroyed = true;
 	try { if (map && overlays.length) map.remove(overlays); map?.destroy?.(); } catch {}
